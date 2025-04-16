@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<!--
+* CoreUI - Free Bootstrap Admin Template
+* @version v4.0.2
+* @link https://coreui.io
+* Copyright (c) 2021 creativeLabs Łukasz Holeczek
+* Licensed under MIT (https://coreui.io/license)
+-->
+<html lang="en">
+  <head>
+    <base href="./">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta name="description" content="CoreUI - Open Source Bootstrap Admin Template">
+    <meta name="author" content="Łukasz Holeczek">
+    <meta name="keyword" content="Bootstrap,Admin,Template,Open,Source,jQuery,CSS,HTML,RWD,Dashboard">
+    <title>Export</title>
+    <link rel='shortcut icon' type='image/x-icon' href='/static/favicon.ico' />
+    
+    <!-- Vendors styles-->
+    <link rel="stylesheet" href="static/vendors/simplebar/css/simplebar.css">
+    <link rel="stylesheet" href="static/css/vendors/simplebar.css">
+    <!-- Main styles for this application-->
+    <link href="static/css/style.css" rel="stylesheet">
+    <!-- page-specific style -->
+    <link href="static/css/export.css" rel="stylesheet">
+    <!-- ionicons -->
+    <link href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" rel="stylesheet">
+
+    <!-- toaster -->
+    <link rel="stylesheet" href="static/toastr@2.1.4/toastr.min.css">
+
+    <!-- codemirror -->
+    <link rel="stylesheet" href="static/codemirror-5.64.0/codemirror.css" >    
+    <script src="static/codemirror-5.64.0/codemirror.js"></script>
+
+    <!-- highlight.js -->
+    <!-- <link rel="stylesheet" href="static/highlightjs@11.3.1/default.min.css" >     -->
+    <!-- <script src="static/highlightjs@11.3.1/highlight.min.js"></script> -->
+    <!-- <script src="static/highlightjs@11.3.1/json.min.js"></script> -->
+
+
+    <script src="static/app/jquery-3.6.0.min.js"></script>
+    <script src="static/app/app.js"></script>
+  </head>
+  <body class="export-page">
+
+{% include "sidebar.html" ignore missing %}
+
+    <div class="wrapper d-flex flex-column min-vh-100 bg-light">
+
+{% include "header.html" ignore missing %}
+
+      <div class="body flex-grow-1 px-3">
+        <div class="container-lg">
+
+          <div class="row">
+            <div class="col-md-12">
+              <div class="card mb-2">
+                <div class="card-header">Exported Scenario
+
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <textarea class="form-control" id="export_text_area" rows="3"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+
+          <div class="row">
+            <div class="mb-3">
+              <button type="button" class="btn btn-dark" id="export-btn-copy">
+                <svg class="icon">
+                  <use xlink:href="static/vendors/@coreui/icons/svg/free.svg#cil-clipboard"></use>
+                </svg> Copy
+              </button> 
+              <button type="button" class="btn btn-primary" id="export-btn-save">
+                <svg class="icon">
+                  <use xlink:href="static/vendors/@coreui/icons/svg/free.svg#cil-data-transfer-down"></use>
+                </svg> Save
+              </button> 
+            </div>
+          </div>
+          <!-- row -->
+
+
+        </div>
+      </div>
+
+{% include "footer.html" ignore missing %}
+
+    </div>
+    <!-- CoreUI and necessary plugins-->
+    <script src="static/vendors/@coreui/coreui/js/coreui.bundle.min.js"></script>
+    <script src="static/vendors/simplebar/js/simplebar.min.js"></script>
+    
+    <!-- Plugins and scripts required by this view-->
+    <!-- <script src="vendors/chart.js/js/chart.min.js"></script> -->
+    <!-- <script src="vendors/@coreui/chartjs/js/coreui-chartjs.js"></script> -->
+    <script src="static/vendors/@coreui/utils/js/coreui-utils.js"></script>
+    <!-- <script src="static/js/main.js"></script> -->
+    <script src="static/js/export.js"></script>
+    <script src="static/toastr@2.1.4/toastr.min.js"></script>
+    <a id="downloadAnchorElem" style="display:none"></a>
+  </body>
+</html>

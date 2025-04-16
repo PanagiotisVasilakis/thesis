@@ -1,0 +1,1122 @@
+[
+  {
+    "latitude": 0.0,
+    "longitude": 0.0,
+    "description": "Point 0 for test_ue_1"
+  },
+  {
+    "latitude": 4.47213595499958,
+    "longitude": 2.23606797749979,
+    "description": "Point 1 for test_ue_1"
+  },
+  {
+    "latitude": 8.94427190999916,
+    "longitude": 4.47213595499958,
+    "description": "Point 2 for test_ue_1"
+  },
+  {
+    "latitude": 13.416407864998737,
+    "longitude": 6.7082039324993685,
+    "description": "Point 3 for test_ue_1"
+  },
+  {
+    "latitude": 17.88854381999832,
+    "longitude": 8.94427190999916,
+    "description": "Point 4 for test_ue_1"
+  },
+  {
+    "latitude": 22.360679774997898,
+    "longitude": 11.180339887498949,
+    "description": "Point 5 for test_ue_1"
+  },
+  {
+    "latitude": 26.832815729997474,
+    "longitude": 13.416407864998737,
+    "description": "Point 6 for test_ue_1"
+  },
+  {
+    "latitude": 31.304951684997054,
+    "longitude": 15.652475842498527,
+    "description": "Point 7 for test_ue_1"
+  },
+  {
+    "latitude": 35.77708763999664,
+    "longitude": 17.88854381999832,
+    "description": "Point 8 for test_ue_1"
+  },
+  {
+    "latitude": 40.24922359499622,
+    "longitude": 20.12461179749811,
+    "description": "Point 9 for test_ue_1"
+  },
+  {
+    "latitude": 44.721359549995796,
+    "longitude": 22.360679774997898,
+    "description": "Point 10 for test_ue_1"
+  },
+  {
+    "latitude": 49.19349550499537,
+    "longitude": 24.596747752497684,
+    "description": "Point 11 for test_ue_1"
+  },
+  {
+    "latitude": 53.66563145999495,
+    "longitude": 26.832815729997474,
+    "description": "Point 12 for test_ue_1"
+  },
+  {
+    "latitude": 58.13776741499453,
+    "longitude": 29.068883707497264,
+    "description": "Point 13 for test_ue_1"
+  },
+  {
+    "latitude": 62.60990336999411,
+    "longitude": 31.304951684997054,
+    "description": "Point 14 for test_ue_1"
+  },
+  {
+    "latitude": 67.08203932499369,
+    "longitude": 33.54101966249684,
+    "description": "Point 15 for test_ue_1"
+  },
+  {
+    "latitude": 71.55417527999327,
+    "longitude": 35.77708763999664,
+    "description": "Point 16 for test_ue_1"
+  },
+  {
+    "latitude": 76.02631123499285,
+    "longitude": 38.01315561749642,
+    "description": "Point 17 for test_ue_1"
+  },
+  {
+    "latitude": 80.49844718999243,
+    "longitude": 40.24922359499622,
+    "description": "Point 18 for test_ue_1"
+  },
+  {
+    "latitude": 84.970583144992,
+    "longitude": 42.485291572496,
+    "description": "Point 19 for test_ue_1"
+  },
+  {
+    "latitude": 89.44271909999159,
+    "longitude": 44.721359549995796,
+    "description": "Point 20 for test_ue_1"
+  },
+  {
+    "latitude": 93.91485505499116,
+    "longitude": 46.95742752749558,
+    "description": "Point 21 for test_ue_1"
+  },
+  {
+    "latitude": 98.38699100999074,
+    "longitude": 49.19349550499537,
+    "description": "Point 22 for test_ue_1"
+  },
+  {
+    "latitude": 102.85912696499032,
+    "longitude": 51.42956348249516,
+    "description": "Point 23 for test_ue_1"
+  },
+  {
+    "latitude": 107.3312629199899,
+    "longitude": 53.66563145999495,
+    "description": "Point 24 for test_ue_1"
+  },
+  {
+    "latitude": 111.80339887498948,
+    "longitude": 55.90169943749474,
+    "description": "Point 25 for test_ue_1"
+  },
+  {
+    "latitude": 116.27553482998906,
+    "longitude": 58.13776741499453,
+    "description": "Point 26 for test_ue_1"
+  },
+  {
+    "latitude": 120.74767078498864,
+    "longitude": 60.37383539249432,
+    "description": "Point 27 for test_ue_1"
+  },
+  {
+    "latitude": 125.21980673998821,
+    "longitude": 62.60990336999411,
+    "description": "Point 28 for test_ue_1"
+  },
+  {
+    "latitude": 129.6919426949878,
+    "longitude": 64.8459713474939,
+    "description": "Point 29 for test_ue_1"
+  },
+  {
+    "latitude": 134.16407864998737,
+    "longitude": 67.08203932499369,
+    "description": "Point 30 for test_ue_1"
+  },
+  {
+    "latitude": 138.63621460498695,
+    "longitude": 69.31810730249347,
+    "description": "Point 31 for test_ue_1"
+  },
+  {
+    "latitude": 143.10835055998655,
+    "longitude": 71.55417527999327,
+    "description": "Point 32 for test_ue_1"
+  },
+  {
+    "latitude": 147.58048651498612,
+    "longitude": 73.79024325749306,
+    "description": "Point 33 for test_ue_1"
+  },
+  {
+    "latitude": 152.0526224699857,
+    "longitude": 76.02631123499285,
+    "description": "Point 34 for test_ue_1"
+  },
+  {
+    "latitude": 156.52475842498527,
+    "longitude": 78.26237921249263,
+    "description": "Point 35 for test_ue_1"
+  },
+  {
+    "latitude": 160.99689437998487,
+    "longitude": 80.49844718999243,
+    "description": "Point 36 for test_ue_1"
+  },
+  {
+    "latitude": 165.46903033498444,
+    "longitude": 82.73451516749222,
+    "description": "Point 37 for test_ue_1"
+  },
+  {
+    "latitude": 169.941166289984,
+    "longitude": 84.970583144992,
+    "description": "Point 38 for test_ue_1"
+  },
+  {
+    "latitude": 174.41330224498358,
+    "longitude": 87.20665112249179,
+    "description": "Point 39 for test_ue_1"
+  },
+  {
+    "latitude": 178.88543819998318,
+    "longitude": 89.44271909999159,
+    "description": "Point 40 for test_ue_1"
+  },
+  {
+    "latitude": 183.35757415498276,
+    "longitude": 91.67878707749138,
+    "description": "Point 41 for test_ue_1"
+  },
+  {
+    "latitude": 187.82971010998233,
+    "longitude": 93.91485505499116,
+    "description": "Point 42 for test_ue_1"
+  },
+  {
+    "latitude": 192.3018460649819,
+    "longitude": 96.15092303249095,
+    "description": "Point 43 for test_ue_1"
+  },
+  {
+    "latitude": 196.77398201998147,
+    "longitude": 98.38699100999074,
+    "description": "Point 44 for test_ue_1"
+  },
+  {
+    "latitude": 201.24611797498108,
+    "longitude": 100.62305898749054,
+    "description": "Point 45 for test_ue_1"
+  },
+  {
+    "latitude": 205.71825392998065,
+    "longitude": 102.85912696499032,
+    "description": "Point 46 for test_ue_1"
+  },
+  {
+    "latitude": 210.19038988498022,
+    "longitude": 105.09519494249011,
+    "description": "Point 47 for test_ue_1"
+  },
+  {
+    "latitude": 214.6625258399798,
+    "longitude": 107.3312629199899,
+    "description": "Point 48 for test_ue_1"
+  },
+  {
+    "latitude": 219.1346617949794,
+    "longitude": 109.5673308974897,
+    "description": "Point 49 for test_ue_1"
+  },
+  {
+    "latitude": 223.60679774997897,
+    "longitude": 111.80339887498948,
+    "description": "Point 50 for test_ue_1"
+  },
+  {
+    "latitude": 228.07893370497854,
+    "longitude": 114.03946685248927,
+    "description": "Point 51 for test_ue_1"
+  },
+  {
+    "latitude": 232.5510696599781,
+    "longitude": 116.27553482998906,
+    "description": "Point 52 for test_ue_1"
+  },
+  {
+    "latitude": 237.0232056149777,
+    "longitude": 118.51160280748886,
+    "description": "Point 53 for test_ue_1"
+  },
+  {
+    "latitude": 241.49534156997728,
+    "longitude": 120.74767078498864,
+    "description": "Point 54 for test_ue_1"
+  },
+  {
+    "latitude": 245.96747752497686,
+    "longitude": 122.98373876248843,
+    "description": "Point 55 for test_ue_1"
+  },
+  {
+    "latitude": 250.43961347997643,
+    "longitude": 125.21980673998821,
+    "description": "Point 56 for test_ue_1"
+  },
+  {
+    "latitude": 254.91174943497603,
+    "longitude": 127.45587471748802,
+    "description": "Point 57 for test_ue_1"
+  },
+  {
+    "latitude": 259.3838853899756,
+    "longitude": 129.6919426949878,
+    "description": "Point 58 for test_ue_1"
+  },
+  {
+    "latitude": 263.8560213449752,
+    "longitude": 131.9280106724876,
+    "description": "Point 59 for test_ue_1"
+  },
+  {
+    "latitude": 268.32815729997475,
+    "longitude": 134.16407864998737,
+    "description": "Point 60 for test_ue_1"
+  },
+  {
+    "latitude": 272.80029325497435,
+    "longitude": 136.40014662748717,
+    "description": "Point 61 for test_ue_1"
+  },
+  {
+    "latitude": 277.2724292099739,
+    "longitude": 138.63621460498695,
+    "description": "Point 62 for test_ue_1"
+  },
+  {
+    "latitude": 281.7445651649735,
+    "longitude": 140.87228258248675,
+    "description": "Point 63 for test_ue_1"
+  },
+  {
+    "latitude": 286.2167011199731,
+    "longitude": 143.10835055998655,
+    "description": "Point 64 for test_ue_1"
+  },
+  {
+    "latitude": 290.68883707497264,
+    "longitude": 145.34441853748632,
+    "description": "Point 65 for test_ue_1"
+  },
+  {
+    "latitude": 295.16097302997224,
+    "longitude": 147.58048651498612,
+    "description": "Point 66 for test_ue_1"
+  },
+  {
+    "latitude": 299.6331089849718,
+    "longitude": 149.8165544924859,
+    "description": "Point 67 for test_ue_1"
+  },
+  {
+    "latitude": 304.1052449399714,
+    "longitude": 152.0526224699857,
+    "description": "Point 68 for test_ue_1"
+  },
+  {
+    "latitude": 308.577380894971,
+    "longitude": 154.2886904474855,
+    "description": "Point 69 for test_ue_1"
+  },
+  {
+    "latitude": 313.04951684997053,
+    "longitude": 156.52475842498527,
+    "description": "Point 70 for test_ue_1"
+  },
+  {
+    "latitude": 317.52165280497013,
+    "longitude": 158.76082640248507,
+    "description": "Point 71 for test_ue_1"
+  },
+  {
+    "latitude": 321.99378875996973,
+    "longitude": 160.99689437998487,
+    "description": "Point 72 for test_ue_1"
+  },
+  {
+    "latitude": 326.4659247149693,
+    "longitude": 163.23296235748464,
+    "description": "Point 73 for test_ue_1"
+  },
+  {
+    "latitude": 330.9380606699689,
+    "longitude": 165.46903033498444,
+    "description": "Point 74 for test_ue_1"
+  },
+  {
+    "latitude": 335.4101966249684,
+    "longitude": 167.7050983124842,
+    "description": "Point 75 for test_ue_1"
+  },
+  {
+    "latitude": 339.882332579968,
+    "longitude": 169.941166289984,
+    "description": "Point 76 for test_ue_1"
+  },
+  {
+    "latitude": 344.3544685349676,
+    "longitude": 172.1772342674838,
+    "description": "Point 77 for test_ue_1"
+  },
+  {
+    "latitude": 348.82660448996717,
+    "longitude": 174.41330224498358,
+    "description": "Point 78 for test_ue_1"
+  },
+  {
+    "latitude": 353.29874044496677,
+    "longitude": 176.64937022248338,
+    "description": "Point 79 for test_ue_1"
+  },
+  {
+    "latitude": 357.77087639996637,
+    "longitude": 178.88543819998318,
+    "description": "Point 80 for test_ue_1"
+  },
+  {
+    "latitude": 362.2430123549659,
+    "longitude": 181.12150617748296,
+    "description": "Point 81 for test_ue_1"
+  },
+  {
+    "latitude": 366.7151483099655,
+    "longitude": 183.35757415498276,
+    "description": "Point 82 for test_ue_1"
+  },
+  {
+    "latitude": 371.18728426496506,
+    "longitude": 185.59364213248253,
+    "description": "Point 83 for test_ue_1"
+  },
+  {
+    "latitude": 375.65942021996466,
+    "longitude": 187.82971010998233,
+    "description": "Point 84 for test_ue_1"
+  },
+  {
+    "latitude": 380.13155617496426,
+    "longitude": 190.06577808748213,
+    "description": "Point 85 for test_ue_1"
+  },
+  {
+    "latitude": 384.6036921299638,
+    "longitude": 192.3018460649819,
+    "description": "Point 86 for test_ue_1"
+  },
+  {
+    "latitude": 389.0758280849634,
+    "longitude": 194.5379140424817,
+    "description": "Point 87 for test_ue_1"
+  },
+  {
+    "latitude": 393.54796403996295,
+    "longitude": 196.77398201998147,
+    "description": "Point 88 for test_ue_1"
+  },
+  {
+    "latitude": 398.02009999496255,
+    "longitude": 199.01004999748127,
+    "description": "Point 89 for test_ue_1"
+  },
+  {
+    "latitude": 402.49223594996215,
+    "longitude": 201.24611797498108,
+    "description": "Point 90 for test_ue_1"
+  },
+  {
+    "latitude": 406.9643719049617,
+    "longitude": 203.48218595248085,
+    "description": "Point 91 for test_ue_1"
+  },
+  {
+    "latitude": 411.4365078599613,
+    "longitude": 205.71825392998065,
+    "description": "Point 92 for test_ue_1"
+  },
+  {
+    "latitude": 415.9086438149609,
+    "longitude": 207.95432190748045,
+    "description": "Point 93 for test_ue_1"
+  },
+  {
+    "latitude": 420.38077976996044,
+    "longitude": 210.19038988498022,
+    "description": "Point 94 for test_ue_1"
+  },
+  {
+    "latitude": 424.85291572496004,
+    "longitude": 212.42645786248002,
+    "description": "Point 95 for test_ue_1"
+  },
+  {
+    "latitude": 429.3250516799596,
+    "longitude": 214.6625258399798,
+    "description": "Point 96 for test_ue_1"
+  },
+  {
+    "latitude": 433.7971876349592,
+    "longitude": 216.8985938174796,
+    "description": "Point 97 for test_ue_1"
+  },
+  {
+    "latitude": 438.2693235899588,
+    "longitude": 219.1346617949794,
+    "description": "Point 98 for test_ue_1"
+  },
+  {
+    "latitude": 442.74145954495833,
+    "longitude": 221.37072977247917,
+    "description": "Point 99 for test_ue_1"
+  },
+  {
+    "latitude": 447.21359549995793,
+    "longitude": 223.60679774997897,
+    "description": "Point 100 for test_ue_1"
+  },
+  {
+    "latitude": 451.68573145495753,
+    "longitude": 225.84286572747877,
+    "description": "Point 101 for test_ue_1"
+  },
+  {
+    "latitude": 456.1578674099571,
+    "longitude": 228.07893370497854,
+    "description": "Point 102 for test_ue_1"
+  },
+  {
+    "latitude": 460.6300033649567,
+    "longitude": 230.31500168247834,
+    "description": "Point 103 for test_ue_1"
+  },
+  {
+    "latitude": 465.1021393199562,
+    "longitude": 232.5510696599781,
+    "description": "Point 104 for test_ue_1"
+  },
+  {
+    "latitude": 469.5742752749558,
+    "longitude": 234.7871376374779,
+    "description": "Point 105 for test_ue_1"
+  },
+  {
+    "latitude": 474.0464112299554,
+    "longitude": 237.0232056149777,
+    "description": "Point 106 for test_ue_1"
+  },
+  {
+    "latitude": 478.51854718495497,
+    "longitude": 239.25927359247748,
+    "description": "Point 107 for test_ue_1"
+  },
+  {
+    "latitude": 482.99068313995457,
+    "longitude": 241.49534156997728,
+    "description": "Point 108 for test_ue_1"
+  },
+  {
+    "latitude": 487.4628190949541,
+    "longitude": 243.73140954747706,
+    "description": "Point 109 for test_ue_1"
+  },
+  {
+    "latitude": 491.9349550499537,
+    "longitude": 245.96747752497686,
+    "description": "Point 110 for test_ue_1"
+  },
+  {
+    "latitude": 496.4070910049533,
+    "longitude": 248.20354550247666,
+    "description": "Point 111 for test_ue_1"
+  },
+  {
+    "latitude": 500.87922695995286,
+    "longitude": 250.43961347997643,
+    "description": "Point 112 for test_ue_1"
+  },
+  {
+    "latitude": 505.35136291495246,
+    "longitude": 252.67568145747623,
+    "description": "Point 113 for test_ue_1"
+  },
+  {
+    "latitude": 509.82349886995206,
+    "longitude": 254.91174943497603,
+    "description": "Point 114 for test_ue_1"
+  },
+  {
+    "latitude": 514.2956348249517,
+    "longitude": 257.14781741247583,
+    "description": "Point 115 for test_ue_1"
+  },
+  {
+    "latitude": 518.7677707799512,
+    "longitude": 259.3838853899756,
+    "description": "Point 116 for test_ue_1"
+  },
+  {
+    "latitude": 523.2399067349508,
+    "longitude": 261.6199533674754,
+    "description": "Point 117 for test_ue_1"
+  },
+  {
+    "latitude": 527.7120426899504,
+    "longitude": 263.8560213449752,
+    "description": "Point 118 for test_ue_1"
+  },
+  {
+    "latitude": 532.18417864495,
+    "longitude": 266.092089322475,
+    "description": "Point 119 for test_ue_1"
+  },
+  {
+    "latitude": 536.6563145999495,
+    "longitude": 268.32815729997475,
+    "description": "Point 120 for test_ue_1"
+  },
+  {
+    "latitude": 541.128450554949,
+    "longitude": 270.5642252774745,
+    "description": "Point 121 for test_ue_1"
+  },
+  {
+    "latitude": 545.6005865099487,
+    "longitude": 272.80029325497435,
+    "description": "Point 122 for test_ue_1"
+  },
+  {
+    "latitude": 550.0727224649482,
+    "longitude": 275.0363612324741,
+    "description": "Point 123 for test_ue_1"
+  },
+  {
+    "latitude": 554.5448584199478,
+    "longitude": 277.2724292099739,
+    "description": "Point 124 for test_ue_1"
+  },
+  {
+    "latitude": 559.0169943749474,
+    "longitude": 279.5084971874737,
+    "description": "Point 125 for test_ue_1"
+  },
+  {
+    "latitude": 563.489130329947,
+    "longitude": 281.7445651649735,
+    "description": "Point 126 for test_ue_1"
+  },
+  {
+    "latitude": 567.9612662849465,
+    "longitude": 283.98063314247327,
+    "description": "Point 127 for test_ue_1"
+  },
+  {
+    "latitude": 572.4334022399462,
+    "longitude": 286.2167011199731,
+    "description": "Point 128 for test_ue_1"
+  },
+  {
+    "latitude": 576.9055381949457,
+    "longitude": 288.45276909747287,
+    "description": "Point 129 for test_ue_1"
+  },
+  {
+    "latitude": 581.3776741499453,
+    "longitude": 290.68883707497264,
+    "description": "Point 130 for test_ue_1"
+  },
+  {
+    "latitude": 585.8498101049449,
+    "longitude": 292.92490505247247,
+    "description": "Point 131 for test_ue_1"
+  },
+  {
+    "latitude": 590.3219460599445,
+    "longitude": 295.16097302997224,
+    "description": "Point 132 for test_ue_1"
+  },
+  {
+    "latitude": 594.794082014944,
+    "longitude": 297.397041007472,
+    "description": "Point 133 for test_ue_1"
+  },
+  {
+    "latitude": 599.2662179699436,
+    "longitude": 299.6331089849718,
+    "description": "Point 134 for test_ue_1"
+  },
+  {
+    "latitude": 603.7383539249432,
+    "longitude": 301.8691769624716,
+    "description": "Point 135 for test_ue_1"
+  },
+  {
+    "latitude": 608.2104898799428,
+    "longitude": 304.1052449399714,
+    "description": "Point 136 for test_ue_1"
+  },
+  {
+    "latitude": 612.6826258349423,
+    "longitude": 306.34131291747116,
+    "description": "Point 137 for test_ue_1"
+  },
+  {
+    "latitude": 617.154761789942,
+    "longitude": 308.577380894971,
+    "description": "Point 138 for test_ue_1"
+  },
+  {
+    "latitude": 621.6268977449415,
+    "longitude": 310.81344887247076,
+    "description": "Point 139 for test_ue_1"
+  },
+  {
+    "latitude": 626.0990336999411,
+    "longitude": 313.04951684997053,
+    "description": "Point 140 for test_ue_1"
+  },
+  {
+    "latitude": 630.5711696549407,
+    "longitude": 315.28558482747036,
+    "description": "Point 141 for test_ue_1"
+  },
+  {
+    "latitude": 635.0433056099403,
+    "longitude": 317.52165280497013,
+    "description": "Point 142 for test_ue_1"
+  },
+  {
+    "latitude": 639.5154415649398,
+    "longitude": 319.7577207824699,
+    "description": "Point 143 for test_ue_1"
+  },
+  {
+    "latitude": 643.9875775199395,
+    "longitude": 321.99378875996973,
+    "description": "Point 144 for test_ue_1"
+  },
+  {
+    "latitude": 648.459713474939,
+    "longitude": 324.2298567374695,
+    "description": "Point 145 for test_ue_1"
+  },
+  {
+    "latitude": 652.9318494299386,
+    "longitude": 326.4659247149693,
+    "description": "Point 146 for test_ue_1"
+  },
+  {
+    "latitude": 657.4039853849382,
+    "longitude": 328.7019926924691,
+    "description": "Point 147 for test_ue_1"
+  },
+  {
+    "latitude": 661.8761213399378,
+    "longitude": 330.9380606699689,
+    "description": "Point 148 for test_ue_1"
+  },
+  {
+    "latitude": 666.3482572949373,
+    "longitude": 333.17412864746865,
+    "description": "Point 149 for test_ue_1"
+  },
+  {
+    "latitude": 670.8203932499368,
+    "longitude": 335.4101966249684,
+    "description": "Point 150 for test_ue_1"
+  },
+  {
+    "latitude": 675.2925292049365,
+    "longitude": 337.64626460246825,
+    "description": "Point 151 for test_ue_1"
+  },
+  {
+    "latitude": 679.764665159936,
+    "longitude": 339.882332579968,
+    "description": "Point 152 for test_ue_1"
+  },
+  {
+    "latitude": 684.2368011149356,
+    "longitude": 342.1184005574678,
+    "description": "Point 153 for test_ue_1"
+  },
+  {
+    "latitude": 688.7089370699352,
+    "longitude": 344.3544685349676,
+    "description": "Point 154 for test_ue_1"
+  },
+  {
+    "latitude": 693.1810730249348,
+    "longitude": 346.5905365124674,
+    "description": "Point 155 for test_ue_1"
+  },
+  {
+    "latitude": 697.6532089799343,
+    "longitude": 348.82660448996717,
+    "description": "Point 156 for test_ue_1"
+  },
+  {
+    "latitude": 702.125344934934,
+    "longitude": 351.062672467467,
+    "description": "Point 157 for test_ue_1"
+  },
+  {
+    "latitude": 706.5974808899335,
+    "longitude": 353.29874044496677,
+    "description": "Point 158 for test_ue_1"
+  },
+  {
+    "latitude": 711.0696168449331,
+    "longitude": 355.53480842246654,
+    "description": "Point 159 for test_ue_1"
+  },
+  {
+    "latitude": 715.5417527999327,
+    "longitude": 357.77087639996637,
+    "description": "Point 160 for test_ue_1"
+  },
+  {
+    "latitude": 720.0138887549323,
+    "longitude": 360.00694437746614,
+    "description": "Point 161 for test_ue_1"
+  },
+  {
+    "latitude": 724.4860247099318,
+    "longitude": 362.2430123549659,
+    "description": "Point 162 for test_ue_1"
+  },
+  {
+    "latitude": 728.9581606649314,
+    "longitude": 364.4790803324657,
+    "description": "Point 163 for test_ue_1"
+  },
+  {
+    "latitude": 733.430296619931,
+    "longitude": 366.7151483099655,
+    "description": "Point 164 for test_ue_1"
+  },
+  {
+    "latitude": 737.9024325749306,
+    "longitude": 368.9512162874653,
+    "description": "Point 165 for test_ue_1"
+  },
+  {
+    "latitude": 742.3745685299301,
+    "longitude": 371.18728426496506,
+    "description": "Point 166 for test_ue_1"
+  },
+  {
+    "latitude": 746.8467044849298,
+    "longitude": 373.4233522424649,
+    "description": "Point 167 for test_ue_1"
+  },
+  {
+    "latitude": 751.3188404399293,
+    "longitude": 375.65942021996466,
+    "description": "Point 168 for test_ue_1"
+  },
+  {
+    "latitude": 755.7909763949289,
+    "longitude": 377.89548819746443,
+    "description": "Point 169 for test_ue_1"
+  },
+  {
+    "latitude": 760.2631123499285,
+    "longitude": 380.13155617496426,
+    "description": "Point 170 for test_ue_1"
+  },
+  {
+    "latitude": 764.7352483049281,
+    "longitude": 382.36762415246403,
+    "description": "Point 171 for test_ue_1"
+  },
+  {
+    "latitude": 769.2073842599276,
+    "longitude": 384.6036921299638,
+    "description": "Point 172 for test_ue_1"
+  },
+  {
+    "latitude": 773.6795202149273,
+    "longitude": 386.83976010746363,
+    "description": "Point 173 for test_ue_1"
+  },
+  {
+    "latitude": 778.1516561699268,
+    "longitude": 389.0758280849634,
+    "description": "Point 174 for test_ue_1"
+  },
+  {
+    "latitude": 782.6237921249264,
+    "longitude": 391.3118960624632,
+    "description": "Point 175 for test_ue_1"
+  },
+  {
+    "latitude": 787.0959280799259,
+    "longitude": 393.54796403996295,
+    "description": "Point 176 for test_ue_1"
+  },
+  {
+    "latitude": 791.5680640349256,
+    "longitude": 395.7840320174628,
+    "description": "Point 177 for test_ue_1"
+  },
+  {
+    "latitude": 796.0401999899251,
+    "longitude": 398.02009999496255,
+    "description": "Point 178 for test_ue_1"
+  },
+  {
+    "latitude": 800.5123359449246,
+    "longitude": 400.2561679724623,
+    "description": "Point 179 for test_ue_1"
+  },
+  {
+    "latitude": 804.9844718999243,
+    "longitude": 402.49223594996215,
+    "description": "Point 180 for test_ue_1"
+  },
+  {
+    "latitude": 809.4566078549238,
+    "longitude": 404.7283039274619,
+    "description": "Point 181 for test_ue_1"
+  },
+  {
+    "latitude": 813.9287438099234,
+    "longitude": 406.9643719049617,
+    "description": "Point 182 for test_ue_1"
+  },
+  {
+    "latitude": 818.400879764923,
+    "longitude": 409.2004398824615,
+    "description": "Point 183 for test_ue_1"
+  },
+  {
+    "latitude": 822.8730157199226,
+    "longitude": 411.4365078599613,
+    "description": "Point 184 for test_ue_1"
+  },
+  {
+    "latitude": 827.3451516749221,
+    "longitude": 413.67257583746107,
+    "description": "Point 185 for test_ue_1"
+  },
+  {
+    "latitude": 831.8172876299218,
+    "longitude": 415.9086438149609,
+    "description": "Point 186 for test_ue_1"
+  },
+  {
+    "latitude": 836.2894235849213,
+    "longitude": 418.14471179246067,
+    "description": "Point 187 for test_ue_1"
+  },
+  {
+    "latitude": 840.7615595399209,
+    "longitude": 420.38077976996044,
+    "description": "Point 188 for test_ue_1"
+  },
+  {
+    "latitude": 845.2336954949205,
+    "longitude": 422.61684774746027,
+    "description": "Point 189 for test_ue_1"
+  },
+  {
+    "latitude": 849.7058314499201,
+    "longitude": 424.85291572496004,
+    "description": "Point 190 for test_ue_1"
+  },
+  {
+    "latitude": 854.1779674049196,
+    "longitude": 427.0889837024598,
+    "description": "Point 191 for test_ue_1"
+  },
+  {
+    "latitude": 858.6501033599192,
+    "longitude": 429.3250516799596,
+    "description": "Point 192 for test_ue_1"
+  },
+  {
+    "latitude": 863.1222393149188,
+    "longitude": 431.5611196574594,
+    "description": "Point 193 for test_ue_1"
+  },
+  {
+    "latitude": 867.5943752699184,
+    "longitude": 433.7971876349592,
+    "description": "Point 194 for test_ue_1"
+  },
+  {
+    "latitude": 872.0665112249179,
+    "longitude": 436.03325561245896,
+    "description": "Point 195 for test_ue_1"
+  },
+  {
+    "latitude": 876.5386471799176,
+    "longitude": 438.2693235899588,
+    "description": "Point 196 for test_ue_1"
+  },
+  {
+    "latitude": 881.0107831349171,
+    "longitude": 440.50539156745856,
+    "description": "Point 197 for test_ue_1"
+  },
+  {
+    "latitude": 885.4829190899167,
+    "longitude": 442.74145954495833,
+    "description": "Point 198 for test_ue_1"
+  },
+  {
+    "latitude": 889.9550550449163,
+    "longitude": 444.97752752245816,
+    "description": "Point 199 for test_ue_1"
+  },
+  {
+    "latitude": 894.4271909999159,
+    "longitude": 447.21359549995793,
+    "description": "Point 200 for test_ue_1"
+  },
+  {
+    "latitude": 898.8993269549154,
+    "longitude": 449.4496634774577,
+    "description": "Point 201 for test_ue_1"
+  },
+  {
+    "latitude": 903.3714629099151,
+    "longitude": 451.68573145495753,
+    "description": "Point 202 for test_ue_1"
+  },
+  {
+    "latitude": 907.8435988649146,
+    "longitude": 453.9217994324573,
+    "description": "Point 203 for test_ue_1"
+  },
+  {
+    "latitude": 912.3157348199142,
+    "longitude": 456.1578674099571,
+    "description": "Point 204 for test_ue_1"
+  },
+  {
+    "latitude": 916.7878707749137,
+    "longitude": 458.39393538745685,
+    "description": "Point 205 for test_ue_1"
+  },
+  {
+    "latitude": 921.2600067299134,
+    "longitude": 460.6300033649567,
+    "description": "Point 206 for test_ue_1"
+  },
+  {
+    "latitude": 925.7321426849129,
+    "longitude": 462.86607134245645,
+    "description": "Point 207 for test_ue_1"
+  },
+  {
+    "latitude": 930.2042786399124,
+    "longitude": 465.1021393199562,
+    "description": "Point 208 for test_ue_1"
+  },
+  {
+    "latitude": 934.6764145949121,
+    "longitude": 467.33820729745605,
+    "description": "Point 209 for test_ue_1"
+  },
+  {
+    "latitude": 939.1485505499116,
+    "longitude": 469.5742752749558,
+    "description": "Point 210 for test_ue_1"
+  },
+  {
+    "latitude": 943.6206865049112,
+    "longitude": 471.8103432524556,
+    "description": "Point 211 for test_ue_1"
+  },
+  {
+    "latitude": 948.0928224599108,
+    "longitude": 474.0464112299554,
+    "description": "Point 212 for test_ue_1"
+  },
+  {
+    "latitude": 952.5649584149104,
+    "longitude": 476.2824792074552,
+    "description": "Point 213 for test_ue_1"
+  },
+  {
+    "latitude": 957.0370943699099,
+    "longitude": 478.51854718495497,
+    "description": "Point 214 for test_ue_1"
+  },
+  {
+    "latitude": 961.5092303249096,
+    "longitude": 480.7546151624548,
+    "description": "Point 215 for test_ue_1"
+  },
+  {
+    "latitude": 965.9813662799091,
+    "longitude": 482.99068313995457,
+    "description": "Point 216 for test_ue_1"
+  },
+  {
+    "latitude": 970.4535022349087,
+    "longitude": 485.22675111745434,
+    "description": "Point 217 for test_ue_1"
+  },
+  {
+    "latitude": 974.9256381899082,
+    "longitude": 487.4628190949541,
+    "description": "Point 218 for test_ue_1"
+  },
+  {
+    "latitude": 979.3977741449079,
+    "longitude": 489.69888707245394,
+    "description": "Point 219 for test_ue_1"
+  },
+  {
+    "latitude": 983.8699100999074,
+    "longitude": 491.9349550499537,
+    "description": "Point 220 for test_ue_1"
+  },
+  {
+    "latitude": 988.342046054907,
+    "longitude": 494.1710230274535,
+    "description": "Point 221 for test_ue_1"
+  },
+  {
+    "latitude": 992.8141820099066,
+    "longitude": 496.4070910049533,
+    "description": "Point 222 for test_ue_1"
+  },
+  {
+    "latitude": 997.2863179649062,
+    "longitude": 498.6431589824531,
+    "description": "Point 223 for test_ue_1"
+  }
+]
