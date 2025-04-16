@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  nef-emulator:
+    build: ./services/nef-emulator
+    ports:
+      - "${NEF_API_PORT}:8080"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+    volumes:
+      - ./services/nef-emulator:/app
+    depends_on:
+      - mongo
+
+  ml-service:
+    build: ./services/ml-service
+    ports:
+      - "${ML_SERVICE_PORT}:5000"
+    environment:
+      - NEF_API_URL=http://nef-emulator:8080
+    volumes:
+      - ./services/ml-service:/app
+    depends_on:
+      - nef-emulator
+
+  mongo:
+    image: mongo:4.4
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    depends_on:
+      - nef-emulator
+      - ml-service
+
+volumes:
+  mongo_data:
