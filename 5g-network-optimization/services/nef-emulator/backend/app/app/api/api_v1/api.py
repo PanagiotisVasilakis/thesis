@@ -23,3 +23,9 @@ nef_router.include_router(endpoints.monitoringevent.router, prefix="/3gpp-monito
 nef_router.include_router(endpoints.qosMonitoring.router, prefix="/3gpp-as-session-with-qos/v1", tags=["Session With QoS API"])
 
 
+
+# Import the mobility patterns router
+from app.api.api_v1.endpoints import mobility_patterns
+
+# Add the router to the API
+api_router.include_router(mobility_patterns.router, prefix="/mobility-patterns", tags=["mobility"])

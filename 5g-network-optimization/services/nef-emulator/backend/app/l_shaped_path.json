@@ -1,0 +1,1007 @@
+[
+  {
+    "latitude": 0.0,
+    "longitude": 0.0,
+    "description": "Point 0 for test_ue_2"
+  },
+  {
+    "latitude": 5.0,
+    "longitude": 0.0,
+    "description": "Point 1 for test_ue_2"
+  },
+  {
+    "latitude": 10.0,
+    "longitude": 0.0,
+    "description": "Point 2 for test_ue_2"
+  },
+  {
+    "latitude": 15.0,
+    "longitude": 0.0,
+    "description": "Point 3 for test_ue_2"
+  },
+  {
+    "latitude": 20.0,
+    "longitude": 0.0,
+    "description": "Point 4 for test_ue_2"
+  },
+  {
+    "latitude": 25.0,
+    "longitude": 0.0,
+    "description": "Point 5 for test_ue_2"
+  },
+  {
+    "latitude": 30.0,
+    "longitude": 0.0,
+    "description": "Point 6 for test_ue_2"
+  },
+  {
+    "latitude": 35.0,
+    "longitude": 0.0,
+    "description": "Point 7 for test_ue_2"
+  },
+  {
+    "latitude": 40.0,
+    "longitude": 0.0,
+    "description": "Point 8 for test_ue_2"
+  },
+  {
+    "latitude": 45.0,
+    "longitude": 0.0,
+    "description": "Point 9 for test_ue_2"
+  },
+  {
+    "latitude": 50.0,
+    "longitude": 0.0,
+    "description": "Point 10 for test_ue_2"
+  },
+  {
+    "latitude": 55.0,
+    "longitude": 0.0,
+    "description": "Point 11 for test_ue_2"
+  },
+  {
+    "latitude": 60.0,
+    "longitude": 0.0,
+    "description": "Point 12 for test_ue_2"
+  },
+  {
+    "latitude": 65.0,
+    "longitude": 0.0,
+    "description": "Point 13 for test_ue_2"
+  },
+  {
+    "latitude": 70.0,
+    "longitude": 0.0,
+    "description": "Point 14 for test_ue_2"
+  },
+  {
+    "latitude": 75.0,
+    "longitude": 0.0,
+    "description": "Point 15 for test_ue_2"
+  },
+  {
+    "latitude": 80.0,
+    "longitude": 0.0,
+    "description": "Point 16 for test_ue_2"
+  },
+  {
+    "latitude": 85.0,
+    "longitude": 0.0,
+    "description": "Point 17 for test_ue_2"
+  },
+  {
+    "latitude": 90.0,
+    "longitude": 0.0,
+    "description": "Point 18 for test_ue_2"
+  },
+  {
+    "latitude": 95.0,
+    "longitude": 0.0,
+    "description": "Point 19 for test_ue_2"
+  },
+  {
+    "latitude": 100.0,
+    "longitude": 0.0,
+    "description": "Point 20 for test_ue_2"
+  },
+  {
+    "latitude": 105.0,
+    "longitude": 0.0,
+    "description": "Point 21 for test_ue_2"
+  },
+  {
+    "latitude": 110.0,
+    "longitude": 0.0,
+    "description": "Point 22 for test_ue_2"
+  },
+  {
+    "latitude": 115.0,
+    "longitude": 0.0,
+    "description": "Point 23 for test_ue_2"
+  },
+  {
+    "latitude": 120.0,
+    "longitude": 0.0,
+    "description": "Point 24 for test_ue_2"
+  },
+  {
+    "latitude": 125.0,
+    "longitude": 0.0,
+    "description": "Point 25 for test_ue_2"
+  },
+  {
+    "latitude": 130.0,
+    "longitude": 0.0,
+    "description": "Point 26 for test_ue_2"
+  },
+  {
+    "latitude": 135.0,
+    "longitude": 0.0,
+    "description": "Point 27 for test_ue_2"
+  },
+  {
+    "latitude": 140.0,
+    "longitude": 0.0,
+    "description": "Point 28 for test_ue_2"
+  },
+  {
+    "latitude": 145.0,
+    "longitude": 0.0,
+    "description": "Point 29 for test_ue_2"
+  },
+  {
+    "latitude": 150.0,
+    "longitude": 0.0,
+    "description": "Point 30 for test_ue_2"
+  },
+  {
+    "latitude": 155.0,
+    "longitude": 0.0,
+    "description": "Point 31 for test_ue_2"
+  },
+  {
+    "latitude": 160.0,
+    "longitude": 0.0,
+    "description": "Point 32 for test_ue_2"
+  },
+  {
+    "latitude": 165.0,
+    "longitude": 0.0,
+    "description": "Point 33 for test_ue_2"
+  },
+  {
+    "latitude": 170.0,
+    "longitude": 0.0,
+    "description": "Point 34 for test_ue_2"
+  },
+  {
+    "latitude": 175.0,
+    "longitude": 0.0,
+    "description": "Point 35 for test_ue_2"
+  },
+  {
+    "latitude": 180.0,
+    "longitude": 0.0,
+    "description": "Point 36 for test_ue_2"
+  },
+  {
+    "latitude": 185.0,
+    "longitude": 0.0,
+    "description": "Point 37 for test_ue_2"
+  },
+  {
+    "latitude": 190.0,
+    "longitude": 0.0,
+    "description": "Point 38 for test_ue_2"
+  },
+  {
+    "latitude": 195.0,
+    "longitude": 0.0,
+    "description": "Point 39 for test_ue_2"
+  },
+  {
+    "latitude": 200.0,
+    "longitude": 0.0,
+    "description": "Point 40 for test_ue_2"
+  },
+  {
+    "latitude": 205.0,
+    "longitude": 0.0,
+    "description": "Point 41 for test_ue_2"
+  },
+  {
+    "latitude": 210.0,
+    "longitude": 0.0,
+    "description": "Point 42 for test_ue_2"
+  },
+  {
+    "latitude": 215.0,
+    "longitude": 0.0,
+    "description": "Point 43 for test_ue_2"
+  },
+  {
+    "latitude": 220.0,
+    "longitude": 0.0,
+    "description": "Point 44 for test_ue_2"
+  },
+  {
+    "latitude": 225.0,
+    "longitude": 0.0,
+    "description": "Point 45 for test_ue_2"
+  },
+  {
+    "latitude": 230.0,
+    "longitude": 0.0,
+    "description": "Point 46 for test_ue_2"
+  },
+  {
+    "latitude": 235.0,
+    "longitude": 0.0,
+    "description": "Point 47 for test_ue_2"
+  },
+  {
+    "latitude": 240.0,
+    "longitude": 0.0,
+    "description": "Point 48 for test_ue_2"
+  },
+  {
+    "latitude": 245.0,
+    "longitude": 0.0,
+    "description": "Point 49 for test_ue_2"
+  },
+  {
+    "latitude": 250.0,
+    "longitude": 0.0,
+    "description": "Point 50 for test_ue_2"
+  },
+  {
+    "latitude": 255.0,
+    "longitude": 0.0,
+    "description": "Point 51 for test_ue_2"
+  },
+  {
+    "latitude": 260.0,
+    "longitude": 0.0,
+    "description": "Point 52 for test_ue_2"
+  },
+  {
+    "latitude": 265.0,
+    "longitude": 0.0,
+    "description": "Point 53 for test_ue_2"
+  },
+  {
+    "latitude": 270.0,
+    "longitude": 0.0,
+    "description": "Point 54 for test_ue_2"
+  },
+  {
+    "latitude": 275.0,
+    "longitude": 0.0,
+    "description": "Point 55 for test_ue_2"
+  },
+  {
+    "latitude": 280.0,
+    "longitude": 0.0,
+    "description": "Point 56 for test_ue_2"
+  },
+  {
+    "latitude": 285.0,
+    "longitude": 0.0,
+    "description": "Point 57 for test_ue_2"
+  },
+  {
+    "latitude": 290.0,
+    "longitude": 0.0,
+    "description": "Point 58 for test_ue_2"
+  },
+  {
+    "latitude": 295.0,
+    "longitude": 0.0,
+    "description": "Point 59 for test_ue_2"
+  },
+  {
+    "latitude": 300.0,
+    "longitude": 0.0,
+    "description": "Point 60 for test_ue_2"
+  },
+  {
+    "latitude": 305.0,
+    "longitude": 0.0,
+    "description": "Point 61 for test_ue_2"
+  },
+  {
+    "latitude": 310.0,
+    "longitude": 0.0,
+    "description": "Point 62 for test_ue_2"
+  },
+  {
+    "latitude": 315.0,
+    "longitude": 0.0,
+    "description": "Point 63 for test_ue_2"
+  },
+  {
+    "latitude": 320.0,
+    "longitude": 0.0,
+    "description": "Point 64 for test_ue_2"
+  },
+  {
+    "latitude": 325.0,
+    "longitude": 0.0,
+    "description": "Point 65 for test_ue_2"
+  },
+  {
+    "latitude": 330.0,
+    "longitude": 0.0,
+    "description": "Point 66 for test_ue_2"
+  },
+  {
+    "latitude": 335.0,
+    "longitude": 0.0,
+    "description": "Point 67 for test_ue_2"
+  },
+  {
+    "latitude": 340.0,
+    "longitude": 0.0,
+    "description": "Point 68 for test_ue_2"
+  },
+  {
+    "latitude": 345.0,
+    "longitude": 0.0,
+    "description": "Point 69 for test_ue_2"
+  },
+  {
+    "latitude": 350.0,
+    "longitude": 0.0,
+    "description": "Point 70 for test_ue_2"
+  },
+  {
+    "latitude": 355.0,
+    "longitude": 0.0,
+    "description": "Point 71 for test_ue_2"
+  },
+  {
+    "latitude": 360.0,
+    "longitude": 0.0,
+    "description": "Point 72 for test_ue_2"
+  },
+  {
+    "latitude": 365.0,
+    "longitude": 0.0,
+    "description": "Point 73 for test_ue_2"
+  },
+  {
+    "latitude": 370.0,
+    "longitude": 0.0,
+    "description": "Point 74 for test_ue_2"
+  },
+  {
+    "latitude": 375.0,
+    "longitude": 0.0,
+    "description": "Point 75 for test_ue_2"
+  },
+  {
+    "latitude": 380.0,
+    "longitude": 0.0,
+    "description": "Point 76 for test_ue_2"
+  },
+  {
+    "latitude": 385.0,
+    "longitude": 0.0,
+    "description": "Point 77 for test_ue_2"
+  },
+  {
+    "latitude": 390.0,
+    "longitude": 0.0,
+    "description": "Point 78 for test_ue_2"
+  },
+  {
+    "latitude": 395.0,
+    "longitude": 0.0,
+    "description": "Point 79 for test_ue_2"
+  },
+  {
+    "latitude": 400.0,
+    "longitude": 0.0,
+    "description": "Point 80 for test_ue_2"
+  },
+  {
+    "latitude": 405.0,
+    "longitude": 0.0,
+    "description": "Point 81 for test_ue_2"
+  },
+  {
+    "latitude": 410.0,
+    "longitude": 0.0,
+    "description": "Point 82 for test_ue_2"
+  },
+  {
+    "latitude": 415.0,
+    "longitude": 0.0,
+    "description": "Point 83 for test_ue_2"
+  },
+  {
+    "latitude": 420.0,
+    "longitude": 0.0,
+    "description": "Point 84 for test_ue_2"
+  },
+  {
+    "latitude": 425.0,
+    "longitude": 0.0,
+    "description": "Point 85 for test_ue_2"
+  },
+  {
+    "latitude": 430.0,
+    "longitude": 0.0,
+    "description": "Point 86 for test_ue_2"
+  },
+  {
+    "latitude": 435.0,
+    "longitude": 0.0,
+    "description": "Point 87 for test_ue_2"
+  },
+  {
+    "latitude": 440.0,
+    "longitude": 0.0,
+    "description": "Point 88 for test_ue_2"
+  },
+  {
+    "latitude": 445.0,
+    "longitude": 0.0,
+    "description": "Point 89 for test_ue_2"
+  },
+  {
+    "latitude": 450.0,
+    "longitude": 0.0,
+    "description": "Point 90 for test_ue_2"
+  },
+  {
+    "latitude": 455.0,
+    "longitude": 0.0,
+    "description": "Point 91 for test_ue_2"
+  },
+  {
+    "latitude": 460.0,
+    "longitude": 0.0,
+    "description": "Point 92 for test_ue_2"
+  },
+  {
+    "latitude": 465.0,
+    "longitude": 0.0,
+    "description": "Point 93 for test_ue_2"
+  },
+  {
+    "latitude": 470.0,
+    "longitude": 0.0,
+    "description": "Point 94 for test_ue_2"
+  },
+  {
+    "latitude": 475.0,
+    "longitude": 0.0,
+    "description": "Point 95 for test_ue_2"
+  },
+  {
+    "latitude": 480.0,
+    "longitude": 0.0,
+    "description": "Point 96 for test_ue_2"
+  },
+  {
+    "latitude": 485.0,
+    "longitude": 0.0,
+    "description": "Point 97 for test_ue_2"
+  },
+  {
+    "latitude": 490.0,
+    "longitude": 0.0,
+    "description": "Point 98 for test_ue_2"
+  },
+  {
+    "latitude": 495.0,
+    "longitude": 0.0,
+    "description": "Point 99 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 0.0,
+    "description": "Point 100 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 5.0,
+    "description": "Point 101 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 10.0,
+    "description": "Point 102 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 15.0,
+    "description": "Point 103 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 20.0,
+    "description": "Point 104 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 25.0,
+    "description": "Point 105 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 30.0,
+    "description": "Point 106 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 35.0,
+    "description": "Point 107 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 40.0,
+    "description": "Point 108 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 45.0,
+    "description": "Point 109 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 50.0,
+    "description": "Point 110 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 55.0,
+    "description": "Point 111 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 60.0,
+    "description": "Point 112 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 65.0,
+    "description": "Point 113 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 70.0,
+    "description": "Point 114 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 75.0,
+    "description": "Point 115 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 80.0,
+    "description": "Point 116 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 85.0,
+    "description": "Point 117 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 90.0,
+    "description": "Point 118 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 95.0,
+    "description": "Point 119 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 100.0,
+    "description": "Point 120 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 105.0,
+    "description": "Point 121 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 110.0,
+    "description": "Point 122 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 115.0,
+    "description": "Point 123 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 120.0,
+    "description": "Point 124 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 125.0,
+    "description": "Point 125 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 130.0,
+    "description": "Point 126 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 135.0,
+    "description": "Point 127 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 140.0,
+    "description": "Point 128 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 145.0,
+    "description": "Point 129 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 150.0,
+    "description": "Point 130 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 155.0,
+    "description": "Point 131 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 160.0,
+    "description": "Point 132 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 165.0,
+    "description": "Point 133 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 170.0,
+    "description": "Point 134 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 175.0,
+    "description": "Point 135 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 180.0,
+    "description": "Point 136 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 185.0,
+    "description": "Point 137 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 190.0,
+    "description": "Point 138 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 195.0,
+    "description": "Point 139 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 200.0,
+    "description": "Point 140 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 205.0,
+    "description": "Point 141 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 210.0,
+    "description": "Point 142 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 215.0,
+    "description": "Point 143 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 220.0,
+    "description": "Point 144 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 225.0,
+    "description": "Point 145 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 230.0,
+    "description": "Point 146 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 235.0,
+    "description": "Point 147 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 240.0,
+    "description": "Point 148 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 245.0,
+    "description": "Point 149 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 250.0,
+    "description": "Point 150 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 255.0,
+    "description": "Point 151 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 260.0,
+    "description": "Point 152 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 265.0,
+    "description": "Point 153 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 270.0,
+    "description": "Point 154 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 275.0,
+    "description": "Point 155 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 280.0,
+    "description": "Point 156 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 285.0,
+    "description": "Point 157 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 290.0,
+    "description": "Point 158 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 295.0,
+    "description": "Point 159 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 300.0,
+    "description": "Point 160 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 305.0,
+    "description": "Point 161 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 310.0,
+    "description": "Point 162 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 315.0,
+    "description": "Point 163 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 320.0,
+    "description": "Point 164 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 325.0,
+    "description": "Point 165 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 330.0,
+    "description": "Point 166 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 335.0,
+    "description": "Point 167 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 340.0,
+    "description": "Point 168 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 345.0,
+    "description": "Point 169 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 350.0,
+    "description": "Point 170 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 355.0,
+    "description": "Point 171 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 360.0,
+    "description": "Point 172 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 365.0,
+    "description": "Point 173 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 370.0,
+    "description": "Point 174 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 375.0,
+    "description": "Point 175 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 380.0,
+    "description": "Point 176 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 385.0,
+    "description": "Point 177 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 390.0,
+    "description": "Point 178 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 395.0,
+    "description": "Point 179 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 400.0,
+    "description": "Point 180 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 405.0,
+    "description": "Point 181 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 410.0,
+    "description": "Point 182 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 415.0,
+    "description": "Point 183 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 420.0,
+    "description": "Point 184 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 425.0,
+    "description": "Point 185 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 430.0,
+    "description": "Point 186 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 435.0,
+    "description": "Point 187 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 440.0,
+    "description": "Point 188 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 445.0,
+    "description": "Point 189 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 450.0,
+    "description": "Point 190 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 455.0,
+    "description": "Point 191 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 460.0,
+    "description": "Point 192 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 465.0,
+    "description": "Point 193 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 470.0,
+    "description": "Point 194 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 475.0,
+    "description": "Point 195 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 480.0,
+    "description": "Point 196 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 485.0,
+    "description": "Point 197 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 490.0,
+    "description": "Point 198 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 495.0,
+    "description": "Point 199 for test_ue_2"
+  },
+  {
+    "latitude": 500.0,
+    "longitude": 500.0,
+    "description": "Point 200 for test_ue_2"
+  }
+]

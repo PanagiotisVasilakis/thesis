@@ -1,4 +1,3 @@
-import numpy as np
 import math
 from datetime import datetime, timedelta
 
@@ -50,7 +49,8 @@ class LinearMobilityModel(MobilityModel):
         self.trajectory = []
         current_time = self.start_time
         
-        for t in np.arange(0, min(duration_seconds, distance/self.speed), time_step):
+        # Use integer range for simplicity
+        for t in range(0, min(int(duration_seconds), int(distance/self.speed))+1, int(time_step)):
             d = min(t * self.speed, distance)
             x = self.start_position[0] + dx * d
             y = self.start_position[1] + dy * d
@@ -58,13 +58,14 @@ class LinearMobilityModel(MobilityModel):
             
             self.trajectory.append({
                 'ue_id': self.ue_id,
-                'timestamp': current_time + timedelta(seconds=t),
+                'timestamp': current_time,
                 'position': (x, y, z),
                 'speed': self.speed,
                 'direction': (dx, dy, dz)
             })
         
         return self.trajectory
+
 
 class LShapedMobilityModel(MobilityModel):
     """L-shaped mobility model with a 90-degree turn (3GPP TR 38.901)"""
@@ -96,7 +97,7 @@ class LShapedMobilityModel(MobilityModel):
         segment1_time = segment1_distance / self.speed
         
         # Start time for second segment
-        second_segment_start_time = self.start_time + timedelta(seconds=segment1_time)
+        second_segment_start_time = self.start_time
         
         second_segment = LinearMobilityModel(
             self.ue_id, 
