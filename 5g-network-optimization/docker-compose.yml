@@ -2,43 +2,60 @@ version: '3.8'
 
 services:
   nef-emulator:
-    build: ./services/nef-emulator
+    image: 5g-network-optimization/nef-emulator:latest
+    build:
+      context: ./services/nef-emulator
+      dockerfile: backend/Dockerfile.backend
     ports:
-      - "${NEF_API_PORT}:8080"
+      - "8080:80"
     environment:
-      - MONGODB_URI=${MONGODB_URI}
-    volumes:
-      - ./services/nef-emulator:/app
-    depends_on:
-      - mongo
-
+      - SERVER_NAME=localhost
+      - SERVER_HOST=http://localhost
+    networks:
+      - 5g-network
+  
   ml-service:
-    build: ./services/ml-service
+    image: 5g-network-optimization/ml-service:latest
+    build:
+      context: ./services/ml-service
+      dockerfile: Dockerfile
     ports:
-      - "${ML_SERVICE_PORT}:5000"
+      - "5050:5050"
     environment:
-      - NEF_API_URL=http://nef-emulator:8080
-    volumes:
-      - ./services/ml-service:/app
+      - NEF_API_URL=http://nef-emulator:80
     depends_on:
       - nef-emulator
-
-  mongo:
-    image: mongo:4.4
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-
+    networks:
+      - 5g-network
+  
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:latest
     ports:
-      - "${PROMETHEUS_PORT}:9090"
+      - "9090:9090"
     volumes:
       - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
       - nef-emulator
       - ml-service
+    networks:
+      - 5g-network
+  
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    networks:
+      - 5g-network
 
-volumes:
-  mongo_data:
+networks:
+  5g-network:
+    driver: bridge

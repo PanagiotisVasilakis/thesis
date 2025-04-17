@@ -90,8 +90,9 @@
 ./backend/app/tests/test_nef_adapter.py
 ./mobility_models/__init__.py
 ./mobility_models/models.py
-./tests/integration/test_mobility_integration.py
 ./tests/test_adapter.py
+./tests/test_advanced_mobility.py
 ./tests/test_imports.py
 ./tests/test_mobility.py
+./tests/test_mobility_integration.py
 ./tests/test_mock_api.py
