@@ -22,3 +22,7 @@ def create_app(config=None):
     app.register_blueprint(api_bp)
     
     return app
+
+    # Register visualization blueprint
+    from app.api.visualization import viz_bp
+    app.register_blueprint(viz_bp)
