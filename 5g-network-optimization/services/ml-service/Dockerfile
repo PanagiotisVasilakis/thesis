@@ -1,4 +1,4 @@
-FROM python:3.9-slim AS builder
+FROM python:3.9-bullseye-slim AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -U pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.9-slim
+FROM python:3.9-bullseye-slim
 
 # Create non-root user
 RUN useradd -m appuser

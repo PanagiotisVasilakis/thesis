@@ -1,5 +1,4 @@
 import math
-from datetime import datetime, timedelta
 import numpy as np
 import random
 from datetime import datetime, timedelta
@@ -18,10 +17,37 @@ class MobilityModel:
         """Generate trajectory points for the specified duration"""
         raise NotImplementedError("Subclasses must implement this method")
     
-    def get_position_at_time(self, time):
-        """Get interpolated position at specific time"""
-        # Implementation for time-based position lookup
-        pass
+    def get_position_at_time(self, query_time):
+        """Return interpolated (x,y,z) at the given datetime."""
+        # Ensure trajectory is sorted by timestamp
+        traj = sorted(self.trajectory, key=lambda p: p['timestamp'])
+        if not traj:
+            return None
+
+        # Before start or after end
+        if query_time <= traj[0]['timestamp']:
+            return traj[0]['position']
+        if query_time >= traj[-1]['timestamp']:
+            return traj[-1]['position']
+
+        # Find bracketing points
+        for i in range(len(traj)-1):
+            p0, p1 = traj[i], traj[i+1]
+            t0, t1 = p0['timestamp'], p1['timestamp']
+            if t0 <= query_time <= t1:
+                # Compute fraction between t0 and t1
+                total = (t1 - t0).total_seconds()
+                frac = (query_time - t0).total_seconds() / total if total > 0 else 0
+                x0,y0,z0 = p0['position']
+                x1,y1,z1 = p1['position']
+                # Linear interpolation
+                x = x0 + (x1 - x0)*frac
+                y = y0 + (y1 - y0)*frac
+                z = z0 + (z1 - z0)*frac
+                return (x, y, z)
+
+        # Fallback (shouldn't happen)
+        return traj[-1]['position']
 
 
 class LinearMobilityModel(MobilityModel):
@@ -35,30 +61,31 @@ class LinearMobilityModel(MobilityModel):
         self.current_position = start_position
     
     def generate_trajectory(self, duration_seconds, time_step=1.0):
-        """Generate trajectory points for linear movement"""
+        """Generate trajectory points for linear movement, with correct timestamps."""
         # Calculate direction vector
         dx = self.end_position[0] - self.start_position[0]
         dy = self.end_position[1] - self.start_position[1]
         dz = self.end_position[2] - self.start_position[2]
-        
+
         # Calculate total distance
         distance = math.sqrt(dx**2 + dy**2 + dz**2)
-        
+
         # Normalize direction vector
         if distance > 0:
             dx, dy, dz = dx/distance, dy/distance, dz/distance
-        
-        # Generate trajectory points
+
+        # Prepare trajectory
         self.trajectory = []
         current_time = self.start_time
-        
-        # Use integer range for simplicity
-        for t in range(0, min(int(duration_seconds), int(distance/self.speed))+1, int(time_step)):
-            d = min(t * self.speed, distance)
+
+        # Determine number of steps
+        max_steps = min(int(duration_seconds), int(distance/self.speed))
+        for step in range(0, max_steps+1):
+            d = min(step * self.speed, distance)
             x = self.start_position[0] + dx * d
             y = self.start_position[1] + dy * d
             z = self.start_position[2] + dz * d
-            
+
             self.trajectory.append({
                 'ue_id': self.ue_id,
                 'timestamp': current_time,
@@ -66,9 +93,10 @@ class LinearMobilityModel(MobilityModel):
                 'speed': self.speed,
                 'direction': (dx, dy, dz)
             })
-        
-        return self.trajectory
+            # Advance time
+            current_time += timedelta(seconds=time_step)
 
+        return self.trajectory
 
 class LShapedMobilityModel(MobilityModel):
     """L-shaped mobility model with a 90-degree turn (3GPP TR 38.901)"""
@@ -100,7 +128,7 @@ class LShapedMobilityModel(MobilityModel):
         segment1_time = segment1_distance / self.speed
         
         # Start time for second segment
-        second_segment_start_time = self.start_time
+        second_segment_start_time = self.start_time + timedelta(seconds=segment1_time)
         
         second_segment = LinearMobilityModel(
             self.ue_id, 
@@ -124,6 +152,152 @@ class LShapedMobilityModel(MobilityModel):
         # Combine trajectories
         self.trajectory = first_traj + second_traj
         
+        return self.trajectory
+
+class RandomWaypointModel(MobilityModel):
+    """
+    3GPP TR 38.901 §7.6.3.3 compliant Random Waypoint:
+    - Choose random target in area
+    - Move there at random speed in [v_min, v_max]
+    - Pause for pause_time seconds
+    Repeat until duration ends.
+    """
+    def __init__(self, ue_id, area_bounds, v_min, v_max, pause_time, start_time=None):
+        super().__init__(ue_id, start_time)
+        self.area_bounds = area_bounds    # ((xmin,ymin,z),(xmax,ymax,z))
+        self.v_min = v_min
+        self.v_max = v_max
+        self.pause_time = pause_time
+
+    def generate_trajectory(self, duration_seconds, time_step=1.0):
+        self.trajectory = []
+        end_time = self.start_time + timedelta(seconds=duration_seconds)
+        current_time = self.start_time
+        pos = self._random_point()
+        
+        while current_time < end_time:
+            # Choose next waypoint and speed
+            next_wp = self._random_point()
+            speed = random.uniform(self.v_min, self.v_max)
+            # Travel
+            dx, dy, dz = [nw - p for nw, p in zip(next_wp, pos)]
+            dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+            travel_time = dist / speed if speed>0 else 0
+            steps = max(1, int(travel_time / time_step))
+            for i in range(steps):
+                if current_time >= end_time: break
+                frac = (i+1)/steps
+                x = pos[0] + dx*frac
+                y = pos[1] + dy*frac
+                z = pos[2] + dz*frac
+                self.trajectory.append({
+                    'ue_id': self.ue_id,
+                    'timestamp': current_time,
+                    'position': (x, y, z),
+                    'speed': speed
+                })
+                current_time += timedelta(seconds=time_step)
+            # Pause
+            pause_steps = int(self.pause_time / time_step)
+            for _ in range(pause_steps):
+                if current_time >= end_time: break
+                self.trajectory.append({
+                    'ue_id': self.ue_id,
+                    'timestamp': current_time,
+                    'position': next_wp,
+                    'speed': 0
+                })
+                current_time += timedelta(seconds=time_step)
+            pos = next_wp
+        return self.trajectory
+
+    def _random_point(self):
+        (xmin, ymin, zmin), (xmax, ymax, zmax) = self.area_bounds
+        return (random.uniform(xmin, xmax),
+                random.uniform(ymin, ymax),
+                random.uniform(zmin, zmax))
+
+class ManhattanGridMobilityModel(MobilityModel):
+    """
+    Urban “Manhattan” grid (3GPP realistic city grid):
+    - Moves only along X or Y axis on a grid.
+    - At intersections: P(straight)=0.5, P(left)=0.25, P(right)=0.25
+    """
+    def __init__(self, ue_id, grid_size, speed, start_time=None):
+        super().__init__(ue_id, start_time)
+        self.grid_size = grid_size  # (x_count, y_count, block_length)
+        self.speed = speed
+        # initialize at random grid intersection
+        xi = random.randint(0, grid_size[0])
+        yi = random.randint(0, grid_size[1])
+        self.position = (xi * grid_size[2], yi * grid_size[2], 0)
+        # random initial direction: (dx, dy)
+        self.direction = random.choice([(1,0),(-1,0),(0,1),(0,-1)])
+
+    def generate_trajectory(self, duration_seconds, time_step=1.0):
+        self.trajectory = []
+        end_time = self.start_time + timedelta(seconds=duration_seconds)
+        current_time = self.start_time
+        pos = list(self.position)
+        dir_x, dir_y = self.direction
+        
+        while current_time < end_time:
+            # Move one block
+            block_dist = self.grid_size[2]
+            travel_time = block_dist / self.speed
+            steps = max(1, int(travel_time/time_step))
+            for _ in range(steps):
+                if current_time >= end_time: break
+                pos[0] += dir_x * self.speed * time_step
+                pos[1] += dir_y * self.speed * time_step
+                self.trajectory.append({
+                    'ue_id': self.ue_id,
+                    'timestamp': current_time,
+                    'position': tuple(pos),
+                    'speed': self.speed
+                })
+                current_time += timedelta(seconds=time_step)
+            if current_time >= end_time: break
+            # At intersection: choose turn
+            turn = random.random()
+            if turn < 0.5:
+                # straight: keep dir_x, dir_y
+                pass
+            elif turn < 0.75:
+                dir_x, dir_y = -dir_y, dir_x   # left turn
+            else:
+                dir_x, dir_y = dir_y, -dir_x   # right turn
+        return self.trajectory
+
+class ReferencePointGroupMobilityModel(MobilityModel):
+    """
+    RPGM (Reference‑Point Group Mobility) per Hong et al.:
+    - A logical group “center” moves by some base model (e.g. RandomWaypoint)
+    - Each member’s position = group_center + random offset (<= d_max)
+    """
+    def __init__(self, ue_id, group_center_model, d_max, start_time=None):
+        super().__init__(ue_id, start_time)
+        self.group_center_model = group_center_model
+        self.d_max = d_max  # maximum radius from group center
+
+    def generate_trajectory(self, duration_seconds, time_step=1.0):
+        self.trajectory = []
+        # Generate center trajectory
+        center_traj = self.group_center_model.generate_trajectory(duration_seconds, time_step)
+        for point in center_traj:
+            cx, cy, cz = point['position']
+            # Add random offset inside circle of radius d_max
+            angle = random.uniform(0, 2*math.pi)
+            radius = random.uniform(0, self.d_max)
+            x = cx + radius * math.cos(angle)
+            y = cy + radius * math.sin(angle)
+            z = cz
+            self.trajectory.append({
+                'ue_id': self.ue_id,
+                'timestamp': point['timestamp'],
+                'position': (x, y, z),
+                'speed': point['speed']
+            })
         return self.trajectory
 
 class RandomDirectionalMobilityModel(MobilityModel):
@@ -354,81 +528,81 @@ class UrbanGridMobilityModel(MobilityModel):
         return self.trajectory
 
 
-class GroupMobilityModel(MobilityModel):
-    """
-    Group mobility model for correlated UE movements.
+# class GroupMobilityModel(MobilityModel):
+#     """
+#     Group mobility model for correlated UE movements.
     
-    This model represents a group of UEs moving together with a 
-    reference point following a specified mobility model.
-    """
+#     This model represents a group of UEs moving together with a 
+#     reference point following a specified mobility model.
+#     """
     
-    def __init__(self, ue_id, reference_model, relative_position, 
-                max_deviation=5.0, deviation_change_mean=10.0, start_time=None):
-        """
-        Initialize the group mobility model.
+#     def __init__(self, ue_id, reference_model, relative_position, 
+#                 max_deviation=5.0, deviation_change_mean=10.0, start_time=None):
+#         """
+#         Initialize the group mobility model.
         
-        Args:
-            ue_id: UE identifier
-            reference_model: Reference mobility model to follow
-            relative_position: Position relative to the reference point (x, y, z)
-            max_deviation: Maximum random deviation from relative position
-            deviation_change_mean: Mean time between deviation changes
-            start_time: Starting time
-        """
-        super().__init__(ue_id, start_time)
-        self.reference_model = reference_model
-        self.relative_position = relative_position
-        self.max_deviation = max_deviation
-        self.deviation_change_mean = deviation_change_mean
+#         Args:
+#             ue_id: UE identifier
+#             reference_model: Reference mobility model to follow
+#             relative_position: Position relative to the reference point (x, y, z)
+#             max_deviation: Maximum random deviation from relative position
+#             deviation_change_mean: Mean time between deviation changes
+#             start_time: Starting time
+#         """
+#         super().__init__(ue_id, start_time)
+#         self.reference_model = reference_model
+#         self.relative_position = relative_position
+#         self.max_deviation = max_deviation
+#         self.deviation_change_mean = deviation_change_mean
         
-        # Current random deviation
-        self.current_deviation = (0, 0, 0)
+#         # Current random deviation
+#         self.current_deviation = (0, 0, 0)
         
-        # Time until next deviation change
-        self.time_to_change = np.random.exponential(self.deviation_change_mean)
+#         # Time until next deviation change
+#         self.time_to_change = np.random.exponential(self.deviation_change_mean)
     
-    def _generate_random_deviation(self):
-        """Generate a random deviation within max_deviation."""
-        return (
-            random.uniform(-self.max_deviation, self.max_deviation),
-            random.uniform(-self.max_deviation, self.max_deviation),
-            random.uniform(-self.max_deviation, self.max_deviation)
-        )
+#     def _generate_random_deviation(self):
+#         """Generate a random deviation within max_deviation."""
+#         return (
+#             random.uniform(-self.max_deviation, self.max_deviation),
+#             random.uniform(-self.max_deviation, self.max_deviation),
+#             random.uniform(-self.max_deviation, self.max_deviation)
+#         )
     
-    def generate_trajectory(self, duration_seconds, time_step=1.0):
-        """Generate trajectory points for group movement."""
-        # First generate reference trajectory
-        reference_trajectory = self.reference_model.generate_trajectory(
-            duration_seconds, time_step
-        )
+#     def generate_trajectory(self, duration_seconds, time_step=1.0):
+#         """Generate trajectory points for group movement."""
+#         # First generate reference trajectory
+#         reference_trajectory = self.reference_model.generate_trajectory(
+#             duration_seconds, time_step
+#         )
         
-        self.trajectory = []
+#         self.trajectory = []
         
-        for i, ref_point in enumerate(reference_trajectory):
-            t = i * time_step
+#         for i, ref_point in enumerate(reference_trajectory):
+#             t = i * time_step
             
-            # Check if it's time to change deviation
-            if t >= self.time_to_change:
-                self.current_deviation = self._generate_random_deviation()
-                self.time_to_change = t + np.random.exponential(self.deviation_change_mean)
+#             # Check if it's time to change deviation
+#             if t >= self.time_to_change:
+#                 self.current_deviation = self._generate_random_deviation()
+#                 self.time_to_change = t + np.random.exponential(self.deviation_change_mean)
             
-            # Reference position
-            ref_position = ref_point['position']
+#             # Reference position
+#             ref_position = ref_point['position']
             
-            # Calculate position with relative offset and current deviation
-            position = (
-                ref_position[0] + self.relative_position[0] + self.current_deviation[0],
-                ref_position[1] + self.relative_position[1] + self.current_deviation[1],
-                ref_position[2] + self.relative_position[2] + self.current_deviation[2]
-            )
+#             # Calculate position with relative offset and current deviation
+#             position = (
+#                 ref_position[0] + self.relative_position[0] + self.current_deviation[0],
+#                 ref_position[1] + self.relative_position[1] + self.current_deviation[1],
+#                 ref_position[2] + self.relative_position[2] + self.current_deviation[2]
+#             )
             
-            # Add to trajectory
-            self.trajectory.append({
-                'ue_id': self.ue_id,
-                'timestamp': ref_point['timestamp'],
-                'position': position,
-                'speed': ref_point['speed'],
-                'direction': ref_point['direction']
-            })
+#             # Add to trajectory
+#             self.trajectory.append({
+#                 'ue_id': self.ue_id,
+#                 'timestamp': ref_point['timestamp'],
+#                 'position': position,
+#                 'speed': ref_point['speed'],
+#                 'direction': ref_point['direction']
+#             })
         
-        return self.trajectory
+#         return self.trajectory

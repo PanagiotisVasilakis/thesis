@@ -45,18 +45,3 @@ def create_app(config=None):
     app.logger.info("Flask application initialization complete")
     
     return app
-    # Register Prometheus metrics
-    from prometheus_client import make_wsgi_app
-    from werkzeug.middleware.dispatcher import DispatcherMiddleware
-    
-    # Add metrics middleware
-    from app.monitoring.metrics import MetricsMiddleware
-    app.wsgi_app = MetricsMiddleware(app.wsgi_app)
-    
-    # Add Prometheus metrics endpoint
-    metrics_app = make_wsgi_app()
-    app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {
-        '/metrics': metrics_app
-    })
-    
-    app.logger.info("Prometheus metrics enabled")
