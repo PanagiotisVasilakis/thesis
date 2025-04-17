@@ -9,11 +9,11 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import mobility models and adapter
-from mobility_models.models import (
+from backend.app.app.mobility_models.models import (
     LinearMobilityModel,
     LShapedMobilityModel
 )
-from mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
+from backend.app.app.mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
 
 def test_linear_adapter():
     """Test NEF adapter with linear mobility model."""

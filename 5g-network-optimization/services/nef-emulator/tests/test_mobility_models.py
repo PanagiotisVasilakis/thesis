@@ -8,7 +8,7 @@ from datetime import datetime
 # add the nef-emulator root so we can import mobility_models
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mobility_models.models import (
+from backend.app.app.mobility_models.models import (
     LinearMobilityModel,
     LShapedMobilityModel,
     RandomWaypointModel,

@@ -8,13 +8,13 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 from datetime import datetime
 
 # Import mobility models
-from mobility_models.models import (
+from app.mobility_models.models import (
     MobilityModel, 
     LinearMobilityModel, 
     LShapedMobilityModel,
     RandomDirectionalMobilityModel,
     UrbanGridMobilityModel,
-    GroupMobilityModel
+    ReferencePointGroupMobilityModel
 )
 
 # Set up logging
@@ -29,7 +29,7 @@ class MobilityPatternAdapter:
         "l_shaped": LShapedMobilityModel,
         "random_directional": RandomDirectionalMobilityModel,
         "urban_grid": UrbanGridMobilityModel,
-        "group": GroupMobilityModel
+        "group": ReferencePointGroupMobilityModel
     }
     
     

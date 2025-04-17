@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def test_imports():
     """Test importing our mobility models."""
     try:
-        from mobility_models.models import LinearMobilityModel, LShapedMobilityModel
+        from backend.app.app.mobility_models.models import LinearMobilityModel, LShapedMobilityModel
         print("✅ Successfully imported mobility models")
         
         # Test importing adapter

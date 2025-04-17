@@ -4,9 +4,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+# Get the absolute path to the project root directory
+os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")), "rf_models")
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel, FastFading
 
 def test_abg_path_loss_model():
@@ -40,7 +39,8 @@ def test_abg_path_loss_model():
     print(f"Path loss at 100m, 3.5GHz: {model.calculate_path_loss(100, 3.5, include_shadowing=False):.2f} dB")
     print(f"Standard deviation of shadowing: {std_dev:.2f} dB (expected: {model.sigma:.2f} dB)")
     
-    return abs(std_dev - model.sigma) < 0.5  # Should be close to model.sigma
+    # Should be close to model.sigma
+    assert abs(std_dev - model.sigma) < 0.5, f"Shadowing std dev {std_dev:.2f} dB differs from model σ={model.sigma:.2f} dB"
 
 def test_ci_path_loss_model():
     """Test Close-In path loss model."""
@@ -66,7 +66,7 @@ def test_ci_path_loss_model():
     plt.savefig('ci_path_loss.png')
     print("Plot saved as ci_path_loss.png")
     
-    return True
+    assert True, "Close-In path loss model test passed"
 
 def test_fast_fading():
     """Test fast fading model."""
@@ -114,7 +114,8 @@ def test_fast_fading():
     
     print(f"Fast fading at 5 km/h: Mean = {mean_5kmh:.2f} dB, Std = {std_5kmh:.2f} dB")
     
-    return abs(mean_5kmh) < 1.0  # Mean should be close to 0
+    # Mean should be close to 0 dB
+    assert abs(mean_5kmh) < 1.0, f"Mean fading {mean_5kmh:.2f} dB differs from 0 dB" 
 
 if __name__ == "__main__":
     print("Testing ABG Path Loss Model...")

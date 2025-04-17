@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nef-emulator:
     image: 5g-network-optimization/nef-emulator:latest

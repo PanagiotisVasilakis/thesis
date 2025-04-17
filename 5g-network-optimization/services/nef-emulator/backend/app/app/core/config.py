@@ -124,7 +124,7 @@ class QoSSettings:
 
     def import_json(self):
         base = __file__.rsplit("/", 1)[0]
-        path = f"{base}/qosCharacteristics.json"
+        path = f"{base}/config/qosCharacteristics.json"
         with open(path) as json_file:
             data = json.load(json_file)
         self._qos_characteristics = data

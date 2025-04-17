@@ -9,7 +9,7 @@ class PathLossModel:
         """Initialize the path loss model."""
         pass
     
-    def calculate_path_loss(self, distance, frequency):
+    def calculate_path_loss(self, distance, frequency, include_shadowing=True):
         """Calculate path loss at given distance and frequency."""
         raise NotImplementedError("Subclasses must implement this method")
 
