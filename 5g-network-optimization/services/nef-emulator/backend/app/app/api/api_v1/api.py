@@ -1,6 +1,13 @@
 from fastapi import APIRouter
 
 from app.api.api_v1 import endpoints
+from .endpoints import (
+     ue_movement,
+     monitoringevent,
+     qosInformation,
+     # … other existing imports …
+ )
+from .endpoints.ml_api import router as ml_router
 
 api_router = APIRouter()
 api_router.include_router(endpoints.login.router, tags=["login"])
@@ -15,7 +22,17 @@ api_router.include_router(endpoints.qosInformation.router, prefix="/qosInfo", ta
 # api_router.include_router(monitoringevent.router, prefix="/3gpp-monitoring-event/v1", tags=["Monitoring Event API"])
 # api_router.include_router(qosMonitoring.router, prefix="/3gpp-as-session-with-qos/v1", tags=["Session With QoS API"])
 #api_router.include_router(monitoringevent.monitoring_callback_router, prefix="/3gpp-monitoring-event/v1", tags=["Monitoring Event API"])
-
+api_router.include_router(
+     ue_movement.router,
+     prefix="/ue-movement",
+     tags=["ue_movement"]
+)
+#–– Register ML endpoints
+api_router.include_router(
+    ml_router,
+    prefix="/ml",
+    tags=["ml-service"]
+)
 
     # ---Create a subapp---
 nef_router = APIRouter()
