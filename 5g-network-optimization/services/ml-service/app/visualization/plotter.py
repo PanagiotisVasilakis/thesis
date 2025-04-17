@@ -13,6 +13,9 @@ def plot_antenna_coverage(model, output_dir='output'):
         model: Trained AntennaSelector model
         output_dir: Directory to save the visualization
     """
+    # Ensure output_dir is an absolute path
+    output_dir = os.path.abspath(output_dir)
+    
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
@@ -32,29 +35,62 @@ def plot_antenna_coverage(model, output_dir='output'):
     # Predict antenna selection for each position
     Z = np.zeros((resolution, resolution), dtype=object)
     
+    # First check if model is trained by making a test prediction
+    try:
+        test_features = {
+            'latitude': 500, 
+            'longitude': 500, 
+            'speed': 1.0,
+            'direction_x': 0.7,
+            'direction_y': 0.7,
+            'rsrp_current': -90,
+            'sinr_current': 10
+        }
+        model.predict(test_features)
+        model_trained = True
+    except Exception as e:
+        print(f"Warning: Model not properly trained: {e}")
+        print("Will use distance-based assignment instead")
+        model_trained = False
+    
     for i in range(resolution):
         for j in range(resolution):
-            # Create synthetic UE data for this position
-            ue_data = {
-                'latitude': X[i, j],
-                'longitude': Y[i, j],
-                'speed': 1.0,  # Fixed for visualization
-                'direction': [1, 0, 0],  # Fixed for visualization
-                'connected_to': 'antenna_1',  # Arbitrary initial connection
-                'rf_metrics': {}
-            }
+            position = (X[i, j], Y[i, j])
             
-            # Add synthetic RF metrics
-            for antenna_id, pos in antennas.items():
-                dist = np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2)
-                rsrp = -60 - 20 * np.log10(max(1, dist/10))
-                sinr = 20 * (1 - dist/1500)
-                ue_data['rf_metrics'][antenna_id] = {'rsrp': rsrp, 'sinr': sinr}
-            
-            # Make prediction
-            features = model.extract_features(ue_data)
-            result = model.predict(features)
-            Z[i, j] = result['antenna_id']
+            if model_trained:
+                # Use ML model for prediction
+                # Create synthetic UE data for this position
+                ue_data = {
+                    'latitude': X[i, j],
+                    'longitude': Y[i, j],
+                    'speed': 1.0,  # Fixed for visualization
+                    'direction': [1, 0, 0],  # Fixed for visualization
+                    'connected_to': 'antenna_1',  # Arbitrary initial connection
+                    'rf_metrics': {}
+                }
+                
+                # Add synthetic RF metrics
+                for antenna_id, pos in antennas.items():
+                    dist = np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2)
+                    rsrp = -60 - 20 * np.log10(max(1, dist/10))
+                    sinr = 20 * (1 - dist/1500)
+                    ue_data['rf_metrics'][antenna_id] = {'rsrp': rsrp, 'sinr': sinr}
+                
+                # Make prediction
+                try:
+                    features = model.extract_features(ue_data)
+                    result = model.predict(features)
+                    Z[i, j] = result['antenna_id']
+                except Exception as e:
+                    # Fallback to distance-based assignment
+                    distances = {ant_id: np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2) 
+                                for ant_id, pos in antennas.items()}
+                    Z[i, j] = min(distances, key=distances.get)
+            else:
+                # Use simple distance-based assignment
+                distances = {ant_id: np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2) 
+                            for ant_id, pos in antennas.items()}
+                Z[i, j] = min(distances, key=distances.get)
     
     # Convert to numeric for plotting
     Z_numeric = np.zeros((resolution, resolution))
@@ -80,13 +116,21 @@ def plot_antenna_coverage(model, output_dir='output'):
     
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
-    plt.title('Antenna Selection Map')
+    
+    if model_trained:
+        plt.title('ML-based Antenna Selection Map')
+    else:
+        plt.title('Distance-based Antenna Selection Map (Model not trained)')
+        
     plt.colorbar(label='Antenna ID')
     
-    # Save the plot
+    # Save the plot with absolute path
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'antenna_coverage_{timestamp}.png')
     plt.savefig(filename)
+    
+    # Print the file path for debugging
+    print(f"Saved coverage map to: {filename}")
     
     return filename
 
@@ -98,6 +142,10 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
         movement_data: List of UE position and antenna data over time
         output_dir: Directory to save the visualization
     """
+    # Ensure output_dir is an absolute path
+    output_dir = os.path.abspath(output_dir)
+    
+    # Create output directory
     os.makedirs(output_dir, exist_ok=True)
     
     # Extract trajectory data
@@ -141,9 +189,12 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
     plt.legend()
     plt.grid(True)
     
-    # Save the plot
+    # Save the plot with absolute path
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'trajectory_{timestamp}.png')
     plt.savefig(filename)
+    
+    # Print the file path for debugging
+    print(f"Saved trajectory visualization to: {filename}")
     
     return filename
