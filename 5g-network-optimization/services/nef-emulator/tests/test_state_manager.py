@@ -8,7 +8,7 @@ root = os.path.abspath(os.path.join(__file__, ".."))
 sys.path.insert(0, root)
 
 import pytest
-from network.state_manager import NetworkStateManager
+from backend.app.app.network.state_manager import NetworkStateManager
 from antenna_models.models import MacroCellModel
 
 @pytest.fixture

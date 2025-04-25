@@ -102,10 +102,7 @@
 ./services/nef-emulator/backend/app/app/worker.py
 ./services/nef-emulator/backend/app/mobility_models/__init__.py
 ./services/nef-emulator/backend/app/mobility_models/models.py
-./services/nef-emulator/backend/app/mobility_models/nef_adapter.py
 ./services/nef-emulator/backend/app/tests/mobility_test.py
-./services/nef-emulator/backend/app/tests/nef_adapter_test.py
-./services/nef-emulator/backend/app/tests/test_nef_adapter.py
 ./services/nef-emulator/mobility_models/__init__.py
 ./services/nef-emulator/mobility_models/models.py
 ./services/nef-emulator/tests/test_adapter.py

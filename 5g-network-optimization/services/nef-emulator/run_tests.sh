@@ -36,11 +36,6 @@ echo "============================================"
 python tests/test_mobility_models.py
 
 echo -e "\n============================================"
-echo "Running NEF Adapter Tests..."
-echo "============================================"
-python tests/test_nef_adapter.py
-
-echo -e "\n============================================"
 echo "Running ML Components Tests..."
 echo "============================================"
 python tests/test_ml_components.py

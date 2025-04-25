@@ -8,7 +8,7 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the adapter
-from mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
+from backend.app.app.mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
 
 def test_nef_adapter():
     """Test generating and saving NEF-compatible path points."""
