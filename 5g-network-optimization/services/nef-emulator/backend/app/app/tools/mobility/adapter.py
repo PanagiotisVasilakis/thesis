@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 from datetime import datetime
 
 # Import mobility models
-from backend.app.app.mobility_models.models import (
+from ...mobility_models.models import (
     MobilityModel, 
     LinearMobilityModel, 
     LShapedMobilityModel,

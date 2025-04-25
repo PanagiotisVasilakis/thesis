@@ -10,7 +10,6 @@ from .endpoints import (
 from .endpoints.ml_api import router as ml_router
 
 api_router = APIRouter()
-api_router.include_router(ml_router)
 api_router.include_router(endpoints.login.router, tags=["login"])
 api_router.include_router(endpoints.users.router, prefix="/users", tags=["users"])
 api_router.include_router(endpoints.utils.router, prefix="/utils", tags=["UI"])
