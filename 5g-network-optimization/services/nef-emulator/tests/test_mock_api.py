@@ -7,7 +7,7 @@ import json
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import our models and adapter
-from mobility_models.models import LinearMobilityModel
+from backend.app.app.mobility_models.models import LinearMobilityModel
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
 
 class MockRequest:
