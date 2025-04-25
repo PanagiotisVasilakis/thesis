@@ -53,6 +53,28 @@ def test_unknown_ue(nsm):
 def test_unknown_antenna(nsm):
     with pytest.raises(KeyError):
         nsm.apply_handover_decision('ue1','antX')
+        
+def test_get_position_at_time_interpolation(nsm):
+    # Build a simple trajectory for ue1: at t=0s at (0,0,0), at t=10s at (10,0,0)
+    from datetime import timedelta
+    base = datetime(2025,1,1,12,0,0)
+    nsm.ue_states['ue1']['trajectory'] = [
+        {'timestamp': base, 'position': (0.0, 0.0, 0.0)},
+        {'timestamp': base + timedelta(seconds=10), 'position': (10.0, 0.0, 0.0)}
+    ]
+
+    # Before start
+    pos0 = nsm.get_position_at_time('ue1', base - timedelta(seconds=5))
+    assert pos0 == (0.0, 0.0, 0.0)
+
+    # After end
+    pos_end = nsm.get_position_at_time('ue1', base + timedelta(seconds=20))
+    assert pos_end == (10.0, 0.0, 0.0)
+
+    # Midpoint at 5s → (5,0,0)
+    pos_mid = nsm.get_position_at_time('ue1', base + timedelta(seconds=5))
+    assert pytest.approx(pos_mid[0], rel=1e-3) == 5.0
+    assert pos_mid[1:] == (0.0, 0.0)
 
 if __name__ == "__main__":
     pytest.main([__file__])
