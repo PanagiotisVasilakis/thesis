@@ -238,6 +238,23 @@ curl -X POST http://localhost:5050/api/predict \
 "rf_metrics":{"antenna_1":{"rsrp":-80,"sinr":15},"antenna_2":{"rsrp":-90,"sinr":10}}}'
 ```
 
+## Installing Dependencies
+
+Before executing any tests, install the project requirements using the top-level
+`requirements.txt` file located in the repository root. Some packages require
+additional system libraries (for example the `tables` package needs HDF5). On
+Ubuntu you can install them with:
+
+```bash
+sudo apt-get update && sudo apt-get install -y libhdf5-dev
+```
+
+Then install the Python dependencies from the project root:
+
+```bash
+pip install -r requirements.txt
+```
+
 ### Extended Integration Tests
 
 These tests communicate with the running NEF emulator and ML service. Start both

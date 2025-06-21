@@ -22,13 +22,19 @@ sys.modules.setdefault("app.crud", crud_stub)
 
 # Provide lightweight settings for tests avoiding env var requirements
 config_stub = types.ModuleType("config")
-settings_stub = types.SimpleNamespace(
+
+class SettingsStub(types.SimpleNamespace):
+    def __getattr__(self, name):
+        return None
+
+settings_stub = SettingsStub(
     API_V1_STR="/api/v1",
     FIRST_SUPERUSER="admin@example.com",
     FIRST_SUPERUSER_PASSWORD="password",
     EMAIL_TEST_USER="test@example.com",
     SQLALCHEMY_DATABASE_URI="postgresql://user:pass@localhost/testdb",
     MONGO_CLIENT="mongodb://localhost:27017",
+    PROJECT_NAME="Test Project",
 )
 class QoSSettings:
     def retrieve_settings(self):
