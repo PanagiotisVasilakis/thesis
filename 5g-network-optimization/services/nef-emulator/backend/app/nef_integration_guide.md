@@ -4,6 +4,12 @@
 
 This guide explains how to use our 3GPP-compliant mobility models with the existing NEF emulator without modifying its code.
 
+### Available Mobility Models
+- Linear and L-shaped paths
+- Random Waypoint and Random Directional movement
+- Manhattan Grid and Urban Grid models
+- Reference Point Group mobility
+
 ## Step 1: Generate Path Points
 
 Use our mobility models to generate path points in the NEF-compatible format:
@@ -80,3 +86,8 @@ start_data = {"supi": "your_ue_supi"}  # Get SUPI from your UE
 start_response = requests.post(start_url, json=start_data, headers=headers)
 print("UE movement started")
 ```
+
+### A3 Rule-Based Handover
+The emulator supports a basic 3GPP Event A3 rule. Set the environment variable
+`SIMPLE_MODE=true` to enable it and adjust `A3_HYSTERESIS_DB` and `A3_TTT_S` to
+control the hysteresis and time-to-trigger.
