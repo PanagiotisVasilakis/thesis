@@ -3,9 +3,20 @@ import requests
 import json
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
+
+
+def _nef_running() -> bool:
+    try:
+        r = requests.get("http://localhost:8080/docs", timeout=2)
+        return r.status_code == 200
+    except requests.RequestException:
+        return False
 
 def test_generate_linear_pattern():
     """Test generating a linear mobility pattern through the API."""
+    if not _nef_running():
+        pytest.skip("NEF emulator is not running")
     url = "http://localhost:8080/api/v1/mobility-patterns/generate"
     
     # Login to get token

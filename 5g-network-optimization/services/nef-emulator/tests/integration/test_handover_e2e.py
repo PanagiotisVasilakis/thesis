@@ -7,6 +7,11 @@ from fastapi.testclient import TestClient
 import importlib.util
 from pathlib import Path
 
+try:
+    import sqlalchemy  # noqa: F401
+except Exception:  # pragma: no cover - optional dependency for integration test
+    sqlalchemy = None
+
 ML_DIR = Path(__file__).resolve().parents[3] / "ml-service" / "app" / "__init__.py"
 spec = importlib.util.spec_from_file_location("ml_app_pkg", ML_DIR)
 ml_app_pkg = importlib.util.module_from_spec(spec)
@@ -29,6 +34,9 @@ def _setup_environment(monkeypatch):
 
 
 def test_end_to_end_handover(monkeypatch):
+    if sqlalchemy is None:
+        pytest.skip("SQLAlchemy not available")
+
     ml_api = _setup_environment(monkeypatch)
 
     from app.main import app as nef_app

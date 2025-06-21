@@ -4,6 +4,15 @@ import json
 import time
 import importlib.util
 from pathlib import Path
+import pytest
+
+
+def _service_running(url: str) -> bool:
+    try:
+        r = requests.get(url, timeout=2)
+        return r.status_code == 200
+    except requests.RequestException:
+        return False
 
 NEF_COLLECTOR_PATH = Path(__file__).resolve().parents[2] / "app" / "data" / "nef_collector.py"
 spec = importlib.util.spec_from_file_location("nef_collector", NEF_COLLECTOR_PATH)
@@ -13,6 +22,8 @@ NEFDataCollector = nef_collector.NEFDataCollector
 
 def test_nef_connection():
     """Test connecting to the NEF emulator."""
+    if not _service_running("http://localhost:8080/docs"):
+        pytest.skip("NEF emulator is not running")
     print("Testing NEF emulator connection...")
     
     # Try to connect to NEF API
@@ -51,6 +62,8 @@ def test_nef_connection():
 
 def test_data_collection(duration=10):
     """Test collecting data from the NEF emulator."""
+    if not _service_running("http://localhost:8080/docs"):
+        pytest.skip("NEF emulator is not running")
     print(f"\nTesting data collection for {duration} seconds...")
     
     # Initialize collector
@@ -94,6 +107,8 @@ def test_data_collection(duration=10):
 
 def test_ml_prediction_with_nef_data():
     """Test making predictions with data from NEF emulator."""
+    if not _service_running("http://localhost:8080/docs") or not _service_running("http://localhost:5050/docs"):
+        pytest.skip("Required services are not running")
     print("\nTesting ML prediction with NEF data...")
     
     # Check if we have collected data
@@ -125,6 +140,8 @@ def test_ml_prediction_with_nef_data():
 
 def test_end_to_end_flow():
     """Test the complete end-to-end flow."""
+    if not _service_running("http://localhost:8080/docs") or not _service_running("http://localhost:5050/docs"):
+        pytest.skip("Required services are not running")
     print("\nTesting end-to-end flow (NEF → ML Service → Prediction)...")
     
     # Step 1: Connect to NEF
