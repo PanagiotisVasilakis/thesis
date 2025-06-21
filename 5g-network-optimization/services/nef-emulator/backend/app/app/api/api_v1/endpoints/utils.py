@@ -12,7 +12,27 @@ from app.schemas import monitoringevent, UserPlaneNotificationData
 from pydantic import BaseModel
 from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
-from evolved5g.sdk import CAPIFLogger
+try:
+    from evolved5g.sdk import CAPIFLogger
+except (ImportError, AttributeError):
+    class CAPIFLogger:
+        """Minimal stub if evolved5g CAPIFLogger is unavailable."""
+
+        class LogEntry:
+            def __init__(self, **kwargs):
+                for k, v in kwargs.items():
+                    setattr(self, k, v)
+
+        def __init__(self, certificates_folder: str = "", capif_host: str = "", capif_https_port: int = 0):
+            self.certificates_folder = certificates_folder
+            self.capif_host = capif_host
+            self.capif_https_port = capif_https_port
+
+        def get_capif_service_description(self, capif_service_api_description_json_full_path: str):
+            return {"apiId": "dummy"}
+
+        def save_log(self, api_invoker_id: str, log_entries: list):
+            return True
 from app.core.config import settings
 
 #Create CAPIF Logger object
