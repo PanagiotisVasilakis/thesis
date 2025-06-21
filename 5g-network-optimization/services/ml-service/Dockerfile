@@ -43,6 +43,9 @@ EXPOSE 5050
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV SIMPLE_MODE=false
+ENV A3_HYSTERESIS_DB=2.0
+ENV A3_TTT_S=0.0
 
 # Run the application with gunicorn for production
 CMD ["gunicorn", "--bind", "0.0.0.0:5050", "--workers", "4", "--threads", "2", "app:app"]

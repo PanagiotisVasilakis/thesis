@@ -184,6 +184,19 @@ After analyzing the NEF emulator's codebase and considering integration challeng
 └── README.md                   # Project documentation
 ```
 
+## Environment Variables
+
+The NEF emulator's `NetworkStateManager` can be configured via the following
+variables. These may be set in your shell environment or through
+`docker-compose`:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SIMPLE_MODE` | Enable rule-based handovers instead of ML decisions (`true`/`false`) | `false` |
+| `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
+| `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
+
+
 ## Technical Deep Dive: Key Implementations
 
 ### 1. 3GPP-Compliant Mobility Models
