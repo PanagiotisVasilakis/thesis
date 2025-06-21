@@ -70,13 +70,10 @@ def generate_synthetic_data(num_samples=500):
     return data
 
 def test_feature_extraction():
-    """Test feature extraction from UE data."""
-    print("\nTesting feature extraction...")
-    
-    # Create model
+    """Feature extraction should produce expected keys."""
+
     model = AntennaSelector()
-    
-    # Sample UE data
+
     ue_data = {
         'ue_id': 'test_ue_1',
         'latitude': 500.0,
@@ -88,73 +85,52 @@ def test_feature_extraction():
             'antenna_1': {'rsrp': -85, 'sinr': 10},
             'antenna_2': {'rsrp': -95, 'sinr': 5},
             'antenna_3': {'rsrp': -105, 'sinr': 2}
-        }
+        },
     }
-    
-    # Extract features
+
     features = model.extract_features(ue_data)
-    
-    print("Extracted features:")
-    for key, value in features.items():
-        print(f"  {key}: {value}")
-    
-    # Check expected features
+
     expected_features = [
-        'latitude', 'longitude', 'speed', 
-        'direction_x', 'direction_y', 
-        'rsrp_current', 'sinr_current'
+        'latitude', 'longitude', 'speed',
+        'direction_x', 'direction_y',
+        'rsrp_current', 'sinr_current',
     ]
-    
-    missing_features = [f for f in expected_features if f not in features]
-    if missing_features:
-        print(f"❌ Missing expected features: {missing_features}")
-        return False
-    
-    return True
+
+    for feature in expected_features:
+        assert feature in features, f"Missing expected feature: {feature}"
 
 def test_model_training_and_prediction():
-    """Test model training and prediction."""
-    print("\nTesting model training and prediction...")
-    
-    # Generate synthetic data
+    """Training on synthetic data should achieve reasonable accuracy."""
+
     data = generate_synthetic_data(1000)
-    print(f"Generated {len(data)} synthetic data points")
-    
-    # Split into training and test sets
+
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
-    
-    # Create and train model
+
     model = AntennaSelector()
-    print("Training model...")
     metrics = model.train(train_data)
-    
-    print(f"Trained model with {metrics.get('samples', 0)} samples")
-    print(f"Found {metrics.get('classes', 0)} antenna classes")
-    
-    # Test prediction accuracy
+
     correct = 0
     predictions = []
-    
-    print("Testing model on test data...")
+
     for sample in test_data:
         features = model.extract_features(sample)
         prediction = model.predict(features)
-        
-        # Store prediction result
-        predictions.append((
-            sample['ue_id'],
-            sample['latitude'],
-            sample['longitude'],
-            sample['optimal_antenna'],
-            prediction['antenna_id'],
-            prediction['confidence']
-        ))
-        
+
+        predictions.append(
+            (
+                sample['ue_id'],
+                sample['latitude'],
+                sample['longitude'],
+                sample['optimal_antenna'],
+                prediction['antenna_id'],
+                prediction['confidence'],
+            )
+        )
+
         if prediction['antenna_id'] == sample['optimal_antenna']:
             correct += 1
-    
+
     accuracy = correct / len(test_data)
-    print(f"Model accuracy: {accuracy:.2%}")
     
     # Visualize feature importance if available
     feature_importance = metrics.get('feature_importance', {})
@@ -190,12 +166,13 @@ def test_model_training_and_prediction():
     
     # Save model
     try:
-        model.save('test_model.joblib')
-        print("Model saved to test_model.joblib")
-    except Exception as e:
-        print(f"Failed to save model: {str(e)}")
-    
-    return accuracy > 0.7  # Expect at least 70% accuracy
+        model.save('output/test_model.joblib')
+    except Exception as e:  # pragma: no cover - save failures should surface
+        import pytest
+
+        pytest.fail(f"Failed to save model: {e}")
+
+    assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
 
 def visualize_predictions(test_data, predictions):
     """Visualize predictions in a 2D space."""

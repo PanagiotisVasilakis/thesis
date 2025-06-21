@@ -1,6 +1,7 @@
 """Test the AntennaSelector model."""
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from sklearn.model_selection import train_test_split
 
 import importlib.util
@@ -68,55 +69,41 @@ def generate_synthetic_data(num_samples=500):
     return data
 
 def test_model_training_and_prediction():
-    """Test training the model with synthetic data and making predictions."""
-    # Generate synthetic data
+    """Training the model should yield predictions with reasonable accuracy."""
+
     data = generate_synthetic_data(1000)
-    print(f"Generated {len(data)} synthetic data points")
-    
-    # Split into training and test sets
+
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
-    
-    # Create and train model
+
     model = AntennaSelector()
     metrics = model.train(train_data)
-    
-    print(f"Trained model with {metrics['samples']} samples")
-    print(f"Found {metrics['classes']} antenna classes")
-    
-    # Test prediction
+
     correct = 0
     for sample in test_data:
         features = model.extract_features(sample)
         prediction = model.predict(features)
-        
+
         if prediction['antenna_id'] == sample['optimal_antenna']:
             correct += 1
-    
+
     accuracy = correct / len(test_data)
-    print(f"Model accuracy: {accuracy:.2%}")
     
     # Visualize feature importance
     feature_importance = metrics.get('feature_importance', {})
     if feature_importance:
         features = list(feature_importance.keys())
         importance = list(feature_importance.values())
-        
+
         plt.figure(figsize=(10, 6))
         plt.barh(features, importance)
         plt.xlabel('Importance')
         plt.title('Feature Importance')
         plt.tight_layout()
-        
-        # Create directory if it doesn't exist
+
         os.makedirs('output', exist_ok=True)
         plt.savefig('output/feature_importance.png')
-        print("Feature importance visualization saved to output/feature_importance.png")
-    
-    return accuracy > 0.7  # Expect at least 70% accuracy
 
-if __name__ == "__main__":
-    success = test_model_training_and_prediction()
-    if success:
-        print("✅ Model test passed!")
-    else:
-        print("❌ Model test failed!")
+    assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
+
+if __name__ == "__main__":  # pragma: no cover
+    test_model_training_and_prediction()
