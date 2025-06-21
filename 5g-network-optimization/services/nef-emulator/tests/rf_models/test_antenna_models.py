@@ -9,6 +9,7 @@ import pytest
 current_dir = os.path.dirname(os.path.abspath(__file__))
 repo_root = os.path.abspath(os.path.join(current_dir, "..", ".."))  # services/nef-emulator
 sys.path.insert(0, repo_root)
+sys.modules.pop("rf_models", None)
 
 from antenna_models.models import (
     MacroCellModel,
@@ -41,6 +42,17 @@ def test_microcell_pathloss_values_are_sensible(ue_position):
     ant = MacroCellModel("macro1", (0,0,10), 3.5e9, tx_power_dbm=30)
     pl = ant.path_loss_db(ue_position)
     assert 60 < pl < 140, f"Path-loss {pl:.1f} dB outside [60,140]"
+
+def test_shadowing_toggle_macrocell(ue_position):
+    """Ensure shadowing can be toggled on and off."""
+    ant = MacroCellModel("macro_shadow", (0,0,20), 2.6e9, tx_power_dbm=46)
+    pl_a = ant.path_loss_db(ue_position, include_shadowing=False)
+    pl_b = ant.path_loss_db(ue_position, include_shadowing=False)
+    assert pl_a == pl_b, "Path loss should be deterministic without shadowing"
+
+    pl_c = ant.path_loss_db(ue_position, include_shadowing=True)
+    pl_d = ant.path_loss_db(ue_position, include_shadowing=True)
+    assert pl_c != pl_d, "Shadowing enabled should introduce randomness"
 
 def test_sinr_decreases_with_interference(ue_position):
     """Adding an interfering antenna should lower SINR."""
