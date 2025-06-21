@@ -1,12 +1,7 @@
 # services/nef-emulator/tests/test_mobility_models.py
 
-import sys
-import os
 import math
 from datetime import datetime
-
-# add the nef-emulator root so we can import mobility_models
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.app.app.mobility_models.models import (
     LinearMobilityModel,

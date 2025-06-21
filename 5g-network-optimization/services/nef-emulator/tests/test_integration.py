@@ -1,15 +1,10 @@
 # Save this as tests/test_integration.py
 
-import sys
-import os
 import requests
 import json
 import subprocess
 import time
 import matplotlib.pyplot as plt
-
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import mobility models and adapter
 from backend.app.app.mobility_models.models import LinearMobilityModel

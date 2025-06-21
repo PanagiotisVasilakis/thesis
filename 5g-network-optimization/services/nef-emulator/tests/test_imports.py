@@ -1,9 +1,4 @@
 """Test importing the mobility models in the NEF emulator environment."""
-import sys
-import os
-
-# Add the root directory to the path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_imports():
     """Test importing our mobility models."""
