@@ -1,15 +1,7 @@
 # services/nef-emulator/tests/rf_models/test_antenna_models.py
 
 import math
-import sys
-import os
 import pytest
-
-# Ensure nef-emulator root is on the path so 'antenna_models' can be imported
-current_dir = os.path.dirname(os.path.abspath(__file__))
-repo_root = os.path.abspath(os.path.join(current_dir, "..", ".."))  # services/nef-emulator
-sys.path.insert(0, repo_root)
-sys.modules.pop("rf_models", None)
 
 from antenna_models.models import (
     MacroCellModel,

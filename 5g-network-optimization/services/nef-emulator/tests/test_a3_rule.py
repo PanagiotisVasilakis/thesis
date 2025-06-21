@@ -1,12 +1,8 @@
 # tests/test_a3_rule.py
 
-import sys
-import os
 from datetime import datetime, timedelta
 import types
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, ROOT)
 
 import pytest
 from backend.app.app.network.state_manager import NetworkStateManager

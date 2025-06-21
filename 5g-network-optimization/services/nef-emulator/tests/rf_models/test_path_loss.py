@@ -1,14 +1,6 @@
 """Tests for path loss models."""
-import sys
-import os
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Ensure the rf_models package can be imported
-current_dir = os.path.dirname(os.path.abspath(__file__))
-repo_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
-sys.path.insert(0, repo_root)
-sys.modules.pop("rf_models", None)
 
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel, FastFading
 

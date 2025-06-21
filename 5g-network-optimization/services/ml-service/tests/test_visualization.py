@@ -1,13 +1,9 @@
 """Integration tests for visualization endpoints."""
-import sys
-import os
 import requests
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 def test_coverage_map():
     """Test the coverage map endpoint."""
