@@ -15,6 +15,9 @@ for path in reversed([NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
 import types
 crud_stub = types.ModuleType("crud")
 crud_stub.crud_mongo = object()
+crud_stub.ue = object()
+crud_stub.user = object()
+crud_stub.gnb = object()
 sys.modules.setdefault("app.crud", crud_stub)
 
 # Provide lightweight settings for tests avoiding env var requirements
@@ -24,6 +27,13 @@ settings_stub = types.SimpleNamespace(
     FIRST_SUPERUSER="admin@example.com",
     FIRST_SUPERUSER_PASSWORD="password",
     EMAIL_TEST_USER="test@example.com",
+    SQLALCHEMY_DATABASE_URI="postgresql://user:pass@localhost/testdb",
+    MONGO_CLIENT="mongodb://localhost:27017",
 )
+class QoSSettings:
+    def retrieve_settings(self):
+        return {}
+
+config_stub.qosSettings = QoSSettings()
 config_stub.settings = settings_stub
 sys.modules.setdefault("app.core.config", config_stub)

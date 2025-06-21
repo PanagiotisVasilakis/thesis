@@ -84,7 +84,7 @@ class NetworkStateManager:
             'altitude':     z,
             'speed':        speed,
             'connected_to': connected,
-            'neighbor_rsrs': rsrp_dbm,
+            'neighbor_rsrp_dbm': rsrp_dbm,
             'neighbor_sinrs': neighbor_sinrs,
         }
         return features

@@ -28,9 +28,9 @@ def nsm():
 def test_get_feature_vector(nsm):
     fv = nsm.get_feature_vector('ue1')
     assert fv['ue_id'] == 'ue1'
-    assert 'latitude' in fv and 'neighbor_rsrs' in fv
-    # Check that both antennas are present in neighbor_rsrs
-    assert set(fv['neighbor_rsrs'].keys()) == {'antA','antB'}
+    assert 'latitude' in fv and 'neighbor_rsrp_dbm' in fv
+    # Check that both antennas are present in neighbor_rsrp_dbm
+    assert set(fv['neighbor_rsrp_dbm'].keys()) == {'antA','antB'}
 
 def test_apply_handover_decision(nsm):
     ev = nsm.apply_handover_decision('ue1', 'antB')

@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import importlib.util
 from pathlib import Path
+import os
 
 ANT_PATH = Path(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
 spec = importlib.util.spec_from_file_location("antenna_selector", ANT_PATH)
