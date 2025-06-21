@@ -47,10 +47,10 @@ class HandoverEngine:
         fv = self.state_mgr.get_feature_vector(ue_id)
         rf_metrics = {
             aid: {
-                "rsrp": fv["neighbor_rsrs"][aid],
+                "rsrp": fv["neighbor_rsrp_dbm"][aid],
                 "sinr": fv["neighbor_sinrs"][aid],
             }
-            for aid in fv["neighbor_rsrs"]
+            for aid in fv["neighbor_rsrp_dbm"]
         }
         ue_data = {
             "ue_id": ue_id,
@@ -69,10 +69,10 @@ class HandoverEngine:
         fv = self.state_mgr.get_feature_vector(ue_id)
         current = fv["connected_to"]
         now = datetime.utcnow()
-        for aid, rsrp in fv["neighbor_rsrs"].items():
+        for aid, rsrp in fv["neighbor_rsrp_dbm"].items():
             if aid == current:
                 continue
-            if self.rule.check(fv["neighbor_rsrs"][current], rsrp, now):
+            if self.rule.check(fv["neighbor_rsrp_dbm"][current], rsrp, now):
                 return aid
         return None
 

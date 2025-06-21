@@ -51,8 +51,8 @@ def test_end_to_end_handover(monkeypatch):
         "direction": (0, 0, 0),
         "connected_to": fv["connected_to"],
         "rf_metrics": {
-            aid: {"rsrp": fv["neighbor_rsrs"][aid], "sinr": fv["neighbor_sinrs"][aid]}
-            for aid in fv["neighbor_rsrs"]
+            aid: {"rsrp": fv["neighbor_rsrp_dbm"][aid], "sinr": fv["neighbor_sinrs"][aid]}
+            for aid in fv["neighbor_rsrp_dbm"]
         },
     }
 
