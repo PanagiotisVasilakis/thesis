@@ -240,7 +240,14 @@ curl -X POST http://localhost:5050/api/predict \
 
 ### Extended Integration Tests
 
-To run the full integration suite for both services:
+These tests communicate with the running NEF emulator and ML service. Start both
+containers first (for example using `docker-compose`):
+
+```bash
+ML_HANDOVER_ENABLED=1 docker-compose up --build
+```
+
+Then run the full integration suite:
 
 ```bash
 pip install -r requirements.txt
