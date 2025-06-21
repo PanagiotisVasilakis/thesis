@@ -65,6 +65,22 @@ curl -X POST http://localhost:5050/api/predict \
      -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1","rf_metrics":{"antenna_1":{"rsrp":-80,"sinr":15},"antenna_2":{"rsrp":-90,"sinr":10}}}'
 ```
 
+## Building Docker Images
+
+Build the NEF emulator and ML service images before deploying to Kubernetes:
+
+```bash
+docker build -t <registry>/nef-emulator:latest -f services/nef-emulator/backend/Dockerfile.backend services/nef-emulator
+docker build -t <registry>/ml-service:latest services/ml-service
+```
+
+Push the images so your cluster can pull them:
+
+```bash
+docker push <registry>/nef-emulator:latest
+docker push <registry>/ml-service:latest
+```
+
 ## Testing
 First install the dependencies using the repository root `requirements.txt`. Some packages (e.g. `tables`) require system libraries such as `libhdf5-dev` on Ubuntu.
 ```bash

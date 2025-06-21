@@ -8,22 +8,16 @@ This folder contains Kubernetes manifests and tips for running the NEF emulator 
 - Docker images for both services available in your registry
 - `kubectl` configured to access your cluster
 
+## Environment Variables
+
+Both deployments rely on the variables listed in the [root README](../../README.md#environment-variables).
+Define them via `kubectl set env` or by editing the manifests before applying.
+
 ## 1. Build and Push Images
 
-From the repository root build the images and push them to a registry accessible by your cluster:
-
-```bash
-# Build NEF emulator image
-docker build -t <registry>/nef-emulator:latest -f services/nef-emulator/backend/Dockerfile.backend services/nef-emulator
-# Build ML service image
-docker build -t <registry>/ml-service:latest services/ml-service
-# Push images
-docker push <registry>/nef-emulator:latest
-docker push <registry>/ml-service:latest
-```
-
-Update `ml-service.yaml` to use the registry paths. Edit the `image` field under
-`spec.template.spec.containers` so the Deployment pulls your pushed image.
+Build the Docker images and push them to a registry accessible by your cluster.
+Refer to the [root README](../../README.md#building-docker-images) for the exact commands.
+Update `ml-service.yaml` and any NEF emulator manifest to use the registry image paths.
 
 ## 2. Deploy the NEF Emulator
 
@@ -76,11 +70,12 @@ kubectl get pods
 kubectl get services
 ```
 
-The ML service exposes port 5050 inside the cluster. Use port forwarding to access it locally if needed:
+Use port forwarding to access the services locally if needed:
 
 ```bash
+kubectl port-forward svc/nef-emulator 8080:80
 kubectl port-forward svc/ml-service 5050:5050
 ```
 
-You can now send API requests to the ML service while it communicates with the NEF emulator in your cluster.
+You can now send API requests to either service from your workstation.
 
