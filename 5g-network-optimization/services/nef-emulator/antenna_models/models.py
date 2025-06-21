@@ -1,7 +1,13 @@
 import math
 import numpy as np
 from datetime import datetime
-from .patterns import AntennaPattern, IsotropicPattern, ThreeGPPSectorPattern, MassiveMIMOPattern
+from .patterns import (
+    AntennaPattern,
+    IsotropicPattern,
+    ThreeGPPSectorPattern,
+    MassiveMIMOPattern,
+)
+from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel
 
 class BaseAntennaModel:
     """Abstract antenna with position, frequency, and TX power."""
@@ -25,7 +31,7 @@ class BaseAntennaModel:
 
     def rsrp_dbm(self, ue_position, include_shadowing: bool = False):
         """Received signal power with no shadowing/fast‑fading."""
-        pl = self.path_loss_db(ue_position)
+        pl = self.path_loss_db(ue_position, include_shadowing=include_shadowing)
         return self.tx_power_dbm - pl
 
 class MacroCellModel:
@@ -51,23 +57,21 @@ class MacroCellModel:
         self.n = path_loss_exponent
         self.sigma = sigma_sf
         self.bw = bandwidth_hz
+        self.path_loss_model = CloseInPathLossModel(n=self.n, sigma=self.sigma)
 
     def path_loss_db(self, ue_position, include_shadowing: bool = False) -> float:
-        """Computes large-scale path loss in dB per 3GPP TR 38.901 NLOS UMa scenario."""
-        # Distance in meters
+        """Compute path loss using the Close-In model."""
         d = math.dist(self.position, ue_position)
-        # Free-space PL at d0: PL0 = 20log10(4π d0 fc / c)
-        c = 3e8
-        pl0 = 20 * math.log10(4 * math.pi * self.d0 * self.fc * 1e9 / c)
-        # 10 n log10(d/d0)
-        pl = pl0 + 10 * self.n * math.log10(max(d, self.d0) / self.d0)
-        # Add log-normal shadowing
-        pl += np.random.normal(0, self.sigma)
-        return pl
+        return self.path_loss_model.calculate_path_loss(
+            d,
+            self.fc,
+            include_shadowing=include_shadowing,
+        )
 
     def rsrp_dbm(self, ue_position, include_shadowing: bool = False):
         """Received RSRP in dBm."""
-        return self.tx_power_dbm - self.path_loss_db(ue_position)
+        pl = self.path_loss_db(ue_position, include_shadowing=include_shadowing)
+        return self.tx_power_dbm - pl
 
     def sinr_db(self, ue_position, interfering_antennas):
         """
@@ -92,15 +96,18 @@ class MicroCellModel(BaseAntennaModel):
     Urban Microcell (3GPP TR36.814 Urban Micro NLOS approximation).
     """
 
+    def __init__(self, antenna_id, position, frequency_hz, tx_power_dbm, sigma_sf=4.0):
+        super().__init__(antenna_id, position, frequency_hz, tx_power_dbm)
+        self.path_loss_model = ABGPathLossModel(alpha=3.67, beta=22.7, gamma=2.6, sigma=sigma_sf)
+
     def path_loss_db(self, ue_position, include_shadowing: bool = False):
-        dx = ue_position[0] - self.position[0]
-        dy = ue_position[1] - self.position[1]
-        d_2d = math.hypot(dx, dy)
-        d_3d = math.hypot(d_2d, ue_position[2] - self.position[2])
-        f_mhz = self.frequency_hz / 1e6
-        # TR36.814 Urban Micro NLOS: PL = 36.7·log10(d_3d) + 22.7 + 26·log10(f_MHz)
-        pl = 36.7 * math.log10(max(d_3d,1e-3)) + 22.7 + 26 * math.log10(f_mhz)
-        return pl
+        d = math.dist(self.position, ue_position)
+        f_ghz = self.frequency_hz / 1e9
+        return self.path_loss_model.calculate_path_loss(
+            d,
+            f_ghz,
+            include_shadowing=include_shadowing,
+        )
 
 
 class PicoCellModel(BaseAntennaModel):
@@ -108,12 +115,15 @@ class PicoCellModel(BaseAntennaModel):
     Indoor Pico cell using Free‑Space Path Loss (FSPL).
     """
 
+    def __init__(self, antenna_id, position, frequency_hz, tx_power_dbm, sigma_sf=0.0):
+        super().__init__(antenna_id, position, frequency_hz, tx_power_dbm)
+        self.path_loss_model = CloseInPathLossModel(n=2.0, sigma=sigma_sf)
+
     def path_loss_db(self, ue_position, include_shadowing: bool = False):
-        dx = ue_position[0] - self.position[0]
-        dy = ue_position[1] - self.position[1]
-        d_3d = math.hypot(math.hypot(dx, dy), ue_position[2] - self.position[2])
-        f_mhz = self.frequency_hz / 1e6
-        # FSPL (dB) = 20·log10(d) + 20·log10(f) + 32.45, where d in km
-        d_km = max(d_3d/1000, 1e-6)
-        pl = 20*math.log10(d_km) + 20*math.log10(f_mhz) + 32.45
-        return pl
+        d = math.dist(self.position, ue_position)
+        f_ghz = self.frequency_hz / 1e9
+        return self.path_loss_model.calculate_path_loss(
+            d,
+            f_ghz,
+            include_shadowing=include_shadowing,
+        )
