@@ -47,11 +47,15 @@ def test_shadowing_toggle_macrocell(ue_position):
     """Ensure shadowing can be toggled on and off."""
     ant = MacroCellModel("macro_shadow", (0,0,20), 2.6e9, tx_power_dbm=46)
     pl_a = ant.path_loss_db(ue_position, include_shadowing=False)
+    assert 60 < pl_a < 140, f"Path-loss {pl_a:.1f} dB outside [60,140]"
     pl_b = ant.path_loss_db(ue_position, include_shadowing=False)
+    assert 60 < pl_b < 140, f"Path-loss {pl_b:.1f} dB outside [60,140]"
     assert pl_a == pl_b, "Path loss should be deterministic without shadowing"
 
     pl_c = ant.path_loss_db(ue_position, include_shadowing=True)
+    assert 60 < pl_c < 140, f"Path-loss {pl_c:.1f} dB outside [60,140]"
     pl_d = ant.path_loss_db(ue_position, include_shadowing=True)
+    assert 60 < pl_d < 140, f"Path-loss {pl_d:.1f} dB outside [60,140]"
     assert pl_c != pl_d, "Shadowing enabled should introduce randomness"
 
 def test_sinr_decreases_with_interference(ue_position):
