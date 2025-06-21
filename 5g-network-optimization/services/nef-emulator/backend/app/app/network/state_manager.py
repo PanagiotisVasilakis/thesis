@@ -22,12 +22,14 @@ class NetworkStateManager:
         if env_simple is not None:
             simple_mode = env_simple.lower() in {"1", "true", "yes", "y"}
 
+        import logging
+
         env_hyst = os.getenv("A3_HYSTERESIS_DB")
         if env_hyst is not None:
             try:
                 a3_hysteresis_db = float(env_hyst)
             except ValueError:
-                pass
+                logging.warning(f"Invalid value for A3_HYSTERESIS_DB: '{env_hyst}'. Using default value.")
 
         env_ttt = os.getenv("A3_TTT_S")
         if env_ttt is not None:
