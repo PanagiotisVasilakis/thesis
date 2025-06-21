@@ -192,9 +192,61 @@ variables. These may be set in your shell environment or through
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SIMPLE_MODE` | Enable rule-based handovers instead of ML decisions (`true`/`false`) | `false` |
+| `SIMPLE_MODE` | Apply the A3 handover rule before executing any decision (`true`/`false`) | `false` |
+| `ML_HANDOVER_ENABLED` | Enable ML-driven handovers. When `false` only the A3 rule is used | `false` |
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
+| `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
+
+## Running the System
+
+Both the NEF emulator and the ML service are started via `docker-compose`. The
+handover logic can run in a simple rule-based mode (3GPP Event A3) or use the ML
+model. Control this behavior with the environment variables described above.
+
+### Simple A3 Mode
+
+Disable ML-based decisions and rely solely on the A3 hysteresis/time-to-trigger
+rule:
+
+```bash
+ML_HANDOVER_ENABLED=0 SIMPLE_MODE=true docker-compose up --build
+```
+
+### ML Mode
+
+Use the trained ML model for antenna selection:
+
+```bash
+ML_HANDOVER_ENABLED=1 docker-compose up --build
+```
+
+### Example API Calls
+
+Trigger a handover (rule-based or ML depending on the mode):
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/ml/handover?ue_id=u1"
+```
+
+Request a direct prediction from the ML service:
+
+```bash
+curl -X POST http://localhost:5050/api/predict \
+     -H 'Content-Type: application/json' \
+     -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1",\
+"rf_metrics":{"antenna_1":{"rsrp":-80,"sinr":15},"antenna_2":{"rsrp":-90,"sinr":10}}}'
+```
+
+### Extended Integration Tests
+
+To run the full integration suite for both services:
+
+```bash
+pip install -r requirements.txt
+pytest services/nef-emulator/tests/integration \
+       services/ml-service/tests/integration
+```
 
 
 ## Technical Deep Dive: Key Implementations
