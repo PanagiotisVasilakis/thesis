@@ -1,10 +1,5 @@
 """Test the MobilityPatternAdapter functionality."""
-import sys
-import os
 import matplotlib.pyplot as plt
-
-# Add the root directory to the path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
 

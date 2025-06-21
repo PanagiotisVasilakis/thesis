@@ -1,9 +1,6 @@
-import sys, os
 from datetime import datetime, timedelta
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.insert(0, ROOT)
-
+import pytest
 from backend.app.app.handover.engine import HandoverEngine
 from backend.app.app.network.state_manager import NetworkStateManager
 
@@ -72,8 +69,8 @@ def test_rule_based_handover_invalid_ue(monkeypatch):
     nsm.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'A'}}
 
     eng = HandoverEngine(nsm, use_ml=False, a3_hysteresis_db=3.0, a3_ttt_s=1.0)
-    # 'u2' does not exist
-    assert eng.decide_and_apply('u2') is None
+    with pytest.raises(KeyError):
+        eng.decide_and_apply('u2')
 
 def test_ml_handover(monkeypatch):
     class DummyModel:
@@ -92,3 +89,69 @@ def test_ml_handover(monkeypatch):
     eng = HandoverEngine(nsm, use_ml=True)
     ev = eng.decide_and_apply('u1')
     assert ev and ev['to']=='B'
+
+
+def test_engine_mode_env(monkeypatch):
+    """Environment variable should control ML mode when use_ml is None."""
+    class DummyModel:
+        def __init__(self, *a, **k):
+            pass
+        def extract_features(self, d):
+            return {}
+        def predict(self, f):
+            return {"antenna_id": "A", "confidence": 1.0}
+    monkeypatch.setattr('backend.app.app.handover.engine.AntennaSelector', DummyModel)
+
+    monkeypatch.setenv("ML_HANDOVER_ENABLED", "1")
+    nsm = NetworkStateManager()
+    eng = HandoverEngine(nsm)
+    assert eng.use_ml is True
+
+    monkeypatch.setenv("ML_HANDOVER_ENABLED", "0")
+    eng = HandoverEngine(nsm)
+    assert eng.use_ml is False
+    monkeypatch.delenv("ML_HANDOVER_ENABLED", raising=False)
+
+
+def test_engine_mode_auto_based_on_antennas():
+    """When not specified, engine uses ML if enough antennas are present."""
+    class DummyModel:
+        def __init__(self,*a,**k):
+            pass
+        def extract_features(self,d):
+            return {}
+        def predict(self,f):
+            return {"antenna_id": "A", "confidence":1.0}
+    import backend.app.app.handover.engine as eng_mod
+    eng_mod.AntennaSelector = DummyModel
+
+    nsm = NetworkStateManager()
+    # 4 antennas -> ML enabled by default
+    nsm.antenna_list = {chr(65+i): DummyAntenna(-80+i) for i in range(4)}
+    eng = HandoverEngine(nsm, use_ml=None, min_antennas_ml=4)
+    assert eng.use_ml is True
+
+    # Fewer antennas -> rule based
+    nsm2 = NetworkStateManager()
+    nsm2.antenna_list = {"A": DummyAntenna(-80)}
+    eng2 = HandoverEngine(nsm2, use_ml=None, min_antennas_ml=4)
+    assert eng2.use_ml is False
+
+
+def test_engine_mode_explicit_overrides_env(monkeypatch):
+    """Explicit use_ml parameter should override environment variable."""
+    class DummyModel:
+        def __init__(self,*a,**k):
+            pass
+        def extract_features(self,d):
+            return {}
+        def predict(self,f):
+            return {"antenna_id":"A","confidence":1.0}
+    monkeypatch.setattr('backend.app.app.handover.engine.AntennaSelector', DummyModel)
+
+    monkeypatch.setenv("ML_HANDOVER_ENABLED", "0")
+    nsm = NetworkStateManager()
+    eng = HandoverEngine(nsm, use_ml=True)
+    assert eng.use_ml is True
+    monkeypatch.delenv("ML_HANDOVER_ENABLED", raising=False)
+

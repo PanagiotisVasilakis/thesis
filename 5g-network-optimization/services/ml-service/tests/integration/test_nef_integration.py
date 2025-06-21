@@ -1,13 +1,15 @@
 """Integration tests for NEF emulator communication."""
-import sys
-import os
 import requests
 import json
 import time
+import importlib.util
+from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from app.data.nef_collector import NEFDataCollector
+NEF_COLLECTOR_PATH = Path(__file__).resolve().parents[2] / "app" / "data" / "nef_collector.py"
+spec = importlib.util.spec_from_file_location("nef_collector", NEF_COLLECTOR_PATH)
+nef_collector = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(nef_collector)
+NEFDataCollector = nef_collector.NEFDataCollector
 
 def test_nef_connection():
     """Test connecting to the NEF emulator."""

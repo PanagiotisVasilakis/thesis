@@ -1,21 +1,16 @@
 # Save this as tests/test_ml_components.py
 
-import sys
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+import importlib.util
+from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Import the AntennaSelector model
-try:
-    from app.models.antenna_selector import AntennaSelector
-except ImportError as exc:
-    raise ImportError(
-        "Unable to import AntennaSelector. Ensure the ml-service package is on the PYTHONPATH"
-    ) from exc
+ANT_PATH = Path(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
+spec = importlib.util.spec_from_file_location("antenna_selector", ANT_PATH)
+antenna_selector = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(antenna_selector)
+AntennaSelector = antenna_selector.AntennaSelector
 
 def generate_synthetic_data(num_samples=500):
     """Generate synthetic data for testing."""

@@ -1,10 +1,5 @@
 """Test the mobility patterns API functionality with mocks."""
-import sys
-import os
 import json
-
-# Add the root directory to the path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import our models and adapter
 from backend.app.app.mobility_models.models import LinearMobilityModel
