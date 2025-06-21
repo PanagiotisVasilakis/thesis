@@ -36,6 +36,45 @@ def test_rule_based_handover(monkeypatch):
     ev = eng.decide_and_apply('u1')
     assert ev and nsm.ue_states['u1']['connected_to']=='B'
 
+def test_rule_based_handover_already_connected(monkeypatch):
+    base = datetime(2025,1,1)
+    times = [base, base + timedelta(seconds=1.1)]
+    patch_time(monkeypatch, times)
+
+    nsm = NetworkStateManager()
+    # UE is already connected to the best antenna ('B')
+    nsm.antenna_list = {'A': DummyAntenna(-80), 'B': DummyAntenna(-70)}
+    nsm.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'B'}}
+
+    eng = HandoverEngine(nsm, use_ml=False, a3_hysteresis_db=3.0, a3_ttt_s=1.0)
+    assert eng.decide_and_apply('u1') is None
+
+def test_rule_based_handover_no_eligible_antennas(monkeypatch):
+    base = datetime(2025,1,1)
+    times = [base, base + timedelta(seconds=1.1)]
+    patch_time(monkeypatch, times)
+
+    nsm = NetworkStateManager()
+    # Only one antenna, so no eligible neighbors
+    nsm.antenna_list = {'A': DummyAntenna(-80)}
+    nsm.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'A'}}
+
+    eng = HandoverEngine(nsm, use_ml=False, a3_hysteresis_db=3.0, a3_ttt_s=1.0)
+    assert eng.decide_and_apply('u1') is None
+
+def test_rule_based_handover_invalid_ue(monkeypatch):
+    base = datetime(2025,1,1)
+    times = [base, base + timedelta(seconds=1.1)]
+    patch_time(monkeypatch, times)
+
+    nsm = NetworkStateManager()
+    nsm.antenna_list = {'A': DummyAntenna(-80), 'B': DummyAntenna(-76)}
+    nsm.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'A'}}
+
+    eng = HandoverEngine(nsm, use_ml=False, a3_hysteresis_db=3.0, a3_ttt_s=1.0)
+    # 'u2' does not exist
+    assert eng.decide_and_apply('u2') is None
+
 def test_ml_handover(monkeypatch):
     class DummyModel:
         def __init__(self, *args, **kwargs):
