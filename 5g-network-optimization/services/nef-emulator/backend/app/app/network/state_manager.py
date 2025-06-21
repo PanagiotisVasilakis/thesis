@@ -1,6 +1,7 @@
 # services/nef-emulator/network/state_manager.py
 
 import logging
+import os
 from datetime import datetime
 import math
 
@@ -9,6 +10,31 @@ class NetworkStateManager:
 
     def __init__(self, simple_mode: bool = False, a3_hysteresis_db: float = 2.0,
                  a3_ttt_s: float = 0.0):
+        """Initialize the network state manager.
+
+        Parameters can be overridden by the following environment variables:
+        SIMPLE_MODE - enable rule-based handovers (true/false)
+        A3_HYSTERESIS_DB - hysteresis in dB for the A3 event
+        A3_TTT_S - time-to-trigger in seconds for the A3 event
+        """
+        # Read overrides from environment variables
+        env_simple = os.getenv("SIMPLE_MODE")
+        if env_simple is not None:
+            simple_mode = env_simple.lower() in {"1", "true", "yes", "y"}
+
+        env_hyst = os.getenv("A3_HYSTERESIS_DB")
+        if env_hyst is not None:
+            try:
+                a3_hysteresis_db = float(env_hyst)
+            except ValueError:
+                pass
+
+        env_ttt = os.getenv("A3_TTT_S")
+        if env_ttt is not None:
+            try:
+                a3_ttt_s = float(env_ttt)
+            except ValueError:
+                pass
         self.ue_states = {}          # supi -> { 'position':(x,y,z), 'speed':v, 'connected_to':ant_id, 'trajectory':[...] }
         self.antenna_list = {}       # ant_id -> AntennaModel instance
         self.handover_history = []   # list of {ue_id, from, to, timestamp}
