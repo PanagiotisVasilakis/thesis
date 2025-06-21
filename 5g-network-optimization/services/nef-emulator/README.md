@@ -17,7 +17,9 @@
 
 **Host prerequisites**: `Docker version 23.0.1`, `Docker Compose v2`, `build-essential`\*, `jq`\*\*
 
-After cloning the repository, there are 4 more steps to do. For convinience, we have created a [`Makefile`](Makefile) that contains a command for each step + several common `docker-compose` tasks which you may find handy in the future.
+After cloning the repository, there are four steps to get the emulator running.
+You can use the provided [`Makefile`](Makefile) or invoke the `docker compose`
+commands manually.
 
 1. create your local `.env` file
 2. build the container images
@@ -38,6 +40,15 @@ make up
 
 # 4.
 make db-init
+```
+
+If you prefer to run the stack without `make`, execute the equivalent commands
+from this directory:
+
+```bash
+# create your .env file (see `backend/app/app/core/config.py` for variables)
+docker compose build
+docker compose up
 ```
 
 >\* 💡 Info: *To use the `make` command you need to `apt install build-essential` first. In case you don't want to proceed with this installation, you can head over to the `Makefile` and copy/paste the shell commands that are being used for every step.*
@@ -75,7 +86,11 @@ Short reasoning on why we choose tags over branches:
 
 ## ↔️ NetApp communication options
 
-To be updated...
+NetApps interact with the emulator via the REST endpoints exposed on
+`http://localhost:8090` (HTTP) and `https://localhost:4443` (HTTPS) by the
+`reverse_proxy` service. When running under Docker Compose, other containers can
+reach the API using the hostname `backend`. Example requests for subscriptions
+and location reporting are available under [`docs/test_plan`](docs/test_plan).
 
 ## Integration with CAPIF
 

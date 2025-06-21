@@ -28,6 +28,19 @@ This project aims to optimize 5G handover decisions using a 3GPP-compliant Netwo
 ```
 For detailed setup instructions, see the READMEs in [`services/nef-emulator`](services/nef-emulator/README.md) and [`services/ml-service`](services/ml-service/README.md).
 
+## Mobility Models and A3 Handover
+The emulator includes several 3GPP-compliant mobility models located under
+`services/nef-emulator/backend/app/app/mobility_models`:
+
+- **Linear** and **L‑shaped** movement
+- **Random Waypoint** and **Random Directional**
+- **Manhattan Grid** and **Urban Grid** patterns
+- **Reference Point Group** mobility for UE clusters
+
+For rule-based scenarios the NEF implements the 3GPP **A3 event** rule. Enable
+it with `SIMPLE_MODE=true`; use `A3_HYSTERESIS_DB` and `A3_TTT_S` to tune the
+hysteresis and time-to-trigger parameters.
+
 ## Environment Variables
 The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker-compose`:
 
