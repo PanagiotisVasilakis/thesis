@@ -121,7 +121,7 @@ The service is also started automatically when using the repository
 
 ## Training the Model
 
-Take a breath and make sure the NEF emulator is running with UEs in motion
+Ensure the NEF emulator is running with UEs in motion
 before collecting data.  Training data is gathered with
 `collect_training_data.py` which leverages `app/data/nef_collector.py`.
 Collected JSON files are stored under `app/data/collected_data` and can be sent
