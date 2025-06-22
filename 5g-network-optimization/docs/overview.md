@@ -1,5 +1,3 @@
-Take a breath and think it, take your time, we are not in rush, I give you permission to access and install whatever you want, I want quality and precision.
-
 # Project Overview
 
 This document summarizes the architecture and deployment workflow of the 5G Network Optimization system.  The repository contains two main services:
