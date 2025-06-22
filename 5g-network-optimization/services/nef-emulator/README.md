@@ -134,6 +134,7 @@ Update the `EXTERNAL_NET` environment variable to `false` in the `.env` file of 
 - **antenna_models/** – Antenna implementations and radiation patterns used to simulate different base station types.
 - **mobility_models/** – Example UE mobility patterns (linear, L‑shaped, etc.) and helpers for feeding trajectories to the emulator.
 - **rf_models/** – Path loss and radio‑frequency utilities for computing RSRP, SINR and similar metrics.
+- **docs/antenna_and_path_loss.md** – Documentation on how antenna models call these path‑loss utilities and where the relevant tests live.
 
 ### Core classes
 
