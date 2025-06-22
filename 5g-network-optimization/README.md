@@ -28,6 +28,34 @@ This project aims to optimize 5G handover decisions using a 3GPP-compliant Netwo
 ```
 For detailed setup instructions, see the READMEs in [`services/nef-emulator`](services/nef-emulator/README.md) and [`services/ml-service`](services/ml-service/README.md).
 
+## Repository Layout
+
+This directory groups the code and configuration needed to run the system:
+
+- `services/` – source code for the NEF emulator and the ML service. Each
+  service includes its own Dockerfile and tests. These services are referenced by
+  `docker-compose.yml` for local development and by the manifests under
+  `deployment/`.
+- `deployment/` – Kubernetes manifests for running the pre-built images in a
+  cluster. They rely on images built from `services/` being pushed to your
+  registry.
+- `monitoring/` – Prometheus and Grafana configuration used to collect metrics
+  from the running services.
+- `docker-compose.yml` – orchestrates all services locally, including the
+  monitoring stack.
+- `pytest.ini` – shared configuration for running the automated tests.
+
+Run the stack locally from this directory with:
+
+```bash
+docker-compose up --build
+```
+
+The environment variables documented below (`SIMPLE_MODE`, `ML_HANDOVER_ENABLED`
+and others) can be passed on the command line or in an `.env` file to control
+the behavior of both services.
+
+
 ## Mobility Models and A3 Handover
 The emulator includes several 3GPP-compliant mobility models located under
 `services/nef-emulator/backend/app/app/mobility_models`:
