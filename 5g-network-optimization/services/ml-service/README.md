@@ -1,9 +1,40 @@
 # ML Service
 
 This Flask-based microservice predicts optimal antenna assignments for user equipment (UE).
-It exposes a small REST API used by the NEF emulator and by the training scripts.
+It exposes a REST API consumed by the NEF emulator and by the training scripts.
+
+## Application Factory
+
+The entry point for the service is `app/__init__.py` which implements a
+Flask application factory named `create_app`. The factory performs the
+following tasks:
+
+1. Loads default configuration such as `NEF_API_URL` and the `MODEL_PATH` for
+   the persisted model.
+2. Creates the model directory and initializes the `AntennaSelector` model via
+   `app.initialization.model_init.initialize_model`. If no model exists a
+   lightweight synthetic one is trained and stored automatically.
+3. Registers the REST API blueprint from `app/api` and visualization routes
+   from `app/api/visualization`.
+
+```python
+from app import create_app
+app = create_app()
+```
+
+Running `python app.py` simply invokes this factory and serves the app.
 
 ## API Endpoints
+
+The routes are defined in `app/api/routes.py`. Example calls are shown using
+`curl` with the default port `5050`.
+
+### `GET /api/health`
+Simple health probe.
+
+```bash
+curl http://localhost:5050/api/health
+```
 
 ### `POST /api/predict`
 Submit UE information and receive the recommended antenna.
@@ -33,6 +64,25 @@ label used during training.
 curl -X POST http://localhost:5050/api/train \
      -H 'Content-Type: application/json' \
      -d @training_data.json
+```
+
+### `GET /api/nef-status`
+Check connectivity with the NEF emulator specified by `NEF_API_URL`.
+
+```bash
+curl http://localhost:5050/api/nef-status
+```
+
+### Visualization Endpoints
+Additional helpers under `/api/visualization` generate PNG images.
+
+```
+# Coverage map of predicted antennas
+curl -o coverage.png http://localhost:5050/api/visualization/coverage-map
+
+# Movement trajectory (POST JSON array of samples)
+curl -X POST http://localhost:5050/api/visualization/trajectory \
+     -H 'Content-Type: application/json' -d @trajectory.json -o trajectory.png
 ```
 
 ## Environment Variables
@@ -71,8 +121,12 @@ The service is also started automatically when using the repository
 
 ## Training the Model
 
-Use `collect_training_data.py` to gather samples from the NEF emulator and
-optionally train the model via the `/api/train` endpoint.
+Take a breath and make sure the NEF emulator is running with UEs in motion
+before collecting data.  Training data is gathered with
+`collect_training_data.py` which leverages `app/data/nef_collector.py`.
+Collected JSON files are stored under `app/data/collected_data` and can be sent
+to the `/api/train` endpoint to update the `AntennaSelector` model.  The trained
+model is persisted as `app/models/antenna_selector.joblib`.
 
 ```bash
 # Collect data for five minutes and train the model when done
@@ -80,4 +134,5 @@ python collect_training_data.py --duration 300 --train
 ```
 
 The script accepts `--url`, `--username` and `--password` options to authenticate
-with the NEF emulator if needed.
+with the NEF emulator if needed. After training, the updated model file can be
+loaded automatically on the next service start.
