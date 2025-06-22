@@ -12,6 +12,7 @@
 - [How to work with a specific tag / release](#%EF%B8%8F-how-to-work-on-a-specific-tag--release)
 - [NetApp communication options](#%EF%B8%8F-netapp-communication-options)
 - [Integration with CAPIF](#integration-with-capif)
+- [Architecture Overview](#architecture-overview)
 
 ## ⚙ Setup locally
 
@@ -124,3 +125,23 @@ Update the `EXTERNAL_NET` environment variable to `false` in the `.env` file of 
 3. Start the NEF services by executing either the make up or make debug-up command in the NEF Emulator project directory.
 
 > 💡 Once you have completed these steps, NEF should be successfully onboarded to the CAPIF Core Function. To confirm this, check that 12 files have been created in the `app/core/certificates/` folder.
+
+## Architecture Overview
+
+### Directory layout
+
+- **backend/** – FastAPI application and Dockerfile. [`backend/app/app/main.py`](backend/app/app/main.py) defines the web server and routes.
+- **antenna_models/** – Antenna implementations and radiation patterns used to simulate different base station types.
+- **mobility_models/** – Example UE mobility patterns (linear, L‑shaped, etc.) and helpers for feeding trajectories to the emulator.
+- **rf_models/** – Path loss and radio‑frequency utilities for computing RSRP, SINR and similar metrics.
+
+### Core classes
+
+`NetworkStateManager` keeps track of UEs, antennas and current connections. When `simple_mode` is enabled it instantiates an `A3EventRule` for each UE to evaluate 3GPP event A3 conditions. `HandoverEngine` relies on `NetworkStateManager` to fetch RF metrics and apply decisions. Depending on configuration it either uses machine learning predictions or delegates to an `A3EventRule` check before calling `NetworkStateManager.apply_handover_decision()`.
+
+### Key files
+
+- [`backend/app/app/main.py`](backend/app/app/main.py) – FastAPI entrypoint mounting both NEF internal APIs and the northbound interface.
+- [`backend/Dockerfile.backend`](backend/Dockerfile.backend) – Builds the backend image using `tiangolo/uvicorn-gunicorn-fastapi`.
+
+
