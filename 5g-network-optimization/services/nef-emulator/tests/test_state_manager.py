@@ -1,7 +1,7 @@
 # services/nef-emulator/tests/test_state_manager.py
 
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 from backend.app.app.network.state_manager import NetworkStateManager
@@ -49,6 +49,39 @@ def test_unknown_ue(nsm):
 def test_unknown_antenna(nsm):
     with pytest.raises(KeyError):
         nsm.apply_handover_decision('ue1','antX')
+
+def test_unknown_antenna_simple_mode(monkeypatch):
+    monkeypatch.setenv('SIMPLE_MODE', '1')
+    n = NetworkStateManager()
+    n.antenna_list = {'A': MacroCellModel('A', (0,0,0), 2.6e9, tx_power_dbm=46)}
+    n.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'A'}}
+    with pytest.raises(KeyError):
+        n.apply_handover_decision('u1', 'missing')
+    assert not n.handover_history
+
+def test_env_simple_mode(monkeypatch):
+    monkeypatch.setenv('SIMPLE_MODE', 'true')
+    n = NetworkStateManager(simple_mode=False)
+    assert n.simple_mode is True
+
+def test_env_a3_hysteresis(monkeypatch):
+    monkeypatch.setenv('SIMPLE_MODE', '1')
+    monkeypatch.setenv('A3_HYSTERESIS_DB', '5.5')
+    n = NetworkStateManager()
+    assert n.simple_mode is True
+    assert n._a3_params[0] == pytest.approx(5.5)
+
+def test_env_a3_ttt(monkeypatch):
+    monkeypatch.setenv('SIMPLE_MODE', '1')
+    monkeypatch.setenv('A3_TTT_S', '2.0')
+    n = NetworkStateManager()
+    assert n.simple_mode is True
+    assert n._a3_params[1] == pytest.approx(2.0)
+
+def test_get_feature_vector_no_ue():
+    n = NetworkStateManager()
+    with pytest.raises(KeyError):
+        n.get_feature_vector('any')
         
 def test_get_position_at_time_interpolation(nsm):
     # Build a simple trajectory for ue1: at t=0s at (0,0,0), at t=10s at (10,0,0)
@@ -71,6 +104,25 @@ def test_get_position_at_time_interpolation(nsm):
     pos_mid = nsm.get_position_at_time('ue1', base + timedelta(seconds=5))
     assert pytest.approx(pos_mid[0], rel=1e-3) == 5.0
     assert pos_mid[1:] == (0.0, 0.0)
+
+def test_get_position_at_time_multiseg(nsm):
+    base = datetime(2025,1,1,12,0,0)
+    nsm.ue_states['ue1']['trajectory'] = [
+        {'timestamp': base, 'position': (0.0, 0.0, 0.0)},
+        {'timestamp': base + timedelta(seconds=10), 'position': (10.0, 0.0, 0.0)},
+        {'timestamp': base + timedelta(seconds=20), 'position': (20.0, 10.0, 0.0)},
+    ]
+
+    # exact samples
+    assert nsm.get_position_at_time('ue1', base) == (0.0, 0.0, 0.0)
+    assert nsm.get_position_at_time('ue1', base + timedelta(seconds=10)) == (10.0, 0.0, 0.0)
+    assert nsm.get_position_at_time('ue1', base + timedelta(seconds=20)) == (20.0, 10.0, 0.0)
+
+    # between second and third point
+    p = nsm.get_position_at_time('ue1', base + timedelta(seconds=15))
+    assert pytest.approx(p[0]) == 15.0
+    assert pytest.approx(p[1]) == 5.0
+    assert p[2] == 0.0
 
 if __name__ == "__main__":
     pytest.main([__file__])
