@@ -25,7 +25,7 @@ venv/
 ENV/
 
 # Environment variables
-.env
+# .env is tracked for local development
 
 # IDEs
 .idea/
