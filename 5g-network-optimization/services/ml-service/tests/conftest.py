@@ -1,17 +1,48 @@
-import importlib.util
 from pathlib import Path
+import importlib.util
+import sys
 import pytest
 
-APP_INIT = Path(__file__).resolve().parents[1] / "app" / "__init__.py"
-spec = importlib.util.spec_from_file_location("ml_app", APP_INIT)
-ml_app = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(ml_app)
-create_app = ml_app.create_app
+# Path to the ml-service package
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_create_app():
+    """Dynamically load the ``create_app`` factory without polluting ``sys.modules``.
+
+    ``create_app`` expects imports from the ``app`` package.  To satisfy these
+    while avoiding conflicts with other tests that also provide a package named
+    ``app``, we temporarily register the loaded module under that name and
+    clean it up afterwards.
+    """
+
+    spec = importlib.util.spec_from_file_location(
+        "app",
+        SERVICE_ROOT / "app" / "__init__.py",
+        submodule_search_locations=[str(SERVICE_ROOT / "app")],
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["app"] = module
+    # Stub optional visualization dependency not present in test environment
+    sys.modules.setdefault("seaborn", importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)))
+    spec.loader.exec_module(module)
+    create_app_fn = module.create_app
+
+    def cleanup():
+        for name in list(sys.modules.keys()):
+            if name == "app" or name.startswith("app."):
+                del sys.modules[name]
+
+    return create_app_fn, cleanup
 
 @pytest.fixture
 def app():
+    create_app, cleanup = load_create_app()
     app = create_app({'TESTING': True})
-    return app
+    try:
+        yield app
+    finally:
+        cleanup()
 
 @pytest.fixture
 def client(app):
