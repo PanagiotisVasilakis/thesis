@@ -1,14 +1,6 @@
-import importlib.util
-from pathlib import Path
 from flask import Flask
 
-METRICS_PATH = Path(__file__).resolve().parents[1] / "app" / "monitoring" / "metrics.py"
-spec = importlib.util.spec_from_file_location("metrics", METRICS_PATH)
-metrics = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(metrics)
-MetricsMiddleware = metrics.MetricsMiddleware
-track_prediction = metrics.track_prediction
-track_training = metrics.track_training
+from app.monitoring.metrics import MetricsMiddleware, track_prediction, track_training
 
 
 def test_metrics_middleware_counts_success():
