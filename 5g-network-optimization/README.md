@@ -75,7 +75,7 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SIMPLE_MODE` | Apply the A3 handover rule before executing any decision (`true`/`false`) | `false` |
-| `ML_HANDOVER_ENABLED` | Enable ML-driven handovers. When `false` only the A3 rule is used | `false` |
+| `ML_HANDOVER_ENABLED` | Enable ML-driven handovers (`true`/`false`). If unset, the engine uses ML automatically when at least three antennas are configured | `false` |
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |

@@ -21,26 +21,53 @@ class HandoverEngine:
         state_mgr: NetworkStateManager,
         use_ml: Optional[bool] = None,
         ml_model_path: Optional[str] = None,
-        min_antennas_ml: int = 4,
+        min_antennas_ml: int = 3,
         a3_hysteresis_db: float = 2.0,
         a3_ttt_s: float = 0.0,
     ) -> None:
         self.state_mgr = state_mgr
+        self.ml_model_path = ml_model_path
+        self.min_antennas_ml = min_antennas_ml
+        self._a3_params = (a3_hysteresis_db, a3_ttt_s)
 
-        if use_ml is None:
-            env = os.getenv("ML_HANDOVER_ENABLED")
-            if env is not None:
-                use_ml = env.lower() in {"1", "true", "yes"}
-            else:
-                use_ml = len(state_mgr.antenna_list) >= min_antennas_ml
-        self.use_ml = bool(use_ml)
+        env = os.getenv("ML_HANDOVER_ENABLED") if use_ml is None else None
 
+        if use_ml is not None:
+            self.use_ml = bool(use_ml)
+            self._auto = False
+        elif env is not None:
+            self.use_ml = env.lower() in {"1", "true", "yes"}
+            self._auto = False
+        else:
+            self._auto = True
+            self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
+
+        self._ensure_mode()
+
+    def _ensure_mode(self) -> None:
+        """Instantiate selector or rule depending on current mode."""
         if self.use_ml:
             if AntennaSelector is None:
                 raise RuntimeError("AntennaSelector not available")
-            self.selector = AntennaSelector(model_path=ml_model_path)
+            if not hasattr(self, "selector"):
+                self.selector = AntennaSelector(model_path=self.ml_model_path)
+            if hasattr(self, "rule"):
+                del self.rule
         else:
-            self.rule = A3EventRule(hysteresis_db=a3_hysteresis_db, ttt_seconds=a3_ttt_s)
+            if not hasattr(self, "rule"):
+                self.rule = A3EventRule(
+                    hysteresis_db=self._a3_params[0], ttt_seconds=self._a3_params[1]
+                )
+            if hasattr(self, "selector"):
+                del self.selector
+
+    def _update_mode(self) -> None:
+        """Update handover mode automatically based on antenna count."""
+        if self._auto:
+            want_ml = len(self.state_mgr.antenna_list) >= self.min_antennas_ml
+            if want_ml != self.use_ml:
+                self.use_ml = want_ml
+                self._ensure_mode()
 
     # ------------------------------------------------------------------
     def _select_ml(self, ue_id: str) -> Optional[str]:
@@ -79,6 +106,7 @@ class HandoverEngine:
     # ------------------------------------------------------------------
     def decide_and_apply(self, ue_id: str):
         """Select the best antenna and apply the handover."""
+        self._update_mode()
         target = self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
         if not target:
             return None
