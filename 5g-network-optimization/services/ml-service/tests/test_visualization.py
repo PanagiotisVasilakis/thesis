@@ -3,6 +3,15 @@ import requests
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
+
+
+def _service_available(url: str) -> bool:
+    try:
+        requests.get(url, timeout=2)
+        return True
+    except Exception:
+        return False
 
 
 def test_coverage_map():
@@ -11,6 +20,9 @@ def test_coverage_map():
     
     # Make request to endpoint
     url = "http://localhost:5050/api/visualization/coverage-map"
+    if not _service_available(url):
+        pytest.skip("ml-service not running")
+
     response = requests.get(url)
     
     # Check response
@@ -64,6 +76,9 @@ def test_trajectory_visualization():
     
     # Make request to endpoint
     url = "http://localhost:5050/api/visualization/trajectory"
+    if not _service_available(url):
+        pytest.skip("ml-service not running")
+
     response = requests.post(url, json=trajectory_data)
     
     # Check response
