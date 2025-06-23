@@ -126,15 +126,15 @@ def test_engine_mode_auto_based_on_antennas():
     eng_mod.AntennaSelector = DummyModel
 
     nsm = NetworkStateManager()
-    # 4 antennas -> ML enabled by default
-    nsm.antenna_list = {chr(65+i): DummyAntenna(-80+i) for i in range(4)}
-    eng = HandoverEngine(nsm, use_ml=None, min_antennas_ml=4)
+    # 3 antennas -> ML enabled by default
+    nsm.antenna_list = {chr(65+i): DummyAntenna(-80+i) for i in range(3)}
+    eng = HandoverEngine(nsm, use_ml=None, min_antennas_ml=3)
     assert eng.use_ml is True
 
     # Fewer antennas -> rule based
     nsm2 = NetworkStateManager()
     nsm2.antenna_list = {"A": DummyAntenna(-80)}
-    eng2 = HandoverEngine(nsm2, use_ml=None, min_antennas_ml=4)
+    eng2 = HandoverEngine(nsm2, use_ml=None, min_antennas_ml=3)
     assert eng2.use_ml is False
 
 
@@ -154,4 +154,29 @@ def test_engine_mode_explicit_overrides_env(monkeypatch):
     eng = HandoverEngine(nsm, use_ml=True)
     assert eng.use_ml is True
     monkeypatch.delenv("ML_HANDOVER_ENABLED", raising=False)
+
+
+def test_engine_auto_switch_runtime(monkeypatch):
+    """Engine should switch modes automatically when antenna count changes."""
+    class DummyModel:
+        def __init__(self, *a, **k):
+            pass
+        def extract_features(self, d):
+            return {}
+        def predict(self, f):
+            return {"antenna_id": "B", "confidence": 1.0}
+
+    monkeypatch.setattr('backend.app.app.handover.engine.AntennaSelector', DummyModel)
+
+    nsm = NetworkStateManager()
+    # Start with a single antenna -> rule mode
+    nsm.antenna_list = {"A": DummyAntenna(-80)}
+    eng = HandoverEngine(nsm, use_ml=None, min_antennas_ml=3)
+    assert eng.use_ml is False
+
+    # Add antennas so threshold is met
+    nsm.antenna_list["B"] = DummyAntenna(-70)
+    nsm.antenna_list["C"] = DummyAntenna(-75)
+    eng._update_mode()
+    assert eng.use_ml is True
 
