@@ -71,5 +71,24 @@ def test_sinr_under_heavy_interference(ue_position):
     sinr = ant.sinr_db(ue_position, interferers)
     assert -50 < sinr < 50, f"SINR {sinr:.1f} dB outside realistic range (–50 to 50)"
 
+
+def test_deterministic_outputs_without_shadowing(ue_position):
+    """path_loss_db, rsrp_dbm and sinr_db should be deterministic when shadowing is disabled."""
+    ant = MacroCellModel("det", (0, 0, 10), 3.5e9, 30)
+    interferer = MacroCellModel("i1", (50, 0, 10), 3.5e9, 30)
+
+    pl_expected = ant.path_loss_db(ue_position, include_shadowing=False)
+    rs_expected = ant.rsrp_dbm(ue_position, include_shadowing=False)
+    sinr_expected = ant.sinr_db(ue_position, [interferer])
+
+    assert pl_expected == ant.path_loss_db(ue_position, include_shadowing=False)
+    assert rs_expected == ant.rsrp_dbm(ue_position, include_shadowing=False)
+    assert sinr_expected == ant.sinr_db(ue_position, [interferer])
+
+    # Fixed values make the test more explicit
+    assert round(pl_expected, 10) == 118.5401390252
+    assert round(rs_expected, 10) == -88.5401390252
+    assert round(sinr_expected, 10) == -11.1543710146
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__]))
