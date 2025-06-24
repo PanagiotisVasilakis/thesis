@@ -8,7 +8,9 @@ from backend.app.app.mobility_models.models import (
     LShapedMobilityModel,
     RandomWaypointModel,
     ManhattanGridMobilityModel,
-    ReferencePointGroupMobilityModel
+    ReferencePointGroupMobilityModel,
+    RandomDirectionalMobilityModel,
+    UrbanGridMobilityModel,
 )
 
 def test_linear_mobility():
@@ -148,6 +150,98 @@ def test_reference_point_group_mobility():
         cx, cy, _ = c['position']
         dist = math.hypot(x-cx, y-cy)
         assert dist <= d_max
+
+
+def test_random_directional_mobility():
+    """Random Directional model stays in bounds with consistent timing."""
+    import random
+    import numpy as np
+
+    random.seed(0)
+    np.random.seed(0)
+
+    bounds = [(0, 100), (0, 100), (0, 0)]
+    start = (50, 50, 0)
+    speed = 5.0
+    model = RandomDirectionalMobilityModel(
+        ue_id="ue_random_dir",
+        start_position=start,
+        speed=speed,
+        area_bounds=bounds,
+        direction_change_mean=5.0,
+        start_time=datetime(2025, 1, 1),
+    )
+    traj = model.generate_trajectory(30, time_step=1.0)
+    assert traj
+
+    # positions stay within bounds
+    for p in traj:
+        x, y, z = p["position"]
+        assert bounds[0][0] <= x <= bounds[0][1]
+        assert bounds[1][0] <= y <= bounds[1][1]
+        assert z == 0
+
+    # timestamps spaced by exactly the step
+    times = [p["timestamp"] for p in traj]
+    for t0, t1 in zip(times, times[1:]):
+        assert abs((t1 - t0).total_seconds() - 1.0) < 1e-6
+
+    # step distance should not exceed speed*time_step
+    poss = [p["position"] for p in traj]
+    for p0, p1 in zip(poss, poss[1:]):
+        dist = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        assert dist <= speed * 1.0 + 1e-6
+
+    # should have at least one direction change
+    dirs = [p["direction"] for p in traj]
+    assert len(set(dirs)) > 1
+
+
+def test_urban_grid_mobility():
+    """Urban grid obeys turning probability and grid alignment."""
+    import random
+
+    random.seed(1)
+
+    grid = 20.0
+    model = UrbanGridMobilityModel(
+        ue_id="ue_urban",
+        start_position=(10, 10, 0),
+        speed=10.0,
+        grid_size=grid,
+        turn_probability=1.0,
+        start_time=datetime(2025, 1, 1),
+    )
+
+    traj = model.generate_trajectory(20, time_step=1.0)
+    assert traj
+
+    # every position lies on a grid line on at least one axis
+    for p in traj:
+        x, y, _ = p["position"]
+        on_x = abs(x % grid) < 1e-6
+        on_y = abs(y % grid) < 1e-6
+        assert on_x or on_y
+
+    # timestamps spaced correctly and speed honored
+    times = [p["timestamp"] for p in traj]
+    poss = [p["position"] for p in traj]
+    for (t0, t1), (p0, p1) in zip(zip(times, times[1:]), zip(poss, poss[1:])):
+        dt = (t1 - t0).total_seconds()
+        dist = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        assert abs(dt - 1.0) < 1e-6
+        assert abs(dist - model.speed * dt) < 1e-6
+
+    # With turn_probability=1.0 the model should change direction often.
+    # Verify at least one change occurs when crossing an intersection.
+    dirs = [p["direction"] for p in traj]
+    changed = False
+    for i in range(1, len(traj)):
+        x_prev, y_prev, _ = traj[i-1]["position"]
+        at_intersection = abs(x_prev % grid) < 0.1 and abs(y_prev % grid) < 0.1
+        if at_intersection and dirs[i] != dirs[i-1]:
+            changed = True
+    assert changed, "Direction never changed at intersections despite probability=1"
 
 if __name__ == "__main__":
     import pytest
