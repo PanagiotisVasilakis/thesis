@@ -3,8 +3,9 @@ import importlib.util
 import sys
 import pytest
 
-# Path to the ml-service package
+# Ensure the service package can be imported as ``app`` before test collection.
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SERVICE_ROOT))
 
 
 def load_create_app():
