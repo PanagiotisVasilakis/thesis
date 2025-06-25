@@ -12,6 +12,9 @@ spec = importlib.util.spec_from_file_location(
     submodule_search_locations=[str(SERVICE_ROOT / "app")],
 )
 app_module = importlib.util.module_from_spec(spec)
+for name in list(sys.modules.keys()):
+    if name == "app" or name.startswith("app."):
+        del sys.modules[name]
 sys.modules["app"] = app_module
 sys.modules.setdefault(
     "seaborn",
@@ -55,4 +58,11 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     loaded = initialize_model(str(model_path))
     assert call_count["train"] == 1
     assert isinstance(loaded.model, DummyModel)
+
+
+def teardown_module(module):
+    """Remove dynamically loaded ``app`` modules after tests."""
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            del sys.modules[name]
 

@@ -57,18 +57,7 @@ def test_mock_api():
     # Call the mock API
     points = mock_generate_mobility_pattern(req)
     
-    if points:
-        print(f"✅ Successfully generated {len(points)} points via mock API")
-        
-        # Save the points to a file for inspection
-        with open('mock_api_points.json', 'w') as f:
-            json.dump(points, f, indent=2)
-        
-        print("✅ Points saved to mock_api_points.json")
-        return True
-    else:
-        print("❌ Failed to generate points via mock API")
-        return False
+    assert points is not None and len(points) > 0
 
 if __name__ == "__main__":
     success = test_mock_api()
