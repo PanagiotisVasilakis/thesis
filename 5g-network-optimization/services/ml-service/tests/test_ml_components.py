@@ -99,7 +99,7 @@ def test_feature_extraction():
     for feature in expected_features:
         assert feature in features, f"Missing expected feature: {feature}"
 
-def test_model_training_and_prediction():
+def test_model_training_and_prediction(tmp_path):
     """Training on synthetic data should achieve reasonable accuracy."""
 
     data = generate_synthetic_data(1000)
@@ -155,14 +155,16 @@ def test_model_training_and_prediction():
         plt.title('Feature Importance')
         plt.tight_layout()
         
-        os.makedirs('output', exist_ok=True)
-        plt.savefig('output/feature_importance.png')
+        out_path = tmp_path / "feature_importance.png"
+        plt.savefig(out_path)
         plt.close()
-        
-        print("Feature importance visualization saved to output/feature_importance.png")
+        assert out_path.exists()
+        out_path.unlink()
+
+        print(f"Feature importance visualization saved to {out_path}")
     
     # Visualize predictions in a 2D space
-    visualize_predictions(test_data, predictions)
+    visualize_predictions(test_data, predictions, tmp_path)
     
     # Save model
     try:
@@ -174,7 +176,7 @@ def test_model_training_and_prediction():
 
     assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
 
-def visualize_predictions(test_data, predictions):
+def visualize_predictions(test_data, predictions, tmp_path):
     """Visualize predictions in a 2D space."""
     print("\nVisualizing predictions...")
     
@@ -282,11 +284,13 @@ def visualize_predictions(test_data, predictions):
     
     plt.legend(handles=handles)
     
-    os.makedirs('output', exist_ok=True)
-    plt.savefig('output/prediction_visualization.png')
+    out_path = tmp_path / "prediction_visualization.png"
+    plt.savefig(out_path)
     plt.close()
-    
-    print("Prediction visualization saved to output/prediction_visualization.png")
+    assert out_path.exists()
+    out_path.unlink()
+
+    print(f"Prediction visualization saved to {out_path}")
 
 if __name__ == "__main__":
     print("Testing ML Components...")

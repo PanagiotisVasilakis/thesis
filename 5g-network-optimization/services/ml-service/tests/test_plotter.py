@@ -34,6 +34,7 @@ def test_plot_functions_generate_png(tmp_path):
 
     cov_path = Path(plot_antenna_coverage(model, output_dir=tmp_path))
     _check_png(cov_path)
+    cov_path.unlink()
 
     movement = [
         {"latitude": 0, "longitude": 0, "connected_to": "a1"},
@@ -42,3 +43,4 @@ def test_plot_functions_generate_png(tmp_path):
     ]
     traj_path = Path(plot_movement_trajectory(movement, output_dir=tmp_path))
     _check_png(traj_path)
+    traj_path.unlink()

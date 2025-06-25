@@ -68,7 +68,7 @@ def generate_synthetic_data(num_samples=500):
     
     return data
 
-def test_model_training_and_prediction():
+def test_model_training_and_prediction(tmp_path):
     """Training the model should yield predictions with reasonable accuracy."""
 
     data = generate_synthetic_data(1000)
@@ -100,8 +100,10 @@ def test_model_training_and_prediction():
         plt.title('Feature Importance')
         plt.tight_layout()
 
-        os.makedirs('output', exist_ok=True)
-        plt.savefig('output/feature_importance.png')
+        out_path = tmp_path / "feature_importance.png"
+        plt.savefig(out_path)
+        assert out_path.exists()
+        out_path.unlink()
 
     assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
 
