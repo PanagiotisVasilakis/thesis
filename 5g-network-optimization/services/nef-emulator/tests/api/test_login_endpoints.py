@@ -47,6 +47,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 load_dotenv(PROJECT_ROOT / ".env")
 os.environ.setdefault("USE_PUBLIC_KEY_VERIFICATION", "false")
 
+# Remove any previously loaded ``app`` modules to avoid cross-test interference
+for name in list(sys.modules.keys()):
+    if name == "app" or name.startswith("app."):
+        del sys.modules[name]
+
 # Dynamically load the ``app`` package so the real routers are available
 BACKEND_ROOT = PROJECT_ROOT / "services" / "nef-emulator" / "backend"
 APP_ROOT = BACKEND_ROOT / "app"
@@ -207,3 +212,10 @@ def test_reset_password_inactive_user(monkeypatch):
     response = client.post("/api/v1/reset-password/", json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Inactive user"
+
+
+def teardown_module(module):
+    """Clean up dynamically loaded ``app`` modules after tests."""
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            del sys.modules[name]

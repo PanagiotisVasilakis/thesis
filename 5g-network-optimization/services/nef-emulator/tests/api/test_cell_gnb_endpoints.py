@@ -41,6 +41,9 @@ def _setup_client(monkeypatch, user=None):
 
     class gNB(BaseModel):
         gNB_id: str
+        name: str | None = None
+        description: str | None = None
+        location: str | None = None
         id: int | None = None
         owner_id: int | None = None
 
@@ -159,8 +162,12 @@ def test_update_gnb_as_owner(monkeypatch):
 
     # Simulate successful update
     def fake_update(db, db_obj, obj_in):
-        db_obj.name = obj_in["name"]
-        return db_obj
+        if isinstance(obj_in, dict):
+            name = obj_in["name"]
+        else:
+            name = obj_in.name
+        db_obj.name = name
+        return {"id": db_obj.id, "gNB_id": db_obj.gNB_id, "owner_id": db_obj.owner_id, "name": db_obj.name}
     crud.gnb.update = fake_update
 
     resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "new_name"})
@@ -177,8 +184,12 @@ def test_update_gnb_as_superuser(monkeypatch):
 
     # Simulate successful update
     def fake_update(db, db_obj, obj_in):
-        db_obj.name = obj_in["name"]
-        return db_obj
+        if isinstance(obj_in, dict):
+            name = obj_in["name"]
+        else:
+            name = obj_in.name
+        db_obj.name = name
+        return {"id": db_obj.id, "gNB_id": db_obj.gNB_id, "owner_id": db_obj.owner_id, "name": db_obj.name}
     crud.gnb.update = fake_update
 
     resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "superuser_update"})
