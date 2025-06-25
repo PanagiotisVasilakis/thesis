@@ -6,8 +6,7 @@ import pytest
 # Ensure the service package can be imported as ``app`` before test collection.
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SERVICE_ROOT))
-# Remove potential alias from other test suites
-sys.modules.pop("app", None)
+# No cleanup here to avoid interfering with other test suites
 
 
 def load_create_app():
@@ -18,6 +17,10 @@ def load_create_app():
     ``app``, we temporarily register the loaded module under that name and
     clean it up afterwards.
     """
+
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            del sys.modules[name]
 
     spec = importlib.util.spec_from_file_location(
         "app",
