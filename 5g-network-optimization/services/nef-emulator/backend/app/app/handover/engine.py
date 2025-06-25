@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
-from app.network.state_manager import NetworkStateManager
+from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
 
 try:
