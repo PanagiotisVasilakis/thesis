@@ -150,6 +150,42 @@ def test_update_gnb_not_owner(monkeypatch):
     assert resp.status_code == 400
 
 
+def test_update_gnb_as_owner(monkeypatch):
+    user = SimpleNamespace(id=1, is_superuser=False)
+    client, crud = _setup_client(monkeypatch, user=user)
+
+    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA", owner_id=1, name="old_name")
+    crud.gnb.get_gNB_id = lambda db, id: gnb_obj
+
+    # Simulate successful update
+    def fake_update(db, db_obj, obj_in):
+        db_obj.name = obj_in["name"]
+        return db_obj
+    crud.gnb.update = fake_update
+
+    resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "new_name"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "new_name"
+
+
+def test_update_gnb_as_superuser(monkeypatch):
+    user = SimpleNamespace(id=99, is_superuser=True)
+    client, crud = _setup_client(monkeypatch, user=user)
+
+    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA", owner_id=2, name="old_name")
+    crud.gnb.get_gNB_id = lambda db, id: gnb_obj
+
+    # Simulate successful update
+    def fake_update(db, db_obj, obj_in):
+        db_obj.name = obj_in["name"]
+        return db_obj
+    crud.gnb.update = fake_update
+
+    resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "superuser_update"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "superuser_update"
+
+
 def test_get_cells(monkeypatch):
     client, crud = _setup_client(monkeypatch)
 
