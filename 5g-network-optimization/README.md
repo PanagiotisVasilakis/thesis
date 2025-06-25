@@ -137,3 +137,8 @@ pip install -r requirements.txt
 pytest services/nef-emulator/tests/integration \
        services/ml-service/tests/integration
 ```
+
+### Temporary Files
+Unit tests that generate plots now write all images to the pytest `tmp_path`
+fixture. The tests assert the files exist and remove them automatically so the
+repository remains clean.
