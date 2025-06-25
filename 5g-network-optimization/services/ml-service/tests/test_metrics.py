@@ -1,5 +1,6 @@
 from flask import Flask
 
+from app.monitoring import metrics
 from app.monitoring.metrics import MetricsMiddleware, track_prediction, track_training
 
 
