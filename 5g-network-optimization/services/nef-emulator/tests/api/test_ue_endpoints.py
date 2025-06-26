@@ -4,8 +4,6 @@ import importlib.util
 from pathlib import Path
 import sys
 import pytest
-
-pytest.skip("Requires full application context", allow_module_level=True)
 from fastapi.testclient import TestClient
 
 
@@ -30,11 +28,49 @@ def client(monkeypatch):
     for k, v in env.items():
         monkeypatch.setenv(k, v)
 
+    # Ensure a clean import state
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            del sys.modules[name]
+
     # Stub out modules that require heavy dependencies
     fake_session = ModuleType("app.db.session")
     fake_session.SessionLocal = lambda: None
     fake_session.client = None
     sys.modules["app.db.session"] = fake_session
+    app_db_mod = ModuleType("app.db")
+    app_db_mod.session = fake_session
+    sys.modules.setdefault("app.db", app_db_mod)
+    config_mod = ModuleType("app.core.config")
+    config_mod.settings = SimpleNamespace(
+        API_V1_STR="/api/v1",
+        SERVER_NAME="test",
+        SERVER_HOST="localhost",
+        POSTGRES_SERVER="localhost",
+        POSTGRES_USER="user",
+        POSTGRES_PASSWORD="pass",
+        POSTGRES_DB="db",
+        SQLALCHEMY_DATABASE_URI="postgresql://user:pass@localhost/db",
+        MONGO_CLIENT="mongodb://localhost",
+        CAPIF_HOST="localhost",
+        CAPIF_HTTP_PORT="8080",
+        CAPIF_HTTPS_PORT="8443",
+        FIRST_SUPERUSER="admin@example.com",
+        FIRST_SUPERUSER_PASSWORD="pass",
+        USE_PUBLIC_KEY_VERIFICATION="0",
+        BACKEND_CORS_ORIGINS=[],
+        PROJECT_NAME="test",
+    )
+    core_pkg = ModuleType("app.core")
+    core_pkg.config = config_mod
+    security_mod = ModuleType("app.core.security")
+    security_mod.verify_password = lambda *a, **k: True
+    security_mod.get_password_hash = lambda *a, **k: ""
+    security_mod.create_access_token = lambda *a, **k: "token"
+    core_pkg.security = security_mod
+    sys.modules.setdefault("app.core", core_pkg)
+    sys.modules.setdefault("app.core.config", config_mod)
+    sys.modules.setdefault("app.core.security", security_mod)
 
     stub_emails = ModuleType("emails")
     stub_emails.Message = object
@@ -42,6 +78,28 @@ def client(monkeypatch):
     tmpl_mod = ModuleType("emails.template")
     tmpl_mod.JinjaTemplate = lambda x: x
     sys.modules["emails.template"] = tmpl_mod
+    # Provide lightweight SQLAlchemy stand-ins so model imports succeed
+    sqlalchemy_mod = ModuleType("sqlalchemy")
+    sqlalchemy_mod.orm = ModuleType("sqlalchemy.orm")
+    sqlalchemy_mod.ext = ModuleType("sqlalchemy.ext")
+    sqlalchemy_mod.ext.declarative = ModuleType("sqlalchemy.ext.declarative")
+    sqlalchemy_mod.ext.declarative.as_declarative = lambda *a, **k: (lambda cls: cls)
+    sqlalchemy_mod.ext.declarative.declared_attr = lambda f: f
+    sqlalchemy_mod.Column = lambda *a, **k: None
+    sqlalchemy_mod.Integer = int
+    sqlalchemy_mod.String = str
+    sqlalchemy_mod.Float = float
+    sqlalchemy_mod.Boolean = bool
+    sqlalchemy_mod.ForeignKey = lambda *a, **k: None
+    sqlalchemy_mod.null = None
+    sqlalchemy_mod.create_engine = lambda *a, **k: None
+    sqlalchemy_mod.orm.sessionmaker = lambda *a, **k: lambda: None
+    sqlalchemy_mod.orm.relationship = lambda *a, **k: None
+    sqlalchemy_mod.orm.Session = object
+    sys.modules.setdefault("sqlalchemy", sqlalchemy_mod)
+    sys.modules.setdefault("sqlalchemy.orm", sqlalchemy_mod.orm)
+    sys.modules.setdefault("sqlalchemy.ext", sqlalchemy_mod.ext)
+    sys.modules.setdefault("sqlalchemy.ext.declarative", sqlalchemy_mod.ext.declarative)
     try:
         import pymongo
     except Exception:
@@ -59,10 +117,6 @@ def client(monkeypatch):
     psycopg2_mod.paramstyle = "pyformat"
     psycopg2_mod.extras = SimpleNamespace()
     sys.modules.setdefault("psycopg2", psycopg2_mod)
-
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            del sys.modules[name]
 
     # Dynamically load the ``app`` package so the UE router can be imported
     backend_root = Path(__file__).resolve().parents[2] / "backend" / "app"
@@ -82,6 +136,10 @@ def client(monkeypatch):
         create_with_owner=lambda *a, **k: _dummy_ue(),
         update=lambda *a, **k: _dummy_ue(),
         remove_supi=lambda *a, **k: _dummy_ue(),
+        get_ipv4=lambda *a, **k: None,
+        get_ipv6=lambda *a, **k: None,
+        get_mac=lambda *a, **k: None,
+        get_externalId=lambda *a, **k: None,
     )
     crud_mod.user = SimpleNamespace(is_superuser=lambda u: getattr(u, "is_superuser", False))
     crud_mod.gnb = SimpleNamespace()
@@ -95,7 +153,14 @@ def client(monkeypatch):
     )
     sys.modules["app.crud"] = crud_mod
     tools_mod = ModuleType("app.tools")
+    distance_mod = ModuleType("app.tools.distance")
+    distance_mod.check_distance = lambda *a, **k: 0
+    tools_mod.distance = distance_mod
+    tools_mod.qos_callback = lambda *a, **k: None
+    tools_mod.monitoring_callbacks = SimpleNamespace()
+    tools_mod.timer = SimpleNamespace()
     sys.modules["app.tools"] = tools_mod
+    sys.modules["app.tools.distance"] = distance_mod
     models_mod = ModuleType("app.models")
     schemas_mod = ModuleType("app.schemas")
     from pydantic import BaseModel
@@ -104,19 +169,63 @@ def client(monkeypatch):
         id: int = 1
         is_superuser: bool = True
 
+    class UserCreate(BaseModel):
+        email: str
+        password: str
+
+    class UserUpdate(BaseModel):
+        email: str | None = None
+        password: str | None = None
+        full_name: str | None = None
+
     class UEhex(BaseModel):
         supi: str
         cell_id_hex: str
         gNB_id: int
 
+    class gNB(BaseModel):
+        id: int = 1
+
+    class _IPv6(str):
+        @classmethod
+        def __get_validators__(cls):
+            yield cls.validate
+
+        @classmethod
+        def validate(cls, v):
+            if isinstance(v, cls):
+                return v
+            return cls(v)
+        @property
+        def exploded(self):
+            return str(self)
+
     class UECreate(BaseModel):
         supi: str
+        ip_address_v4: str | None = None
+        ip_address_v6: _IPv6 | None = None
+        mac_address: str | None = None
+        dnn: str | None = None
+        mcc: int | None = None
+        mnc: int | None = None
+        external_identifier: str | None = None
+        speed: str | None = None
 
     class UEUpdate(BaseModel):
         supi: str
+        ip_address_v4: str | None = None
+        ip_address_v6: _IPv6 | None = None
+        mac_address: str | None = None
+        dnn: str | None = None
+        mcc: int | None = None
+        mnc: int | None = None
+        external_identifier: str | None = None
+        speed: str | None = None
 
     class UE(BaseModel):
         supi: str
+        ip_address_v4: str | None = None
+        ip_address_v6: str | None = None
         cell_id_hex: str | None = None
         gNB_id: int | None = None
 
@@ -128,8 +237,11 @@ def client(monkeypatch):
         access_token: str
         token_type: str
 
+    class Msg(BaseModel):
+        msg: str
+
     for name_, obj in locals().items():
-        if name_ in {"User", "UEhex", "UECreate", "UEUpdate", "UE", "ue_path", "Token"}:
+        if name_ in {"User", "UserCreate", "UserUpdate", "UEhex", "UECreate", "UEUpdate", "UE", "ue_path", "Token", "Msg", "gNB"}:
             setattr(schemas_mod, name_, obj)
 
     models_mod.User = User
@@ -139,13 +251,22 @@ def client(monkeypatch):
     endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
     utils_mod = ModuleType("app.api.api_v1.endpoints.utils")
     utils_mod.retrieve_ue_state = lambda supi, owner_id: False
+    utils_mod.router = SimpleNamespace()
     paths_mod = ModuleType("app.api.api_v1.endpoints.paths")
     paths_mod.get_random_point = lambda db, path_id: {"latitude": 0.0, "longitude": 0.0}
+    paths_mod.router = SimpleNamespace()
     sys.modules["app.api.api_v1.endpoints.utils"] = utils_mod
     sys.modules["app.api.api_v1.endpoints.paths"] = paths_mod
     spec = importlib.util.spec_from_file_location("UE", endpoints_dir / "UE.py")
     ue_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ue_mod)
+    sys.modules["app.api.api_v1.endpoints.UE"] = ue_mod
+    api_pkg = ModuleType("app.api")
+    api_v1_pkg = ModuleType("app.api.api_v1")
+    api_v1_pkg.endpoints = SimpleNamespace(UE=ue_mod, utils=utils_mod, paths=paths_mod)
+    api_pkg.api_v1 = api_v1_pkg
+    sys.modules.setdefault("app.api", api_pkg)
+    sys.modules.setdefault("app.api.api_v1", api_v1_pkg)
     from app import crud
     from app.api import deps
 
@@ -254,7 +375,11 @@ def test_create_update_delete_ue(client, monkeypatch):
     created = _dummy_ue()
     created.supi = payload["supi"]
     monkeypatch.setattr(crud.ue, "get_supi", lambda *a, **k: created)
-    monkeypatch.setattr(crud.ue, "update", lambda *a, **k: SimpleNamespace(path_id=0))
+    monkeypatch.setattr(
+        crud.ue,
+        "update",
+        lambda db, db_obj, obj_in: SimpleNamespace(path_id=0, ip_address_v4=obj_in["ip_address_v4"]),
+    )
 
     update_payload = payload.copy()
     update_payload["ip_address_v4"] = "10.0.0.22"
