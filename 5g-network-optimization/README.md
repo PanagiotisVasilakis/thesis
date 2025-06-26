@@ -132,9 +132,9 @@ docker push <registry>/ml-service:latest
 ```
 
 ## Testing
-First install the dependencies using the repository root `requirements.txt`. Some packages (e.g. `tables`) require system libraries such as `libhdf5-dev` on Ubuntu.
+First install the required system libraries, then the Python packages. Use the helper script `scripts/install_system_deps.sh` from the repository root:
 ```bash
-sudo apt-get update && sudo apt-get install -y libhdf5-dev
+./scripts/install_system_deps.sh
 pip install -r requirements.txt
 ```
 
