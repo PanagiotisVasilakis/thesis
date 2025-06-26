@@ -13,11 +13,18 @@ for path in reversed([NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
 
 # Provide a minimal stub for optional database module used in tools
 import types
+
 crud_stub = types.ModuleType("crud")
 crud_stub.crud_mongo = object()
 crud_stub.ue = object()
 crud_stub.user = object()
 crud_stub.gnb = object()
+
+# Ensure hierarchy packages exist so ``import app.crud`` succeeds during
+# module import at collection time.
+app_pkg = sys.modules.setdefault("app", types.ModuleType("app"))
+app_pkg.__path__ = []
+app_pkg.crud = crud_stub
 sys.modules.setdefault("app.crud", crud_stub)
 
 # Provide lightweight settings for tests avoiding env var requirements
@@ -42,4 +49,9 @@ class QoSSettings:
 
 config_stub.qosSettings = QoSSettings()
 config_stub.settings = settings_stub
+
+core_pkg = sys.modules.setdefault("app.core", types.ModuleType("core"))
+core_pkg.__path__ = []
+core_pkg.config = config_stub
+app_pkg.core = core_pkg
 sys.modules.setdefault("app.core.config", config_stub)
