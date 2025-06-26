@@ -101,7 +101,7 @@ These can be supplied in your environment or via `docker-compose`.
 Install the dependencies and start the Flask app:
 
 ```bash
-pip install -r requirements.txt
+pip install -r ../../../requirements.txt
 python app.py
 ```
 

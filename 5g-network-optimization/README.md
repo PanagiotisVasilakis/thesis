@@ -51,6 +51,15 @@ Run the stack locally from this directory with:
 docker-compose up --build
 ```
 
+## Installation
+Install the Python dependencies before running any of the services:
+
+```bash
+pip install -r requirements.txt
+# or run the helper script
+scripts/install_deps.sh
+```
+
 The environment variables documented below (`SIMPLE_MODE`, `ML_HANDOVER_ENABLED`
 and others) can be passed on the command line or in an `.env` file to control
 the behavior of both services.
