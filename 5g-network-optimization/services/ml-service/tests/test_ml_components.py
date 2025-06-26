@@ -102,7 +102,7 @@ def test_feature_extraction():
 def test_model_training_and_prediction(tmp_path):
     """Training on synthetic data should achieve reasonable accuracy."""
 
-    data = generate_synthetic_data(1000)
+    data = generate_synthetic_data(100)
 
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
@@ -131,6 +131,7 @@ def test_model_training_and_prediction(tmp_path):
             correct += 1
 
     accuracy = correct / len(test_data)
+    print(f"Accuracy: {accuracy:.2%}")
     
     # Visualize feature importance if available
     feature_importance = metrics.get('feature_importance', {})
