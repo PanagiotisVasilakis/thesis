@@ -1,92 +1,103 @@
-import os
-import importlib
-import sys
-
-import pytest
-
-pytest.skip("Requires full ML service context", allow_module_level=True)
-from fastapi.testclient import TestClient
-
 import importlib.util
+import sys
+from types import ModuleType
 from pathlib import Path
 
-try:
-    import sqlalchemy  # noqa: F401
-except Exception:  # pragma: no cover - optional dependency for integration test
-    sqlalchemy = None
-
-ML_DIR = Path(__file__).resolve().parents[3] / "ml-service" / "app" / "__init__.py"
-spec = importlib.util.spec_from_file_location("ml_app_pkg", ML_DIR)
-ml_app_pkg = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(ml_app_pkg)
-create_ml_app = ml_app_pkg.create_app
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 class DummyAntenna:
-    def __init__(self, rsrp):
+    def __init__(self, rsrp: float):
         self._rsrp = rsrp
+
     def rsrp_dbm(self, pos):
         return self._rsrp
 
-def _setup_environment(monkeypatch):
-    monkeypatch.setenv("ML_HANDOVER_ENABLED", "1")
-    # Reload module to apply env var with dynamically loaded app package
+
+class DummySelector:
+    """Simple predictor choosing antenna with highest RSRP."""
+
+    def __init__(self, *a, **k):
+        pass
+
+    def extract_features(self, data):
+        return data
+
+    def predict(self, features):
+        best = max(features["rf_metrics"], key=lambda k: features["rf_metrics"][k]["rsrp"])
+        return {"antenna_id": best, "confidence": 1.0}
+
+
+def _create_client(monkeypatch: pytest.MonkeyPatch):
     backend_root = Path(__file__).resolve().parents[2] / "backend" / "app"
+    monkeypatch.syspath_prepend(str(backend_root))
+    monkeypatch.setenv("ML_HANDOVER_ENABLED", "1")
+
     for name in list(sys.modules.keys()):
         if name == "app" or name.startswith("app."):
             del sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        "app",
-        backend_root / "app" / "__init__.py",
-        submodule_search_locations=[str(backend_root / "app")],
-    )
-    app_pkg = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_pkg)
-    sys.modules["app"] = app_pkg
 
-    endpoints_dir = backend_root / "app" / "api" / "api_v1" / "endpoints"
-    spec_ml = importlib.util.spec_from_file_location("ml_api", endpoints_dir / "ml_api.py")
+    # Load network state manager module
+    spec_state = importlib.util.spec_from_file_location(
+        "app.network.state_manager", backend_root / "app" / "network" / "state_manager.py"
+    )
+    state_mod = importlib.util.module_from_spec(spec_state)
+    spec_state.loader.exec_module(state_mod)
+
+    # Prepare dummy AntennaSelector module
+    selector_mod = ModuleType("app.models.antenna_selector")
+    selector_mod.AntennaSelector = DummySelector
+    models_pkg = ModuleType("app.models")
+    models_pkg.antenna_selector = selector_mod
+
+    sys.modules["app.models"] = models_pkg
+    sys.modules["app.models.antenna_selector"] = selector_mod
+
+    sys.modules["app.network"] = ModuleType("app.network")
+    sys.modules["app.network"].state_manager = state_mod
+    sys.modules["app.network.state_manager"] = state_mod
+
+    # Load handover engine with patched AntennaSelector
+    spec_engine = importlib.util.spec_from_file_location(
+        "app.handover.engine", backend_root / "app" / "handover" / "engine.py"
+    )
+    engine_mod = importlib.util.module_from_spec(spec_engine)
+    handover_pkg = ModuleType("app.handover")
+    # Load rule helper used by the engine
+    spec_rule = importlib.util.spec_from_file_location(
+        "app.handover.a3_rule", backend_root / "app" / "handover" / "a3_rule.py"
+    )
+    rule_mod = importlib.util.module_from_spec(spec_rule)
+    spec_rule.loader.exec_module(rule_mod)
+    sys.modules["app.handover.a3_rule"] = rule_mod
+
+    sys.modules["app.handover"] = handover_pkg
+    handover_pkg.a3_rule = rule_mod
+    spec_engine.loader.exec_module(engine_mod)
+    sys.modules["app.handover.engine"] = engine_mod
+
+    # Load ml_api router
+    spec_ml = importlib.util.spec_from_file_location(
+        "ml_api", backend_root / "app" / "api" / "api_v1" / "endpoints" / "ml_api.py"
+    )
     ml_api = importlib.util.module_from_spec(spec_ml)
     spec_ml.loader.exec_module(ml_api)
-    return ml_api
+
+    app = FastAPI()
+    app.include_router(ml_api.router, prefix="/api/v1")
+    return TestClient(app), ml_api
 
 
-def test_end_to_end_handover(monkeypatch):
-    if sqlalchemy is None:
-        pytest.skip("SQLAlchemy not available")
-
-    ml_api = _setup_environment(monkeypatch)
-
-    from app.main import app as nef_app
-    nef_client = TestClient(nef_app)
-
-    ml_app = create_ml_app({"TESTING": True})
-    ml_client = ml_app.test_client()
+def test_end_to_end_handover(monkeypatch: pytest.MonkeyPatch) -> None:
+    client, ml_api = _create_client(monkeypatch)
 
     ml_api.state_mgr.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}
     ml_api.state_mgr.ue_states = {
         "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}
     }
 
-    fv = ml_api.state_mgr.get_feature_vector("u1")
-    ml_payload = {
-        "ue_id": "u1",
-        "latitude": fv["latitude"],
-        "longitude": fv["longitude"],
-        "speed": fv.get("speed", 0.0),
-        "direction": (0, 0, 0),
-        "connected_to": fv["connected_to"],
-        "rf_metrics": {
-            aid: {"rsrp": fv["neighbor_rsrp_dbm"][aid], "sinr": fv["neighbor_sinrs"][aid]}
-            for aid in fv["neighbor_rsrp_dbm"]
-        },
-    }
-
-    pred_resp = ml_client.post("/api/predict", json=ml_payload)
-    assert pred_resp.status_code == 200
-    predicted = pred_resp.get_json()["predicted_antenna"]
-
-    resp = nef_client.post("/api/v1/ml/handover", params={"ue_id": "u1"})
+    resp = client.post("/api/v1/ml/handover", params={"ue_id": "u1"})
     assert resp.status_code == 200
-    assert resp.json()["to"] == predicted
-
+    assert resp.json()["to"] == "B"
