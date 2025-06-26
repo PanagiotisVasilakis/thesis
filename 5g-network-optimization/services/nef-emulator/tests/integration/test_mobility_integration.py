@@ -1,66 +1,80 @@
-import requests
-import json
-import matplotlib.pyplot as plt
+from types import ModuleType, SimpleNamespace
+import importlib.util
+from pathlib import Path
+import sys
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 import pytest
 
 
-def _nef_running() -> bool:
-    try:
-        r = requests.get("http://localhost:8080/docs", timeout=2)
-        return r.status_code == 200
-    except requests.RequestException:
-        return False
+def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    backend_root = Path(__file__).resolve().parents[2] / "backend" / "app"
+    monkeypatch.syspath_prepend(str(backend_root))
 
-def test_generate_linear_pattern():
-    """Test generating a linear mobility pattern through the API"""
-    if not _nef_running():
-        pytest.skip("NEF emulator is not running")
-    url = "http://localhost:8080/api/v1/mobility-patterns/generate"
-    
-    # API request
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            del sys.modules[name]
+
+    spec_adapter = importlib.util.spec_from_file_location(
+        "app.tools.mobility.adapter",
+        backend_root / "app" / "tools" / "mobility" / "adapter.py",
+    )
+    adapter_mod = importlib.util.module_from_spec(spec_adapter)
+    spec_adapter.loader.exec_module(adapter_mod)
+
+    mobility_pkg = ModuleType("app.tools.mobility")
+    mobility_pkg.adapter = adapter_mod
+    tools_pkg = ModuleType("app.tools")
+    tools_pkg.mobility = mobility_pkg
+
+    deps_mod = ModuleType("app.api.deps")
+    deps_mod.get_current_active_user = lambda: SimpleNamespace(id=1)
+    api_pkg = ModuleType("app.api")
+    api_pkg.deps = deps_mod
+
+    user_mod = ModuleType("app.models.user")
+    user_mod.User = SimpleNamespace
+    models_pkg = ModuleType("app.models")
+    models_pkg.user = user_mod
+
+    app_pkg = ModuleType("app")
+    app_pkg.api = api_pkg
+    app_pkg.tools = tools_pkg
+    app_pkg.models = models_pkg
+
+    for name, mod in {
+        "app": app_pkg,
+        "app.api": api_pkg,
+        "app.api.deps": deps_mod,
+        "app.tools": tools_pkg,
+        "app.tools.mobility": mobility_pkg,
+        "app.tools.mobility.adapter": adapter_mod,
+        "app.models": models_pkg,
+        "app.models.user": user_mod,
+    }.items():
+        sys.modules[name] = mod
+
+    spec_router = importlib.util.spec_from_file_location(
+        "patterns",
+        backend_root / "app" / "api" / "api_v1" / "endpoints" / "mobility" / "patterns.py",
+    )
+    patterns = importlib.util.module_from_spec(spec_router)
+    spec_router.loader.exec_module(patterns)
+
+    app = FastAPI()
+    app.include_router(patterns.router, prefix="/api/v1/mobility-patterns")
+    app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(id=1)
+    return TestClient(app)
+
+
+def test_generate_pattern_invalid_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _create_client(monkeypatch)
     payload = {
         "model_type": "linear",
-        "ue_id": "test_ue_1",
-        "duration": 300,
+        "duration": 5,
         "time_step": 1.0,
-        "parameters": {
-            "start_position": [0, 0, 0],
-            "end_position": [1000, 500, 0],
-            "speed": 5.0
-        }
+        "parameters": {"start_position": [0, 0, 0], "end_position": [1, 1, 0], "speed": 1.0},
     }
-    
-    headers = {
-        "Content-Type": "application/json",
-        # Add authentication headers as needed
-    }
-    
-    # Make the request
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code == 200:
-        points = response.json()
-        print(f"Generated {len(points)} points")
-        
-        # Plot the points
-        latitudes = [point['latitude'] for point in points]
-        longitudes = [point['longitude'] for point in points]
-        
-        plt.figure(figsize=(10, 6))
-        plt.plot(latitudes, longitudes, 'b-', linewidth=2)
-        plt.plot(latitudes[0], longitudes[0], 'go', markersize=10)  # Start point
-        plt.plot(latitudes[-1], longitudes[-1], 'ro', markersize=10)  # End point
-        
-        plt.xlabel('Latitude')
-        plt.ylabel('Longitude')
-        plt.title('Generated Linear Mobility Pattern')
-        plt.grid(True)
-        
-        plt.savefig('linear_api_pattern.png')
-        print("Plot saved as linear_api_pattern.png")
-        
-    else:
-        print(f"Error: {response.status_code}, {response.text}")
-
-if __name__ == "__main__":
-    test_generate_linear_pattern()
+    resp = client.post("/api/v1/mobility-patterns/generate", json=payload)
+    assert resp.status_code == 422
