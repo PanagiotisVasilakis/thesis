@@ -1,4 +1,5 @@
 import importlib
+import sys
 
 ENV = {
     "SERVER_NAME": "test",
@@ -19,7 +20,10 @@ ENV = {
 
 
 def _load_config():
-    return importlib.import_module("backend.app.app.core.config")
+    module_name = "backend.app.app.core.config"
+    if module_name in sys.modules:
+        return importlib.reload(sys.modules[module_name])
+    return importlib.import_module(module_name)
 
 
 def test_settings_parsing(monkeypatch):
@@ -50,3 +54,16 @@ def test_qos_settings_import(monkeypatch):
     assert "5qi" in data
     assert isinstance(data["5qi"], list)
     assert any("value" in entry for entry in data["5qi"])
+
+
+def test_multiple_settings_import(monkeypatch):
+    for k, v in ENV.items():
+        monkeypatch.setenv(k, v)
+
+    cfg1 = _load_config()
+    settings1 = cfg1.Settings()
+
+    cfg2 = _load_config()
+    settings2 = cfg2.Settings()
+
+    assert settings2.SQLALCHEMY_DATABASE_URI == settings1.SQLALCHEMY_DATABASE_URI

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # ----- CORS -----
     BACKEND_CORS_ORIGINS: List[str] = []
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    @validator("BACKEND_CORS_ORIGINS", pre=True, allow_reuse=True)
     def assemble_cors_origins(
         cls, v: Union[str, List[str]]
     ) -> Union[List[str], str]:
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "My Awesome Project"
     SENTRY_DSN: Optional[AnyHttpUrl] = None
 
-    @validator("SENTRY_DSN", pre=True)
+    @validator("SENTRY_DSN", pre=True, allow_reuse=True)
     def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
         if not v:
             return None
@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
 
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
+    @validator("SQLALCHEMY_DATABASE_URI", pre=True, allow_reuse=True)
     def assemble_db_connection(
         cls, v: Optional[str], values: Dict[str, Any]
     ) -> Any:
@@ -83,7 +83,7 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: Optional[EmailStr] = None
     EMAILS_FROM_NAME: Optional[str] = None
 
-    @validator("EMAILS_FROM_NAME")
+    @validator("EMAILS_FROM_NAME", allow_reuse=True)
     def get_project_name(
         cls, v: Optional[str], values: Dict[str, Any]
     ) -> str:
@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     EMAIL_TEMPLATES_DIR: str = "/app/app/email-templates/build"
     EMAILS_ENABLED: bool = False
 
-    @validator("EMAILS_ENABLED", pre=True)
+    @validator("EMAILS_ENABLED", pre=True, allow_reuse=True)
     def get_emails_enabled(cls, v: bool, values: Dict[str, Any]) -> bool:
         return bool(
             values.get("SMTP_HOST")
