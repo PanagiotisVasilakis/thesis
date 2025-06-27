@@ -32,8 +32,3 @@ app_pkg.network = network_pkg
 sys.modules.setdefault("app", app_pkg)
 sys.modules.setdefault("app.network", network_pkg)
 sys.modules.setdefault("app.network.state_manager", state_mgr)
-
-# Provide a minimal stub for optional database module used in tools
-crud_stub = types.ModuleType("crud")
-crud_stub.crud_mongo = object()
-sys.modules.setdefault("app.crud", crud_stub)

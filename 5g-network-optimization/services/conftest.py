@@ -5,27 +5,19 @@ import sys
 SERVICES_ROOT = os.path.abspath(os.path.dirname(__file__))
 NEF_ROOT = os.path.join(SERVICES_ROOT, 'nef-emulator')
 NEF_BACKEND_ROOT = os.path.join(NEF_ROOT, 'backend')
-NEF_APP_ROOT = os.path.join(NEF_BACKEND_ROOT, 'app')
+NEF_APP_ROOT = os.path.join(NEF_BACKEND_ROOT, 'app', 'app')
 
 for path in reversed([NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
     if path not in sys.path:
         sys.path.insert(0, path)
 
-# Provide a minimal stub for optional database module used in tools
-import types
-
-crud_stub = types.ModuleType("crud")
-crud_stub.crud_mongo = object()
-crud_stub.ue = object()
-crud_stub.user = object()
-crud_stub.gnb = object()
-
-# Ensure hierarchy packages exist so ``import app.crud`` succeeds during
+# Ensure hierarchy packages exist so ``import app`` succeeds during
 # module import at collection time.
+import types
 app_pkg = sys.modules.setdefault("app", types.ModuleType("app"))
-app_pkg.__path__ = []
-app_pkg.crud = crud_stub
-sys.modules.setdefault("app.crud", crud_stub)
+# Expose NEF emulator backend as the ``app`` package so imports like
+# ``from app.crud import crud_mongo`` resolve to the real implementation.
+app_pkg.__path__ = [NEF_APP_ROOT]
 
 # Provide lightweight settings for tests avoiding env var requirements
 config_stub = types.ModuleType("config")
@@ -51,7 +43,7 @@ config_stub.qosSettings = QoSSettings()
 config_stub.settings = settings_stub
 
 core_pkg = sys.modules.setdefault("app.core", types.ModuleType("core"))
-core_pkg.__path__ = []
+core_pkg.__path__ = [os.path.join(NEF_APP_ROOT, 'core')]
 core_pkg.config = config_stub
 app_pkg.core = core_pkg
 sys.modules.setdefault("app.core.config", config_stub)

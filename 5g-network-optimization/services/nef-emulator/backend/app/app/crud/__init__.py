@@ -4,6 +4,7 @@ from .crud_gNB import gnb
 from .crud_Cell import cell
 from .crud_UE import ue
 from .crud_monitoringevent import monitoring
+from . import crud_mongo
 
 # For a new basic set of CRUD operations you could just do
 
