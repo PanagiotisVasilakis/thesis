@@ -1,8 +1,6 @@
 import logging
 import time
 from app.crud import crud_mongo
-
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def check_expiration_time(expire_time):

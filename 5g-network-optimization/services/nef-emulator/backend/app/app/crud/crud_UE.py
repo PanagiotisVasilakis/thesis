@@ -7,7 +7,6 @@ from app.crud.base import CRUDBase
 from app.models.UE import UE
 from app.schemas.UE import UECreate, UEUpdate
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

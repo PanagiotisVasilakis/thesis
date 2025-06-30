@@ -1,7 +1,6 @@
 from datetime import datetime
 import logging, requests, json
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
