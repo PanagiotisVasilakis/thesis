@@ -1,10 +1,14 @@
 from typing import List
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+import logging
 
 from app.crud.base import CRUDBase
 from app.models.UE import UE
 from app.schemas.UE import UECreate, UEUpdate
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class CRUD_UE(CRUDBase[UE, UECreate, UEUpdate]):
@@ -88,10 +92,10 @@ class CRUD_UE(CRUDBase[UE, UECreate, UEUpdate]):
         return db_obj
 
     def remove_supi(self, db: Session, *, supi: str) -> UE:
-        print(f'"removing supi"{supi}')
+        logger.info(f"removing supi {supi}")
         obj = db.query(self.model).filter(UE.supi == supi).first()
-        print("Done")
-        print(obj)
+        logger.info("Done")
+        logger.debug(obj)
         db.delete(obj)
         db.commit()
         return obj

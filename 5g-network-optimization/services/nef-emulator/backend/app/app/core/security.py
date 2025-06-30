@@ -3,12 +3,16 @@ from typing import Any, Union
 from OpenSSL import crypto
 from jose import jwt
 from passlib.context import CryptContext
+import logging
 # from typing import Optional, Dict, Tuple
 # from fastapi import HTTPException, Request, status
 # from fastapi.security import OAuth2
 # from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 # from fastapi.security.utils import get_authorization_scheme_param
 from app.core.config import settings
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -86,7 +90,7 @@ def extract_public_key(cert_path: str):
         with open(cert_path, 'r') as f:
             cert = f.read()
     except FileNotFoundError as e:
-        print(e)
+        logger.error(e)
         
     crtObj = crypto.load_certificate(crypto.FILETYPE_PEM, cert)
     pubKeyObject = crtObj.get_pubkey()

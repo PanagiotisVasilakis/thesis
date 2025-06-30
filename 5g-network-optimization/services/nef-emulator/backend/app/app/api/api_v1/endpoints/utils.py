@@ -1,5 +1,8 @@
 from datetime import datetime
 import logging, requests, json
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -215,7 +218,7 @@ def create_scenario(
     for gNB_in in gNBs:
         gNB = crud.gnb.get_gNB_id(db=db, id=gNB_in.gNB_id)
         if gNB:
-            print(f"ERROR: gNB with id {gNB_in.gNB_id} already exists")
+            logger.error("ERROR: gNB with id %s already exists", gNB_in.gNB_id)
             err.update({f"{gNB_in.name}" : f"ERROR: gNB with id {gNB_in.gNB_id} already exists"})
         else:
             gNB = crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=current_user.id)
@@ -223,7 +226,7 @@ def create_scenario(
     for cell_in in cells:
         cell = crud.cell.get_Cell_id(db=db, id=cell_in.cell_id)
         if cell:
-            print(f"ERROR: Cell with id {cell_in.cell_id} already exists")
+            logger.error("ERROR: Cell with id %s already exists", cell_in.cell_id)
             err.update({f"{cell_in.name}" : f"ERROR: Cell with id {cell_in.cell_id} already exists"})
             crud.cell.remove_all_by_owner(db=db, owner_id=current_user.id)
         else:
@@ -232,7 +235,7 @@ def create_scenario(
     for ue_in in ues:
         ue = crud.ue.get_supi(db=db, supi=ue_in.supi)
         if ue:
-            print(f"ERROR: UE with supi {ue_in.supi} already exists")
+            logger.error("ERROR: UE with supi %s already exists", ue_in.supi)
             err.update({f"{ue.name}" : f"ERROR: UE with supi {ue_in.supi} already exists"})
         else:
             ue = crud.ue.create_with_owner(db=db, obj_in=ue_in, owner_id=current_user.id)
@@ -242,7 +245,7 @@ def create_scenario(
 
         path = crud.path.get_description(db=db, description = path_in.description)
         if path:
-            print(f"ERROR: Path with description \'{path_in.description}\' already exists")
+            logger.error("ERROR: Path with description '%s' already exists", path_in.description)
             err.update({f"{path_in.description}" : f"ERROR: Path with description \'{path_in.description}\' already exists"})
         else:
             path = crud.path.create_with_owner(db=db, obj_in=path_in, owner_id=current_user.id)
@@ -257,11 +260,11 @@ def create_scenario(
                     json_data = jsonable_encoder(UE)
                     
                     #Check if the old path id or the new one is associated with one or more UEs store in ue_path_association dictionary
-                    #If not then add path_id 0 on UE's table 
-                    print(f'Ue_path_association {ue_path.path}')
-                    print(f'Path old id: {path_old_id}')
+                    #If not then add path_id 0 on UE's table
+                    logger.debug("Ue_path_association %s", ue_path.path)
+                    logger.debug("Path old id: %s", path_old_id)
                     if ue_path.path == path_old_id:
-                        print(f'New path id {path.id}')
+                        logger.debug("New path id %s", path.id)
                         json_data['path_id'] = path.id
                         random_point = get_random_point(db, path.id)
                         json_data['latitude'] = random_point.get('latitude')
@@ -283,7 +286,7 @@ def get_test(
     ):
     
     callbackurl = item_in.callbackurl
-    print(callbackurl)
+    logger.info(callbackurl)
     payload = json.dumps({
     "externalId" : "10000@domain.com",
     "ipv4Addr" : "10.0.0.0",

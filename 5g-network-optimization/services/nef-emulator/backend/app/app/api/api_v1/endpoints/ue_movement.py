@@ -8,6 +8,9 @@ from app.tools.distance import check_distance
 from app.tools import qos_callback
 from app.db.session import SessionLocal, client
 from app.api import deps
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer
 from sqlalchemy.orm import Session
@@ -440,7 +443,7 @@ def terminate_movement(
         threads.pop(f"{msg.supi}")
         return {"msg": "Loop ended"}
     except KeyError as ke:
-        print('Key Not Found in Threads Dictionary:', ke)
+        logger.error('Key Not Found in Threads Dictionary: %s', ke)
         raise HTTPException(status_code=409, detail="There is no thread running for this user! Please initiate a new thread")
 
 @router.get("/state-loop/{supi}", status_code=200)
@@ -468,7 +471,7 @@ def retrieve_ue_state(supi: str, user_id: int) -> bool:
     try:
         return threads[f"{supi}"][f"{user_id}"].is_alive()
     except KeyError as ke:
-        print('Key Not Found in Threads Dictionary:', ke)
+        logger.error('Key Not Found in Threads Dictionary: %s', ke)
         return False
 
 def retrieve_ues() -> dict:
