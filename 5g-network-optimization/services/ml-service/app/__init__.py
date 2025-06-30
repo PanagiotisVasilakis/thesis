@@ -3,12 +3,6 @@ from flask import Flask
 import os
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
 def create_app(config=None):
     """Create and configure the Flask application."""
     app = Flask(__name__)

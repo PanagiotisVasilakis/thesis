@@ -1,10 +1,13 @@
 import logging
+from pathlib import Path
+import sys
 
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
 
 from app.db.session import SessionLocal
 
-logging.basicConfig(level=logging.INFO)
+sys.path.append(str(Path(__file__).resolve().parents[4]))
+from logging_config import configure_logging
 logger = logging.getLogger(__name__)
 
 max_tries = 60 * 5  # 5 minutes
@@ -34,4 +37,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

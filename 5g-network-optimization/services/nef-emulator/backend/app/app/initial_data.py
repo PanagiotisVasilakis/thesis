@@ -1,10 +1,14 @@
 import logging, json, os, requests
+from pathlib import Path
+import sys
 from evolved5g.sdk import CAPIFProviderConnector
 from app.db.init_db import init_db
 from app.db.session import SessionLocal
 from app.core.config import settings
 
-logging.basicConfig(level=logging.INFO)
+sys.path.append(str(Path(__file__).resolve().parents[4]))
+from logging_config import configure_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -125,4 +129,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    configure_logging()
     main()

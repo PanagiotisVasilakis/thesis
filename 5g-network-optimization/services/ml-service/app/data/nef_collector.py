@@ -22,11 +22,7 @@ class NEFDataCollector:
         self.data_dir = os.path.join(os.path.dirname(__file__), 'collected_data')
         os.makedirs(self.data_dir, exist_ok=True)
         
-        # Set up logging
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+        # Set up logger for this collector
         self.logger = logging.getLogger('NEFDataCollector')
     
     def login(self):
