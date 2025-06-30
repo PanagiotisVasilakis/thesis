@@ -6,16 +6,18 @@ import json
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
+import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from logging_config import configure_logging
 from app.data.nef_collector import NEFDataCollector
 
 logger = logging.getLogger(__name__)
 
 def main():
     """Main entry point for data collection script."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    configure_logging()
     parser = argparse.ArgumentParser(description='Collect training data from NEF emulator')
     parser.add_argument('--url', type=str, default='http://localhost:8080',
                         help='NEF emulator URL (default: http://localhost:8080)')

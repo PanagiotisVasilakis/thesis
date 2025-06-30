@@ -9,7 +9,6 @@ from app.tools import qos_callback
 from app.db.session import SessionLocal, client
 from app.api import deps
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer

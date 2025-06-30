@@ -11,7 +11,6 @@ import logging
 # from fastapi.security.utils import get_authorization_scheme_param
 from app.core.config import settings
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
