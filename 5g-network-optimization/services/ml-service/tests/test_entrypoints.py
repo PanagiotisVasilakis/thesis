@@ -76,3 +76,13 @@ def test_collect_training_data_main_failure(monkeypatch):
     monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
     monkeypatch.setattr(sys, "argv", ["collect_training_data"])
     assert module.main() == 1
+
+
+def test_collect_training_data_remote(monkeypatch):
+    module = _load_module(COLLECT_ENTRY, "collect_script_remote")
+    response = MagicMock(status_code=200, json=lambda: {"samples": 3})
+    mock_requests = MagicMock(post=MagicMock(return_value=response))
+    monkeypatch.setitem(sys.modules, "requests", mock_requests)
+    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--ml-service-url", "http://ml"]) 
+    assert module.main() == 0
+    mock_requests.post.assert_called_once()

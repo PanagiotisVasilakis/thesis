@@ -24,9 +24,35 @@ def main():
                         help='Output file path (default: auto-generated based on timestamp)')
     parser.add_argument('--train', action='store_true',
                         help='Train the ML model with collected data')
+    parser.add_argument('--ml-service-url', type=str, default=None,
+                        help='Call /api/collect-data on the given ML service instead of collecting locally')
     
     args = parser.parse_args()
-    
+
+    if args.ml_service_url:
+        import requests
+
+        endpoint = args.ml_service_url.rstrip('/') + '/api/collect-data'
+        payload = {
+            'username': args.username,
+            'password': args.password,
+            'duration': args.duration,
+            'interval': args.interval,
+        }
+        try:
+            resp = requests.post(endpoint, json=payload)
+            if resp.status_code == 200:
+                result = resp.json()
+                print(f"Service collected {result.get('samples', 0)} samples")
+                if result.get('file'):
+                    print(f"Data saved to {result['file']}")
+                return 0
+            print(f"Service responded with {resp.status_code}: {resp.text}")
+            return 1
+        except Exception as e:
+            print(f"Error contacting ML service: {str(e)}")
+            return 1
+
     # Initialize collector
     collector = NEFDataCollector(
         nef_url=args.url,
