@@ -1,4 +1,6 @@
 # 5G Network Optimization Using NEF Emulator and Machine Learning
+**Getting Started:** see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for prerequisites and a full setup walkthrough.
+
 
 ## Project Overview
 This project aims to optimize 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a dedicated machine learning service. The system follows a microservices architecture where the NEF emulator manages network events and the ML service predicts the best antenna based on UE mobility patterns.
