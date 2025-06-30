@@ -61,10 +61,3 @@ def test_mock_api():
     points = mock_generate_mobility_pattern(req)
     
     assert points is not None and len(points) > 0
-
-if __name__ == "__main__":
-    success = test_mock_api()
-    if success:
-        logger.info("Mock API test successful!")
-    else:
-        logger.info("Mock API test failed.")

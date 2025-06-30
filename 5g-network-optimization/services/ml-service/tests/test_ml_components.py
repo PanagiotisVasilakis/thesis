@@ -295,15 +295,3 @@ def visualize_predictions(test_data, predictions, tmp_path):
     out_path.unlink()
 
     logger.info(f"Prediction visualization saved to {out_path}")
-
-if __name__ == "__main__":
-    logger.info("Testing ML Components...")
-    
-    results = []
-    results.append(("Feature Extraction", test_feature_extraction()))
-    results.append(("Model Training and Prediction", test_model_training_and_prediction()))
-    
-    logger.info("\nSummary of Results:")
-    for test_name, result in results:
-        status = "✓ PASS" if result else "✗ FAIL"
-        logger.info(f"{status} - {test_name}")

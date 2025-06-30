@@ -243,6 +243,3 @@ def test_urban_grid_mobility():
             changed = True
     assert changed, "Direction never changed at intersections despite probability=1"
 
-if __name__ == "__main__":
-    import pytest
-    sys.exit(pytest.main([__file__]))

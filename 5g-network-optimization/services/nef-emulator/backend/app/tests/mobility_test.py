@@ -107,7 +107,3 @@ def test_linear_mobility():
         logger.error(f"Could not create plot: {e}")
     
     return True
-
-if __name__ == "__main__":
-    test_linear_mobility()
-    logger.info("Test completed")

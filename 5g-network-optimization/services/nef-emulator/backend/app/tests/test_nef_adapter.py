@@ -77,8 +77,3 @@ def test_nef_adapter():
     
     return True
 
-if __name__ == "__main__":
-    if test_nef_adapter():
-        logger.info("NEF adapter test successful!")
-    else:
-        logger.info("NEF adapter test failed.")

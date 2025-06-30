@@ -34,10 +34,3 @@ def test_adapter():
     assert (round(latitudes[0]), round(longitudes[0])) == (0, 0)
     assert latitudes[-1] == pytest.approx(100, abs=2)
     assert longitudes[-1] == pytest.approx(50, abs=2)
-
-if __name__ == "__main__":
-    success = test_adapter()
-    if success:
-        logger.info("Adapter test successful!")
-    else:
-        logger.info("Adapter test failed.")
