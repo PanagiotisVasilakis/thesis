@@ -5,11 +5,11 @@ import json
 import os
 from pathlib import Path
 from app.api import api_bp
-from app.models.antenna_selector import AntennaSelector
+from app.initialization.model_init import get_model
 from app.data.nef_collector import NEFDataCollector
 
 # Initialize the model
-model = AntennaSelector()
+model = get_model()
 
 @api_bp.route('/health', methods=['GET'])
 def health_check():
