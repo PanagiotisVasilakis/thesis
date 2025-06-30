@@ -5,6 +5,21 @@ from app.models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
 
 from app.utils.synthetic_data import generate_synthetic_training_data
 
+# Singleton instance for model reuse
+_model_instance = None
+
+def get_model(model_path=None):
+    """Return a singleton ``AntennaSelector`` instance.
+
+    If a model file exists at ``model_path`` it will be loaded on first use.
+    Subsequent calls return the same instance regardless of ``model_path``.
+    """
+    global _model_instance
+
+    if _model_instance is None:
+        _model_instance = AntennaSelector(model_path=model_path)
+    return _model_instance
+
 def initialize_model(model_path=None):
     """Initialize the ML model with synthetic data if needed."""
     logger = logging.getLogger(__name__)

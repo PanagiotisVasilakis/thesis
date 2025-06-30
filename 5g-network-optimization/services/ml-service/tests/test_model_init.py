@@ -62,6 +62,23 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     assert isinstance(loaded.model, DummyModel)
 
 
+def test_get_model_returns_singleton(monkeypatch):
+    model_init._model_instance = None
+    created = []
+
+    class DummySelector:
+        def __init__(self, model_path=None):
+            created.append(model_path)
+
+    monkeypatch.setattr(model_init, "AntennaSelector", DummySelector)
+
+    first = model_init.get_model("foo")
+    second = model_init.get_model("bar")
+
+    assert first is second
+    assert created == ["foo"]
+
+
 def teardown_module(module):
     """Remove dynamically loaded ``app`` modules after tests."""
     for name in list(sys.modules.keys()):

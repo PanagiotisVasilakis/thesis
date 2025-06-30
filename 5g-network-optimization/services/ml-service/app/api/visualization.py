@@ -3,7 +3,8 @@ from flask import Blueprint, jsonify, request, current_app, send_file
 import os
 import json
 import logging
-from app.models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
+from app.models.antenna_selector import DEFAULT_TEST_FEATURES
+from app.initialization.model_init import get_model
 from app.visualization.plotter import plot_antenna_coverage, plot_movement_trajectory
 from app.utils.synthetic_data import generate_synthetic_training_data
 
@@ -12,7 +13,7 @@ viz_bp = Blueprint('visualization', __name__, url_prefix='/api/visualization')
 logger = logging.getLogger(__name__)
 
 # Initialize the model
-model = AntennaSelector()
+model = get_model()
 
 
 @viz_bp.route('/coverage-map', methods=['GET'])
