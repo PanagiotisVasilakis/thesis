@@ -132,10 +132,11 @@ docker push <registry>/ml-service:latest
 ```
 
 ## Testing
-First install the required system libraries, then the Python packages. Use the helper script `scripts/install_system_deps.sh` from the repository root:
+First install the required system libraries, then the Python packages. Use the helper script `scripts/install_system_deps.sh` from the repository root and run the test suite:
 ```bash
 ./scripts/install_system_deps.sh
 pip install -r requirements.txt
+pytest
 ```
 
 ### Extended Integration Tests

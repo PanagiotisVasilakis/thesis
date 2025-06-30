@@ -1,3 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Install Python dependencies for local development and CI
-pip install -r requirements.txt
+set -euo pipefail
+
+python -m pip install -r requirements.txt
