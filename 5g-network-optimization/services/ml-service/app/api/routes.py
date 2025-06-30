@@ -3,8 +3,10 @@ from flask import jsonify, request, current_app
 import requests
 import json
 import os
+from pathlib import Path
 from app.api import api_bp
 from app.models.antenna_selector import AntennaSelector
+from app.data.nef_collector import NEFDataCollector
 
 # Initialize the model
 model = AntennaSelector()
@@ -80,3 +82,35 @@ def nef_status():
             'status': 'error',
             'message': f"Failed to connect to NEF: {str(e)}"
         }), 500
+
+
+@api_bp.route('/collect-data', methods=['POST'])
+def collect_data():
+    """Collect training data from the NEF emulator."""
+    params = request.json or {}
+
+    duration = int(params.get('duration', 60))
+    interval = int(params.get('interval', 1))
+    username = params.get('username')
+    password = params.get('password')
+
+    nef_url = current_app.config['NEF_API_URL']
+    collector = NEFDataCollector(nef_url=nef_url, username=username, password=password)
+
+    if username and password and not collector.login():
+        return jsonify({'error': 'Authentication failed'}), 400
+
+    if not collector.get_ue_movement_state():
+        return jsonify({'error': 'No UEs found in movement state'}), 400
+
+    samples = collector.collect_training_data(duration=duration, interval=interval)
+
+    latest = None
+    try:
+        files = sorted(Path(collector.data_dir).glob('training_data_*.json'))
+        if files:
+            latest = str(files[-1])
+    except Exception:
+        pass
+
+    return jsonify({'samples': len(samples), 'file': latest})

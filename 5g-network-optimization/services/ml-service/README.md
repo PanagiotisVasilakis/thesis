@@ -73,6 +73,16 @@ Check connectivity with the NEF emulator specified by `NEF_API_URL`.
 curl http://localhost:5050/api/nef-status
 ```
 
+### `POST /api/collect-data`
+Trigger data collection directly from the NEF emulator. Provide NEF credentials
+and optional `duration` and `interval` parameters.
+
+```bash
+curl -X POST http://localhost:5050/api/collect-data \
+     -H 'Content-Type: application/json' \
+     -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
+```
+
 ### Visualization Endpoints
 Additional helpers under `/api/visualization` generate PNG images.
 
@@ -134,5 +144,7 @@ python collect_training_data.py --duration 300 --train
 ```
 
 The script accepts `--url`, `--username` and `--password` options to authenticate
-with the NEF emulator if needed. After training, the updated model file can be
+with the NEF emulator if needed.  Passing `--ml-service-url` will trigger
+collection via the `/api/collect-data` endpoint of a running ML service instead
+of gathering data locally. After training, the updated model file can be
 loaded automatically on the next service start.
