@@ -105,6 +105,3 @@ def test_linear_mobility():
     
     return True
 
-if __name__ == "__main__":
-    test_linear_mobility()
-    print("Test completed")

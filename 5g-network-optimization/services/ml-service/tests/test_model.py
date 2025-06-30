@@ -107,5 +107,3 @@ def test_model_training_and_prediction(tmp_path):
 
     assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
 
-if __name__ == "__main__":  # pragma: no cover
-    test_model_training_and_prediction()

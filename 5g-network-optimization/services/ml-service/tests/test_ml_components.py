@@ -290,17 +290,3 @@ def visualize_predictions(test_data, predictions, tmp_path):
     plt.close()
     assert out_path.exists()
     out_path.unlink()
-
-    print(f"Prediction visualization saved to {out_path}")
-
-if __name__ == "__main__":
-    print("Testing ML Components...")
-    
-    results = []
-    results.append(("Feature Extraction", test_feature_extraction()))
-    results.append(("Model Training and Prediction", test_model_training_and_prediction()))
-    
-    print("\nSummary of Results:")
-    for test_name, result in results:
-        status = "✓ PASS" if result else "✗ FAIL"
-        print(f"{status} - {test_name}")

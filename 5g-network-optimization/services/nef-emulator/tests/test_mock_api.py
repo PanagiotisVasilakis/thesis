@@ -59,9 +59,3 @@ def test_mock_api():
     
     assert points is not None and len(points) > 0
 
-if __name__ == "__main__":
-    success = test_mock_api()
-    if success:
-        print("Mock API test successful!")
-    else:
-        print("Mock API test failed.")
