@@ -2,6 +2,9 @@ import logging
 import time
 from app.crud import crud_mongo
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 def check_expiration_time(expire_time):
     year = int(expire_time[0:4])
     month = int(expire_time[5:7])
@@ -32,7 +35,7 @@ def check_expiration_time(expire_time):
                 elif(hour==time_now[3]):
                     # print("Time == time now", hour, time_now[3])
                     if(minute>time_now[4]):
-                        print(minute, time_now[4])
+                        logger.debug("%s %s", minute, time_now[4])
                         return True
                     elif(minute==time_now[4]):
                         # print("Minute == minute now", minute, time_now[4])

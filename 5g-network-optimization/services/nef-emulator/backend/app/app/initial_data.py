@@ -103,14 +103,14 @@ def capif_service_description() -> None:
         with open('app/core/capif_files/service_as_session_with_qos.json', 'w') as file:
             file.write(updated_json_str)
 
-        print("Service description files successfully updated!!!")
+        logger.info("Service description files successfully updated!!!")
 
     except FileNotFoundError:
-        print("File not found. Please provide the correct JSON file path.")
+        logger.error("File not found. Please provide the correct JSON file path.")
     except json.JSONDecodeError:
-        print("Invalid JSON format. Please ensure the service description file is correctly formatted.")
+        logger.error("Invalid JSON format. Please ensure the service description file is correctly formatted.")
     except Exception as e:
-        print("An error occurred:", str(e))
+        logger.error("An error occurred: %s", str(e))
 
 def main() -> None:
     logger.info("Creating initial data")
