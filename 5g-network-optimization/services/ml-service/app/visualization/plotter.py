@@ -1,9 +1,12 @@
 """Visualization tools for antenna selection."""
 import os
+import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 def plot_antenna_coverage(model, output_dir='output'):
     """
@@ -49,8 +52,8 @@ def plot_antenna_coverage(model, output_dir='output'):
         model.predict(test_features)
         model_trained = True
     except Exception as e:
-        print(f"Warning: Model not properly trained: {e}")
-        print("Will use distance-based assignment instead")
+        logger.warning(f"Model not properly trained: {e}")
+        logger.info("Will use distance-based assignment instead")
         model_trained = False
     
     for i in range(resolution):
@@ -129,8 +132,8 @@ def plot_antenna_coverage(model, output_dir='output'):
     filename = os.path.join(output_dir, f'antenna_coverage_{timestamp}.png')
     plt.savefig(filename)
     
-    # Print the file path for debugging
-    print(f"Saved coverage map to: {filename}")
+    # Log the file path for debugging
+    logger.info(f"Saved coverage map to: {filename}")
     
     return filename
 
@@ -194,7 +197,7 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
     filename = os.path.join(output_dir, f'trajectory_{timestamp}.png')
     plt.savefig(filename)
     
-    # Print the file path for debugging
-    print(f"Saved trajectory visualization to: {filename}")
+    # Log the file path for debugging
+    logger.info(f"Saved trajectory visualization to: {filename}")
     
     return filename

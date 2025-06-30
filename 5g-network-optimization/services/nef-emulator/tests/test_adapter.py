@@ -2,6 +2,9 @@
 
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
 import pytest
+import logging
+
+logger = logging.getLogger(__name__)
 
 def test_adapter():
     """Test the MobilityPatternAdapter functionality."""
@@ -31,4 +34,3 @@ def test_adapter():
     assert (round(latitudes[0]), round(longitudes[0])) == (0, 0)
     assert latitudes[-1] == pytest.approx(100, abs=2)
     assert longitudes[-1] == pytest.approx(50, abs=2)
-

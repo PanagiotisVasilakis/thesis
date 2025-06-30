@@ -6,6 +6,9 @@ from sklearn.model_selection import train_test_split
 import importlib.util
 from pathlib import Path
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 ANT_PATH = Path(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
 spec = importlib.util.spec_from_file_location("antenna_selector", ANT_PATH)
@@ -131,12 +134,12 @@ def test_model_training_and_prediction(tmp_path):
             correct += 1
 
     accuracy = correct / len(test_data)
-    print(f"Accuracy: {accuracy:.2%}")
+    logger.info(f"Accuracy: {accuracy:.2%}")
     
     # Visualize feature importance if available
     feature_importance = metrics.get('feature_importance', {})
     if feature_importance:
-        print("\nFeature importance:")
+        logger.info("\nFeature importance:")
         sorted_features = sorted(
             feature_importance.items(),
             key=lambda x: x[1],
@@ -144,7 +147,7 @@ def test_model_training_and_prediction(tmp_path):
         )
         
         for feature, importance in sorted_features:
-            print(f"  {feature}: {importance:.4f}")
+            logger.info(f"  {feature}: {importance:.4f}")
         
         # Plot feature importance
         plt.figure(figsize=(10, 6))
@@ -162,7 +165,7 @@ def test_model_training_and_prediction(tmp_path):
         assert out_path.exists()
         out_path.unlink()
 
-        print(f"Feature importance visualization saved to {out_path}")
+        logger.info(f"Feature importance visualization saved to {out_path}")
     
     # Visualize predictions in a 2D space
     visualize_predictions(test_data, predictions, tmp_path)
@@ -179,7 +182,7 @@ def test_model_training_and_prediction(tmp_path):
 
 def visualize_predictions(test_data, predictions, tmp_path):
     """Visualize predictions in a 2D space."""
-    print("\nVisualizing predictions...")
+    logger.info("\nVisualizing predictions...")
     
     # Extract coordinates and predictions
     lats = [sample['latitude'] for sample in test_data]
@@ -290,3 +293,5 @@ def visualize_predictions(test_data, predictions, tmp_path):
     plt.close()
     assert out_path.exists()
     out_path.unlink()
+
+    logger.info(f"Prediction visualization saved to {out_path}")
