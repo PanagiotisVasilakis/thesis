@@ -9,3 +9,6 @@ backend/app/app/core/certificates/capif_provider_details.json
 backend/app/app/core/certificates/CAPIF_service_as_session_with_qos.json
 backend/app/app/core/certificates/CAPIF_service_monitoring_event.json
 venv/
+# Ignore source maps and highlight.js library
+backend/app/app/static/**/*.map
+backend/app/app/static/highlightjs@11.3.1/
