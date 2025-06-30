@@ -3,9 +3,12 @@ import sys
 import os
 import matplotlib.pyplot as plt
 from datetime import datetime
+import logging
 
 # Add parent directory to path to find our mobility_models package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+logger = logging.getLogger(__name__)
 
 # Create the mobility models module if it doesn't exist
 if not os.path.exists(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'mobility_models')):
@@ -77,9 +80,9 @@ def test_linear_mobility():
     trajectory = model.generate_trajectory(120, time_step=1.0)
     
     # Print some information
-    print(f"Generated {len(trajectory)} points")
-    print(f"First point: {trajectory[0]['position']}")
-    print(f"Last point: {trajectory[-1]['position']}")
+    logger.info(f"Generated {len(trajectory)} points")
+    logger.info(f"First point: {trajectory[0]['position']}")
+    logger.info(f"Last point: {trajectory[-1]['position']}")
     
     # Extract x and y coordinates for plotting
     x_coords = [point['position'][0] for point in trajectory]
@@ -99,12 +102,12 @@ def test_linear_mobility():
         
         # Save plot
         plt.savefig('linear_trajectory.png')
-        print("Plot saved as linear_trajectory.png")
+        logger.info("Plot saved as linear_trajectory.png")
     except Exception as e:
-        print(f"Could not create plot: {e}")
+        logger.error(f"Could not create plot: {e}")
     
     return True
 
 if __name__ == "__main__":
     test_linear_mobility()
-    print("Test completed")
+    logger.info("Test completed")

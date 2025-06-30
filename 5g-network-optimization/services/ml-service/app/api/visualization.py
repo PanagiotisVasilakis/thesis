@@ -2,11 +2,14 @@
 from flask import Blueprint, jsonify, request, current_app, send_file
 import os
 import json
+import logging
 from app.models.antenna_selector import AntennaSelector
 from app.visualization.plotter import plot_antenna_coverage, plot_movement_trajectory
 from app.utils.synthetic_data import generate_synthetic_training_data
 
 viz_bp = Blueprint('visualization', __name__, url_prefix='/api/visualization')
+
+logger = logging.getLogger(__name__)
 
 # Initialize the model
 model = AntennaSelector()
@@ -31,10 +34,12 @@ def coverage_map():
             model.predict(test_features)
         except Exception as e:
             # Model is not trained, train it with synthetic data
-            print(f"Model not trained: {str(e)}. Training with synthetic data...")
+            logger.warning(
+                f"Model not trained: {str(e)}. Training with synthetic data..."
+            )
             training_data = generate_synthetic_training_data(500)
             model.train(training_data)
-            print("Model trained successfully with synthetic data")
+            logger.info("Model trained successfully with synthetic data")
         
         # Define absolute output directory path - this is the crucial fix
         output_dir = os.path.abspath(os.path.join(os.getcwd(), 'output'))
@@ -45,19 +50,19 @@ def coverage_map():
         
         # Check if the file exists
         if not os.path.exists(output_file):
-            print(f"Warning: Output file not found at {output_file}")
+            logger.warning(f"Output file not found at {output_file}")
             # Try to find the file in the relative path
             relative_path = os.path.join('output', os.path.basename(output_file))
             if os.path.exists(relative_path):
                 output_file = os.path.abspath(relative_path)
-                print(f"Found file at {output_file}")
+                logger.info(f"Found file at {output_file}")
         
         # Return the image file
         return send_file(output_file, mimetype='image/png')
     
     except Exception as e:
         import traceback
-        print(f"Error generating coverage map: {str(e)}")
+        logger.error(f"Error generating coverage map: {str(e)}")
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 

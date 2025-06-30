@@ -2,6 +2,9 @@
 
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
 import pytest
+import logging
+
+logger = logging.getLogger(__name__)
 
 def test_adapter():
     """Test the MobilityPatternAdapter functionality."""
@@ -35,6 +38,6 @@ def test_adapter():
 if __name__ == "__main__":
     success = test_adapter()
     if success:
-        print("Adapter test successful!")
+        logger.info("Adapter test successful!")
     else:
-        print("Adapter test failed.")
+        logger.info("Adapter test failed.")

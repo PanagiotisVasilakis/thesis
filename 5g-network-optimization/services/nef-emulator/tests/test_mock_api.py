@@ -1,9 +1,12 @@
 """Test the mobility patterns API functionality with mocks."""
 import json
+import logging
 
 # Import our models and adapter
 from backend.app.app.mobility_models.models import LinearMobilityModel
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
+
+logger = logging.getLogger(__name__)
 
 class MockRequest:
     """Mock request object for testing."""
@@ -33,10 +36,10 @@ def mock_generate_mobility_pattern(req):
         
         return points
     except ValueError as e:
-        print(f"ValueError: {e}")
+        logger.error(f"ValueError: {e}")
         return None
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return None
 
 def test_mock_api():
@@ -62,6 +65,6 @@ def test_mock_api():
 if __name__ == "__main__":
     success = test_mock_api()
     if success:
-        print("Mock API test successful!")
+        logger.info("Mock API test successful!")
     else:
-        print("Mock API test failed.")
+        logger.info("Mock API test failed.")
