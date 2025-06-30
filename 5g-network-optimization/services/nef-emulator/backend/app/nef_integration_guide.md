@@ -88,6 +88,6 @@ print("UE movement started")
 ```
 
 ### A3 Rule-Based Handover
-The emulator supports a basic 3GPP Event A3 rule. Set the environment variable
-`SIMPLE_MODE=true` to enable it and adjust `A3_HYSTERESIS_DB` and `A3_TTT_S` to
+The emulator supports a basic 3GPP Event A3 rule. Disable machine learning by
+setting `ML_HANDOVER_ENABLED=0` and adjust `A3_HYSTERESIS_DB` and `A3_TTT_S` to
 control the hysteresis and time-to-trigger.

@@ -138,7 +138,7 @@ Update the `EXTERNAL_NET` environment variable to `false` in the `.env` file of 
 
 ### Core classes
 
-`NetworkStateManager` keeps track of UEs, antennas and current connections. When `simple_mode` is enabled it instantiates an `A3EventRule` for each UE to evaluate 3GPP event A3 conditions. `HandoverEngine` relies on `NetworkStateManager` to fetch RF metrics and apply decisions. Depending on configuration it either uses machine learning predictions or delegates to an `A3EventRule` check before calling `NetworkStateManager.apply_handover_decision()`.
+`NetworkStateManager` keeps track of UEs, antennas and current connections. `HandoverEngine` decides whether to use machine learning or the built‑in `A3EventRule` based on the `ML_HANDOVER_ENABLED` variable or the number of configured antennas. The rule object is always available but only consulted when ML is disabled.
 
 ### Key files
 

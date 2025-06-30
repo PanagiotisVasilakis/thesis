@@ -27,8 +27,8 @@ Apply the manifest containing both the Deployment and Service:
 kubectl apply -f nef-emulator.yaml
 ```
 
-The file sets environment variables like `SIMPLE_MODE`, `A3_HYSTERESIS_DB` and
-`A3_TTT_S`. Edit it or use `kubectl set env` if you need to override them.
+The file sets environment variables such as `ML_HANDOVER_ENABLED`, `A3_HYSTERESIS_DB`
+and `A3_TTT_S`. Edit it or use `kubectl set env` if you need to override them.
 
 ## 3. Deploy the ML Service
 

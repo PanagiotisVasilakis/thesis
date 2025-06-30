@@ -50,32 +50,15 @@ def test_unknown_antenna(nsm):
     with pytest.raises(KeyError):
         nsm.apply_handover_decision('ue1','antX')
 
-def test_unknown_antenna_simple_mode(monkeypatch):
-    monkeypatch.setenv('SIMPLE_MODE', '1')
-    n = NetworkStateManager()
-    n.antenna_list = {'A': MacroCellModel('A', (0,0,0), 2.6e9, tx_power_dbm=46)}
-    n.ue_states = {'u1': {'position': (0,0,0), 'connected_to': 'A'}}
-    with pytest.raises(KeyError):
-        n.apply_handover_decision('u1', 'missing')
-    assert not n.handover_history
-
-def test_env_simple_mode(monkeypatch):
-    monkeypatch.setenv('SIMPLE_MODE', 'true')
-    n = NetworkStateManager(simple_mode=False)
-    assert n.simple_mode is True
 
 def test_env_a3_hysteresis(monkeypatch):
-    monkeypatch.setenv('SIMPLE_MODE', '1')
     monkeypatch.setenv('A3_HYSTERESIS_DB', '5.5')
     n = NetworkStateManager()
-    assert n.simple_mode is True
     assert n._a3_params[0] == pytest.approx(5.5)
 
 def test_env_a3_ttt(monkeypatch):
-    monkeypatch.setenv('SIMPLE_MODE', '1')
     monkeypatch.setenv('A3_TTT_S', '2.0')
     n = NetworkStateManager()
-    assert n.simple_mode is True
     assert n._a3_params[1] == pytest.approx(2.0)
 
 def test_get_feature_vector_no_ue():

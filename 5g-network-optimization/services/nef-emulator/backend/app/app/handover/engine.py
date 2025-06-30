@@ -29,6 +29,11 @@ class HandoverEngine:
         self.ml_model_path = ml_model_path
         self.min_antennas_ml = min_antennas_ml
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
+        # Always have an A3 rule available; it will only be used when
+        # machine learning is disabled.
+        self.rule = A3EventRule(
+            hysteresis_db=self._a3_params[0], ttt_seconds=self._a3_params[1]
+        )
 
         env = os.getenv("ML_HANDOVER_ENABLED") if use_ml is None else None
 
@@ -45,19 +50,13 @@ class HandoverEngine:
         self._ensure_mode()
 
     def _ensure_mode(self) -> None:
-        """Instantiate selector or rule depending on current mode."""
+        """Instantiate or remove the ML selector based on current mode."""
         if self.use_ml:
             if AntennaSelector is None:
                 raise RuntimeError("AntennaSelector not available")
             if not hasattr(self, "selector"):
                 self.selector = AntennaSelector(model_path=self.ml_model_path)
-            if hasattr(self, "rule"):
-                del self.rule
         else:
-            if not hasattr(self, "rule"):
-                self.rule = A3EventRule(
-                    hysteresis_db=self._a3_params[0], ttt_seconds=self._a3_params[1]
-                )
             if hasattr(self, "selector"):
                 del self.selector
 

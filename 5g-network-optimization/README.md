@@ -62,8 +62,8 @@ pip install -r requirements.txt
 scripts/install_deps.sh
 ```
 
-The environment variables documented below (`SIMPLE_MODE`, `ML_HANDOVER_ENABLED`
-and others) can be passed on the command line or in an `.env` file to control
+The environment variables documented below (`ML_HANDOVER_ENABLED` and others)
+can be passed on the command line or in an `.env` file to control
 the behavior of both services.
 
 
@@ -76,16 +76,15 @@ The emulator includes several 3GPP-compliant mobility models located under
 - **Manhattan Grid** and **Urban Grid** patterns
 - **Reference Point Group** mobility for UE clusters
 
-For rule-based scenarios the NEF implements the 3GPP **A3 event** rule. Enable
-it with `SIMPLE_MODE=true`; use `A3_HYSTERESIS_DB` and `A3_TTT_S` to tune the
-hysteresis and time-to-trigger parameters.
+For rule-based scenarios the NEF implements the 3GPP **A3 event** rule. Disable
+machine learning with `ML_HANDOVER_ENABLED=0` and use `A3_HYSTERESIS_DB` and
+`A3_TTT_S` to tune the hysteresis and time-to-trigger parameters.
 
 ## Environment Variables
 The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker-compose`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SIMPLE_MODE` | Apply the A3 handover rule before executing any decision (`true`/`false`) | `false` |
 | `ML_HANDOVER_ENABLED` | Enable ML-driven handovers (`true`/`false`). If unset, the engine uses ML automatically when at least three antennas are configured | `false` |
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
@@ -96,7 +95,7 @@ Both services run via `docker-compose`. Use the environment variables above to s
 
 ### Simple A3 Mode
 ```bash
-ML_HANDOVER_ENABLED=0 SIMPLE_MODE=true docker-compose up --build
+ML_HANDOVER_ENABLED=0 docker-compose up --build
 ```
 
 ### ML Mode

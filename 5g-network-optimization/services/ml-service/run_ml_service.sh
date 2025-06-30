@@ -14,7 +14,6 @@ python tests/test_model.py
 
 # Start the Flask service
 echo "Starting ML service..."
-export SIMPLE_MODE=${SIMPLE_MODE:-false}
 export A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
 export A3_TTT_S=${A3_TTT_S:-0.0}
 python app.py

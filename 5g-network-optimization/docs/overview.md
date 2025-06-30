@@ -13,7 +13,7 @@ A monitoring stack using Prometheus and Grafana collects metrics from both servi
 2. **Network State Management** – The NEF emulator's [`NetworkStateManager`](../services/nef-emulator/backend/app/app/network/state_manager.py) keeps track of UE locations, antenna configurations and handover history.
 3. **Handover Decision** – [`HandoverEngine`](../services/nef-emulator/backend/app/app/handover/engine.py) selects the best antenna:
    - When `ML_HANDOVER_ENABLED` is set, the engine loads the ML model and uses it to predict the target antenna.
-   - Otherwise it applies the 3GPP **A3** rule (`SIMPLE_MODE=true`).  Parameters `A3_HYSTERESIS_DB` and `A3_TTT_S` fine‑tune the decision.
+   - Otherwise it applies the 3GPP **A3** rule. Parameters `A3_HYSTERESIS_DB` and `A3_TTT_S` fine‑tune the decision.
 4. **Monitoring** – Metrics are exposed at `/metrics` on each service and scraped by Prometheus.  Grafana dashboards show request latency, prediction counts and other statistics.  See the [Monitoring README](../monitoring/README.md).
 
 ## Running Locally
@@ -29,7 +29,7 @@ To switch between rule‑based and ML‑driven handovers, set environment variab
 
 ```bash
 # Use only the A3 rule
-ML_HANDOVER_ENABLED=0 SIMPLE_MODE=true docker-compose up --build
+ML_HANDOVER_ENABLED=0 docker-compose up --build
 
 # Enable machine learning
 ML_HANDOVER_ENABLED=1 docker-compose up --build
@@ -56,7 +56,6 @@ ML_HANDOVER_ENABLED=1 docker-compose up --build
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SIMPLE_MODE` | Apply the A3 handover rule before executing any ML logic | `false` |
 | `ML_HANDOVER_ENABLED` | Enable ML-driven handovers. When `false` only the A3 rule is used | `false` |
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
