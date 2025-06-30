@@ -1,7 +1,7 @@
 """Model initialization utilities."""
 import os
 import logging
-from app.models.antenna_selector import AntennaSelector
+from app.models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
 
 from app.utils.synthetic_data import generate_synthetic_training_data
 
@@ -31,16 +31,7 @@ def initialize_model(model_path=None):
     
     # Try a simple prediction to check if the model is trained
     try:
-        test_features = {
-            'latitude': 500,
-            'longitude': 500,
-            'speed': 1.0,
-            'direction_x': 0.7,
-            'direction_y': 0.7,
-            'rsrp_current': -90,
-            'sinr_current': 10
-        }
-        model.predict(test_features)
+        model.predict(DEFAULT_TEST_FEATURES)
         logger.info("Model is already trained and ready")
         return model
     except Exception as e:
