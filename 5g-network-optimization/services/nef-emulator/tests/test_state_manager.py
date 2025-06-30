@@ -107,5 +107,3 @@ def test_get_position_at_time_multiseg(nsm):
     assert pytest.approx(p[1]) == 5.0
     assert p[2] == 0.0
 
-if __name__ == "__main__":
-    pytest.main([__file__])

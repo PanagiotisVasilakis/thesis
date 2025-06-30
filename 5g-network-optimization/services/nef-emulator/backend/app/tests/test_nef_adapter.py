@@ -3,9 +3,12 @@ import sys
 import os
 import matplotlib.pyplot as plt
 import json
+import logging
 
 # Add the root directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+logger = logging.getLogger(__name__)
 
 # Import the adapter
 from backend.app.app.mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
@@ -23,7 +26,7 @@ def test_nef_adapter():
     }
     
     linear_points = generate_nef_path_points('linear', **params)
-    print(f"Generated {len(linear_points)} linear path points")
+    logger.info(f"Generated {len(linear_points)} linear path points")
     
     # Save to JSON
     linear_json = save_path_to_json(linear_points, 'linear_path.json')
@@ -40,7 +43,7 @@ def test_nef_adapter():
     }
     
     l_shaped_points = generate_nef_path_points('l_shaped', **params)
-    print(f"Generated {len(l_shaped_points)} L-shaped path points")
+    logger.info(f"Generated {len(l_shaped_points)} L-shaped path points")
     
     # Save to JSON
     l_shaped_json = save_path_to_json(l_shaped_points, 'l_shaped_path.json')
@@ -70,12 +73,7 @@ def test_nef_adapter():
     
     # Save visualization
     plt.savefig('mobility_patterns.png')
-    print("Visualization saved as mobility_patterns.png")
+    logger.info("Visualization saved as mobility_patterns.png")
     
     return True
 
-if __name__ == "__main__":
-    if test_nef_adapter():
-        print("NEF adapter test successful!")
-    else:
-        print("NEF adapter test failed.")

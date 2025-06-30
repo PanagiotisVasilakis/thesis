@@ -21,5 +21,3 @@ def test_imports():
     assert MobilityPatternAdapter
 
 
-if __name__ == "__main__":  # pragma: no cover
-    test_imports()
