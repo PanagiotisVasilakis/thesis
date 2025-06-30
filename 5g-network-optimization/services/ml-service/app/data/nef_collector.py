@@ -44,7 +44,7 @@ class NEFDataCollector:
         """Get current state of all UEs in movement."""
         try:
             state = self.client.get_ue_movement_state()
-            if state:
+            if state is not None:
                 ue_count = len(state.keys())
                 self.logger.info(f"Retrieved state for {ue_count} moving UEs")
             return state
