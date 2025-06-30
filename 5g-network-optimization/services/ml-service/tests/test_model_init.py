@@ -24,6 +24,7 @@ spec.loader.exec_module(app_module)
 
 from app.initialization import model_init
 from app.models.antenna_selector import AntennaSelector
+from app.utils import synthetic_data
 
 initialize_model = model_init.initialize_model
 
@@ -48,6 +49,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     monkeypatch.setattr(AntennaSelector, "train", dummy_train)
     monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
 
+    monkeypatch.setattr(synthetic_data, "generate_synthetic_training_data", lambda n: [{}] * n)
     # First call should train and create the file
     model = initialize_model(str(model_path))
     assert call_count["train"] == 1
