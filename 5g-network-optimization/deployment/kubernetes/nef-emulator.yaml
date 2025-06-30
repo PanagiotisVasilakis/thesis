@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nef-emulator
+  labels:
+    app: nef-emulator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nef-emulator
+  template:
+    metadata:
+      labels:
+        app: nef-emulator
+    spec:
+      containers:
+      - name: nef-emulator
+        image: 5g-network-optimization/nef-emulator:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 80
+        env:
+        - name: SERVER_NAME
+          value: "localhost"
+        - name: SERVER_HOST
+          value: "http://localhost"
+        - name: SIMPLE_MODE
+          value: "false"
+        - name: A3_HYSTERESIS_DB
+          value: "2.0"
+        - name: A3_TTT_S
+          value: "0.0"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nef-emulator
+spec:
+  selector:
+    app: nef-emulator
+  ports:
+  - port: 8080
+    targetPort: 80
+  type: ClusterIP

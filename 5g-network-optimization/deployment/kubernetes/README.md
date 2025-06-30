@@ -1,6 +1,6 @@
 # Kubernetes Deployment Guide
 
-This folder contains Kubernetes manifests and tips for running the NEF emulator and ML service in a cluster. The `ml-service.yaml` file provides a Deployment and Service for the ML component. A similar configuration can be created for the NEF emulator.
+This folder contains Kubernetes manifests and tips for running the NEF emulator and ML service in a cluster. The `nef-emulator.yaml` and `ml-service.yaml` files provide Deployment and Service definitions for both components.
 
 ## Prerequisites
 
@@ -17,39 +17,18 @@ Define them via `kubectl set env` or by editing the manifests before applying.
 
 Build the Docker images and push them to a registry accessible by your cluster.
 Refer to the [root README](../../README.md#building-docker-images) for the exact commands.
-Update `ml-service.yaml` and any NEF emulator manifest to use the registry image paths.
+Update `nef-emulator.yaml` and `ml-service.yaml` to point to your registry images.
 
 ## 2. Deploy the NEF Emulator
 
-Create a Deployment and Service for the NEF emulator. A minimal example:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nef-emulator
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: nef-emulator
-  template:
-    metadata:
-      labels:
-        app: nef-emulator
-    spec:
-      containers:
-      - name: nef-emulator
-        image: <registry>/nef-emulator:latest
-        ports:
-        - containerPort: 8080
-```
-
-Expose the deployment as a service:
+Apply the manifest containing both the Deployment and Service:
 
 ```bash
-kubectl expose deployment nef-emulator --port 8080 --target-port 8080
+kubectl apply -f nef-emulator.yaml
 ```
+
+The file sets environment variables like `SIMPLE_MODE`, `A3_HYSTERESIS_DB` and
+`A3_TTT_S`. Edit it or use `kubectl set env` if you need to override them.
 
 ## 3. Deploy the ML Service
 
