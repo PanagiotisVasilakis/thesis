@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request, current_app, send_file
 import os
 import json
 import logging
-from app.models.antenna_selector import AntennaSelector
+from app.models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
 from app.visualization.plotter import plot_antenna_coverage, plot_movement_trajectory
 from app.utils.synthetic_data import generate_synthetic_training_data
 
@@ -22,16 +22,7 @@ def coverage_map():
         # First, check if the model is trained
         try:
             # Try a simple prediction to see if model is trained
-            test_features = {
-                'latitude': 500, 
-                'longitude': 500, 
-                'speed': 1.0,
-                'direction_x': 0.7,
-                'direction_y': 0.7,
-                'rsrp_current': -90,
-                'sinr_current': 10
-            }
-            model.predict(test_features)
+            model.predict(DEFAULT_TEST_FEATURES)
         except Exception as e:
             # Model is not trained, train it with synthetic data
             logger.warning(
