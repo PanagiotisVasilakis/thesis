@@ -8,19 +8,14 @@ import math
 class NetworkStateManager:
     """Manages UEs, antennas, connections, and history for ML integration."""
 
-    def __init__(self, simple_mode: bool = False, a3_hysteresis_db: float = 2.0,
-                 a3_ttt_s: float = 0.0):
+    def __init__(self, a3_hysteresis_db: float = 2.0, a3_ttt_s: float = 0.0):
         """Initialize the network state manager.
 
         Parameters can be overridden by the following environment variables:
-        SIMPLE_MODE - enable rule-based handovers (true/false)
         A3_HYSTERESIS_DB - hysteresis in dB for the A3 event
         A3_TTT_S - time-to-trigger in seconds for the A3 event
         """
         # Read overrides from environment variables
-        env_simple = os.getenv("SIMPLE_MODE")
-        if env_simple is not None:
-            simple_mode = env_simple.lower() in {"1", "true", "yes", "y"}
 
 
         env_hyst = os.getenv("A3_HYSTERESIS_DB")
@@ -42,11 +37,7 @@ class NetworkStateManager:
         self.logger = logging.getLogger('NetworkStateManager')
         # Default noise floor in dBm (tunable)
         self.noise_floor_dbm = -100.0
-        self.simple_mode = simple_mode
-        if simple_mode:
-            from ..handover.a3_rule import A3EventRule
-            self._a3_params = (a3_hysteresis_db, a3_ttt_s)
-            self._rules = {}  # ue_id -> A3EventRule
+        self._a3_params = (a3_hysteresis_db, a3_ttt_s)
 
     def get_feature_vector(self, ue_id):
         """
@@ -97,17 +88,8 @@ class NetworkStateManager:
         if target_antenna_id not in self.antenna_list:
             raise KeyError(f"Antenna {target_antenna_id} unknown")
 
-        if self.simple_mode:
-            rule = self._rules.get(ue_id)
-            if rule is None:
-                from ..handover.a3_rule import A3EventRule
-                rule = A3EventRule(*self._a3_params)
-                self._rules[ue_id] = rule
-            now = datetime.utcnow()
-            rsrp_serv = self.antenna_list[prev].rsrp_dbm(state['position'])
-            rsrp_tgt = self.antenna_list[target_antenna_id].rsrp_dbm(state['position'])
-            if not rule.check(rsrp_serv, rsrp_tgt, now):
-                return None
+        # The A3 rule is evaluated by the HandoverEngine when machine learning
+        # is disabled. NetworkStateManager simply applies the decision here.
 
         state['connected_to'] = target_antenna_id
 
