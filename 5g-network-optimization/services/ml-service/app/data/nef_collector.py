@@ -1,17 +1,19 @@
 """Data collection from NEF emulator for ML training."""
-import requests
 import json
-import pandas as pd
-import time
-import os
 import logging
+import os
 from datetime import datetime
+
+import time
+
+from app.clients.nef_client import NEFClient
 
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
     
     def __init__(self, nef_url="http://localhost:8080", username=None, password=None):
         """Initialize the data collector."""
+        self.client = NEFClient(nef_url, username=username, password=password)
         self.nef_url = nef_url
         self.username = username
         self.password = password
@@ -28,49 +30,24 @@ class NEFDataCollector:
         self.logger = logging.getLogger('NEFDataCollector')
     
     def login(self):
-        """Login to NEF emulator and get access token."""
-        if not self.username or not self.password:
-            self.logger.warning("No credentials provided, skipping authentication")
-            return False
-        
-        try:
-            login_url = f"{self.nef_url}/api/v1/login/access-token"
-            response = requests.post(
-                login_url,
-                data={
-                    "username": self.username,
-                    "password": self.password
-                }
-            )
-            
-            if response.status_code == 200:
-                self.token = response.json().get("access_token")
-                self.headers = {"Authorization": f"Bearer {self.token}"}
-                self.logger.info("Successfully logged in to NEF emulator")
-                return True
-            else:
-                self.logger.error(f"Login failed: {response.status_code} - {response.text}")
-                return False
-        
-        except Exception as e:
-            self.logger.error(f"Login error: {str(e)}")
-            return False
+        """Login to NEF emulator and store access token."""
+        success = self.client.login()
+        if success:
+            self.token = self.client.token
+            self.headers = self.client.get_headers()
+        else:
+            self.token = None
+            self.headers = {}
+        return success
     
     def get_ue_movement_state(self):
         """Get current state of all UEs in movement."""
         try:
-            state_url = f"{self.nef_url}/api/v1/ue-movement/state-ues"
-            response = requests.get(state_url, headers=self.headers)
-            
-            if response.status_code == 200:
-                state = response.json()
+            state = self.client.get_ue_movement_state()
+            if state is not None:
                 ue_count = len(state.keys())
                 self.logger.info(f"Retrieved state for {ue_count} moving UEs")
-                return state
-            else:
-                self.logger.error(f"Failed to get UE movement state: {response.status_code} - {response.text}")
-                return {}
-        
+            return state
         except Exception as e:
             self.logger.error(f"Error getting UE movement state: {str(e)}")
             return {}
