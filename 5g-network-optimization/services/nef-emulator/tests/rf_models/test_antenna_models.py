@@ -90,5 +90,3 @@ def test_deterministic_outputs_without_shadowing(ue_position):
     assert round(rs_expected, 10) == -88.5401390252
     assert round(sinr_expected, 10) == -11.1543710146
 
-if __name__ == "__main__":
-    sys.exit(pytest.main([__file__]))
