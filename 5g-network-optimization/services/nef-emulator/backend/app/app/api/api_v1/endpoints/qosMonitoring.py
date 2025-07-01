@@ -26,6 +26,7 @@ def read_active_subscriptions(
     """
     Get subscription by id
     """
+    _ = scsAsId
     db_mongo = client.fastapi
     retrieved_docs = crud_mongo.read_all(db_mongo, db_collection, current_user.id)
 
@@ -78,6 +79,8 @@ def create_subscription(
     token_payload = Depends(deps.verify_with_public_key),
     http_request: Request
 ) -> Any:
+
+    _ = scsAsId
     
     db_mongo = client.fastapi
 
@@ -195,6 +198,7 @@ def read_subscription(
     """
     Get subscription by id
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     try:
@@ -260,6 +264,7 @@ def update_subscription(
     """
     Update subscription by id
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     try:
@@ -330,6 +335,7 @@ def delete_subscription(
     """
     Delete a subscription
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     try:
