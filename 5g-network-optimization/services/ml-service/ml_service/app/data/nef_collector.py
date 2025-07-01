@@ -6,7 +6,7 @@ from datetime import datetime
 
 import time
 
-from app.clients.nef_client import NEFClient
+from ..clients.nef_client import NEFClient
 
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""

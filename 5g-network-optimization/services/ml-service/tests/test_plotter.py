@@ -1,12 +1,9 @@
 from pathlib import Path
 
-from test_helpers import load_module
-
-# Load plotter module directly to avoid package import issues
-PLOTTER_PATH = Path(__file__).resolve().parents[1] / "app" / "visualization" / "plotter.py"
-plotter = load_module(PLOTTER_PATH, "plotter")
-plot_antenna_coverage = plotter.plot_antenna_coverage
-plot_movement_trajectory = plotter.plot_movement_trajectory
+from ml_service.app.visualization.plotter import (
+    plot_antenna_coverage,
+    plot_movement_trajectory,
+)
 
 
 class DummyAntennaSelector:

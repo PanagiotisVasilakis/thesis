@@ -1,12 +1,11 @@
 from flask import Flask
-import sys
 
-for name in list(sys.modules.keys()):
-    if name == "app" or name.startswith("app."):
-        del sys.modules[name]
-
-from app.monitoring import metrics
-from app.monitoring.metrics import MetricsMiddleware, track_prediction, track_training
+from ml_service.app.monitoring import metrics
+from ml_service.app.monitoring.metrics import (
+    MetricsMiddleware,
+    track_prediction,
+    track_training,
+)
 
 
 def test_metrics_middleware_counts_success():

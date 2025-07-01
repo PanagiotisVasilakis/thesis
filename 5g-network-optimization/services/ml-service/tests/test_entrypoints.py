@@ -11,30 +11,15 @@ COLLECT_ENTRY = SERVICE_ROOT / "collect_training_data.py"
 
 
 def _load_app_package():
-    """Load the ``app`` package while stubbing optional deps."""
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            del sys.modules[name]
-    spec = importlib.util.spec_from_file_location(
-        "app",
-        SERVICE_ROOT / "app" / "__init__.py",
-        submodule_search_locations=[str(SERVICE_ROOT / "app")],
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["app"] = module
-    # stub seaborn if not installed
+    """Return the ml_service.app package with seaborn stubbed."""
     sys.modules.setdefault(
         "seaborn",
-        importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
+        importlib.util.module_from_spec(
+            importlib.util.spec_from_loader("seaborn", loader=None)
+        ),
     )
-    spec.loader.exec_module(module)
+    import ml_service.app as module
     return module
-
-
-def _unload_app_package():
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            del sys.modules[name]
 
 
 
@@ -43,12 +28,9 @@ def test_app_entrypoint_calls_create_app(monkeypatch):
     app_pkg = _load_app_package()
     mock_create = MagicMock(return_value="instance")
     monkeypatch.setattr(app_pkg, "create_app", mock_create)
-    try:
-        module = load_module(APP_ENTRY, "app_entry")
-        assert module.app == "instance"
-        mock_create.assert_called_once()
-    finally:
-        _unload_app_package()
+    module = load_module(APP_ENTRY, "app_entry")
+    assert module.app == "instance"
+    mock_create.assert_called_once()
 
 
 def test_collect_training_data_main_success(monkeypatch):

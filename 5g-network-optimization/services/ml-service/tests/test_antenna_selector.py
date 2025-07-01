@@ -1,12 +1,6 @@
 import numpy as np
 
-from pathlib import Path as PathlibPath
-
-from test_helpers import load_module
-
-ANT_PATH = PathlibPath(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
-antenna_selector = load_module(ANT_PATH, "antenna_selector")
-AntennaSelector = antenna_selector.AntennaSelector
+from ml_service.app.models.antenna_selector import AntennaSelector
 
 
 def test_extract_features_defaults():

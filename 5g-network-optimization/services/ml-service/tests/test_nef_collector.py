@@ -1,26 +1,8 @@
-import importlib.util
-from pathlib import Path
 import json
 from unittest.mock import MagicMock
-import sys
 
-from test_helpers import load_module
-
-SERVICE_ROOT = Path(__file__).resolve().parents[1]
-spec_app = importlib.util.spec_from_file_location(
-    "app", SERVICE_ROOT / "app" / "__init__.py", submodule_search_locations=[str(SERVICE_ROOT / "app")]
-)
-app_module = importlib.util.module_from_spec(spec_app)
-sys.modules["app"] = app_module
-sys.modules.setdefault(
-    "seaborn",
-    importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
-)
-spec_app.loader.exec_module(app_module)
-
-NEF_COLLECTOR_PATH = SERVICE_ROOT / "app" / "data" / "nef_collector.py"
-nef_collector = load_module(NEF_COLLECTOR_PATH, "nef_collector")
-NEFDataCollector = nef_collector.NEFDataCollector
+from ml_service.app.data import nef_collector
+from ml_service.app.data.nef_collector import NEFDataCollector
 
 
 def test_login(monkeypatch):

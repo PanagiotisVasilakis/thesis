@@ -18,7 +18,7 @@ following tasks:
    from `app/api/visualization`.
 
 ```python
-from app import create_app
+from ml_service.app import create_app
 app = create_app()
 ```
 

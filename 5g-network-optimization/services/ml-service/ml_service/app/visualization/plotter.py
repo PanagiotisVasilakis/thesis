@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 
-from app.models.antenna_selector import DEFAULT_TEST_FEATURES
-from app.utils import get_output_dir
+from ..models.antenna_selector import DEFAULT_TEST_FEATURES
+from ..utils import get_output_dir
 
 logger = logging.getLogger(__name__)
 
