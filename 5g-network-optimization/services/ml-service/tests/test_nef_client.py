@@ -1,10 +1,9 @@
-import importlib.util
 from pathlib import Path
 
+from test_helpers import load_module
+
 NEF_CLIENT_PATH = Path(__file__).resolve().parents[1] / "app" / "clients" / "nef_client.py"
-spec = importlib.util.spec_from_file_location("nef_client", NEF_CLIENT_PATH)
-nef_client = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nef_client)
+nef_client = load_module(NEF_CLIENT_PATH, "nef_client")
 NEFClient = nef_client.NEFClient
 
 

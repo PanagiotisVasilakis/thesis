@@ -1,12 +1,11 @@
 import numpy as np
 
-import importlib.util
 from pathlib import Path as PathlibPath
 
+from test_helpers import load_module
+
 ANT_PATH = PathlibPath(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
-spec = importlib.util.spec_from_file_location("antenna_selector", ANT_PATH)
-antenna_selector = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(antenna_selector)
+antenna_selector = load_module(ANT_PATH, "antenna_selector")
 AntennaSelector = antenna_selector.AntennaSelector
 
 
