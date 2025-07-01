@@ -1,15 +1,17 @@
 """Visualization endpoints for ML Service."""
-from flask import Blueprint, jsonify, request, current_app, send_file
+from flask import Blueprint, jsonify, request, send_file
 import os
-import json
 import logging
 from app.models.antenna_selector import DEFAULT_TEST_FEATURES
 from app.initialization.model_init import get_model
-from app.visualization.plotter import plot_antenna_coverage, plot_movement_trajectory
+from app.visualization.plotter import (
+    plot_antenna_coverage,
+    plot_movement_trajectory,
+)
 from app.utils.synthetic_data import generate_synthetic_training_data
 from app.utils import get_output_dir
 
-viz_bp = Blueprint('visualization', __name__, url_prefix='/api/visualization')
+viz_bp = Blueprint("visualization", __name__, url_prefix="/api/visualization")
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 model = get_model()
 
 
-@viz_bp.route('/coverage-map', methods=['GET'])
+@viz_bp.route("/coverage-map", methods=["GET"])
 def coverage_map():
     """Generate and return an antenna coverage map."""
     try:
@@ -33,51 +35,57 @@ def coverage_map():
             training_data = generate_synthetic_training_data(500)
             model.train(training_data)
             logger.info("Model trained successfully with synthetic data")
-        
+
         # Resolve the output directory
         output_dir = get_output_dir()
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Generate visualization with absolute path
         output_file = plot_antenna_coverage(model, output_dir=output_dir)
-        
+
         # Check if the file exists
         if not os.path.exists(output_file):
             logger.warning(f"Output file not found at {output_file}")
             # Try to find the file in the relative path
-            relative_path = os.path.join('output', os.path.basename(output_file))
+            relative_path = os.path.join(
+                "output", os.path.basename(output_file)
+            )
             if os.path.exists(relative_path):
                 output_file = os.path.abspath(relative_path)
                 logger.info(f"Found file at {output_file}")
-        
+
         # Return the image file
-        return send_file(output_file, mimetype='image/png')
-    
+        return send_file(output_file, mimetype="image/png")
+
     except Exception as e:
         import traceback
+
         logger.error(f"Error generating coverage map: {str(e)}")
         traceback.print_exc()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@viz_bp.route('/trajectory', methods=['POST'])
+
+@viz_bp.route("/trajectory", methods=["POST"])
 def trajectory():
     """Generate and return a movement trajectory visualization."""
     try:
         # Get movement data from request
         movement_data = request.json
-        
+
         if not movement_data:
-            return jsonify({'error': 'No movement data provided'}), 400
-        
+            return jsonify({"error": "No movement data provided"}), 400
+
         # Resolve the output directory
         output_dir = get_output_dir()
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Generate visualization with absolute path
-        output_file = plot_movement_trajectory(movement_data, output_dir=output_dir)
-        
+        output_file = plot_movement_trajectory(
+            movement_data, output_dir=output_dir
+        )
+
         # Return the image file
-        return send_file(output_file, mimetype='image/png')
-    
+        return send_file(output_file, mimetype="image/png")
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
