@@ -31,6 +31,7 @@ except (ImportError, AttributeError):
             self.capif_https_port = capif_https_port
 
         def get_capif_service_description(self, capif_service_api_description_json_full_path: str):
+            _ = capif_service_api_description_json_full_path
             return {"apiId": "dummy"}
 
         def save_log(self, api_invoker_id: str, log_entries: list):
