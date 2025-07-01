@@ -7,5 +7,6 @@ sudo apt-get install -y \
     libffi-dev \
     libcairo2 \
     libpango-1.0-0 \
-    libjpeg-dev
+    libjpeg-dev \
+    git
 
