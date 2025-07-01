@@ -1,12 +1,7 @@
 import math
 import numpy as np
 from datetime import datetime
-from .patterns import (
-    AntennaPattern,
-    IsotropicPattern,
-    ThreeGPPSectorPattern,
-    MassiveMIMOPattern,
-)
+from .patterns import AntennaPattern
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel
 
 class BaseAntennaModel:
