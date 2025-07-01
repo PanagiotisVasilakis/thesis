@@ -5,7 +5,6 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
 from ..utils import get_output_dir
