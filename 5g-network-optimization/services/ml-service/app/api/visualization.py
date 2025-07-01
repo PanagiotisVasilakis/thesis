@@ -7,6 +7,7 @@ from app.models.antenna_selector import DEFAULT_TEST_FEATURES
 from app.initialization.model_init import get_model
 from app.visualization.plotter import plot_antenna_coverage, plot_movement_trajectory
 from app.utils.synthetic_data import generate_synthetic_training_data
+from app.utils import get_output_dir
 
 viz_bp = Blueprint('visualization', __name__, url_prefix='/api/visualization')
 
@@ -33,8 +34,8 @@ def coverage_map():
             model.train(training_data)
             logger.info("Model trained successfully with synthetic data")
         
-        # Define absolute output directory path - this is the crucial fix
-        output_dir = os.path.abspath(os.path.join(os.getcwd(), 'output'))
+        # Resolve the output directory
+        output_dir = get_output_dir()
         os.makedirs(output_dir, exist_ok=True)
         
         # Generate visualization with absolute path
@@ -68,8 +69,8 @@ def trajectory():
         if not movement_data:
             return jsonify({'error': 'No movement data provided'}), 400
         
-        # Define absolute output directory path
-        output_dir = os.path.abspath(os.path.join(os.getcwd(), 'output'))
+        # Resolve the output directory
+        output_dir = get_output_dir()
         os.makedirs(output_dir, exist_ok=True)
         
         # Generate visualization with absolute path
