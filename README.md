@@ -2,7 +2,7 @@
 
 This repository contains the code and configuration for optimizing 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a machine learning service.  All implementation lives in the [`5g-network-optimization`](5g-network-optimization/) directory.
 
-**Getting Started:** see [5g-network-optimization/docs/GETTING_STARTED.md](5g-network-optimization/docs/GETTING_STARTED.md) for prerequisites and a full setup walkthrough.
+**Getting Started:** see [5g-network-optimization/leftover_docks/GETTING_STARTED.md](5g-network-optimization/leftover_docks/GETTING_STARTED.md) for prerequisites and a full setup walkthrough.
 
 ## Project Overview
 The system follows a microservices architecture where the NEF emulator manages network events and the ML service predicts the best antenna based on UE mobility patterns.
