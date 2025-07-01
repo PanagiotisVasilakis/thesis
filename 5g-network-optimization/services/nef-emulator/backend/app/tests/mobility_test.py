@@ -100,9 +100,12 @@ def test_linear_mobility():
         plt.title('Linear Mobility Model Trajectory')
         plt.grid(True)
         
-        # Save plot
-        plt.savefig('linear_trajectory.png')
-        logger.info("Plot saved as linear_trajectory.png")
+        # Save plot inside output/mobility
+        out_dir = os.path.join('output', 'mobility')
+        os.makedirs(out_dir, exist_ok=True)
+        filepath = os.path.join(out_dir, 'linear_trajectory.png')
+        plt.savefig(filepath)
+        logger.info(f"Plot saved as {filepath}")
     except Exception as e:
         logger.error(f"Could not create plot: {e}")
     

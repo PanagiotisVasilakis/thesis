@@ -15,13 +15,11 @@ def get_output_dir(directory: str = "output") -> str:
     Returns
     -------
     str
-        Absolute path to the resolved output directory. The function does not
-        create the directory; callers are expected to ensure it exists when
-        necessary.
+        Absolute path to the resolved output directory. Nested paths are
+        supported and the directory is created if it does not already exist.
     """
 
-    if os.path.isabs(directory):
-        return os.path.abspath(directory)
-
-    return os.path.abspath(os.path.join(os.getcwd(), directory))
+    abs_dir = os.path.abspath(directory if os.path.isabs(directory) else os.path.join(os.getcwd(), directory))
+    os.makedirs(abs_dir, exist_ok=True)
+    return abs_dir
 

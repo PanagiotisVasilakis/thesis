@@ -7,6 +7,7 @@ def _create_png(tmp_path, name):
     from PIL import Image
 
     path = tmp_path / name
+    path.parent.mkdir(parents=True, exist_ok=True)
     img = Image.new("RGB", (10, 10), color="red")
     img.save(path)
     return path
@@ -15,7 +16,7 @@ def _create_png(tmp_path, name):
 def test_coverage_map_endpoint(client, tmp_path):
     mock_model = MagicMock()
     mock_model.predict.return_value = {"antenna_id": "a1", "confidence": 1.0}
-    img_path = _create_png(tmp_path, "coverage.png")
+    img_path = _create_png(tmp_path / "coverage", "coverage.png")
     with patch("ml_service.app.api.visualization.model", mock_model), \
          patch("ml_service.app.api.visualization.plot_antenna_coverage", return_value=str(img_path)):
         resp = client.get("/api/visualization/coverage-map")
@@ -33,7 +34,7 @@ def test_trajectory_endpoint(client, tmp_path):
         "speed": 1.0
     }]
 
-    img_path = _create_png(tmp_path, "traj.png")
+    img_path = _create_png(tmp_path / "trajectory", "traj.png")
     with patch("ml_service.app.api.visualization.plot_movement_trajectory", return_value=str(img_path)):
         resp = client.post("/api/visualization/trajectory", data=json.dumps(movement), content_type="application/json")
         assert resp.status_code == 200
