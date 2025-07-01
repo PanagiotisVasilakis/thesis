@@ -71,9 +71,12 @@ def test_nef_adapter():
     plt.legend()
     plt.grid(True)
     
-    # Save visualization
-    plt.savefig('mobility_patterns.png')
-    logger.info("Visualization saved as mobility_patterns.png")
+    # Save visualization inside output/mobility
+    out_dir = os.path.join('output', 'mobility')
+    os.makedirs(out_dir, exist_ok=True)
+    filepath = os.path.join(out_dir, 'mobility_patterns.png')
+    plt.savefig(filepath)
+    logger.info(f"Visualization saved as {filepath}")
     
     return True
 

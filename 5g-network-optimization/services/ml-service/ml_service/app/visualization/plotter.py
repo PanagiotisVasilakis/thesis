@@ -20,11 +20,8 @@ def plot_antenna_coverage(model, output_dir='output'):
         model: Trained AntennaSelector model
         output_dir: Directory to save the visualization
     """
-    # Resolve output directory
-    output_dir = get_output_dir(output_dir)
-    
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    # Resolve output directory and ensure the "coverage" subfolder exists
+    output_dir = get_output_dir(os.path.join(output_dir, "coverage"))
     
     # Define a grid of positions
     resolution = 50
@@ -140,11 +137,8 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
         movement_data: List of UE position and antenna data over time
         output_dir: Directory to save the visualization
     """
-    # Resolve output directory
-    output_dir = get_output_dir(output_dir)
-    
-    # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    # Resolve output directory and ensure the "trajectory" subfolder exists
+    output_dir = get_output_dir(os.path.join(output_dir, "trajectory"))
     
     # Extract trajectory data
     positions = [(d['latitude'], d['longitude']) for d in movement_data]

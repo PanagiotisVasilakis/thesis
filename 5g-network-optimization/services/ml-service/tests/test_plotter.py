@@ -27,8 +27,10 @@ def test_plot_functions_generate_png(tmp_path):
     model = DummyAntennaSelector()
 
     cov_path = Path(plot_antenna_coverage(model, output_dir=tmp_path))
+    assert cov_path.parent == tmp_path / "coverage"
     _check_png(cov_path)
     cov_path.unlink()
+    cov_path.parent.rmdir()
 
     movement = [
         {"latitude": 0, "longitude": 0, "connected_to": "a1"},
@@ -36,5 +38,7 @@ def test_plot_functions_generate_png(tmp_path):
         {"latitude": 2, "longitude": 2, "connected_to": "a2"},
     ]
     traj_path = Path(plot_movement_trajectory(movement, output_dir=tmp_path))
+    assert traj_path.parent == tmp_path / "trajectory"
     _check_png(traj_path)
     traj_path.unlink()
+    traj_path.parent.rmdir()
