@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ml-service"
+version = "0.1.0"
+description = "Machine Learning service for 5G Network Optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flask>=2.0",
+    "requests",
+    "scikit-learn",
+    "joblib",
+    "prometheus_client",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "seaborn",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*"]

@@ -5,7 +5,7 @@ It exposes a REST API consumed by the NEF emulator and by the training scripts.
 
 ## Application Factory
 
-The entry point for the service is `app/__init__.py` which implements a
+The entry point for the service is `ml_service/__init__.py` which implements a
 Flask application factory named `create_app`. The factory performs the
 following tasks:
 
@@ -14,11 +14,11 @@ following tasks:
 2. Creates the model directory and initializes the `AntennaSelector` model via
    `app.initialization.model_init.initialize_model`. If no model exists a
    lightweight synthetic one is trained and stored automatically.
-3. Registers the REST API blueprint from `app/api` and visualization routes
-   from `app/api/visualization`.
+3. Registers the REST API blueprint from `ml_service/api` and visualization routes
+   from `ml_service/api/visualization`.
 
 ```python
-from app import create_app
+from ml_service import create_app
 app = create_app()
 ```
 
@@ -26,7 +26,7 @@ Running `python app.py` simply invokes this factory and serves the app.
 
 ## API Endpoints
 
-The routes are defined in `app/api/routes.py`. Example calls are shown using
+The routes are defined in `ml_service/api/routes.py`. Example calls are shown using
 `curl` with the default port `5050`.
 
 ### `GET /api/health`
@@ -102,7 +102,7 @@ The service reads configuration from the Flask app settings. Important variables
 | Variable      | Description                                               | Default                       |
 |---------------|-----------------------------------------------------------|-------------------------------|
 | `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080`       |
-| `MODEL_PATH`  | Location of the persisted model file                      | `app/models/antenna_selector.joblib` |
+| `MODEL_PATH`  | Location of the persisted model file                      | `ml_service/models/antenna_selector.joblib` |
 
 These can be supplied in your environment or via `docker-compose`.
 
@@ -112,6 +112,7 @@ Install the dependencies and start the Flask app:
 
 ```bash
 pip install -r ../../../requirements.txt
+pip install -e .
 python app.py
 ```
 
@@ -133,10 +134,10 @@ The service is also started automatically when using the repository
 
 Ensure the NEF emulator is running with UEs in motion
 before collecting data.  Training data is gathered with
-`collect_training_data.py` which leverages `app/data/nef_collector.py`.
-Collected JSON files are stored under `app/data/collected_data` and can be sent
+`collect_training_data.py` which leverages `ml_service/data/nef_collector.py`.
+Collected JSON files are stored under `ml_service/data/collected_data` and can be sent
 to the `/api/train` endpoint to update the `AntennaSelector` model.  The trained
-model is persisted as `app/models/antenna_selector.joblib`.
+model is persisted as `ml_service/models/antenna_selector.joblib`.
 
 ```bash
 # Collect data for five minutes and train the model when done

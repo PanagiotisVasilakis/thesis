@@ -6,12 +6,9 @@ import json
 import time
 import logging
 from datetime import datetime
-from pathlib import Path
-import sys
 
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-from logging_config import configure_logging
-from app.data.nef_collector import NEFDataCollector
+from ml_service.logging_config import configure_logging
+from ml_service.data.nef_collector import NEFDataCollector
 
 logger = logging.getLogger(__name__)
 

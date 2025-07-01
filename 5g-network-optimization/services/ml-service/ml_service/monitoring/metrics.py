@@ -100,6 +100,6 @@ def track_training(duration, num_samples, accuracy=None):
 # Update in app/__init__.py to integrate the metrics middleware
 """
 # Add to create_app function
-from app.monitoring.metrics import MetricsMiddleware
+from ml_service.monitoring.metrics import MetricsMiddleware
 app.wsgi_app = MetricsMiddleware(app.wsgi_app)
 """
