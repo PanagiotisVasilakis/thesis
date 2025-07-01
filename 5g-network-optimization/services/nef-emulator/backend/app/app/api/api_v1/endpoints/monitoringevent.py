@@ -25,7 +25,8 @@ def read_active_subscriptions(
 ) -> Any:
     """
     Read all active subscriptions
-    """    
+    """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     retrieved_docs = crud_mongo.read_all(db_mongo, db_collection, current_user.id)
@@ -81,6 +82,7 @@ def create_subscription(
     """
     Create new subscription.
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     UE = ue.get_externalId(db=db, externalId=str(item_in.externalId), owner_id=current_user.id)
@@ -268,6 +270,7 @@ def update_subscription(
     """
     Update/Replace an existing subscription resource
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     try:
@@ -346,6 +349,7 @@ def read_subscription(
     """
     Get subscription by id
     """
+    _ = scsAsId
     db_mongo = client.fastapi
 
     try:
@@ -416,6 +420,7 @@ def delete_subscription(
     """
     Delete a subscription
     """
+    _ = scsAsId
     db_mongo = client.fastapi
     
     try:
