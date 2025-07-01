@@ -1,11 +1,14 @@
 """Visualization tools for antenna selection."""
 import os
 import logging
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from app.models.antenna_selector import DEFAULT_TEST_FEATURES
 from datetime import datetime
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+
+from app.models.antenna_selector import DEFAULT_TEST_FEATURES
+from app.utils import get_output_dir
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +20,8 @@ def plot_antenna_coverage(model, output_dir='output'):
         model: Trained AntennaSelector model
         output_dir: Directory to save the visualization
     """
-    # Ensure output_dir is an absolute path
-    output_dir = os.path.abspath(output_dir)
+    # Resolve output directory
+    output_dir = get_output_dir(output_dir)
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
@@ -137,8 +140,8 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
         movement_data: List of UE position and antenna data over time
         output_dir: Directory to save the visualization
     """
-    # Ensure output_dir is an absolute path
-    output_dir = os.path.abspath(output_dir)
+    # Resolve output directory
+    output_dir = get_output_dir(output_dir)
     
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
