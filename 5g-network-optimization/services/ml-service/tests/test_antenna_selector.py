@@ -3,7 +3,7 @@ import numpy as np
 import importlib.util
 from pathlib import Path as PathlibPath
 
-ANT_PATH = PathlibPath(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
+ANT_PATH = PathlibPath(__file__).resolve().parents[1] / "ml_service" / "models" / "antenna_selector.py"
 spec = importlib.util.spec_from_file_location("antenna_selector", ANT_PATH)
 antenna_selector = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(antenna_selector)

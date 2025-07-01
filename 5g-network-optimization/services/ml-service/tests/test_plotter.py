@@ -2,7 +2,7 @@ import importlib.util
 from pathlib import Path
 
 # Load plotter module directly to avoid package import issues
-PLOTTER_PATH = Path(__file__).resolve().parents[1] / "app" / "visualization" / "plotter.py"
+PLOTTER_PATH = Path(__file__).resolve().parents[1] / "ml_service" / "visualization" / "plotter.py"
 spec = importlib.util.spec_from_file_location("plotter", PLOTTER_PATH)
 plotter = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(plotter)

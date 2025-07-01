@@ -1,25 +1,16 @@
 from unittest.mock import MagicMock, patch
 import importlib.util
-from pathlib import Path
 import sys
 
-SERVICE_ROOT = Path(__file__).resolve().parents[2]
-spec_app = importlib.util.spec_from_file_location(
-    "app", SERVICE_ROOT / "app" / "__init__.py", submodule_search_locations=[str(SERVICE_ROOT / "app")]
-)
-app_module = importlib.util.module_from_spec(spec_app)
-sys.modules["app"] = app_module
-sys.modules.setdefault(
-    "seaborn",
-    importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
-)
-spec_app.loader.exec_module(app_module)
+try:
+    import seaborn  # noqa: F401
+except ImportError:  # pragma: no cover
+    sys.modules["seaborn"] = importlib.util.module_from_spec(
+        importlib.util.spec_from_loader("seaborn", loader=None)
+    )
 
-NEF_COLLECTOR_PATH = SERVICE_ROOT / "app" / "data" / "nef_collector.py"
-spec = importlib.util.spec_from_file_location("nef_collector", NEF_COLLECTOR_PATH)
-nef_collector = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nef_collector)
-NEFDataCollector = nef_collector.NEFDataCollector
+from ml_service.data.nef_collector import NEFDataCollector
+import ml_service.data.nef_collector as nef_collector
 
 
 def test_login_success():

@@ -4,9 +4,9 @@ import requests
 import json
 import os
 from pathlib import Path
-from app.api import api_bp
-from app.initialization.model_init import get_model
-from app.data.nef_collector import NEFDataCollector
+from ml_service.api import api_bp
+from ml_service.initialization.model_init import get_model
+from ml_service.data.nef_collector import NEFDataCollector
 
 # Initialize the model
 model = get_model()

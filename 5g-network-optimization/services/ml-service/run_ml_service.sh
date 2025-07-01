@@ -2,8 +2,8 @@
 
 # Create necessary directories
 mkdir -p output
-mkdir -p app/data/collected_data
-mkdir -p app/models
+mkdir -p ml_service/data/collected_data
+mkdir -p ml_service/models
 
 # Ensure dependencies are installed
 python3.10 -m pip install -r ../../../requirements.txt
