@@ -17,8 +17,6 @@ class NEFDataCollector:
         self.nef_url = nef_url
         self.username = username
         self.password = password
-        self.token = None
-        self.headers = {}
         self.data_dir = os.path.join(os.path.dirname(__file__), 'collected_data')
         os.makedirs(self.data_dir, exist_ok=True)
         
@@ -26,15 +24,8 @@ class NEFDataCollector:
         self.logger = logging.getLogger('NEFDataCollector')
     
     def login(self):
-        """Login to NEF emulator and store access token."""
-        success = self.client.login()
-        if success:
-            self.token = self.client.token
-            self.headers = self.client.get_headers()
-        else:
-            self.token = None
-            self.headers = {}
-        return success
+        """Authenticate with the NEF emulator via the underlying client."""
+        return self.client.login()
     
     def get_ue_movement_state(self):
         """Get current state of all UEs in movement."""
