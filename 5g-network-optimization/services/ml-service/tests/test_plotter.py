@@ -1,7 +1,5 @@
 import importlib.util
 from pathlib import Path
-import matplotlib
-matplotlib.use("Agg")
 
 # Load plotter module directly to avoid package import issues
 PLOTTER_PATH = Path(__file__).resolve().parents[1] / "app" / "visualization" / "plotter.py"

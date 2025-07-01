@@ -2,6 +2,9 @@ from pathlib import Path
 import importlib.util
 import sys
 import pytest
+import matplotlib
+
+matplotlib.use("Agg")
 
 # Ensure the service package can be imported as ``app`` before test collection.
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
