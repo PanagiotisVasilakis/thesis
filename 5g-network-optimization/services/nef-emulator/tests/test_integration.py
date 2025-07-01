@@ -31,8 +31,8 @@ def test_login_success(monkeypatch):
     monkeypatch.setattr(nef_collector, "NEFClient", lambda *a, **k: mock_client)
     collector = NEFDataCollector(nef_url="http://nef", username="u", password="p")
     assert collector.login() is True
-    assert collector.token == "tok"
-    assert collector.headers["Authorization"] == "Bearer tok"
+    assert collector.client.token == "tok"
+    assert collector.client.get_headers()["Authorization"] == "Bearer tok"
 
 
 def test_collect_training_data(monkeypatch, tmp_path):

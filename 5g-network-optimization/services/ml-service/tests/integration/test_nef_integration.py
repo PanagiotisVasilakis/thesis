@@ -30,7 +30,7 @@ def test_login_success():
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client):
         collector = NEFDataCollector(nef_url="http://nef", username="u", password="p")
         assert collector.login() is True
-        assert collector.token == "tok"
+        assert collector.client.token == "tok"
         mock_client.login.assert_called_once()
 
 

@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from app.models.antenna_selector import DEFAULT_TEST_FEATURES
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -40,16 +41,7 @@ def plot_antenna_coverage(model, output_dir='output'):
     
     # First check if model is trained by making a test prediction
     try:
-        test_features = {
-            'latitude': 500, 
-            'longitude': 500, 
-            'speed': 1.0,
-            'direction_x': 0.7,
-            'direction_y': 0.7,
-            'rsrp_current': -90,
-            'sinr_current': 10
-        }
-        model.predict(test_features)
+        model.predict(DEFAULT_TEST_FEATURES)
         model_trained = True
     except Exception as e:
         logger.warning(f"Model not properly trained: {e}")
