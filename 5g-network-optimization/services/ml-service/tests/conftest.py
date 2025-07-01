@@ -18,8 +18,7 @@ from ml_service import create_app
 
 @pytest.fixture
 def app():
-    app = create_app({"TESTING": True})
-    yield app
+    yield create_app({"TESTING": True})
 
 
 @pytest.fixture
