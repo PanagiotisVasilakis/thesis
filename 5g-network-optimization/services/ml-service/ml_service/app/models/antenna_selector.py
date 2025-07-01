@@ -1,6 +1,5 @@
 """Antenna selector model for 5G network optimization."""
 import numpy as np
-import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import joblib
 import os
