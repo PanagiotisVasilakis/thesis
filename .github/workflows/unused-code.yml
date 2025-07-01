@@ -1,0 +1,38 @@
+name: Check unused Python code
+
+on:
+  push:
+    paths:
+      - '**/*.py'
+      - '.github/workflows/unused-code.yml'
+      - 'vulture_whitelist.py'
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '.github/workflows/unused-code.yml'
+      - 'vulture_whitelist.py'
+
+jobs:
+  vulture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install vulture
+        run: pip install vulture
+
+      - name: Run vulture
+        run: |
+          report=$(vulture --min-confidence 90 --exclude '*/tests/*,vulture_whitelist.py' vulture_whitelist.py .)
+          echo "$report"
+          if [ -n "$report" ]; then
+            echo "Unused code detected."
+            exit 1
+          fi
+
