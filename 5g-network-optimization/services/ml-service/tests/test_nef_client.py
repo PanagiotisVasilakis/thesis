@@ -1,10 +1,5 @@
-from pathlib import Path
-
-from test_helpers import load_module
-
-NEF_CLIENT_PATH = Path(__file__).resolve().parents[1] / "app" / "clients" / "nef_client.py"
-nef_client = load_module(NEF_CLIENT_PATH, "nef_client")
-NEFClient = nef_client.NEFClient
+import ml_service.app.clients.nef_client as nef_client
+from ml_service.app.clients.nef_client import NEFClient
 
 
 def test_get_headers_without_token():

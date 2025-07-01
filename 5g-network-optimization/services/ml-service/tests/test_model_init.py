@@ -1,30 +1,6 @@
-import importlib.util
-import importlib
-import sys
-from pathlib import Path
-
-SERVICE_ROOT = Path(__file__).resolve().parents[1]
-
-# Load the app package dynamically so relative imports work
-spec = importlib.util.spec_from_file_location(
-    "app",
-    SERVICE_ROOT / "app" / "__init__.py",
-    submodule_search_locations=[str(SERVICE_ROOT / "app")],
-)
-app_module = importlib.util.module_from_spec(spec)
-for name in list(sys.modules.keys()):
-    if name == "app" or name.startswith("app."):
-        del sys.modules[name]
-sys.modules["app"] = app_module
-sys.modules.setdefault(
-    "seaborn",
-    importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
-)
-spec.loader.exec_module(app_module)
-
-from app.initialization import model_init
-from app.models.antenna_selector import AntennaSelector
-from app.utils import synthetic_data
+from ml_service.app.initialization import model_init
+from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.utils import synthetic_data
 
 initialize_model = model_init.initialize_model
 
@@ -79,9 +55,4 @@ def test_get_model_returns_singleton(monkeypatch):
     assert created == ["foo"]
 
 
-def teardown_module(module):
-    """Remove dynamically loaded ``app`` modules after tests."""
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            del sys.modules[name]
 

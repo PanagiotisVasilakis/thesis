@@ -6,7 +6,7 @@ def test_predict_route(client):
     mock_model.extract_features.return_value = {"f": 1}
     mock_model.predict.return_value = {"antenna_id": "antenna_1", "confidence": 0.9}
 
-    with patch("app.api.routes.model", mock_model):
+    with patch("ml_service.app.api.routes.model", mock_model):
         resp = client.post("/api/predict", json={"ue_id": "u1"})
         assert resp.status_code == 200
         data = resp.get_json()
@@ -19,7 +19,7 @@ def test_train_route(client):
     mock_model.train.return_value = {"samples": 1, "classes": 1}
     mock_model.save.return_value = True
 
-    with patch("app.api.routes.model", mock_model):
+    with patch("ml_service.app.api.routes.model", mock_model):
         resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}])
         assert resp.status_code == 200
         data = resp.get_json()
@@ -30,7 +30,7 @@ def test_train_route(client):
 
 def test_nef_status(client):
     mock_response = MagicMock(status_code=200, headers={"X-API-Version": "v1"})
-    with patch("app.api.routes.requests.get", return_value=mock_response) as mock_get:
+    with patch("ml_service.app.api.routes.requests.get", return_value=mock_response) as mock_get:
         resp = client.get("/api/nef-status")
         assert resp.status_code == 200
         data = resp.get_json()
@@ -43,7 +43,7 @@ def test_collect_data_route(client, monkeypatch):
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {}}
     collector.collect_training_data.return_value = [1, 2]
-    monkeypatch.setattr("app.api.routes.NEFDataCollector", lambda **kw: collector)
+    monkeypatch.setattr("ml_service.app.api.routes.NEFDataCollector", lambda **kw: collector)
 
     resp = client.post(
         "/api/collect-data",

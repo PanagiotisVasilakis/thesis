@@ -2,9 +2,9 @@
 from flask import jsonify, request, current_app
 import requests
 from pathlib import Path
-from app.api import api_bp
-from app.initialization.model_init import get_model
-from app.data.nef_collector import NEFDataCollector
+from . import api_bp
+from ..initialization.model_init import get_model
+from ..data.nef_collector import NEFDataCollector
 
 # Initialize the model
 model = get_model()

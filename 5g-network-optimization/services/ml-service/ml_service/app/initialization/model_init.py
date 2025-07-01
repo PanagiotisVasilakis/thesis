@@ -1,9 +1,9 @@
 """Model initialization utilities."""
 import os
 import logging
-from app.models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
+from ..models.antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
 
-from app.utils.synthetic_data import generate_synthetic_training_data
+from ..utils.synthetic_data import generate_synthetic_training_data
 
 # Singleton instance for model reuse
 _model_instance = None

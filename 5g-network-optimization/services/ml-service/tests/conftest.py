@@ -1,4 +1,3 @@
-from pathlib import Path
 import importlib.util
 import sys
 import pytest
@@ -6,43 +5,19 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-# Ensure the service package can be imported as ``app`` before test collection.
-SERVICE_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SERVICE_ROOT))
-# No cleanup here to avoid interfering with other test suites
-
 
 def load_create_app():
-    """Dynamically load the ``create_app`` factory without polluting ``sys.modules``.
+    """Return the ``create_app`` factory from the installed package."""
 
-    ``create_app`` expects imports from the ``app`` package.  To satisfy these
-    while avoiding conflicts with other tests that also provide a package named
-    ``app``, we temporarily register the loaded module under that name and
-    clean it up afterwards.
-    """
-
-    for name in list(sys.modules.keys()):
-        if name == "app" or name.startswith("app."):
-            del sys.modules[name]
-
-    spec = importlib.util.spec_from_file_location(
-        "app",
-        SERVICE_ROOT / "app" / "__init__.py",
-        submodule_search_locations=[str(SERVICE_ROOT / "app")],
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["app"] = module
     # Stub optional visualization dependency not present in test environment
-    sys.modules.setdefault("seaborn", importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)))
-    spec.loader.exec_module(module)
-    create_app_fn = module.create_app
+    sys.modules.setdefault(
+        "seaborn",
+        importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
+    )
 
-    def cleanup():
-        for name in list(sys.modules.keys()):
-            if name == "app" or name.startswith("app."):
-                del sys.modules[name]
+    from ml_service.app import create_app
 
-    return create_app_fn, cleanup
+    return create_app, lambda: None
 
 @pytest.fixture
 def app():

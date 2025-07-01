@@ -3,17 +3,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from pathlib import Path
-
-from test_helpers import load_module
 import os
 import logging
+from ml_service.app.models.antenna_selector import AntennaSelector
 
 logger = logging.getLogger(__name__)
-
-ANT_PATH = Path(__file__).resolve().parents[1] / "app" / "models" / "antenna_selector.py"
-antenna_selector = load_module(ANT_PATH, "antenna_selector")
-AntennaSelector = antenna_selector.AntennaSelector
 
 def generate_synthetic_data(num_samples=500):
     """Generate synthetic data for testing."""
