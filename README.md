@@ -128,6 +128,15 @@ pip install -r requirements.txt
 pytest
 ```
 
+To run the same steps automatically and produce a coverage report, execute:
+
+```bash
+./scripts/run_tests.sh
+```
+The coverage results are written under `CI-CD_reports/coverage_<timestamp>.txt`.
+Tests also run automatically on merges via the workflow
+[`tests.yml`](.github/workflows/tests.yml).
+
 ### Extended Integration Tests
 Start the containers and run the full integration suite:
 ```bash
@@ -154,3 +163,4 @@ These folders are created automatically when the plots are produced.
 
 - `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt`.
 - `scripts/install_system_deps.sh` – install OS libraries needed by the services and tests.
+- `scripts/run_tests.sh` – install dependencies and run the tests with coverage output.
