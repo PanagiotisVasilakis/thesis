@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 import importlib.util
 from pathlib import Path
+
+from test_helpers import load_module
 import sys
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
@@ -16,9 +18,7 @@ sys.modules.setdefault(
 spec_app.loader.exec_module(app_module)
 
 NEF_COLLECTOR_PATH = SERVICE_ROOT / "app" / "data" / "nef_collector.py"
-spec = importlib.util.spec_from_file_location("nef_collector", NEF_COLLECTOR_PATH)
-nef_collector = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(nef_collector)
+nef_collector = load_module(NEF_COLLECTOR_PATH, "nef_collector")
 NEFDataCollector = nef_collector.NEFDataCollector
 
 

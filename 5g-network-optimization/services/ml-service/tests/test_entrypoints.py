@@ -3,6 +3,8 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from test_helpers import load_module
+
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
 APP_ENTRY = SERVICE_ROOT / "app.py"
 COLLECT_ENTRY = SERVICE_ROOT / "collect_training_data.py"
@@ -35,11 +37,6 @@ def _unload_app_package():
             del sys.modules[name]
 
 
-def _load_module(path: Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def test_app_entrypoint_calls_create_app(monkeypatch):
@@ -47,7 +44,7 @@ def test_app_entrypoint_calls_create_app(monkeypatch):
     mock_create = MagicMock(return_value="instance")
     monkeypatch.setattr(app_pkg, "create_app", mock_create)
     try:
-        module = _load_module(APP_ENTRY, "app_entry")
+        module = load_module(APP_ENTRY, "app_entry")
         assert module.app == "instance"
         mock_create.assert_called_once()
     finally:
@@ -55,7 +52,7 @@ def test_app_entrypoint_calls_create_app(monkeypatch):
 
 
 def test_collect_training_data_main_success(monkeypatch):
-    module = _load_module(COLLECT_ENTRY, "collect_script")
+    module = load_module(COLLECT_ENTRY, "collect_script")
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1}}
@@ -70,7 +67,7 @@ def test_collect_training_data_main_success(monkeypatch):
 
 
 def test_collect_training_data_main_failure(monkeypatch):
-    module = _load_module(COLLECT_ENTRY, "collect_script_fail")
+    module = load_module(COLLECT_ENTRY, "collect_script_fail")
     collector = MagicMock()
     collector.login.return_value = False
     monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
@@ -79,7 +76,7 @@ def test_collect_training_data_main_failure(monkeypatch):
 
 
 def test_collect_training_data_remote(monkeypatch):
-    module = _load_module(COLLECT_ENTRY, "collect_script_remote")
+    module = load_module(COLLECT_ENTRY, "collect_script_remote")
     response = MagicMock(status_code=200, json=lambda: {"samples": 3})
     mock_requests = MagicMock(post=MagicMock(return_value=response))
     monkeypatch.setitem(sys.modules, "requests", mock_requests)

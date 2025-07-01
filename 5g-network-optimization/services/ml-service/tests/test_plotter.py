@@ -1,11 +1,10 @@
-import importlib.util
 from pathlib import Path
+
+from test_helpers import load_module
 
 # Load plotter module directly to avoid package import issues
 PLOTTER_PATH = Path(__file__).resolve().parents[1] / "app" / "visualization" / "plotter.py"
-spec = importlib.util.spec_from_file_location("plotter", PLOTTER_PATH)
-plotter = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(plotter)
+plotter = load_module(PLOTTER_PATH, "plotter")
 plot_antenna_coverage = plotter.plot_antenna_coverage
 plot_movement_trajectory = plotter.plot_movement_trajectory
 
