@@ -6,6 +6,16 @@ import joblib
 import os
 import logging
 
+DEFAULT_TEST_FEATURES = {
+    "latitude": 500,
+    "longitude": 500,
+    "speed": 1.0,
+    "direction_x": 0.7,
+    "direction_y": 0.7,
+    "rsrp_current": -90,
+    "sinr_current": 10,
+}
+
 class AntennaSelector:
     """ML model for selecting optimal antenna based on UE data."""
     
