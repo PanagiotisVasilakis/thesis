@@ -156,8 +156,19 @@ subfolders of `output/`:
 - `output/coverage/` – antenna coverage maps
 - `output/trajectory/` – UE movement trajectories
 - `output/mobility/` – mobility model examples from the NEF emulator tests
+- `presentation_assets/` – pre-rendered graphs and captions for reports
 
 These folders are created automatically when the plots are produced.
+
+Run the helper scripts below to create the presentation assets and a PDF
+overview:
+
+```bash
+python scripts/generate_presentation_assets.py
+python scripts/build_presentation_pdf.py
+```
+The second command collects the generated images and captions under
+`presentation_assets/` and writes `overview.pdf`.
 
 ## Useful Scripts
 
