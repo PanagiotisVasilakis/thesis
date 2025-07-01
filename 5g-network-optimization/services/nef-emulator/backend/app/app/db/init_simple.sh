@@ -20,7 +20,7 @@ printf $TOKEN
 
 
 printf '\n==================================================\n'
-printf 'Initiallizing Paths for admin...'
+printf 'Initializing Paths for admin...'
 printf '\n==================================================\n'
 
 
@@ -66,7 +66,7 @@ curl -k -X 'POST' \
 
 
 printf '\n==================================================\n'
-printf 'Initiallizing gNBs for admin...'
+printf 'Initializing gNBs for admin...'
 printf '\n==================================================\n'
 
 
@@ -89,7 +89,7 @@ curl -k -X 'POST' \
 
 
 printf '\n==================================================\n'
-printf 'Initiallizing Cells for admin...'
+printf 'Initializing Cells for admin...'
 printf '\n==================================================\n'
 
 
@@ -160,7 +160,7 @@ curl -k -X 'POST' \
 
 
 printf '\n==================================================\n'
-printf 'Initiallizing UEs for admin...'
+printf 'Initializing UEs for admin...'
 printf '\n==================================================\n'
 
 
