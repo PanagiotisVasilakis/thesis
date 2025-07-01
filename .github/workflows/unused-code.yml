@@ -47,19 +47,17 @@ jobs:
             echo "unused=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Upload vulture report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulture_report_${{ github.run_number }}
+          path: CI-CD_reports/vulture_report_${{ github.run_number }}.txt
+
       - name: Trim old reports
         if: always()
         run: |
           ls -1t CI-CD_reports/vulture_report_*.txt | tail -n +6 | xargs -r rm
-
-      - name: Commit report
-        if: always()
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add CI-CD_reports
-          git commit -m "Add vulture report" || echo "No changes to commit"
-          git push
 
       - name: Fail if unused code detected
         if: steps.vulture.outputs.unused == 'true'
