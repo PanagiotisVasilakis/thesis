@@ -1,0 +1,60 @@
+name: Check unused Python code
+
+on:
+  push:
+    paths:
+      - '**/*.py'
+      - '.github/workflows/unused-code.yml'
+  pull_request:
+    paths:
+      - '**/*.py'
+      - '.github/workflows/unused-code.yml'
+
+jobs:
+  vulture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install vulture
+        run: pip install vulture
+
+      - name: Run vulture
+        id: vulture
+        run: |
+          mkdir -p CI-CD_reports
+          report="CI-CD_reports/vulture_report_${{ github.run_number }}.txt"
+          vulture --min-confidence 90 --exclude '*/tests/*' . > "$report"
+          if [ -s "$report" ]; then
+            echo "unused=true" >> "$GITHUB_OUTPUT"
+            cat "$report"
+          else
+            echo "unused=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Trim old reports
+        if: always()
+        run: |
+          ls -1t CI-CD_reports/vulture_report_*.txt | tail -n +6 | xargs -r rm
+
+      - name: Commit report
+        if: always()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add CI-CD_reports
+          git commit -m "Add vulture report" || echo "No changes to commit"
+          git push
+
+      - name: Fail if unused code detected
+        if: steps.vulture.outputs.unused == 'true'
+        run: |
+          echo "Unused code detected."
+          exit 1
+
