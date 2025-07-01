@@ -57,3 +57,4 @@ numba==0.61.0
 uvicorn==0.17.6
 weasyprint==54.3
 werkzeug==2.0.3
+reportlab==3.6.12
