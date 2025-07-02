@@ -13,6 +13,8 @@ DEFAULT_TEST_FEATURES = {
     "direction_y": 0.7,
     "rsrp_current": -90,
     "sinr_current": 10,
+    "best_rsrp_diff": 0.0,
+    "best_sinr_diff": 0.0,
 }
 
 class AntennaSelector:
@@ -26,7 +28,8 @@ class AntennaSelector:
         self.base_feature_names = [
             'latitude', 'longitude', 'speed',
             'direction_x', 'direction_y',
-            'rsrp_current', 'sinr_current'
+            'rsrp_current', 'sinr_current',
+            'best_rsrp_diff', 'best_sinr_diff'
         ]
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -94,7 +97,11 @@ class AntennaSelector:
             features['rsrp_current'] = -120  # Default poor signal
             features['sinr_current'] = 0     # Default neutral SINR
 
+        best_rsrp = features['rsrp_current']
+        best_sinr = features['sinr_current']
+
         # Neighbor metrics ordered by signal strength
+        neighbors = []
         if include_neighbors and rf_metrics:
             neighbors = [
                 (aid, vals.get('rsrp', -120), vals.get('sinr', 0))
@@ -102,6 +109,10 @@ class AntennaSelector:
                 if aid != current_antenna
             ]
             neighbors.sort(key=lambda x: x[1], reverse=True)
+
+            if neighbors:
+                best_rsrp = neighbors[0][1]
+                best_sinr = neighbors[0][2]
 
             if self.neighbor_count == 0:
                 self.neighbor_count = len(neighbors)
@@ -117,6 +128,10 @@ class AntennaSelector:
                 else:
                     features[f'rsrp_a{idx+1}'] = -120
                     features[f'sinr_a{idx+1}'] = 0
+
+        # Signal quality improvement compared to current connection
+        features['best_rsrp_diff'] = best_rsrp - features['rsrp_current']
+        features['best_sinr_diff'] = best_sinr - features['sinr_current']
         
         return features
     

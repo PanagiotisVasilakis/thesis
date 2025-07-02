@@ -51,6 +51,7 @@ def test_lightgbm_train_and_predict(tmp_path):
     model = LightGBMSelector()
     sample_features = model.extract_features(data[0])
     assert 'rsrp_a1' in sample_features
+    assert 'best_rsrp_diff' in sample_features
 
     metrics = model.train(data)
     assert metrics['samples'] == len(data)
