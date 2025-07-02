@@ -130,3 +130,20 @@ class NEFClient:
         except Exception as e:
             self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
             return {}
+
+    def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
+        """Return the ML feature vector for the given UE."""
+        try:
+            url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
+            response = requests.get(url, headers=self.get_headers(), timeout=10)
+            if response.status_code == 200:
+                return response.json()
+            self.logger.error(
+                "Error getting feature vector: %s - %s",
+                response.status_code,
+                response.text,
+            )
+            return {}
+        except Exception as e:
+            self.logger.error(f"Error in get_feature_vector: {str(e)}")
+            return {}

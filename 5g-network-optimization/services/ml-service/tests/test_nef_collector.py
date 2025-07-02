@@ -30,7 +30,12 @@ def test_collect_training_data(tmp_path, monkeypatch):
     collector.data_dir = str(tmp_path)
 
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
-    mock_client = MagicMock(get_ue_movement_state=lambda: sample_state)
+    mock_client = MagicMock()
+    mock_client.get_ue_movement_state.return_value = sample_state
+    mock_client.get_feature_vector.return_value = {
+        "neighbor_rsrp_dbm": {"A": -75},
+        "neighbor_sinrs": {"A": 12}
+    }
     collector.client = mock_client
     monkeypatch.setattr(nef_collector.time, "sleep", lambda x: None)
     times = iter([0, 0.1, 1.1])
@@ -39,6 +44,7 @@ def test_collect_training_data(tmp_path, monkeypatch):
     data = collector.collect_training_data(duration=1, interval=1)
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
+    assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12}}
 
     files = list(tmp_path.iterdir())
     assert len(files) == 1
