@@ -46,7 +46,7 @@ Run the stack locally from this directory with:
 ```bash
 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
-Set `MODEL_TYPE` to choose the ML algorithm for the `ml-service`. The compose file defaults to `random_forest`.
+The ML service relies on a LightGBM model. Set `LIGHTGBM_TUNE=1` to run hyperparameter tuning when the service starts.
 
 ## Installation
 Install the Python dependencies before running any of the services:
@@ -78,9 +78,8 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
-| `MODEL_TYPE` | Algorithm used by the ML service (`random_forest`, `lightgbm`, etc.) | `random_forest` |
 
-The ML service defaults to a random forest model but can also load a LightGBM model when `MODEL_TYPE=lightgbm`.
+The ML service runs a LightGBM model by default. Set the environment variable `LIGHTGBM_TUNE=1` to enable hyperparameter tuning during startup.
 
 ## Running the System
 Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
