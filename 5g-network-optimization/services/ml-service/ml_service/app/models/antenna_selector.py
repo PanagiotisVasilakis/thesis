@@ -1,6 +1,6 @@
 """Antenna selector model for 5G network optimization."""
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+import lightgbm as lgb
 import joblib
 import os
 import logging
@@ -45,11 +45,11 @@ class AntennaSelector:
             self._initialize_model()
     
     def _initialize_model(self):
-        """Initialize a new model."""
-        self.model = RandomForestClassifier(
+        """Initialize a default LightGBM model."""
+        self.model = lgb.LGBMClassifier(
             n_estimators=100,
             max_depth=10,
-            random_state=42
+            random_state=42,
         )
     
     def extract_features(self, data, include_neighbors=True):

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 import os
 import logging
-from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ def generate_synthetic_data(num_samples=500):
 def test_feature_extraction():
     """Feature extraction should produce expected keys."""
 
-    model = AntennaSelector()
+    model = LightGBMSelector()
 
     ue_data = {
         'ue_id': 'test_ue_1',
@@ -104,7 +104,7 @@ def test_model_training_and_prediction(tmp_path):
 
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
-    model = AntennaSelector()
+    model = LightGBMSelector()
     metrics = model.train(train_data)
 
     correct = 0
@@ -223,7 +223,7 @@ def visualize_predictions(test_data, predictions, tmp_path):
     X, Y = np.meshgrid(x_grid, y_grid)
     
     # Create a model for boundary prediction
-    boundary_model = AntennaSelector()
+    boundary_model = LightGBMSelector()
     boundary_model.train(test_data)
     
     # Predict for each grid point
