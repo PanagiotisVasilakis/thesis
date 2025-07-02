@@ -1,10 +1,10 @@
 import numpy as np
 
-from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
 
 
 def test_extract_features_defaults():
-    model = AntennaSelector()
+    model = LightGBMSelector()
     features = model.extract_features({})
 
     assert features == {
@@ -67,7 +67,7 @@ def _tiny_dataset():
 def test_train_metrics_and_prediction_flow(tmp_path):
     data = _tiny_dataset()
 
-    model = AntennaSelector()
+    model = LightGBMSelector()
     sample_features = model.extract_features(data[0])
     assert 'rsrp_a1' in sample_features
     assert 'best_rsrp_diff' in sample_features
@@ -94,7 +94,7 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     assert model.save(save_path)
     assert save_path.exists()
 
-    new_model = AntennaSelector()
+    new_model = LightGBMSelector()
     assert new_model.load(save_path)
     after_load_pred = new_model.predict(sample_features)
     assert after_load_pred['antenna_id'] in {'a1', 'a2'}
@@ -111,7 +111,7 @@ class DummyModel:
 
 
 def test_predict_with_mock_and_persistence(tmp_path):
-    model = AntennaSelector()
+    model = LightGBMSelector()
     model.model = DummyModel()
 
     features = {
@@ -133,7 +133,7 @@ def test_predict_with_mock_and_persistence(tmp_path):
     assert model.save(path)
     assert path.exists()
 
-    loaded = AntennaSelector()
+    loaded = LightGBMSelector()
     assert loaded.load(path)
     assert isinstance(loaded.model, DummyModel)
     assert loaded.predict(features) == result

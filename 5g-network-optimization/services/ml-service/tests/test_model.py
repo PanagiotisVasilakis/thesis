@@ -1,9 +1,9 @@
-"""Test the AntennaSelector model."""
+"""Test the LightGBMSelector model."""
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 from sklearn.model_selection import train_test_split
-from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
 
 def generate_synthetic_data(num_samples=500):
     """Generate synthetic data for testing."""
@@ -67,7 +67,7 @@ def test_model_training_and_prediction(tmp_path):
 
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
-    model = AntennaSelector()
+    model = LightGBMSelector()
     metrics = model.train(train_data)
 
     correct = 0
