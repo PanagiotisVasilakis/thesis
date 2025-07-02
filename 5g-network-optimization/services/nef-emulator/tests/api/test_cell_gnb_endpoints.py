@@ -242,3 +242,41 @@ def test_delete_cell_not_found(monkeypatch):
     crud.cell.get_Cell_id = lambda db, id: None
     resp = client.delete("/api/v1/Cells/AAAAAAA01")
     assert resp.status_code == 404
+
+
+def test_create_cell_db_failure(monkeypatch):
+    client, crud = _setup_client(monkeypatch)
+
+    def raise_error(*args, **kwargs):
+        raise Exception("db error")
+
+    crud.cell.get_Cell_id = raise_error
+    crud.gnb.get = lambda db, id: SimpleNamespace(id=1)
+
+    payload = {
+        "cell_id": "AAAAAAA02",
+        "name": "c",
+        "gNB_id": 1,
+        "latitude": 0.0,
+        "longitude": 0.0,
+        "radius": 1.0,
+    }
+
+    resp = client.post("/api/v1/Cells", json=payload)
+    assert resp.status_code == 500
+    data = resp.get_json()
+    assert "db error" in str(data).lower() or "database error" in str(data).lower()
+
+
+def test_delete_cell_db_failure(monkeypatch):
+    client, crud = _setup_client(monkeypatch)
+
+    crud.cell.get_Cell_id = lambda db, id: SimpleNamespace(id=1, owner_id=1)
+
+    def raise_error(*args, **kwargs):
+        raise Exception("db error")
+
+    crud.cell.remove_by_cell_id = raise_error
+
+    resp = client.delete("/api/v1/Cells/AAAAAAA01")
+    assert resp.status_code == 409
