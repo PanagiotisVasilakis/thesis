@@ -2,6 +2,14 @@
 
 import os
 
+from .tuning import tune_lightgbm, tune_and_train
+
+__all__ = [
+    "get_output_dir",
+    "tune_lightgbm",
+    "tune_and_train",
+]
+
 
 def get_output_dir(directory: str = "output") -> str:
     """Return the absolute path to the output directory.

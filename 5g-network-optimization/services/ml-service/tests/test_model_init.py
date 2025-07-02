@@ -66,3 +66,20 @@ def test_get_model_ignores_env_var(monkeypatch):
 
 
 
+
+def test_initialize_model_with_tuning(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    called = {"tune": 0}
+
+    def dummy_tune(model, data, n_iter=10):
+        called["tune"] += 1
+        model.model = DummyModel()
+        return {"samples": len(data), "best_params": {}}
+
+    monkeypatch.setattr(model_init, "tune_and_train", dummy_tune)
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setenv("LIGHTGBM_TUNE", "1")
+
+    model = initialize_model(str(model_path))
+    assert called["tune"] == 1
+    assert isinstance(model.model, DummyModel)

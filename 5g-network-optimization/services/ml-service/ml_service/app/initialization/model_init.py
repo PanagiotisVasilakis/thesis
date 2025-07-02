@@ -1,11 +1,13 @@
 """Model initialization utilities."""
 import logging
+import os
 from ..models import (
     LightGBMSelector,
     DEFAULT_TEST_FEATURES,
 )
 
 from ..utils.synthetic_data import generate_synthetic_training_data
+from ..utils.tuning import tune_and_train
 
 # Singleton instance for model reuse
 _model_instance = None
@@ -38,8 +40,12 @@ def initialize_model(model_path=None):
         logger.info("Generating synthetic training data...")
         training_data = generate_synthetic_training_data(500)
         
-        logger.info("Training model with synthetic data...")
-        metrics = model.train(training_data)
+        if os.getenv("LIGHTGBM_TUNE") == "1":
+            logger.info("Tuning LightGBM hyperparameters...")
+            metrics = tune_and_train(model, training_data, n_iter=10)
+        else:
+            logger.info("Training model with synthetic data...")
+            metrics = model.train(training_data)
         
         logger.info(f"Model trained successfully with {metrics.get('samples')} samples")
         

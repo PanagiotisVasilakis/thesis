@@ -69,3 +69,10 @@ def test_lightgbm_train_and_predict(tmp_path):
     assert loaded_pred['antenna_id'] in {'a1', 'a2'}
 
 
+
+def test_lightgbm_custom_params():
+    model = LightGBMSelector(num_leaves=64, learning_rate=0.05, feature_fraction=0.8)
+    params = model.model.get_params()
+    assert params["num_leaves"] == 64
+    assert abs(params["learning_rate"] - 0.05) < 1e-6
+    assert abs(params["feature_fraction"] - 0.8) < 1e-6
