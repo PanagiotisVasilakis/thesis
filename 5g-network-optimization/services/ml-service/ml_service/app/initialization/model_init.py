@@ -16,6 +16,9 @@ def get_model(model_path=None):
     """Return a singleton LightGBM model instance."""
     global _model_instance
 
+    if model_path is None:
+        model_path = os.environ.get("MODEL_PATH")
+
     if _model_instance is None:
         _model_instance = LightGBMSelector(model_path=model_path)
 
@@ -23,6 +26,7 @@ def get_model(model_path=None):
 
 def initialize_model(model_path=None):
     """Initialize the LightGBM model with synthetic data if needed."""
+    global _model_instance
     logger = logging.getLogger(__name__)
 
     model = LightGBMSelector(model_path=model_path)
@@ -31,6 +35,7 @@ def initialize_model(model_path=None):
     try:
         model.predict(DEFAULT_TEST_FEATURES)
         logger.info("Model is already trained and ready")
+        _model_instance = model
         return model
     except Exception as e:
         # Model needs training
@@ -53,6 +58,7 @@ def initialize_model(model_path=None):
         if model_path:
             model.save(model_path)
             logger.info(f"Model saved to {model_path}")
-        
+
+        _model_instance = model
         return model
 

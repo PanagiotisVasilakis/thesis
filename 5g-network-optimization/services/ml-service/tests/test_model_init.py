@@ -33,6 +33,8 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     assert call_count["train"] == 1
     assert model_path.exists()
     assert isinstance(model.model, DummyModel)
+    # initialize_model should store the trained instance for reuse
+    assert model_init._model_instance is model
 
     # Second call should load without retraining
     loaded = initialize_model(str(model_path))
@@ -57,12 +59,19 @@ def test_get_model_returns_singleton(monkeypatch):
     assert created == ["foo"]
 
 
-def test_get_model_ignores_env_var(monkeypatch):
+def test_get_model_uses_env_path(monkeypatch):
     model_init._model_instance = None
-    monkeypatch.setenv("MODEL_TYPE", "random_forest")
+    created = []
 
-    model = model_init.get_model()
-    assert isinstance(model, LightGBMSelector)
+    class DummySelector:
+        def __init__(self, model_path=None):
+            created.append(model_path)
+
+    monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
+    monkeypatch.setenv("MODEL_PATH", "env.joblib")
+
+    model_init.get_model()
+    assert created == ["env.joblib"]
 
 
 
