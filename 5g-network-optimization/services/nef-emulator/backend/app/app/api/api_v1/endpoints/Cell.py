@@ -1,9 +1,12 @@
 from typing import Any, List
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from app import crud, models, schemas
 from app.api import deps
 from app.api.api_v1.endpoints.utils import retrieve_ue_state
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,13 +45,15 @@ def create_Cell(
     """
     try:
         Cell = crud.cell.get_Cell_id(db=db, id=item_in.cell_id)
-    except:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to retrieve cell %s", item_in.cell_id)
+        raise HTTPException(status_code=500, detail="Database error") from exc
     
     try:
         gNB = crud.gnb.get(db=db, id=item_in.gNB_id)
-    except:
-        pass
+    except Exception as exc:
+        logger.exception("Failed to retrieve gNB %s", item_in.gNB_id)
+        raise HTTPException(status_code=500, detail="Database error") from exc
 
     if Cell:
         raise HTTPException(status_code=409, detail="ERROR: Cell with this id already exists")
@@ -173,8 +178,9 @@ def delete_Cell(
     
     try:
         Cell = crud.cell.remove_by_cell_id(db=db, cell_id=cell_id)
-    except:
-        raise HTTPException(status_code=409, detail="Foreign key violation! Cell id is still referenced from another table")
+    except Exception as exc:
+        logger.exception("Failed to delete cell %s", cell_id)
+        raise HTTPException(status_code=409, detail="Foreign key violation! Cell id is still referenced from another table") from exc
     
     
     return Cell
