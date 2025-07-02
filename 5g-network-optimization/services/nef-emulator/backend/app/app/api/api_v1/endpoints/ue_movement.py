@@ -10,6 +10,15 @@ from app.db.session import SessionLocal, client
 from app.api import deps
 
 logger = logging.getLogger(__name__)
+
+# Counter for timer related errors
+timer_error_counter = 0
+
+def log_timer_exception(ex: Exception) -> None:
+    """Log timer exceptions and track how many times they occur."""
+    global timer_error_counter
+    timer_error_counter += 1
+    logger.warning("Timer error: %s", ex)
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer
 from sqlalchemy.orm import Session
@@ -129,8 +138,7 @@ class BackgroundTasks(threading.Thread):
                                     loss_of_connectivity_sub.update({"maximumNumberOfReports" : loss_of_connectivity_sub.get("maximumNumberOfReports") - 1})
                                     crud_mongo.update(db_mongo, "MonitoringEvent", loss_of_connectivity_sub.get("_id"), loss_of_connectivity_sub)
                             except timer.TimerError as ex:
-                                # logging.critical(ex)
-                                pass
+                                log_timer_exception(ex)
                         except requests.exceptions.ConnectionError as ex:
                             logging.warning("Failed to send the callback request")
                             logging.warning(ex)
@@ -169,8 +177,7 @@ class BackgroundTasks(threading.Thread):
                         if rt is not None:
                             rt.start()
                     except timer.TimerError as ex:
-                        # logging.critical(ex)
-                        pass
+                        log_timer_exception(ex)
 
                     # if UE.Cell_id != cell_now.get('id'): #Cell has changed in the db "handover"
                     if ues[f"{supi}"]["Cell_id"] != cell_now.get('id'): #Cell has changed in the db "handover"
@@ -195,8 +202,7 @@ class BackgroundTasks(threading.Thread):
                                             ue_reachability_sub.update({"maximumNumberOfReports" : ue_reachability_sub.get("maximumNumberOfReports") - 1})
                                             crud_mongo.update(db_mongo, "MonitoringEvent", ue_reachability_sub.get("_id"), ue_reachability_sub)
                                         except timer.TimerError as ex:
-                                            # logging.critical(ex)
-                                            pass
+                                            log_timer_exception(ex)
                                     except requests.exceptions.ConnectionError as ex:
                                         logging.warning("Failed to send the callback request")
                                         logging.warning(ex)
@@ -233,8 +239,7 @@ class BackgroundTasks(threading.Thread):
                                         location_reporting_sub.update({"maximumNumberOfReports" : location_reporting_sub.get("maximumNumberOfReports") - 1})
                                         crud_mongo.update(db_mongo, "MonitoringEvent", location_reporting_sub.get("_id"), location_reporting_sub)
                                     except timer.TimerError as ex:
-                                        # logging.critical(ex)
-                                        pass
+                                        log_timer_exception(ex)
                                 except requests.exceptions.ConnectionError as ex:
                                     logging.warning("Failed to send the callback request")
                                     logging.warning(ex)
@@ -261,8 +266,7 @@ class BackgroundTasks(threading.Thread):
                         if rt is not None:
                             rt.stop()
                     except timer.TimerError as ex:
-                        # logging.critical(ex)
-                        pass
+                        log_timer_exception(ex)
 
                     ues[f"{supi}"]["Cell_id"] = None
                     ues[f"{supi}"]["cell_id_hex"] = None
