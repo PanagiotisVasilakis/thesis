@@ -25,6 +25,7 @@ services:
       - NEF_API_URL=http://nef-emulator:80
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
+      - MODEL_TYPE=${MODEL_TYPE:-random_forest}
     depends_on:
       - nef-emulator
     networks:
