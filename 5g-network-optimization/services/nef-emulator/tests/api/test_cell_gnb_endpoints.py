@@ -264,6 +264,8 @@ def test_create_cell_db_failure(monkeypatch):
 
     resp = client.post("/api/v1/Cells", json=payload)
     assert resp.status_code == 500
+    data = resp.get_json()
+    assert "db error" in str(data).lower() or "database error" in str(data).lower()
 
 
 def test_delete_cell_db_failure(monkeypatch):
