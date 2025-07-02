@@ -17,11 +17,12 @@ def test_coverage_map_endpoint(client, tmp_path):
     mock_model = MagicMock()
     mock_model.predict.return_value = {"antenna_id": "a1", "confidence": 1.0}
     img_path = _create_png(tmp_path / "coverage", "coverage.png")
-    with patch("ml_service.app.api.visualization.model", mock_model), \
+    with patch("ml_service.app.api.visualization.get_model", return_value=mock_model) as mock_get, \
          patch("ml_service.app.api.visualization.plot_antenna_coverage", return_value=str(img_path)):
         resp = client.get("/api/visualization/coverage-map")
         assert resp.status_code == 200
         assert len(resp.data) > 0
+        mock_get.assert_called_once_with(client.application.config["MODEL_PATH"])
 
 
 def test_trajectory_endpoint(client, tmp_path):
