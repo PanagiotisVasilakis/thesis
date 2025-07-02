@@ -11,7 +11,7 @@ from .a3_rule import A3EventRule
 
 
 class HandoverEngine:
-    """Decide and apply handovers using rule-based or ML approaches."""
+    """Decide and apply handovers using the A3 rule or an external ML service."""
 
     def __init__(
         self,
@@ -47,20 +47,12 @@ class HandoverEngine:
         else:
             self._auto = True
             self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
-
-        self._ensure_mode()
-
-    def _ensure_mode(self) -> None:
-        """No-op for HTTP-based ML selector."""
-        pass
-
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
         if self._auto:
             want_ml = len(self.state_mgr.antenna_list) >= self.min_antennas_ml
             if want_ml != self.use_ml:
                 self.use_ml = want_ml
-                self._ensure_mode()
 
     # ------------------------------------------------------------------
     def _select_ml(self, ue_id: str) -> Optional[str]:
