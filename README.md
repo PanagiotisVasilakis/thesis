@@ -125,10 +125,20 @@ docker push <registry>/ml-service:latest
 ```
 
 ## Testing
-First install the required system libraries, then the Python packages. Use the helper script `scripts/install_system_deps.sh` from the repository root and run the test suite:
+### Installing Test Dependencies
+Install the Python packages required by the test suite:
+```bash
+pip install -r requirements.txt
+# or run ./scripts/install_deps.sh
+```
+Some tests rely on optional packages such as `matplotlib` for generating plots
+and `Flask` for API integration checks. These are included in
+`requirements.txt`, so ensure they are installed before running the tests.
+
+After installing the Python dependencies, set up the required system libraries
+and run the test suite:
 ```bash
 ./scripts/install_system_deps.sh
-pip install -r requirements.txt
 pytest
 ```
 
