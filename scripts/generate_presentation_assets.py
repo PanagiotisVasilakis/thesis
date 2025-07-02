@@ -29,7 +29,7 @@ for path in (ML_SERVICE_ROOT, NEF_APP_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.visualization.plotter import (
     plot_antenna_coverage,
     plot_movement_trajectory,
@@ -49,7 +49,7 @@ def generate_assets(output_base: Path) -> None:
     # ------------------------------------------------------------------
     # Antenna coverage visualization
     # ------------------------------------------------------------------
-    model = AntennaSelector()  # untrained model is sufficient for demo
+    model = LightGBMSelector()  # untrained model is sufficient for demo
     coverage_png = Path(plot_antenna_coverage(model, output_dir=str(output_base)))
     _write_description(
         coverage_png,
