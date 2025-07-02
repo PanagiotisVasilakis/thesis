@@ -55,6 +55,8 @@ def test_lightgbm_train_and_predict(tmp_path):
 
     metrics = model.train(data)
     assert metrics['samples'] == len(data)
+    assert 0.0 <= metrics['val_accuracy'] <= 1.0
+    assert 0.0 <= metrics['val_f1'] <= 1.0
 
     pred = model.predict(sample_features)
     assert pred['antenna_id'] in {'a1', 'a2'}

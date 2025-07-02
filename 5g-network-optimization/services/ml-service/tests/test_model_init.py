@@ -24,6 +24,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
         return {"samples": len(data)}
 
     monkeypatch.setattr(AntennaSelector, "train", dummy_train)
+    monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
     monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
 
     monkeypatch.setattr(synthetic_data, "generate_synthetic_training_data", lambda n: [{}] * n)
