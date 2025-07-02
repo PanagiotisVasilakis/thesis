@@ -67,6 +67,26 @@ After the containers are up and running:
 
 <br><br>
 
+## Environment Variables
+
+The emulator reads several variables from `.env` or the shell:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ML_HANDOVER_ENABLED` | Enable ML-based handovers (`1` or `0`) | `0` |
+| `ML_SERVICE_URL` | URL of the ML service used for predictions | `http://ml-service:5050` |
+| `A3_HYSTERESIS_DB` | A3 hysteresis value in dB | `2.0` |
+| `A3_TTT_S` | A3 time-to-trigger in seconds | `0.0` |
+
+When ML handovers are enabled, `HandoverEngine` posts UE feature vectors to
+`ML_SERVICE_URL/api/predict` and applies the antenna recommended by the ML
+service.
+
+Example interaction when running locally:
+```bash
+curl -X POST "http://localhost:8080/api/v1/ml/handover?ue_id=u1"
+```
+
 ## 🏷️ How to work on a specific tag / release
 
 After `git clone` or `git pull` you can specify the release you want to work on by just using its `tag` in the following command:

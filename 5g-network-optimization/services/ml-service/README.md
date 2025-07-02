@@ -108,7 +108,18 @@ The service reads configuration from the Flask app settings. Important variables
 
 The service always runs with a LightGBM model; no other model types are supported.
 
-These can be supplied in your environment or via `docker-compose`.
+This service is called by the NEF emulator using the `ML_SERVICE_URL` variable.
+The emulator sends UE feature vectors to `/api/predict` and expects the returned
+`antenna_id` to perform a handover.
+
+These variables can be supplied in your environment or via `docker-compose`.
+
+Example request mirroring the NEF emulator:
+```bash
+curl -X POST http://localhost:5050/api/predict \
+     -H 'Content-Type: application/json' \
+     -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1"}'
+```
 
 ## Running Locally
 
