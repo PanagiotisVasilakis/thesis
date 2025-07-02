@@ -47,7 +47,7 @@ def test_get_model_returns_singleton(monkeypatch):
         def __init__(self, model_path=None):
             created.append(model_path)
 
-    monkeypatch.setitem(model_init.MODEL_TYPES, "random_forest", DummySelector)
+    monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
 
     first = model_init.get_model("foo")
     second = model_init.get_model("bar")
@@ -56,9 +56,9 @@ def test_get_model_returns_singleton(monkeypatch):
     assert created == ["foo"]
 
 
-def test_get_model_respects_model_type(monkeypatch):
+def test_get_model_ignores_env_var(monkeypatch):
     model_init._model_instance = None
-    monkeypatch.setenv("MODEL_TYPE", "lightgbm")
+    monkeypatch.setenv("MODEL_TYPE", "random_forest")
 
     model = model_init.get_model()
     assert isinstance(model, LightGBMSelector)
