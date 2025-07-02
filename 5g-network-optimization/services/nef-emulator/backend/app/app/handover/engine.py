@@ -4,13 +4,10 @@ import os
 from datetime import datetime
 from typing import Optional
 
+import requests
+
 from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
-
-try:
-    from app.models.antenna_selector import AntennaSelector
-except Exception:  # pragma: no cover - optional dependency
-    AntennaSelector = None  # type: ignore
 
 
 class HandoverEngine:
@@ -21,12 +18,16 @@ class HandoverEngine:
         state_mgr: NetworkStateManager,
         use_ml: Optional[bool] = None,
         ml_model_path: Optional[str] = None,
+        ml_service_url: Optional[str] = None,
         min_antennas_ml: int = 3,
         a3_hysteresis_db: float = 2.0,
         a3_ttt_s: float = 0.0,
     ) -> None:
         self.state_mgr = state_mgr
         self.ml_model_path = ml_model_path
+        self.ml_service_url = ml_service_url or os.getenv(
+            "ML_SERVICE_URL", "http://ml-service:5050"
+        )
         self.min_antennas_ml = min_antennas_ml
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
         # Always have an A3 rule available; it will only be used when
@@ -50,15 +51,8 @@ class HandoverEngine:
         self._ensure_mode()
 
     def _ensure_mode(self) -> None:
-        """Instantiate or remove the ML selector based on current mode."""
-        if self.use_ml:
-            if AntennaSelector is None:
-                raise RuntimeError("AntennaSelector not available")
-            if not hasattr(self, "selector"):
-                self.selector = AntennaSelector(model_path=self.ml_model_path)
-        else:
-            if hasattr(self, "selector"):
-                del self.selector
+        """No-op for HTTP-based ML selector."""
+        pass
 
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
@@ -87,9 +81,14 @@ class HandoverEngine:
             "connected_to": fv["connected_to"],
             "rf_metrics": rf_metrics,
         }
-        feats = self.selector.extract_features(ue_data)
-        pred = self.selector.predict(feats)
-        return pred.get("antenna_id")
+        url = f"{self.ml_service_url.rstrip('/')}/api/predict"
+        try:
+            resp = requests.post(url, json=ue_data, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("predicted_antenna") or data.get("antenna_id")
+        except Exception:
+            return None
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
         fv = self.state_mgr.get_feature_vector(ue_id)

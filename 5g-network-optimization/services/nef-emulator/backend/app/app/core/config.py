@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     CAPIF_HTTP_PORT: str
     CAPIF_HTTPS_PORT: str
 
+    # ----- ML Service -----
+    ML_SERVICE_URL: str = "http://ml-service:5050"
+
     # ----- Email -----
     SMTP_TLS: bool = True
     SMTP_PORT: Optional[int] = None

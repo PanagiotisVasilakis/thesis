@@ -16,18 +16,15 @@ class DummyAntenna:
         return self._rsrp
 
 
-class DummySelector:
-    """Simple predictor choosing antenna with highest RSRP."""
+class DummyResponse:
+    def __init__(self, antenna):
+        self._antenna = antenna
 
-    def __init__(self, *a, **k):
+    def raise_for_status(self):
         pass
 
-    def extract_features(self, data):
-        return data
-
-    def predict(self, features):
-        best = max(features["rf_metrics"], key=lambda k: features["rf_metrics"][k]["rsrp"])
-        return {"antenna_id": best, "confidence": 1.0}
+    def json(self):
+        return {"predicted_antenna": self._antenna}
 
 
 def _create_client(monkeypatch: pytest.MonkeyPatch):
@@ -46,14 +43,14 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
     state_mod = importlib.util.module_from_spec(spec_state)
     spec_state.loader.exec_module(state_mod)
 
-    # Prepare dummy AntennaSelector module
-    selector_mod = ModuleType("app.models.antenna_selector")
-    selector_mod.AntennaSelector = DummySelector
-    models_pkg = ModuleType("app.models")
-    models_pkg.antenna_selector = selector_mod
 
-    sys.modules["app.models"] = models_pkg
-    sys.modules["app.models.antenna_selector"] = selector_mod
+    # Patch requests.post used by the handover engine
+    def fake_post(url, json=None, timeout=None):
+        best = max(json["rf_metrics"], key=lambda a: json["rf_metrics"][a]["rsrp"])
+        return DummyResponse(best)
+
+    monkeypatch.setattr("requests.post", fake_post)
+    monkeypatch.setenv("ML_SERVICE_URL", "http://ml")
 
     sys.modules["app.network"] = ModuleType("app.network")
     sys.modules["app.network"].state_manager = state_mod
