@@ -1,5 +1,5 @@
 """Visualization endpoints for ML Service."""
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, current_app
 import os
 import logging
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
@@ -15,14 +15,12 @@ viz_bp = Blueprint("visualization", __name__, url_prefix="/api/visualization")
 
 logger = logging.getLogger(__name__)
 
-# Initialize the model
-model = get_model()
-
 
 @viz_bp.route("/coverage-map", methods=["GET"])
 def coverage_map():
     """Generate and return an antenna coverage map."""
     try:
+        model = get_model(current_app.config["MODEL_PATH"])
         # First, check if the model is trained
         try:
             # Try a simple prediction to see if model is trained
