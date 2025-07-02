@@ -105,3 +105,29 @@ def test_get_ue_movement_state_failure(monkeypatch):
     monkeypatch.setattr(nef_client.requests, "get", lambda *a, **k: MockResp())
     result = client.get_ue_movement_state()
     assert result == {}
+
+
+def test_get_feature_vector_success(monkeypatch):
+    client = NEFClient(base_url="http://nef")
+
+    class MockResp:
+        status_code = 200
+
+        def json(self):
+            return {"neighbor_rsrp_dbm": {"A": -80}}
+
+    monkeypatch.setattr(nef_client.requests, "get", lambda *a, **k: MockResp())
+    result = client.get_feature_vector("ue1")
+    assert result == {"neighbor_rsrp_dbm": {"A": -80}}
+
+
+def test_get_feature_vector_failure(monkeypatch):
+    client = NEFClient(base_url="http://nef")
+
+    class MockResp:
+        status_code = 404
+        text = "err"
+
+    monkeypatch.setattr(nef_client.requests, "get", lambda *a, **k: MockResp())
+    result = client.get_feature_vector("ue1")
+    assert result == {}

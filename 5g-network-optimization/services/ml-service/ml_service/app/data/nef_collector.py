@@ -72,6 +72,16 @@ class NEFDataCollector:
                     # In a real implementation, this would use more sophisticated logic
                     optimal_cell_id = ue_data.get('Cell_id')
                     
+                    fv = self.client.get_feature_vector(ue_id)
+                    rf_metrics = {}
+                    rsrps = fv.get('neighbor_rsrp_dbm', {})
+                    sinrs = fv.get('neighbor_sinrs', {})
+                    for aid, rsrp in rsrps.items():
+                        rf_metrics[aid] = {
+                            'rsrp': rsrp,
+                            'sinr': sinrs.get(aid)
+                        }
+
                     # Create a data sample
                     sample = {
                         'timestamp': datetime.now().isoformat(),
@@ -81,7 +91,7 @@ class NEFDataCollector:
                         'speed': ue_data.get('speed'),
                         'connected_to': optimal_cell_id,
                         'optimal_antenna': optimal_cell_id,
-                        # We would add rf_metrics here in a real implementation
+                        'rf_metrics': rf_metrics,
                     }
                     
                     collected_data.append(sample)

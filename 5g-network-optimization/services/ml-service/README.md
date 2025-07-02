@@ -141,6 +141,8 @@ before collecting data.  Training data is gathered with
 Collected JSON files are stored under `app/data/collected_data` and can be sent
 to the `/api/train` endpoint to update the selected model. The trained model is
 persisted at the location specified by `MODEL_PATH`.
+Each sample now also contains an `rf_metrics` dictionary with per-antenna RSRP
+and SINR values.
 
 ```bash
 # Collect data for five minutes and train the model when done
