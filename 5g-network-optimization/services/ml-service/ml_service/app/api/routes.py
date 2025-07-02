@@ -19,7 +19,11 @@ def predict():
     data = request.json
 
     try:
-        model = get_model()
+        model_type = current_app.config.get("MODEL_TYPE")
+        if model_type is not None:
+            model = get_model(current_app.config["MODEL_PATH"], model_type)
+        else:
+            model = get_model(current_app.config["MODEL_PATH"])
         # Extract features from request data
         features = model.extract_features(data)
 
@@ -44,7 +48,11 @@ def train():
     data = request.json
 
     try:
-        model = get_model()
+        model_type = current_app.config.get("MODEL_TYPE")
+        if model_type is not None:
+            model = get_model(current_app.config["MODEL_PATH"], model_type)
+        else:
+            model = get_model(current_app.config["MODEL_PATH"])
         # Train the model
         metrics = model.train(data)
 
