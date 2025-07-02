@@ -1,5 +1,6 @@
 from ml_service.app.initialization import model_init
 from ml_service.app.models.antenna_selector import AntennaSelector
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils import synthetic_data
 
 initialize_model = model_init.initialize_model
@@ -46,13 +47,22 @@ def test_get_model_returns_singleton(monkeypatch):
         def __init__(self, model_path=None):
             created.append(model_path)
 
-    monkeypatch.setattr(model_init, "AntennaSelector", DummySelector)
+    monkeypatch.setitem(model_init.MODEL_TYPES, "random_forest", DummySelector)
 
     first = model_init.get_model("foo")
     second = model_init.get_model("bar")
 
     assert first is second
     assert created == ["foo"]
+
+
+def test_get_model_respects_model_type(monkeypatch):
+    model_init._model_instance = None
+    monkeypatch.setenv("MODEL_TYPE", "lightgbm")
+
+    model = model_init.get_model()
+    assert isinstance(model, LightGBMSelector)
+
 
 
 
