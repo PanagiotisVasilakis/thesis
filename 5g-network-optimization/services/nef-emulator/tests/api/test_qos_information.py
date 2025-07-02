@@ -47,6 +47,7 @@ def _setup_client(monkeypatch, user=None):
     crud_mod = types.ModuleType("app.crud")
     crud_mod.crud_mongo = SimpleNamespace()
     crud_mod.gnb = SimpleNamespace()
+    crud_mod.ue = SimpleNamespace()
     crud_mod.user = SimpleNamespace(is_superuser=lambda u: getattr(u, "is_superuser", False))
     app_pkg.crud = crud_mod
 
@@ -92,6 +93,7 @@ def _setup_client(monkeypatch, user=None):
         "app.crud": crud_mod,
         "app.crud.crud_mongo": crud_mod.crud_mongo,
         "app.crud.gnb": crud_mod.gnb,
+        "app.crud.ue": crud_mod.ue,
         "app.crud.user": crud_mod.user,
         "app.models": models_mod,
         "app.api": api_mod,
@@ -157,4 +159,30 @@ def test_read_qos_profiles(monkeypatch):
     resp = client.get("/api/v1/qosProfiles/G1")
     assert resp.status_code == 200
     assert resp.json() == profiles
+
+
+def test_read_qos_rules(monkeypatch):
+    user = SimpleNamespace(id=1, is_superuser=False)
+    client, crud, qos_mod = _setup_client(monkeypatch, user=user)
+
+    ue_obj = SimpleNamespace(supi="S1", owner_id=1, ip_address_v4="10.0.0.1")
+    monkeypatch.setattr(crud.ue, "get_supi", lambda db, supi: ue_obj, raising=False)
+    rules = {"rule": "a"}
+    monkeypatch.setattr(crud.crud_mongo, "read", lambda db, coll, key, value: rules, raising=False)
+
+    resp = client.get("/api/v1/qosRules/S1")
+    assert resp.status_code == 200
+    assert resp.json() == rules
+
+
+def test_read_qos_rules_not_found(monkeypatch):
+    user = SimpleNamespace(id=1, is_superuser=False)
+    client, crud, qos_mod = _setup_client(monkeypatch, user=user)
+
+    ue_obj = SimpleNamespace(supi="S1", owner_id=1, ip_address_v4="10.0.0.1")
+    monkeypatch.setattr(crud.ue, "get_supi", lambda db, supi: ue_obj, raising=False)
+    monkeypatch.setattr(crud.crud_mongo, "read", lambda db, coll, key, value: None, raising=False)
+
+    resp = client.get("/api/v1/qosRules/S1")
+    assert resp.status_code == 404
 

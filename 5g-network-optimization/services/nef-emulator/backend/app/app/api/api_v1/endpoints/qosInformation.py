@@ -7,7 +7,7 @@ from app.db.session import client
 from app import models
 from app.api import deps
 from app.core.config import qosSettings
-from app.crud import crud_mongo, user, gnb
+from app.crud import crud_mongo, user, gnb, ue
 
 def qos_reference_match(qos_reference):
     
@@ -80,12 +80,27 @@ def read_qos_active_rules(
     *,
     supi: str = Path(..., title="The subscription unique permanent identifier (SUPI) of the UE", example="202010000000001"),
     current_user: models.User = Depends(deps.get_current_active_user),
-    http_request: Request
+    http_request: Request,
+    db: Session = Depends(deps.get_db)
 ) -> Any:
     """
-    Get the available QoS Characteristics
+    Get stored QoS rules for the UE identified by ``supi``.
     """
-    pass
+    db_mongo: Database = client.fastapi
+
+    UE = ue.get_supi(db=db, supi=supi)
+    if not UE:
+        raise HTTPException(status_code=404, detail="UE not found")
+    if not user.is_superuser(current_user) and (UE.owner_id != current_user.id):
+        raise HTTPException(status_code=400, detail="Not enough permissions")
+
+    retrieved_doc = crud_mongo.read(db_mongo, "QoSMonitoring", "ipv4Addr", UE.ip_address_v4)
+
+    if not retrieved_doc:
+        raise HTTPException(status_code=404, detail=f"No QoS rules for UE {supi}")
+
+    retrieved_doc.pop("_id", None)
+    return JSONResponse(content=retrieved_doc, status_code=200)
 
 
 
