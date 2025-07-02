@@ -100,10 +100,10 @@ curl -X POST http://localhost:5050/api/visualization/trajectory \
 
 The service reads configuration from the Flask app settings. Important variables:
 
-| Variable      | Description                                               | Default                       |
+| Variable | Description | Default |
 |---------------|-----------------------------------------------------------|-------------------------------|
-| `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080`       |
-| `MODEL_PATH`  | Location of the persisted model file                      | `app/models/antenna_selector.joblib` |
+| `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080` |
+| `MODEL_PATH` | Location of the persisted model file | `app/models/antenna_selector.joblib` |
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 
 The service always runs with a LightGBM model; no other model types are supported.
