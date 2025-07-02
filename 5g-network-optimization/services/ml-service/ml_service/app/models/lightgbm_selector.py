@@ -1,6 +1,6 @@
 """LightGBM-based antenna selection model."""
 
-from .antenna_selector import AntennaSelector, DEFAULT_TEST_FEATURES
+from .antenna_selector import AntennaSelector
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score
@@ -28,7 +28,6 @@ class LightGBMSelector(AntennaSelector):
         self.feature_fraction = feature_fraction
         self.extra_params = kwargs
         super().__init__(model_path=model_path)
-
 
     def _initialize_model(self):
         """Initialize a new LightGBM model."""
@@ -88,7 +87,6 @@ class LightGBMSelector(AntennaSelector):
         else:
             X_train, y_train = X_arr, y_arr
 
-
         eval_set = [(X_val, y_val)] if X_val is not None else None
 
         fit_params = {}
@@ -116,4 +114,3 @@ class LightGBMSelector(AntennaSelector):
             )
 
         return metrics
-
