@@ -76,9 +76,14 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ML_HANDOVER_ENABLED` | Enable ML-driven handovers (`true`/`false`). If unset, the engine uses ML automatically when at least three antennas are configured | `false` |
+| `ML_SERVICE_URL` | URL of the ML service contacted by the NEF emulator | `http://ml-service:5050` |
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
+
+When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
+`ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
+contains the recommended antenna which is then applied automatically.
 
 ## Running the System
 Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
@@ -104,6 +109,11 @@ Get a direct prediction from the ML service:
 curl -X POST http://localhost:5050/api/predict \
      -H 'Content-Type: application/json' \
      -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1","rf_metrics":{"antenna_1":{"rsrp":-80,"sinr":15},"antenna_2":{"rsrp":-90,"sinr":10}}}'
+```
+
+Check ML service connectivity with the NEF emulator:
+```bash
+curl http://localhost:5050/api/nef-status
 ```
 
 ## Building Docker Images
