@@ -104,6 +104,7 @@ The service reads configuration from the Flask app settings. Important variables
 |---------------|-----------------------------------------------------------|-------------------------------|
 | `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080`       |
 | `MODEL_PATH`  | Location of the persisted model file                      | `app/models/antenna_selector.joblib` |
+| `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 
 The service always runs with a LightGBM model; no other model types are supported.
 
@@ -151,3 +152,18 @@ with the NEF emulator if needed.  Passing `--ml-service-url` will trigger
 collection via the `/api/collect-data` endpoint of a running ML service instead
 of gathering data locally. After training, the updated model file can be
 loaded automatically on the next service start.
+
+## Hyperparameter Tuning
+
+Set the environment variable `LIGHTGBM_TUNE=1` before starting the service to
+run a quick randomized search for optimal LightGBM parameters.  During
+initialization the service generates synthetic data and executes the tuning
+routine defined in `app/utils/tuning.py`.  The best estimator is then persisted
+at `MODEL_PATH`.
+
+```bash
+LIGHTGBM_TUNE=1 python app.py
+```
+
+Tuning uses a small search space suitable for demonstration purposes. Adjust
+`tuning.tune_lightgbm` if more exhaustive searches are required.
