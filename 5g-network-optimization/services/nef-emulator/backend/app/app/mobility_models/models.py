@@ -5,49 +5,21 @@ from datetime import datetime, timedelta
 
 class MobilityModel:
     """Base class for all mobility models following 3GPP TR 38.901"""
-    
+
     def __init__(self, ue_id, start_time=None, mobility_params=None):
         self.ue_id = ue_id
         self.start_time = start_time or datetime.now()
         self.mobility_params = mobility_params or {}
         self.current_position = None
         self.trajectory = []
-    
-    # def generate_trajectory(self, duration_seconds, time_step=1.0):
-    #     """Generate trajectory points for the specified duration"""
-    #     raise NotImplementedError("Subclasses must implement this method")
-    
-    # def get_position_at_time(self, query_time):
-    #     """Return interpolated (x,y,z) at the given datetime."""
-    #     # Ensure trajectory is sorted by timestamp
-    #     traj = sorted(self.trajectory, key=lambda p: p['timestamp'])
-    #     if not traj:
-    #         return None
 
-    #     # Before start or after end
-    #     if query_time <= traj[0]['timestamp']:
-    #         return traj[0]['position']
-    #     if query_time >= traj[-1]['timestamp']:
-    #         return traj[-1]['position']
+    def generate_trajectory(self, duration_seconds, time_step=1.0):
+        """Generate trajectory points for the specified duration."""
+        raise NotImplementedError("Subclasses must implement generate_trajectory")
 
-    #     # Find bracketing points
-    #     for i in range(len(traj)-1):
-    #         p0, p1 = traj[i], traj[i+1]
-    #         t0, t1 = p0['timestamp'], p1['timestamp']
-    #         if t0 <= query_time <= t1:
-    #             # Compute fraction between t0 and t1
-    #             total = (t1 - t0).total_seconds()
-    #             frac = (query_time - t0).total_seconds() / total if total > 0 else 0
-    #             x0,y0,z0 = p0['position']
-    #             x1,y1,z1 = p1['position']
-    #             # Linear interpolation
-    #             x = x0 + (x1 - x0)*frac
-    #             y = y0 + (y1 - y0)*frac
-    #             z = z0 + (z1 - z0)*frac
-    #             return (x, y, z)
-
-    #     # Fallback (shouldn't happen)
-    #     return traj[-1]['position']
+    def get_position_at_time(self, query_time):
+        """Return interpolated ``(x, y, z)`` position at ``query_time``."""
+        raise NotImplementedError("Subclasses must implement get_position_at_time")
 
 
 class LinearMobilityModel(MobilityModel):
