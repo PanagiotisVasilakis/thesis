@@ -65,9 +65,27 @@ def read_active_subscriptions(
 
 monitoring_callback_router = APIRouter()
 
-@monitoring_callback_router.post("{$request.body.notificationDestination}", response_model=schemas.MonitoringEventReportReceived, status_code=200, response_class=Response)
-def monitoring_notification(body: schemas.MonitoringNotification):
-    pass
+@monitoring_callback_router.post(
+    "{$request.body.notificationDestination}",
+    response_model=schemas.MonitoringEventReportReceived,
+    status_code=200,
+    response_class=Response,
+)
+def monitoring_notification(
+    body: schemas.MonitoringNotification, *, http_request: Request
+) -> Any:
+    """Receive and store monitoring notifications."""
+    db_mongo = client.fastapi
+    try:
+        crud_mongo.create(
+            db_mongo, "MonitoringEventNotification", jsonable_encoder(body)
+        )
+    except Exception as ex:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail=str(ex))
+
+    http_response = JSONResponse(content={"ok": True}, status_code=200)
+    add_notifications(http_request, http_response, True)
+    return http_response
 
 @router.post("/{scsAsId}/subscriptions", response_model=schemas.MonitoringEventReport, responses={201: {"model" : schemas.MonitoringEventSubscription}}, callbacks=monitoring_callback_router.routes)
 def create_subscription(
