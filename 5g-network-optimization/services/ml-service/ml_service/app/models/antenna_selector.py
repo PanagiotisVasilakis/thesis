@@ -17,16 +17,19 @@ DEFAULT_TEST_FEATURES = {
 
 class AntennaSelector:
     """ML model for selecting optimal antenna based on UE data."""
-    
+
     def __init__(self, model_path=None):
         """Initialize the model."""
         self.model_path = model_path
         self.model = None
-        self.feature_names = [
+        # Base features independent of neighbour count
+        self.base_feature_names = [
             'latitude', 'longitude', 'speed',
             'direction_x', 'direction_y',
             'rsrp_current', 'sinr_current'
         ]
+        self.neighbor_count = 0
+        self.feature_names = list(self.base_feature_names)
         
         # Try to load existing model
         try:
@@ -46,8 +49,18 @@ class AntennaSelector:
             random_state=42
         )
     
-    def extract_features(self, data):
-        """Extract features from UE data."""
+    def extract_features(self, data, include_neighbors=True):
+        """Extract features from UE data.
+
+        Parameters
+        ----------
+        data : dict
+            UE data including position, direction and rf_metrics.
+        include_neighbors : bool, optional
+            When True, include RSRP/SINR of neighbouring antennas sorted by
+            signal strength. The number of neighbours is determined from the
+            first call and kept constant afterwards.
+        """
         features = {}
         
         # Location features
@@ -80,6 +93,30 @@ class AntennaSelector:
         else:
             features['rsrp_current'] = -120  # Default poor signal
             features['sinr_current'] = 0     # Default neutral SINR
+
+        # Neighbor metrics ordered by signal strength
+        if include_neighbors and rf_metrics:
+            neighbors = [
+                (aid, vals.get('rsrp', -120), vals.get('sinr', 0))
+                for aid, vals in rf_metrics.items()
+                if aid != current_antenna
+            ]
+            neighbors.sort(key=lambda x: x[1], reverse=True)
+
+            if self.neighbor_count == 0:
+                self.neighbor_count = len(neighbors)
+                for idx in range(self.neighbor_count):
+                    self.feature_names.extend([
+                        f'rsrp_a{idx+1}', f'sinr_a{idx+1}'
+                    ])
+
+            for idx in range(self.neighbor_count):
+                if idx < len(neighbors):
+                    features[f'rsrp_a{idx+1}'] = neighbors[idx][1]
+                    features[f'sinr_a{idx+1}'] = neighbors[idx][2]
+                else:
+                    features[f'rsrp_a{idx+1}'] = -120
+                    features[f'sinr_a{idx+1}'] = 0
         
         return features
     
@@ -143,7 +180,11 @@ class AntennaSelector:
         save_path = path or self.model_path
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            joblib.dump(self.model, save_path)
+            joblib.dump({
+                'model': self.model,
+                'feature_names': self.feature_names,
+                'neighbor_count': self.neighbor_count,
+            }, save_path)
             return True
         return False
     
@@ -151,6 +192,12 @@ class AntennaSelector:
         """Load the model from disk."""
         load_path = path or self.model_path
         if load_path and os.path.exists(load_path):
-            self.model = joblib.load(load_path)
+            data = joblib.load(load_path)
+            if isinstance(data, dict) and 'model' in data:
+                self.model = data['model']
+                self.feature_names = data.get('feature_names', self.feature_names)
+                self.neighbor_count = data.get('neighbor_count', self.neighbor_count)
+            else:
+                self.model = data
             return True
         return False

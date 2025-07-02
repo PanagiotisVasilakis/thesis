@@ -27,7 +27,10 @@ def _tiny_dataset():
             'speed': 1.0,
             'direction': [1, 0, 0],
             'connected_to': 'a1',
-            'rf_metrics': {'a1': {'rsrp': -70, 'sinr': 10}},
+            'rf_metrics': {
+                'a1': {'rsrp': -70, 'sinr': 10},
+                'a2': {'rsrp': -80, 'sinr': 5},
+            },
             'optimal_antenna': 'a1',
         },
         {
@@ -37,7 +40,10 @@ def _tiny_dataset():
             'speed': 1.0,
             'direction': [0, 1, 0],
             'connected_to': 'a2',
-            'rf_metrics': {'a2': {'rsrp': -65, 'sinr': 12}},
+            'rf_metrics': {
+                'a1': {'rsrp': -75, 'sinr': 7},
+                'a2': {'rsrp': -65, 'sinr': 12},
+            },
             'optimal_antenna': 'a2',
         },
         {
@@ -47,7 +53,10 @@ def _tiny_dataset():
             'speed': 1.0,
             'direction': [1, 1, 0],
             'connected_to': 'a1',
-            'rf_metrics': {'a1': {'rsrp': -80, 'sinr': 8}},
+            'rf_metrics': {
+                'a1': {'rsrp': -80, 'sinr': 8},
+                'a2': {'rsrp': -70, 'sinr': 9},
+            },
             'optimal_antenna': 'a1',
         },
     ]
@@ -58,6 +67,7 @@ def test_train_metrics_and_prediction_flow(tmp_path):
 
     model = AntennaSelector()
     sample_features = model.extract_features(data[0])
+    assert 'rsrp_a1' in sample_features
 
     # Simulate untrained state
     model.model = object()
