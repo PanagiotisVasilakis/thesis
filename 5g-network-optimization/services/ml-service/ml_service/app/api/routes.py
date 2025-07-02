@@ -6,9 +6,6 @@ from . import api_bp
 from ..initialization.model_init import get_model
 from ..data.nef_collector import NEFDataCollector
 
-# Initialize the model
-model = get_model()
-
 
 @api_bp.route("/health", methods=["GET"])
 def health_check():
@@ -22,6 +19,7 @@ def predict():
     data = request.json
 
     try:
+        model = get_model()
         # Extract features from request data
         features = model.extract_features(data)
 
@@ -46,6 +44,7 @@ def train():
     data = request.json
 
     try:
+        model = get_model()
         # Train the model
         metrics = model.train(data)
 

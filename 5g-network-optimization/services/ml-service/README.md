@@ -11,9 +11,10 @@ following tasks:
 
 1. Loads default configuration such as `NEF_API_URL` and the `MODEL_PATH` for
    the persisted model.
-2. Creates the model directory and initializes the `AntennaSelector` model via
-   `app.initialization.model_init.initialize_model`. If no model exists a
-   lightweight synthetic one is trained and stored automatically.
+2. Creates the model directory and initializes the ML model via
+   `app.initialization.model_init.initialize_model`. The type is controlled by
+   the `MODEL_TYPE` variable and defaults to a Random Forest. If no model exists
+   a lightweight synthetic one is trained and stored automatically.
 3. Registers the REST API blueprint from `app/api` and visualization routes
    from `app/api/visualization`.
 
@@ -103,6 +104,7 @@ The service reads configuration from the Flask app settings. Important variables
 |---------------|-----------------------------------------------------------|-------------------------------|
 | `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080`       |
 | `MODEL_PATH`  | Location of the persisted model file                      | `app/models/antenna_selector.joblib` |
+| `MODEL_TYPE`  | Which ML model to use: `random_forest` or `lightgbm`      | `random_forest` |
 
 These can be supplied in your environment or via `docker-compose`.
 
@@ -135,8 +137,8 @@ Ensure the NEF emulator is running with UEs in motion
 before collecting data.  Training data is gathered with
 `collect_training_data.py` which leverages `app/data/nef_collector.py`.
 Collected JSON files are stored under `app/data/collected_data` and can be sent
-to the `/api/train` endpoint to update the `AntennaSelector` model.  The trained
-model is persisted as `app/models/antenna_selector.joblib`.
+to the `/api/train` endpoint to update the selected model. The trained model is
+persisted at the location specified by `MODEL_PATH`.
 
 ```bash
 # Collect data for five minutes and train the model when done
