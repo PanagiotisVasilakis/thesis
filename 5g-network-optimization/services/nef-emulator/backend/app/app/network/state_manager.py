@@ -51,7 +51,7 @@ class NetworkStateManager:
         speed = state.get('speed', 0.0)
         connected = state.get('connected_to')
 
-        # RSRP in dBm
+        # RSRP in dBm for each antenna
         rsrp_dbm = {
             ant_id: ant.rsrp_dbm(state['position'])
             for ant_id, ant in self.antenna_list.items()
@@ -66,6 +66,11 @@ class NetworkStateManager:
             interf = sum(m for other, m in rsrp_mw.items() if other != aid)
             lin = sig / (noise_mw + interf) if (noise_mw + interf) > 0 else 0.0
             neighbor_sinrs[aid] = 10 * math.log10(lin) if lin > 0 else -float('inf')
+
+        # Order neighbors by RSRP strength
+        ordered = sorted(rsrp_dbm.items(), key=lambda x: x[1], reverse=True)
+        rsrp_dbm = {aid: val for aid, val in ordered}
+        neighbor_sinrs = {aid: neighbor_sinrs[aid] for aid, _ in ordered}
 
         features = {
             'ue_id':        ue_id,
