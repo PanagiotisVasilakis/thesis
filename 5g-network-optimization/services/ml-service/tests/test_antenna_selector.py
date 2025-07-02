@@ -15,6 +15,8 @@ def test_extract_features_defaults():
         'direction_y': 0,
         'rsrp_current': -120,
         'sinr_current': 0,
+        'best_rsrp_diff': 0,
+        'best_sinr_diff': 0,
     }
 
 
@@ -68,6 +70,7 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     model = AntennaSelector()
     sample_features = model.extract_features(data[0])
     assert 'rsrp_a1' in sample_features
+    assert 'best_rsrp_diff' in sample_features
 
     # Simulate untrained state
     model.model = object()
@@ -104,7 +107,7 @@ class DummyModel:
     def predict_proba(self, X):
         return [[0.2, 0.8]]
 
-    feature_importances_ = np.zeros(7)
+    feature_importances_ = np.zeros(9)
 
 
 def test_predict_with_mock_and_persistence(tmp_path):
@@ -119,6 +122,8 @@ def test_predict_with_mock_and_persistence(tmp_path):
         'direction_y': 1,
         'rsrp_current': -80,
         'sinr_current': 10,
+        'best_rsrp_diff': 0,
+        'best_sinr_diff': 0,
     }
 
     result = model.predict(features)

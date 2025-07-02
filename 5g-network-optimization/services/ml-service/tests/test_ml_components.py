@@ -90,6 +90,7 @@ def test_feature_extraction():
         'latitude', 'longitude', 'speed',
         'direction_x', 'direction_y',
         'rsrp_current', 'sinr_current',
+        'best_rsrp_diff', 'best_sinr_diff',
         'rsrp_a1', 'sinr_a1', 'rsrp_a2', 'sinr_a2'
     ]
 
