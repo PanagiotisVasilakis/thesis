@@ -1,5 +1,5 @@
 """Main entry point for ML Service."""
-from ml_service.logging_config import configure_logging
+from services.logging_config import configure_logging
 from ml_service.app import create_app
 
 configure_logging()

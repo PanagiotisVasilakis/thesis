@@ -8,6 +8,9 @@ mkdir -p app/models
 # Ensure dependencies are installed
 PYTHON_BIN=python3.10
 $PYTHON_BIN -m pip install -r ../../../requirements.txt
+# Ensure the repository root is on PYTHONPATH so ``services`` can be imported
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+export PYTHONPATH="${SCRIPT_DIR}/..:${PYTHONPATH}"
 
 # Run the model test
 echo "Testing ML model..."
