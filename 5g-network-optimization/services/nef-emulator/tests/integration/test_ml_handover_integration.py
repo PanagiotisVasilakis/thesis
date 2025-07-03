@@ -39,7 +39,7 @@ def _create_ml_client(monkeypatch: pytest.MonkeyPatch):
     dummy_model.predict.return_value = {"antenna_id": "B", "confidence": 1.0}
 
     monkeypatch.setattr(
-        "ml_service.app.api.routes.get_model", lambda *a, **k: dummy_model
+        "ml_service.app.api.routes.load_model", lambda *a, **k: dummy_model
     )
 
     app = create_app({"TESTING": True})

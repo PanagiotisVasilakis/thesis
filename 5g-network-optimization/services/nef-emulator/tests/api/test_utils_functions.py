@@ -8,7 +8,8 @@ import sys
 # Dynamically load the utils module under test
 UTILS_PATH = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "utils.py"
 # Stub optional external dependency 'requests' before loading the module
-sys.modules.setdefault("requests", types.ModuleType("requests"))
+requests_stub = sys.modules.setdefault("requests", types.ModuleType("requests"))
+setattr(requests_stub, "post", lambda *a, **k: None)
 # Minimal "app" package structure required by utils module
 app_pkg = types.ModuleType("app")
 crud_mod = types.ModuleType("app.crud")
