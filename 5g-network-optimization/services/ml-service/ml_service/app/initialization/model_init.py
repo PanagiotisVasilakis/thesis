@@ -46,8 +46,14 @@ def initialize_model(model_path=None):
         training_data = generate_synthetic_training_data(500)
         
         if os.getenv("LIGHTGBM_TUNE") == "1":
-            logger.info("Tuning LightGBM hyperparameters...")
-            metrics = tune_and_train(model, training_data, n_iter=10)
+            n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
+            cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
+            logger.info(
+                "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
+                n_iter,
+                cv,
+            )
+            metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
         else:
             logger.info("Training model with synthetic data...")
             metrics = model.train(training_data)
