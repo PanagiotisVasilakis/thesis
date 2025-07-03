@@ -61,9 +61,10 @@ docker compose up
 After the containers are up and running:
 
  - access and start playing with the Swager UI at: [http://localhost:8090/nef/docs](http://localhost:8090/nef/docs) or [https://localhost:4443/nef/docs](http://localhost:4443/nef/docs)
- - login to the admin dashboard at: [http://localhost:8090/login](http://localhost:8090) or [https://localhost:4443/login](http://localhost:4443/login)
+- login to the admin dashboard at: [http://localhost:8090/login](http://localhost:8090) or [https://localhost:4443/login](http://localhost:4443/login)
      - Default credentials: `admin@my-email.com` / `pass`
      - they can be found/changed inside your `.env` file
+- Prometheus metrics available at [http://localhost:8090/metrics](http://localhost:8090/metrics)
 
 <br><br>
 
@@ -87,6 +88,13 @@ Example interaction when running locally:
 ```bash
 curl -X POST "http://localhost:8080/api/v1/ml/handover?ue_id=u1"
 ```
+
+### Monitoring
+
+Metrics for Prometheus are exposed at `/metrics`. The default Docker Compose
+setup scrapes this endpoint and records counters like
+`nef_handover_decisions_total` and the `nef_request_duration_seconds`
+histogram.
 
 ## Local ML Mode
 

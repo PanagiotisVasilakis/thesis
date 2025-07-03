@@ -3,14 +3,16 @@
 import time
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.core.config import settings
 from app.api.api_v1.api import api_router, nef_router
+from app.monitoring import metrics
 
 # Where are we on disk?
 BASE_DIR = Path(__file__).resolve().parent  # .../app/app
@@ -43,13 +45,23 @@ nef_app = FastAPI(title="Northbound NEF APIs", openapi_url=None)
 nef_app.include_router(nef_router, prefix=settings.API_V1_STR)
 app.mount("/nef", nef_app)
 
+@app.get("/metrics")
+async def metrics_endpoint() -> Response:
+    """Expose Prometheus metrics."""
+    return Response(
+        generate_latest(metrics.REGISTRY),
+        media_type=CONTENT_TYPE_LATEST,
+    )
+
 # ================================= Middleware =================================
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start = time.time()
     resp = await call_next(request)
-    resp.headers["X-Process-Time"] = str(time.time() - start)
+    duration = time.time() - start
+    resp.headers["X-Process-Time"] = str(duration)
+    metrics.REQUEST_DURATION.labels(request.method, request.url.path).observe(duration)
     return resp
 
 # ================================= Static Files & Templates =================================

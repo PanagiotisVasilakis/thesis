@@ -54,15 +54,24 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     state_mod.NetworkStateManager = DummyStateManager
     network_pkg.state_manager = state_mod
 
+    monitoring_pkg = types.ModuleType("app.monitoring")
+    metrics_mod = types.ModuleType("app.monitoring.metrics")
+    metrics_mod.HANDOVER_DECISIONS = types.SimpleNamespace(labels=lambda *a, **k: types.SimpleNamespace(inc=lambda: None))
+    metrics_mod.REQUEST_DURATION = types.SimpleNamespace(labels=lambda *a, **k: types.SimpleNamespace(observe=lambda v: None))
+    monitoring_pkg.metrics = metrics_mod
+
     app_pkg = types.ModuleType("app")
     app_pkg.handover = handover_pkg
     app_pkg.network = network_pkg
+    app_pkg.monitoring = monitoring_pkg
 
     sys.modules.setdefault("app", app_pkg)
     sys.modules.setdefault("app.handover", handover_pkg)
     sys.modules.setdefault("app.handover.engine", engine_mod)
     sys.modules.setdefault("app.network", network_pkg)
     sys.modules.setdefault("app.network.state_manager", state_mod)
+    sys.modules.setdefault("app.monitoring", monitoring_pkg)
+    sys.modules.setdefault("app.monitoring.metrics", metrics_mod)
     spec.loader.exec_module(ml_api)
 
     sm = DummyStateManager()
