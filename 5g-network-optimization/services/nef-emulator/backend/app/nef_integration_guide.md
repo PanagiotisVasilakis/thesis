@@ -91,3 +91,28 @@ print("UE movement started")
 The emulator supports a basic 3GPP Event A3 rule. Disable machine learning by
 setting `ML_HANDOVER_ENABLED=0` and adjust `A3_HYSTERESIS_DB` and `A3_TTT_S` to
 control the hysteresis and time-to-trigger.
+
+### Local ML Mode
+
+Set the environment variable `ML_LOCAL=1` to use the ML logic bundled in the
+NEF container instead of contacting the `ml-service` API. Provide the path to
+your LightGBM model with the `ml_model_path` argument when instantiating
+`HandoverEngine`.
+
+Install the ML package during the image build:
+
+```Dockerfile
+RUN pip install -e services/ml-service
+```
+
+When running with `ML_LOCAL` enabled you can omit the `ml-service` container in
+`docker-compose.yml`:
+
+```yaml
+services:
+  nef-emulator:
+    environment:
+      - ML_LOCAL=1
+#  ml-service:
+#    image: 5g-network-optimization/ml-service:latest
+```
