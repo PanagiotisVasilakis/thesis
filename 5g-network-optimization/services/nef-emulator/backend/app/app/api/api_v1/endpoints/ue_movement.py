@@ -301,62 +301,6 @@ class BackgroundTasks(threading.Thread):
             
             # End of 2nd Approach for updating UEs position
 
-
-
-            '''
-            ===================================================================
-                             1st Approach for updating UEs position
-            ===================================================================
-
-            Summary: while(TRUE) --> keep iterating the points list again and again
-
-
-                points [ 1 2 3 4 5 6 7 8 9 10 ... ] . . . . . . .
-                               ^ point
-                           ^ flag
-                 
-            flag:    it is used once to find the current UE position and then is
-                     set to False
-            
-            Sleep/   
-            Speed:   LOW : sleeps   1 sec and goes to the next point  (1m/sec)
-                     HIGH: sleeps 0.1 sec and goes to the next point (10m/sec)
-
-            Pros:    + the UEs goes over every point and never skips any
-            Cons:    - updating the UE position every 0.1 sec is a more aggressive approach
-
-            -------------------------------------------------------------------
-            '''
-
-            # flag = True
-            
-            # while True:
-            #     for point in points:
-
-            #         #Iteration to find the last known coordinates of the UE
-            #         #Then the movements begins from the last known position (geo coordinates)
-            #         if ((UE.latitude != point["latitude"]) or (UE.longitude != point["longitude"])) and flag == True:
-            #             continue
-            #         elif (UE.latitude == point["latitude"]) and (UE.longitude == point["longitude"]) and flag == True:
-            #             flag = False
-            #             continue
-                    
-
-            #         #-----------------------Code goes here-------------------------#
-                    
-            #         if UE.speed == 'LOW':
-            #             time.sleep(1)
-            #         elif UE.speed == 'HIGH':
-            #             time.sleep(0.1)
-        
-            #         if self._stop_threads:
-            #             print("Stop moving...")
-            #             break       
-
-            #     if self._stop_threads:
-            #             print("Terminating thread...")
-            #             break       
-
         except Exception as ex:
             logging.critical(ex)
 
