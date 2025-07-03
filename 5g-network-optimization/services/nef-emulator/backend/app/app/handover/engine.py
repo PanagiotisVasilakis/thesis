@@ -39,9 +39,9 @@ class HandoverEngine:
         self.model = None
         if self.use_local_ml:
             try:
-                from ml_service.app.initialization.model_init import get_model
+                from ml_service.app.api_lib import load_model
 
-                self.model = get_model(self.ml_model_path)
+                self.model = load_model(self.ml_model_path)
             except Exception:
                 self.model = None
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)

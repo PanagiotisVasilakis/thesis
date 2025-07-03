@@ -228,7 +228,7 @@ def test_select_ml_local(monkeypatch):
             assert ue_id == "u1"
             return self.fv
 
-    calls = {"post": 0, "get_model": 0}
+    calls = {"post": 0, "load_model": 0}
 
     def fake_post(*a, **k):
         calls["post"] += 1
@@ -236,7 +236,7 @@ def test_select_ml_local(monkeypatch):
 
     class DummyModel:
         def extract_features(self, data, include_neighbors=True):
-            calls["get_model"] += 1
+            calls["load_model"] += 1
             return {"x": 1}
 
         def predict(self, features):
@@ -247,23 +247,16 @@ def test_select_ml_local(monkeypatch):
 
     import types, sys
 
-    model_mod = types.ModuleType("ml_service.app.initialization.model_init")
-    model_mod.get_model = lambda p=None: DummyModel()
-    init_pkg = types.ModuleType("ml_service.app.initialization")
-    init_pkg.model_init = model_mod
+    model_mod = types.ModuleType("ml_service.app.api_lib")
+    model_mod.load_model = lambda p=None: DummyModel()
     app_pkg = types.ModuleType("ml_service.app")
-    app_pkg.initialization = init_pkg
+    app_pkg.api_lib = model_mod
     ml_pkg = types.ModuleType("ml_service")
     ml_pkg.app = app_pkg
 
     monkeypatch.setitem(sys.modules, "ml_service", ml_pkg)
     monkeypatch.setitem(sys.modules, "ml_service.app", app_pkg)
-    monkeypatch.setitem(sys.modules, "ml_service.app.initialization", init_pkg)
-    monkeypatch.setitem(
-        sys.modules,
-        "ml_service.app.initialization.model_init",
-        model_mod,
-    )
+    monkeypatch.setitem(sys.modules, "ml_service.app.api_lib", model_mod)
 
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True, use_local_ml=True, ml_model_path="foo")

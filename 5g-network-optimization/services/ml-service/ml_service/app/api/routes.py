@@ -3,7 +3,7 @@ from flask import jsonify, request, current_app
 import requests
 from pathlib import Path
 from . import api_bp
-from ..initialization.model_init import get_model
+from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 
 
@@ -19,12 +19,8 @@ def predict():
     data = request.json
 
     try:
-        model = get_model(current_app.config["MODEL_PATH"])
-        # Extract features from request data
-        features = model.extract_features(data)
-
-        # Make prediction
-        result = model.predict(features)
+        model = load_model(current_app.config["MODEL_PATH"])
+        result, features = predict_ue(data, model=model)
 
         return jsonify(
             {
@@ -44,11 +40,8 @@ def train():
     data = request.json
 
     try:
-        model = get_model(current_app.config["MODEL_PATH"])
-        # Train the model
-        metrics = model.train(data)
-
-        # Save the model
+        model = load_model(current_app.config["MODEL_PATH"])
+        metrics = train_model(data, model=model)
         model.save()
 
         return jsonify({"status": "success", "metrics": metrics})
