@@ -81,7 +81,7 @@ def test_initialize_model_with_tuning(monkeypatch, tmp_path):
     model_path = tmp_path / "model.joblib"
     called = {"tune": 0}
 
-    def dummy_tune(model, data, n_iter=10):
+    def dummy_tune(model, data, n_iter=10, cv=3):
         called["tune"] += 1
         model.model = DummyModel()
         return {"samples": len(data), "best_params": {}}
@@ -93,3 +93,24 @@ def test_initialize_model_with_tuning(monkeypatch, tmp_path):
     model = initialize_model(str(model_path))
     assert called["tune"] == 1
     assert isinstance(model.model, DummyModel)
+
+
+def test_initialize_model_uses_env_parameters(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    seen = {}
+
+    def dummy_tune(model, data, n_iter=10, cv=3):
+        seen["n_iter"] = n_iter
+        seen["cv"] = cv
+        model.model = DummyModel()
+        return {"samples": len(data), "best_params": {}}
+
+    monkeypatch.setattr(model_init, "tune_and_train", dummy_tune)
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setenv("LIGHTGBM_TUNE", "1")
+    monkeypatch.setenv("LIGHTGBM_TUNE_N_ITER", "5")
+    monkeypatch.setenv("LIGHTGBM_TUNE_CV", "4")
+
+    initialize_model(str(model_path))
+    assert seen["n_iter"] == 5
+    assert seen["cv"] == 4

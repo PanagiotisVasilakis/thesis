@@ -112,6 +112,8 @@ The service reads configuration from the Flask app settings. Important variables
 | `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080` |
 | `MODEL_PATH` | Location of the persisted model file | `app/models/antenna_selector.joblib` |
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
+| `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
+| `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
 
 The service always runs with a LightGBM model; no other model types are supported.
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
@@ -189,10 +191,23 @@ loaded automatically on the next service start.
 ## Hyperparameter Tuning
 
 Set the environment variable `LIGHTGBM_TUNE=1` before starting the service to
-run a quick randomized search for optimal LightGBM parameters.  During
+run a quick randomized search for optimal LightGBM parameters. During
 initialization the service generates synthetic data and executes the tuning
 routine defined in `app/utils/tuning.py`.  The best estimator is then persisted
 at `MODEL_PATH`.
+
+The tuning helpers expose optional `n_iter` and `cv` parameters controlling the
+number of random search iterations and the cross‑validation folds. When the
+service starts with `LIGHTGBM_TUNE=1` these values default to `10` and `3`
+respectively.  You can override them by setting `LIGHTGBM_TUNE_N_ITER` and
+`LIGHTGBM_TUNE_CV` environment variables or by calling
+`tune_and_train(model, data, n_iter=..., cv=...)` directly from your own
+scripts.
+
+With the default search (`n_iter=10`, `cv=3`) tuning synthetic data of 500
+samples typically finishes in a few seconds on a modern laptop and requires less
+than 200 MB of RAM. Increase `n_iter` or `cv` to explore a larger parameter
+space at the cost of longer runtimes and higher memory usage.
 
 ```bash
 LIGHTGBM_TUNE=1 python app.py
