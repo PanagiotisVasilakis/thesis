@@ -20,12 +20,27 @@ Shadow fading can be enabled or disabled through the `include_shadowing` flag, w
 
 The path‑loss models themselves live in `rf_models/path_loss.py`. They implement well‑known formulas from 3GPP TR 38.901, such as ABG and Close‑In, and optionally add log‑normal shadow fading.
 
+## Massive MIMO Pattern
+
+`MassiveMIMOPattern` in `antenna_models/patterns.py` models a steerable antenna
+array for beamforming studies.  It exposes several parameters:
+
+- **num_elements_horizontal** – elements along the azimuth axis
+- **num_elements_vertical** – elements along the elevation axis
+- **element_spacing** – spacing between elements in wavelengths
+- **carrier_frequency** – carrier frequency in GHz
+- **max_gain_dbi** – peak gain of the array
+
+Set the beam with `set_steering_direction(azimuth, elevation)` and use
+`calculate_gain()` to obtain the directional gain.
+
 ## References in Tests
 
 Two sets of tests exercise the code:
 
 - `tests/rf_models/test_antenna_models.py` instantiates `MacroCellModel`, `MicroCellModel`, and `PicoCellModel` and calls `path_loss_db()` and `sinr_db()` to verify behaviour.
 - `tests/rf_models/test_path_loss.py` directly tests `ABGPathLossModel`, `CloseInPathLossModel`, and `FastFading` by running path‑loss computations over varying distances and plotting the results.
+- `tests/rf_models/test_massive_mimo_pattern.py` verifies that `MassiveMIMOPattern.calculate_gain()` returns finite gains for a range of azimuth and elevation angles.
 
 Together these tests ensure that the antenna models correctly delegate to the underlying path‑loss functions and that the models themselves follow expected statistical properties.
 
