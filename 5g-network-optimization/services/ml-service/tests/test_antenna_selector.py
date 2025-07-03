@@ -138,3 +138,47 @@ def test_predict_with_mock_and_persistence(tmp_path):
     assert isinstance(loaded.model, DummyModel)
     assert loaded.predict(features) == result
 
+
+def test_extract_features_neighbor_padding():
+    model = LightGBMSelector()
+
+    first_sample = {
+        'connected_to': 'a1',
+        'rf_metrics': {
+            'a1': {'rsrp': -60, 'sinr': 15},
+            'a2': {'rsrp': -65, 'sinr': 10},
+            'a3': {'rsrp': -70, 'sinr': 5},
+            'a4': {'rsrp': -80, 'sinr': 3},
+        },
+    }
+
+    many_features = model.extract_features(first_sample)
+
+    assert model.neighbor_count == 3
+    assert 'rsrp_a3' in many_features
+    assert 'rsrp_a3' in model.feature_names
+
+    second_sample = {
+        'connected_to': 'a1',
+        'rf_metrics': {
+            'a1': {'rsrp': -60, 'sinr': 10},
+            'a2': {'rsrp': -70, 'sinr': 8},
+        },
+    }
+
+    few_features = model.extract_features(second_sample)
+
+    assert model.neighbor_count == 3
+    assert {
+        key for key in (
+            'rsrp_a1', 'rsrp_a2', 'rsrp_a3',
+            'sinr_a1', 'sinr_a2', 'sinr_a3'
+        )
+    } <= few_features.keys()
+    assert few_features['rsrp_a1'] == -70
+    assert few_features['sinr_a1'] == 8
+    assert few_features['rsrp_a2'] == -120
+    assert few_features['sinr_a2'] == 0
+    assert few_features['rsrp_a3'] == -120
+    assert few_features['sinr_a3'] == 0
+
