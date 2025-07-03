@@ -39,7 +39,11 @@ jobs:
         run: |
           mkdir -p CI-CD_reports
           report="CI-CD_reports/vulture_report_${{ github.run_number }}.txt"
-          vulture --min-confidence 90 --exclude '*/tests/*' . > "$report"
+          if [ -f .vulture-ignore ]; then
+            IGNORE_NAMES=$(paste -sd, .vulture-ignore)
+            EXTRA_ARGS="--ignore-names $IGNORE_NAMES"
+          fi
+          vulture --min-confidence 90 --exclude '*/tests/*' $EXTRA_ARGS . > "$report"
           if [ -s "$report" ]; then
             echo "unused=true" >> "$GITHUB_OUTPUT"
             cat "$report"
