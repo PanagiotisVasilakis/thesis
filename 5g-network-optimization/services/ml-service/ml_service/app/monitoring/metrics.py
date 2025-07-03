@@ -97,9 +97,3 @@ def track_training(duration, num_samples, accuracy=None):
     if accuracy is not None:
         MODEL_TRAINING_ACCURACY.set(accuracy)
 
-# Update in app/__init__.py to integrate the metrics middleware
-"""
-# Add to create_app function
-from ml_service.app.monitoring.metrics import MetricsMiddleware
-app.wsgi_app = MetricsMiddleware(app.wsgi_app)
-"""
