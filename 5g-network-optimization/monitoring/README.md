@@ -2,6 +2,8 @@
 
 This directory contains configuration for Prometheus and Grafana used during development. When `docker-compose` is started from the project root, these services collect metrics from the NEF emulator and the ML service.
 
+The ML service exposes metrics at `http://localhost:5050/metrics` when running locally.
+
 ## Prometheus
 
 Prometheus scrapes the `/metrics` endpoint exposed by each service. The scrape targets are defined in `prometheus/prometheus.yml`:

@@ -126,6 +126,11 @@ Check ML service connectivity with the NEF emulator:
 curl http://localhost:5050/api/nef-status
 ```
 
+Fetch Prometheus metrics exposed by the ML service:
+```bash
+curl http://localhost:5050/metrics
+```
+
 ## Building Docker Images
 
 Build the NEF emulator and ML service images before deploying to Kubernetes:
