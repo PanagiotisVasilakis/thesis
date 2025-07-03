@@ -3,11 +3,14 @@ import sys
 
 # Ensure service packages are on sys.path for all tests
 SERVICES_ROOT = os.path.abspath(os.path.dirname(__file__))
+REPO_ROOT = os.path.dirname(SERVICES_ROOT)
 NEF_ROOT = os.path.join(SERVICES_ROOT, 'nef-emulator')
 NEF_BACKEND_ROOT = os.path.join(NEF_ROOT, 'backend')
 NEF_APP_ROOT = os.path.join(NEF_BACKEND_ROOT, 'app', 'app')
 
-for path in reversed([NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
+# Add service directories to ``sys.path`` so modules like ``services.logging_config``
+# are importable during tests.
+for path in reversed([REPO_ROOT, SERVICES_ROOT, NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
     if path not in sys.path:
         sys.path.insert(0, path)
 
