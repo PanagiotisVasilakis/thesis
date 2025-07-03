@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException
 from app.network.state_manager import NetworkStateManager
 from app.handover.engine import HandoverEngine
+from app.monitoring import metrics
 
 router = APIRouter(
     prefix="/ml",
@@ -34,7 +35,9 @@ def apply_handover(ue_id: str):
     try:
         result = engine.decide_and_apply(ue_id)
         if result is None:
+            metrics.HANDOVER_DECISIONS.labels(outcome="none").inc()
             raise HTTPException(status_code=400, detail="No handover triggered")
+        metrics.HANDOVER_DECISIONS.labels(outcome="applied").inc()
         return result
     except KeyError as err:
         raise HTTPException(status_code=404, detail=str(err))

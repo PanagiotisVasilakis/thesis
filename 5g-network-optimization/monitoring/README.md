@@ -22,6 +22,9 @@ scrape_configs:
 
 The configuration also includes a job for Prometheus itself. Adjust the targets if the service names or ports change.
 
+The NEF emulator exposes counters like `nef_handover_decisions_total` and the
+`nef_request_duration_seconds` histogram on this endpoint.
+
 Start Prometheus with Docker Compose, or run the container manually and mount this directory at `/etc/prometheus`.
 
 ## Grafana

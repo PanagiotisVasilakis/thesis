@@ -38,6 +38,7 @@ This directory groups the code and configuration needed to run the system:
 - `5g-network-optimization/services/` – source code for the NEF emulator and the ML service. Each service includes its own Dockerfile and tests. These services are referenced by `docker-compose.yml` for local development and by the manifests under `5g-network-optimization/deployment/`.
 - `5g-network-optimization/deployment/` – Kubernetes manifests for running the pre-built images in a cluster. They rely on images built from `5g-network-optimization/services/` being pushed to your registry.
 - `5g-network-optimization/monitoring/` – Prometheus and Grafana configuration used to collect metrics from the running services.
+- The NEF emulator exposes Prometheus metrics at `/metrics` which the monitoring stack scrapes.
 - `5g-network-optimization/docker-compose.yml` – orchestrates all services locally, including the monitoring stack.
 - `pytest.ini` – shared configuration for running the automated tests.
 
