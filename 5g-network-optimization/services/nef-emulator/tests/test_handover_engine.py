@@ -207,6 +207,70 @@ def test_select_ml(monkeypatch):
     assert eng._select_ml("u1") == "B"
 
 
+def test_select_ml_local(monkeypatch):
+    """_select_ml should use local model when enabled."""
+    fv = {
+        "ue_id": "u1",
+        "latitude": 0,
+        "longitude": 0,
+        "connected_to": "A",
+        "neighbor_rsrp_dbm": {"A": -80, "B": -70},
+        "neighbor_sinrs": {"A": 10, "B": 15},
+        "speed": 0.0,
+    }
+
+    class DummyStateMgr:
+        def __init__(self):
+            self.fv = fv
+            self.antenna_list = {aid: DummyAntenna(-80) for aid in fv["neighbor_rsrp_dbm"]}
+
+        def get_feature_vector(self, ue_id):
+            assert ue_id == "u1"
+            return self.fv
+
+    calls = {"post": 0, "get_model": 0}
+
+    def fake_post(*a, **k):
+        calls["post"] += 1
+        raise AssertionError("HTTP request should not be made")
+
+    class DummyModel:
+        def extract_features(self, data, include_neighbors=True):
+            calls["get_model"] += 1
+            return {"x": 1}
+
+        def predict(self, features):
+            assert features == {"x": 1}
+            return {"antenna_id": "B"}
+
+    monkeypatch.setattr("requests.post", fake_post)
+
+    import types, sys
+
+    model_mod = types.ModuleType("ml_service.app.initialization.model_init")
+    model_mod.get_model = lambda p=None: DummyModel()
+    init_pkg = types.ModuleType("ml_service.app.initialization")
+    init_pkg.model_init = model_mod
+    app_pkg = types.ModuleType("ml_service.app")
+    app_pkg.initialization = init_pkg
+    ml_pkg = types.ModuleType("ml_service")
+    ml_pkg.app = app_pkg
+
+    monkeypatch.setitem(sys.modules, "ml_service", ml_pkg)
+    monkeypatch.setitem(sys.modules, "ml_service.app", app_pkg)
+    monkeypatch.setitem(sys.modules, "ml_service.app.initialization", init_pkg)
+    monkeypatch.setitem(
+        sys.modules,
+        "ml_service.app.initialization.model_init",
+        model_mod,
+    )
+
+    sm = DummyStateMgr()
+    eng = HandoverEngine(sm, use_ml=True, use_local_ml=True, ml_model_path="foo")
+    assert eng._select_ml("u1") == "B"
+    assert calls["post"] == 0
+
+
 def test_select_rule(monkeypatch):
     """_select_rule uses rule object to pick the target antenna."""
     fv = {
