@@ -80,6 +80,7 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `A3_HYSTERESIS_DB` | Hysteresis value in dB for the A3 event rule | `2.0` |
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
+| `ML_LOCAL` | Install the ML service in the NEF emulator container and skip the separate `ml-service` container | `0` |
 
 When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
 `ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
@@ -96,6 +97,14 @@ ML_HANDOVER_ENABLED=0 docker-compose -f 5g-network-optimization/docker-compose.y
 ### ML Mode
 ```bash
 ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+```
+
+### Single Container Mode
+Install the ML service inside the NEF emulator image and omit the standalone
+`ml-service` container:
+
+```bash
+ML_LOCAL=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
 ### Example API Calls

@@ -1,5 +1,7 @@
 FROM tiangolo/uvicorn-gunicorn-fastapi:python3.10
 
+ARG ML_LOCAL=0
+
 WORKDIR /app/
 
 # Install build dependencies
@@ -12,7 +14,7 @@ RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python
     poetry config virtualenvs.create false
 
 # Copy poetry.lock* in case it doesn't exist in the repo
-COPY ./app/pyproject.toml ./app/poetry.lock* /app/
+COPY services/nef-emulator/backend/app/pyproject.toml services/nef-emulator/backend/app/poetry.lock* /app/
 
 # Allow installing dev dependencies to run tests
 ARG INSTALL_DEV=false
@@ -24,7 +26,7 @@ RUN bash -c "if [ $INSTALL_DEV == 'true' ] ; then poetry install --no-root ; els
 ARG INSTALL_JUPYTER=false
 RUN bash -c "if [ $INSTALL_JUPYTER == 'true' ] ; then pip install jupyterlab ; fi"
 
-COPY ./app /app
+COPY services/nef-emulator/backend/app /app
 ENV PYTHONPATH=/app
 
 WORKDIR /
@@ -38,6 +40,12 @@ WORKDIR /
 #     cp -R evolved5g /usr/local/lib/python3.10/site-packages/
 
 WORKDIR /app/
-COPY ./start-reload.sh /
+COPY services/nef-emulator/backend/start-reload.sh /
 ENV A3_HYSTERESIS_DB=2.0
 ENV A3_TTT_S=0.0
+
+# Optionally install the ML service inside this image
+COPY services/ml-service /opt/ml-service
+RUN if [ "$ML_LOCAL" = "1" ] || [ "$ML_LOCAL" = "true" ]; then \
+        pip install /opt/ml-service; \
+    fi

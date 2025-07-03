@@ -2,8 +2,10 @@ services:
   nef-emulator:
     image: 5g-network-optimization/nef-emulator:latest
     build:
-      context: ./services/nef-emulator
-      dockerfile: backend/Dockerfile.backend
+      context: .
+      dockerfile: services/nef-emulator/backend/Dockerfile.backend
+      args:
+        ML_LOCAL: ${ML_LOCAL:-0}
     ports:
       - "8080:80"
     environment:
@@ -11,11 +13,14 @@ services:
       - SERVER_HOST=http://localhost
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
+      - ML_LOCAL=${ML_LOCAL:-0}
     networks:
       - 5g-network
   
   ml-service:
     image: 5g-network-optimization/ml-service:latest
+    profiles:
+      - "${ML_LOCAL:-ml}"
     build:
       context: ./services/ml-service
       dockerfile: Dockerfile
