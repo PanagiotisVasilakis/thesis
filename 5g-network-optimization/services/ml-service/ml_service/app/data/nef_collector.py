@@ -68,19 +68,29 @@ class NEFDataCollector:
                     if ue_data.get('Cell_id') is None:
                         continue
                     
-                    # For this initial version, we'll assume current cell is optimal
-                    # In a real implementation, this would use more sophisticated logic
-                    optimal_cell_id = ue_data.get('Cell_id')
-                    
+                    # Determine the best antenna based on reported RF metrics
                     fv = self.client.get_feature_vector(ue_id)
                     rf_metrics = {}
                     rsrps = fv.get('neighbor_rsrp_dbm', {})
                     sinrs = fv.get('neighbor_sinrs', {})
+
+                    connected_cell_id = ue_data.get('Cell_id')
+                    best_antenna = connected_cell_id
+                    best_rsrp = float('-inf')
+                    best_sinr = float('-inf')
+
                     for aid, rsrp in rsrps.items():
+                        sinr = sinrs.get(aid)
                         rf_metrics[aid] = {
                             'rsrp': rsrp,
-                            'sinr': sinrs.get(aid)
+                            'sinr': sinr,
                         }
+
+                        sinr_val = sinr if sinr is not None else float('-inf')
+                        if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
+                            best_rsrp = rsrp
+                            best_sinr = sinr_val
+                            best_antenna = aid
 
                     # Create a data sample
                     sample = {
@@ -89,8 +99,8 @@ class NEFDataCollector:
                         'latitude': ue_data.get('latitude'),
                         'longitude': ue_data.get('longitude'),
                         'speed': ue_data.get('speed'),
-                        'connected_to': optimal_cell_id,
-                        'optimal_antenna': optimal_cell_id,
+                        'connected_to': connected_cell_id,
+                        'optimal_antenna': best_antenna,
                         'rf_metrics': rf_metrics,
                     }
                     

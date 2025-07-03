@@ -45,6 +45,7 @@ def test_collect_training_data(tmp_path, monkeypatch):
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12}}
+    assert data[0]["optimal_antenna"] == "A"
 
     files = list(tmp_path.iterdir())
     assert len(files) == 1
