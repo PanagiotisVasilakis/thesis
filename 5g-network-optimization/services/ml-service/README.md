@@ -114,6 +114,19 @@ The service reads configuration from the Flask app settings. Important variables
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 
 The service always runs with a LightGBM model; no other model types are supported.
+`MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
+To retain the model between container runs you can mount a host directory and point `MODEL_PATH` at a file in that directory.
+
+For example, create a `docker-compose.override.yml`:
+
+```yaml
+services:
+  ml-service:
+    volumes:
+      - ./model-data:/persisted-model
+    environment:
+      - MODEL_PATH=/persisted-model/antenna_selector.joblib
+```
 
 This service is called by the NEF emulator using the `ML_SERVICE_URL` variable.
 The emulator sends UE feature vectors to `/api/predict` and expects the returned
