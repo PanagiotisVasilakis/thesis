@@ -1,17 +1,15 @@
 """Path loss models based on 3GPP TR 38.901."""
 import math
 import numpy as np
+from abc import ABC, abstractmethod
 
-class PathLossModel:
+class PathLossModel(ABC):
     """Base class for path loss models."""
-    
-    def __init__(self):
-        """Initialize the path loss model."""
-        pass
-    
+
+    @abstractmethod
     def calculate_path_loss(self, distance, frequency, include_shadowing=True):
         """Calculate path loss at given distance and frequency."""
-        raise NotImplementedError("Subclasses must implement this method")
+        raise NotImplementedError
 
 class ABGPathLossModel(PathLossModel):
     """

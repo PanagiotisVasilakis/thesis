@@ -1,17 +1,15 @@
 """Antenna radiation patterns based on 3GPP specifications."""
 import numpy as np
 import math
+from abc import ABC, abstractmethod
 
-class AntennaPattern:
+class AntennaPattern(ABC):
     """Base class for antenna radiation patterns."""
-    
-    def __init__(self):
-        """Initialize the antenna pattern."""
-        pass
-    
+
+    @abstractmethod
     def calculate_gain(self, azimuth, elevation):
         """Calculate antenna gain in given direction."""
-        raise NotImplementedError("Subclasses must implement this method")
+        raise NotImplementedError
 
 class IsotropicPattern(AntennaPattern):
     """
