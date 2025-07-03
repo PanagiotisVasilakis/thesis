@@ -1,4 +1,4 @@
-FROM python:3.9-bullseye-slim AS builder
+FROM python:3.10-bullseye-slim AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ ENV PATH="/venv/bin:/home/appuser/.vscode-server/bin/17baf841131aa23349f217ca7c5
 RUN pip install --no-cache-dir -U pip setuptools wheel
 
 # Production stage
-FROM python:3.9-bullseye-slim
+FROM python:3.10-bullseye-slim
 
 # Create non-root user
 RUN useradd -m appuser
