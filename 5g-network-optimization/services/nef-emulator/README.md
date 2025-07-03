@@ -75,6 +75,7 @@ The emulator reads several variables from `.env` or the shell:
 |----------|-------------|---------|
 | `ML_HANDOVER_ENABLED` | Enable ML-based handovers (`1` or `0`) | `0` |
 | `ML_SERVICE_URL` | URL of the ML service used for predictions | `http://ml-service:5050` |
+| `ML_LOCAL` | Use the local ML package instead of the `ml-service` container (`1` or `0`) | `0` |
 | `A3_HYSTERESIS_DB` | A3 hysteresis value in dB | `2.0` |
 | `A3_TTT_S` | A3 time-to-trigger in seconds | `0.0` |
 
@@ -85,6 +86,30 @@ service.
 Example interaction when running locally:
 ```bash
 curl -X POST "http://localhost:8080/api/v1/ml/handover?ue_id=u1"
+```
+
+## Local ML Mode
+
+Set `ML_LOCAL=1` to run the emulator without the separate `ml-service`
+container. In this mode the `ml_service` package must be installed inside the
+NEF image and `HandoverEngine` will load the model from the path provided via
+its optional `ml_model_path` argument.
+
+Add the package installation step when building the container:
+
+```Dockerfile
+RUN pip install -e services/ml-service
+```
+
+Disable the `ml-service` service in `docker-compose.yml`:
+
+```yaml
+services:
+  nef-emulator:
+    environment:
+      - ML_LOCAL=1
+#  ml-service:
+#    image: 5g-network-optimization/ml-service:latest
 ```
 
 ## 🏷️ How to work on a specific tag / release
