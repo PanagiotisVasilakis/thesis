@@ -31,5 +31,7 @@ Start Prometheus with Docker Compose, or run the container manually and mount th
 
 Grafana reads data from Prometheus and provides dashboards. The sample dashboard under `grafana/dashboards/ml_service.json` visualizes request latency, prediction counts and training statistics from the ML service. When Grafana is launched via Docker Compose it automatically picks up dashboards from `grafana/dashboards`.
 
+Dashboard provisioning is configured in `grafana/provisioning/dashboards.yml`, which instructs Grafana to load any JSON dashboards from that directory on startup.
+
 Login with the default admin credentials (`admin` / `admin`) and add the Prometheus data source at `http://prometheus:9090` if it is not preconfigured. You can then import or customize dashboards to monitor additional metrics.
 
