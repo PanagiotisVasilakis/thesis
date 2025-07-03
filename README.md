@@ -83,6 +83,9 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
 | `ML_LOCAL` | Install the ML service in the NEF emulator container and skip the separate `ml-service` container | `0` |
 
+The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector.joblib`).
+Override this variable and mount a host directory in a `docker-compose.override.yml` file if you want the model to persist across container runs.
+
 When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
 `ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
 contains the recommended antenna which is then applied automatically.

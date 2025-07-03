@@ -188,6 +188,7 @@ Update the `EXTERNAL_NET` environment variable to `false` in the `.env` file of 
 - **mobility_models/** – Example UE mobility patterns (linear, L‑shaped, etc.) and helpers for feeding trajectories to the emulator.
 - **rf_models/** – Path loss and radio‑frequency utilities for computing RSRP, SINR and similar metrics.
 - **docs/antenna_and_path_loss.md** – Documentation on how antenna models call these path‑loss utilities and where the relevant tests live.
+- **tests/rf_models/test_massive_mimo_pattern.py** – unit test ensuring `MassiveMIMOPattern` produces finite gains.
 
 ### Core classes
 
