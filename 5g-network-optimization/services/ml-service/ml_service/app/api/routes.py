@@ -116,6 +116,6 @@ def collect_data():
         if files:
             latest = str(files[-1])
     except Exception:
-        pass
+        current_app.logger.exception("Failed to find latest training data file")
 
     return jsonify({"samples": len(samples), "file": latest})
