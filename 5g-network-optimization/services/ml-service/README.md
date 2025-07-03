@@ -84,6 +84,13 @@ curl -X POST http://localhost:5050/api/collect-data \
      -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
 ```
 
+### `GET /metrics`
+Expose Prometheus metrics for monitoring.
+
+```bash
+curl http://localhost:5050/metrics
+```
+
 ### Visualization Endpoints
 Additional helpers under `/api/visualization` generate PNG images.
 

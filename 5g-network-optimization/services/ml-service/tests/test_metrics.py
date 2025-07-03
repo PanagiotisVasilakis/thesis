@@ -43,3 +43,10 @@ def test_track_training_updates_metrics():
     assert sum_after == sum_before + 1.2
     assert samples == 10
     assert accuracy == 0.9
+
+
+def test_metrics_endpoint_exposes_counters(app):
+    client = app.test_client()
+    resp = client.get("/metrics")
+    assert resp.status_code == 200
+    assert b"ml_prediction_requests_total" in resp.data
