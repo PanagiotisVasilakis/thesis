@@ -82,9 +82,34 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
 | `ML_LOCAL` | Install the ML service in the NEF emulator container and skip the separate `ml-service` container | `0` |
+| `min_antennas_ml` (param) | Minimum antennas required for automatic ML mode. Override when instantiating `HandoverEngine` | `3` |
 
 The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector.joblib`).
 Override this variable and mount a host directory in a `docker-compose.override.yml` file if you want the model to persist across container runs.
+
+When `ML_HANDOVER_ENABLED` is *unset*, `HandoverEngine` toggles ML based on the
+number of registered antennas. ML becomes active once at least
+`min_antennas_ml` antennas exist. To change this threshold pass the parameter
+explicitly when constructing the engine:
+
+```python
+state_mgr = NetworkStateManager()
+engine = HandoverEngine(state_mgr, min_antennas_ml=2)
+```
+
+With two antennas registered the engine operates in rule-based mode. Adding a
+third antenna makes it switch to ML automatically:
+
+```python
+nsm = NetworkStateManager()
+nsm.antenna_list = {"A": Antenna(...), "B": Antenna(...)}
+engine = HandoverEngine(nsm)
+print(engine.use_ml)  # False
+
+nsm.antenna_list["C"] = Antenna(...)
+engine._update_mode()
+print(engine.use_ml)  # True
+```
 
 When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
 `ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
