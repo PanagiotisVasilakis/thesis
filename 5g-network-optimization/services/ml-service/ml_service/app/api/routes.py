@@ -1,10 +1,12 @@
 """API routes for ML Service."""
 from flask import jsonify, request, current_app
 import requests
+import time
 from pathlib import Path
 from . import api_bp
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
+from ..monitoring.metrics import track_prediction, track_training
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -21,6 +23,7 @@ def predict():
     try:
         model = load_model(current_app.config["MODEL_PATH"])
         result, features = predict_ue(data, model=model)
+        track_prediction(result["antenna_id"], result["confidence"])
 
         return jsonify(
             {
@@ -41,7 +44,10 @@ def train():
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
+        start = time.time()
         metrics = train_model(data, model=model)
+        duration = time.time() - start
+        track_training(duration, metrics.get("samples", 0), metrics.get("val_accuracy"))
         model.save()
 
         return jsonify({"status": "success", "metrics": metrics})
