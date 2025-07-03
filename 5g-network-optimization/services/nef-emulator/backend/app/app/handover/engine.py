@@ -18,6 +18,8 @@ class HandoverEngine:
         state_mgr: NetworkStateManager,
         use_ml: Optional[bool] = None,
         ml_model_path: Optional[str] = None,
+        *,
+        use_local_ml: bool = False,
         ml_service_url: Optional[str] = None,
         min_antennas_ml: int = 3,
         a3_hysteresis_db: float = 2.0,
@@ -29,6 +31,19 @@ class HandoverEngine:
             "ML_SERVICE_URL", "http://ml-service:5050"
         )
         self.min_antennas_ml = min_antennas_ml
+        env_local = os.getenv("ML_LOCAL")
+        if env_local is not None:
+            self.use_local_ml = env_local.lower() in {"1", "true", "yes"}
+        else:
+            self.use_local_ml = bool(use_local_ml)
+        self.model = None
+        if self.use_local_ml:
+            try:
+                from ml_service.app.initialization.model_init import get_model
+
+                self.model = get_model(self.ml_model_path)
+            except Exception:
+                self.model = None
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
         # Always have an A3 rule available; it will only be used when
         # machine learning is disabled.
@@ -73,6 +88,13 @@ class HandoverEngine:
             "connected_to": fv["connected_to"],
             "rf_metrics": rf_metrics,
         }
+        if self.use_local_ml and self.model:
+            try:
+                features = self.model.extract_features(ue_data)
+                pred = self.model.predict(features)
+                return pred.get("antenna_id") or pred.get("predicted_antenna")
+            except Exception:
+                return None
         url = f"{self.ml_service_url.rstrip('/')}/api/predict"
         try:
             resp = requests.post(url, json=ue_data, timeout=5)
