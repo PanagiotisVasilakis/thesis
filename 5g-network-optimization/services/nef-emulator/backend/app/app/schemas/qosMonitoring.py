@@ -31,8 +31,6 @@ class QosMonitoringInformation(BaseModel):
     waitTime: int = Field(None, description="Indicates the minimum waiting time (seconds) between subsequent reports. Only applicable when the \"repFreqs\" attribute includes \"EVENT_TRIGGERED\".")
     repPeriod: int = Field(None, description="Indicates the time interval (seconds) between successive reporting. Only applicable when the \"repFreqs\" attribute includes\"PERIODIC\".")
 
-class SponsorInfo(BaseModel):
-    pass
 
 class AsSessionWithQoSSubscriptionCreate(BaseModel):
     #Remember, when you actually trying to access the database through CRUD methods you need to typecast the pydantic types to strings, int etc.
