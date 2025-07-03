@@ -65,9 +65,25 @@ def read_active_subscriptions(
 
 qos_callback_router = APIRouter()
 
-@qos_callback_router.post("{$request.body.notificationDestination}", response_class=Response)
-def as_session_with_qos_notification(body: schemas.UserPlaneNotificationData):
-    pass
+@qos_callback_router.post(
+    "{$request.body.notificationDestination}", response_class=Response
+)
+def as_session_with_qos_notification(
+    body: schemas.UserPlaneNotificationData, *, http_request: Request
+) -> Any:
+    """Receive and store QoS monitoring notifications."""
+
+    db_mongo: Database = client.fastapi
+    try:
+        crud_mongo.create(
+            db_mongo, "QoSMonitoringNotification", jsonable_encoder(body)
+        )
+    except Exception as ex:  # pragma: no cover - defensive
+        raise HTTPException(status_code=400, detail=str(ex))
+
+    http_response = JSONResponse(content={"ok": True}, status_code=200)
+    add_notifications(http_request, http_response, True)
+    return http_response
 
 @router.post("/{scsAsId}/subscriptions", responses={201: {"model" : schemas.AsSessionWithQoSSubscription}}, callbacks=qos_callback_router.routes)
 def create_subscription(
