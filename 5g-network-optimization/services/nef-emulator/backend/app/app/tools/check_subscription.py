@@ -12,33 +12,33 @@ def check_expiration_time(expire_time):
     sec = int(expire_time[17:19])
 
     time_now = time.localtime()
-    # print(time.asctime(time_now))
+    logger.debug("Current time: %s", time.asctime(time_now))
     
-    if year>time_now[0]: 
-        # print(year, time_now[0])
+    if year>time_now[0]:
+        logger.debug("Year: %s, current year: %s", year, time_now[0])
         return True
     elif year == time_now[0]:
         if month > time_now[1]:
-            # print(month, time_now[1])
+            logger.debug("Month: %s, current month: %s", month, time_now[1])
             return True
         elif(month == time_now[1]):
             if(day>time_now[2]):
-                # print(day, time_now[2])
+                logger.debug("Day: %s, current day: %s", day, time_now[2])
                 return True
             elif(day==time_now[2]):
-                # print("Day == day now", day, time_now[2])
+                logger.debug("Day == day now %s %s", day, time_now[2])
                 if(hour>time_now[3]):
-                    # print(hour, time_now[3])
+                    logger.debug("Hour: %s, current hour: %s", hour, time_now[3])
                     return True
                 elif(hour==time_now[3]):
-                    # print("Time == time now", hour, time_now[3])
+                    logger.debug("Time == time now %s %s", hour, time_now[3])
                     if(minute>time_now[4]):
                         logger.debug("%s %s", minute, time_now[4])
                         return True
                     elif(minute==time_now[4]):
-                        # print("Minute == minute now", minute, time_now[4])
+                        logger.debug("Minute == minute now %s %s", minute, time_now[4])
                         if(sec>=time_now[5]):
-                            # print(sec, time_now[5])
+                            logger.debug("%s %s", sec, time_now[5])
                             return True
                         else:
                             return False
