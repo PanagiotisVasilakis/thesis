@@ -4,7 +4,7 @@ import random
 from datetime import datetime, timedelta
 
 class MobilityModel:
-    """Base class for all mobility models following 3GPP TR 38.901"""
+    """Base class for mobility models from 3GPP TR 38.901 Section 7.6."""
 
     def __init__(self, ue_id, start_time=None, mobility_params=None):
         self.ue_id = ue_id
@@ -23,7 +23,7 @@ class MobilityModel:
 
 
 class LinearMobilityModel(MobilityModel):
-    """Linear mobility model (3GPP TR 38.901 Section 7.6.3.2)"""
+    """Linear mobility model from 3GPP TR 38.901 Section 7.6.3.2."""
     
     def __init__(self, ue_id, start_position, end_position, speed, start_time=None):
         super().__init__(ue_id, start_time)
@@ -39,7 +39,7 @@ class LinearMobilityModel(MobilityModel):
         dy = self.end_position[1] - self.start_position[1]
         dz = self.end_position[2] - self.start_position[2]
 
-        # Calculate total distance
+        # Calculate total distance (TR 38.901 Eq. for Euclidean distance)
         distance = math.sqrt(dx**2 + dy**2 + dz**2)
 
         # Normalize direction vector
@@ -53,7 +53,9 @@ class LinearMobilityModel(MobilityModel):
         # Determine number of steps
         max_steps = min(int(duration_seconds), int(distance/self.speed))
         for step in range(0, max_steps+1):
+            # Distance travelled = speed × time (TR 38.901 basic kinematics)
             d = min(step * self.speed, distance)
+            # New position along the line segment
             x = self.start_position[0] + dx * d
             y = self.start_position[1] + dy * d
             z = self.start_position[2] + dz * d
@@ -71,7 +73,7 @@ class LinearMobilityModel(MobilityModel):
         return self.trajectory
 
 class LShapedMobilityModel(MobilityModel):
-    """L-shaped mobility model with a 90-degree turn (3GPP TR 38.901)"""
+    """L-shaped path composed of two linear segments (TR 38.901 §7.6.3.2)."""
     
     def __init__(self, ue_id, start_position, corner_position, end_position, speed, start_time=None):
         super().__init__(ue_id, start_time)
@@ -96,7 +98,9 @@ class LShapedMobilityModel(MobilityModel):
         dx1 = self.corner_position[0] - self.start_position[0]
         dy1 = self.corner_position[1] - self.start_position[1]
         dz1 = self.corner_position[2] - self.start_position[2]
+        # Distance to the corner (Euclidean)
         segment1_distance = math.sqrt(dx1**2 + dy1**2 + dz1**2)
+        # Time = distance / speed
         segment1_time = segment1_distance / self.speed
         
         # Start time for second segment
@@ -128,7 +132,7 @@ class LShapedMobilityModel(MobilityModel):
 
 class RandomWaypointModel(MobilityModel):
     """
-    3GPP TR 38.901 §7.6.3.3 compliant Random Waypoint:
+    Random Waypoint mobility model from 3GPP TR 38.901 §7.6.3.3:
     - Choose random target in area
     - Move there at random speed in [v_min, v_max]
     - Pause for pause_time seconds
@@ -153,12 +157,16 @@ class RandomWaypointModel(MobilityModel):
             speed = random.uniform(self.v_min, self.v_max)
             # Travel
             dx, dy, dz = [nw - p for nw, p in zip(next_wp, pos)]
+            # Straight-line distance to waypoint
             dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+            # Time needed to reach waypoint
             travel_time = dist / speed if speed>0 else 0
             steps = max(1, int(travel_time / time_step))
             for i in range(steps):
                 if current_time >= end_time: break
+                # Linear interpolation fraction
                 frac = (i+1)/steps
+                # Position update as per TR 38.901 linear model
                 x = pos[0] + dx*frac
                 y = pos[1] + dy*frac
                 z = pos[2] + dz*frac
@@ -170,6 +178,7 @@ class RandomWaypointModel(MobilityModel):
                 })
                 current_time += timedelta(seconds=time_step)
             # Pause
+            # Number of steps to remain stationary
             pause_steps = int(self.pause_time / time_step)
             for _ in range(pause_steps):
                 if current_time >= end_time: break
@@ -191,7 +200,7 @@ class RandomWaypointModel(MobilityModel):
 
 class ManhattanGridMobilityModel(MobilityModel):
     """
-    Urban “Manhattan” grid (3GPP realistic city grid):
+    Manhattan grid mobility model (TR 38.901 §7.6.3.4):
     - Moves only along X or Y axis on a grid.
     - At intersections: P(straight)=0.5, P(left)=0.25, P(right)=0.25
     """
@@ -216,10 +225,12 @@ class ManhattanGridMobilityModel(MobilityModel):
         while current_time < end_time:
             # Move one block
             block_dist = self.grid_size[2]
+            # Time to traverse a block
             travel_time = block_dist / self.speed
             steps = max(1, int(travel_time/time_step))
             for _ in range(steps):
                 if current_time >= end_time: break
+                # Update position along grid line
                 pos[0] += dir_x * self.speed * time_step
                 pos[1] += dir_y * self.speed * time_step
                 self.trajectory.append({
@@ -231,6 +242,7 @@ class ManhattanGridMobilityModel(MobilityModel):
                 current_time += timedelta(seconds=time_step)
             if current_time >= end_time: break
             # At intersection: choose turn
+            # Probabilistic turn selection as per TR 38.901
             turn = random.random()
             if turn < 0.5:
                 # straight: keep dir_x, dir_y
@@ -243,7 +255,9 @@ class ManhattanGridMobilityModel(MobilityModel):
 
 class ReferencePointGroupMobilityModel(MobilityModel):
     """
-    RPGM (Reference‑Point Group Mobility) per Hong et al.:
+    Reference‑Point Group Mobility (RPGM) model, aligned with
+    TR 38.901 §7.6.3.5.
+
     - A logical group “center” moves by some base model (e.g. RandomWaypoint)
     - Each member’s position = group_center + random offset (<= d_max)
     """
@@ -261,6 +275,7 @@ class ReferencePointGroupMobilityModel(MobilityModel):
             # Add random offset inside circle of radius d_max
             angle = random.uniform(0, 2*math.pi)
             radius = random.uniform(0, self.d_max)
+            # Offset from group centre
             x = cx + radius * math.cos(angle)
             y = cy + radius * math.sin(angle)
             z = cz
@@ -274,8 +289,8 @@ class ReferencePointGroupMobilityModel(MobilityModel):
 
 class RandomDirectionalMobilityModel(MobilityModel):
     """
-    Random directional mobility model (3GPP TR 38.901 Section 7.6.3.3)
-    
+    Random directional model from TR 38.901 §7.6.3.3.
+
     The UE moves in random directions, changing direction at random intervals.
     """
     
@@ -314,8 +329,8 @@ class RandomDirectionalMobilityModel(MobilityModel):
         """Generate a random 3D unit vector for direction."""
         # Random angle in radians (0 to 2π)
         angle = random.uniform(0, 2 * np.pi)
-        
-        # Convert to unit vector
+
+        # Convert to unit vector (projected onto the X-Y plane)
         self.direction = (np.cos(angle), np.sin(angle), 0)
     
     def _check_boundary_collision(self, position):
@@ -361,14 +376,14 @@ class RandomDirectionalMobilityModel(MobilityModel):
             if t >= time_to_change:
                 self._generate_random_direction()
                 time_to_change = t + np.random.exponential(self.direction_change_mean)
-            
+
             # Calculate new position
             dx, dy, dz = self.direction
             new_position = (
                 current_position[0] + dx * self.speed * time_step,
                 current_position[1] + dy * self.speed * time_step,
                 current_position[2] + dz * self.speed * time_step
-            )
+            )  # s = s0 + v*t
             
             # Check if position is within bounds
             if self._check_boundary_collision(new_position):
@@ -390,8 +405,8 @@ class RandomDirectionalMobilityModel(MobilityModel):
 
 class UrbanGridMobilityModel(MobilityModel):
     """
-    Urban grid mobility model for simulating UE movement in city streets.
-    
+    Flexible urban grid model inspired by TR 38.901 §7.6.3.4.
+
     This model represents movement along a rectangular grid of streets
     with random turns at intersections.
     """
@@ -426,17 +441,17 @@ class UrbanGridMobilityModel(MobilityModel):
     def _snap_to_grid(self):
         """Snap the current position to the nearest grid line."""
         x, y, z = self.current_position
-        
-        # Determine closest grid lines
+
+        # Determine closest grid lines (distance to nearest street)
         x_mod = x % self.grid_size
         y_mod = y % self.grid_size
-        
+
         # Snap to closest grid line
         if x_mod < self.grid_size / 2:
             x_snapped = x - x_mod
         else:
             x_snapped = x + (self.grid_size - x_mod)
-        
+
         if y_mod < self.grid_size / 2:
             y_snapped = y - y_mod
         else:
@@ -447,16 +462,19 @@ class UrbanGridMobilityModel(MobilityModel):
     def _is_at_intersection(self, position):
         """Check if the position is at a grid intersection."""
         x, y, _ = position
-        return (abs(x % self.grid_size) < 0.1 and 
+        # Intersection if both coordinates are close to a grid line
+        return (abs(x % self.grid_size) < 0.1 and
                 abs(y % self.grid_size) < 0.1)
     
     def _choose_new_direction(self, current_direction):
         """Choose a new direction at an intersection."""
         # At an intersection, can't go back the way we came
         dx, dy, dz = current_direction
+        # Possible options except reversing direction
         possible_directions = [d for d in self.directions if d[0] != -dx or d[1] != -dy]
-        
+
         # With probability, change direction
+        # Decide whether to change direction
         if random.random() < self.turn_probability:
             return random.choice(possible_directions)
         else:
@@ -484,7 +502,7 @@ class UrbanGridMobilityModel(MobilityModel):
                 current_position[0] + dx * self.speed * time_step,
                 current_position[1] + dy * self.speed * time_step,
                 current_position[2] + dz * self.speed * time_step
-            )
+            )  # s = s0 + v*t
             
             current_position = new_position
             
