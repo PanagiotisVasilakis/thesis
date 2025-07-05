@@ -1,3 +1,4 @@
+import json
 from unittest.mock import MagicMock, patch
 
 from ml_service.app.data import nef_collector
@@ -37,3 +38,22 @@ def test_collect_training_data():
         data = collector.collect_training_data(duration=1, interval=1)
         assert len(data) == 1
         assert data[0]["ue_id"] == "ue1"
+
+
+def test_collect_training_data_file(tmp_path):
+    """Verify collected data is saved under collected_data."""
+    sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
+    mock_client = MagicMock()
+    mock_client.get_ue_movement_state.return_value = sample_state
+    with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
+         patch("time.sleep"), \
+         patch("time.time", side_effect=[0, 0.1, 1.1]):
+        collector = NEFDataCollector(nef_url="http://nef")
+        collector.data_dir = str(tmp_path / "collected_data")
+        data = collector.collect_training_data(duration=1, interval=1)
+
+        files = list((tmp_path / "collected_data").iterdir())
+        assert len(files) == 1
+        with open(files[0]) as f:
+            saved = json.load(f)
+        assert saved == data
