@@ -3,10 +3,13 @@ from flask import jsonify, request, current_app
 import requests
 import time
 from pathlib import Path
+from pydantic import ValidationError
+
 from . import api_bp
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 from ..monitoring.metrics import track_prediction, track_training
+from ..schemas import PredictionRequest, TrainingSample
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -18,41 +21,51 @@ def health_check():
 @api_bp.route("/predict", methods=["POST"])
 def predict():
     """Make antenna selection prediction based on UE data."""
-    data = request.json
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "Invalid JSON"}), 400
 
     try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        result, features = predict_ue(data, model=model)
-        track_prediction(result["antenna_id"], result["confidence"])
+        req = PredictionRequest.parse_obj(payload)
+    except ValidationError as err:
+        return jsonify({"error": err.errors()}), 400
 
-        return jsonify(
-            {
-                "ue_id": data.get("ue_id"),
-                "predicted_antenna": result["antenna_id"],
-                "confidence": result["confidence"],
-                "features_used": list(features.keys()),
-            }
-        )
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    model = load_model(current_app.config["MODEL_PATH"])
+    result, features = predict_ue(req.dict(exclude_none=True), model=model)
+    track_prediction(result["antenna_id"], result["confidence"])
+
+    return jsonify(
+        {
+            "ue_id": req.ue_id,
+            "predicted_antenna": result["antenna_id"],
+            "confidence": result["confidence"],
+            "features_used": list(features.keys()),
+        }
+    )
 
 
 @api_bp.route("/train", methods=["POST"])
 def train():
     """Train the model with provided data."""
-    data = request.json
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, list):
+        return jsonify({"error": "Training data must be a list"}), 400
 
+    samples = []
     try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        start = time.time()
-        metrics = train_model(data, model=model)
-        duration = time.time() - start
-        track_training(duration, metrics.get("samples", 0), metrics.get("val_accuracy"))
-        model.save()
+        for item in payload:
+            samples.append(TrainingSample.parse_obj(item).dict(exclude_none=True))
+    except ValidationError as err:
+        return jsonify({"error": err.errors()}), 400
 
-        return jsonify({"status": "success", "metrics": metrics})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    model = load_model(current_app.config["MODEL_PATH"])
+    start = time.time()
+    metrics = train_model(samples, model=model)
+    duration = time.time() - start
+    track_training(duration, metrics.get("samples", 0), metrics.get("val_accuracy"))
+    model.save()
+
+    return jsonify({"status": "success", "metrics": metrics})
 
 
 @api_bp.route("/nef-status", methods=["GET"])
