@@ -17,6 +17,13 @@ def test_predict_route(client):
         mock_track.assert_called_once_with("antenna_1", 0.9)
 
 
+def test_predict_invalid_request(client):
+    mock_model = MagicMock()
+    with patch("ml_service.app.api.routes.load_model", return_value=mock_model):
+        resp = client.post("/api/predict", json={})
+        assert resp.status_code == 400
+
+
 def test_train_route(client):
     mock_model = MagicMock()
     mock_model.train.return_value = {"samples": 1, "classes": 1}
@@ -32,6 +39,14 @@ def test_train_route(client):
         mock_model.save.assert_called_once()
         mock_get.assert_called_once_with(client.application.config["MODEL_PATH"])
         mock_track.assert_called_once()
+
+
+def test_train_invalid_request(client):
+    resp = client.post("/api/train", json={"foo": "bar"})
+    assert resp.status_code == 400
+
+    resp = client.post("/api/train", json=[{"foo": "bar"}])
+    assert resp.status_code == 400
 
 
 def test_nef_status(client):
@@ -60,3 +75,4 @@ def test_collect_data_route(client, monkeypatch):
     assert data["samples"] == 2
     collector.login.assert_called_once()
     collector.collect_training_data.assert_called_once()
+
