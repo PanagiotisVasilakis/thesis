@@ -79,6 +79,7 @@ The emulator reads several variables from `.env` or the shell:
 | `ML_LOCAL` | Use the local ML package instead of the `ml-service` container (`1` or `0`) | `0` |
 | `A3_HYSTERESIS_DB` | A3 hysteresis value in dB | `2.0` |
 | `A3_TTT_S` | A3 time-to-trigger in seconds | `0.0` |
+| `NOISE_FLOOR_DBM` | Noise floor used when computing SINR | `-100.0` |
 
 When ML handovers are enabled, `HandoverEngine` posts UE feature vectors to
 `ML_SERVICE_URL/api/predict` and applies the antenna recommended by the ML

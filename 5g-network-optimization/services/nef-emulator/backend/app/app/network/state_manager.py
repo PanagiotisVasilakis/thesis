@@ -37,6 +37,14 @@ class NetworkStateManager:
         self.logger = logging.getLogger('NetworkStateManager')
         # Default noise floor in dBm (tunable)
         self.noise_floor_dbm = -100.0
+        env_noise = os.getenv("NOISE_FLOOR_DBM")
+        if env_noise is not None:
+            try:
+                self.noise_floor_dbm = float(env_noise)
+            except ValueError:
+                self.logger.warning(
+                    f"Invalid value for NOISE_FLOOR_DBM: '{env_noise}'. Using default."
+                )
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
 
     def get_feature_vector(self, ue_id):
