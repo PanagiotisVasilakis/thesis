@@ -79,3 +79,27 @@ def test_lightgbm_custom_params():
     assert params["num_leaves"] == 64
     assert abs(params["learning_rate"] - 0.05) < 1e-6
     assert abs(params["feature_fraction"] - 0.8) < 1e-6
+
+
+def test_lightgbm_fixed_neighbor_count():
+    model = LightGBMSelector(neighbor_count=2)
+
+    sample = {
+        "connected_to": "a1",
+        "rf_metrics": {
+            "a1": {"rsrp": -60, "sinr": 10},
+            "a2": {"rsrp": -65, "sinr": 8},
+            "a3": {"rsrp": -70, "sinr": 5},
+        },
+    }
+
+    features = model.extract_features(sample)
+
+    assert model.neighbor_count == 2
+    assert set(model.feature_names).issuperset(
+        {"rsrp_a1", "sinr_a1", "rsrp_a2", "sinr_a2"}
+    )
+    assert features["rsrp_a1"] == -65
+    assert features["sinr_a1"] == 8
+    assert features["rsrp_a2"] == -70
+    assert features["sinr_a2"] == 5

@@ -12,7 +12,7 @@ from ..utils.tuning import tune_and_train
 # Singleton instance for model reuse
 _model_instance = None
 
-def get_model(model_path=None):
+def get_model(model_path=None, neighbor_count: int | None = None):
     """Return a singleton LightGBM model instance."""
     global _model_instance
 
@@ -20,16 +20,25 @@ def get_model(model_path=None):
         model_path = os.environ.get("MODEL_PATH")
 
     if _model_instance is None:
-        _model_instance = LightGBMSelector(model_path=model_path)
+        if neighbor_count is None:
+            _model_instance = LightGBMSelector(model_path=model_path)
+        else:
+            _model_instance = LightGBMSelector(
+                model_path=model_path,
+                neighbor_count=neighbor_count,
+            )
 
     return _model_instance
 
-def initialize_model(model_path=None):
+def initialize_model(model_path=None, neighbor_count: int | None = None):
     """Initialize the LightGBM model with synthetic data if needed."""
     global _model_instance
     logger = logging.getLogger(__name__)
 
-    model = LightGBMSelector(model_path=model_path)
+    if neighbor_count is None:
+        model = LightGBMSelector(model_path=model_path)
+    else:
+        model = LightGBMSelector(model_path=model_path, neighbor_count=neighbor_count)
     
     # Try a simple prediction to check if the model is trained
     try:
