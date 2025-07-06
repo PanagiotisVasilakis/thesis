@@ -61,6 +61,11 @@ def test_env_a3_ttt(monkeypatch):
     n = NetworkStateManager()
     assert n._a3_params[1] == pytest.approx(2.0)
 
+def test_env_noise_floor(monkeypatch):
+    monkeypatch.setenv('NOISE_FLOOR_DBM', '-90')
+    n = NetworkStateManager()
+    assert n.noise_floor_dbm == pytest.approx(-90.0)
+
 def test_get_feature_vector_no_ue():
     n = NetworkStateManager()
     with pytest.raises(KeyError):
