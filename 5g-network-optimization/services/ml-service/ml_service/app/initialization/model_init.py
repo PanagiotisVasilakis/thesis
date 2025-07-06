@@ -29,7 +29,19 @@ def initialize_model(model_path=None):
     global _model_instance
     logger = logging.getLogger(__name__)
 
-    model = LightGBMSelector(model_path=model_path)
+    lgbm_params = {}
+    if "LGBM_N_ESTIMATORS" in os.environ:
+        lgbm_params["n_estimators"] = int(os.environ["LGBM_N_ESTIMATORS"])
+    if "LGBM_MAX_DEPTH" in os.environ:
+        lgbm_params["max_depth"] = int(os.environ["LGBM_MAX_DEPTH"])
+    if "LGBM_NUM_LEAVES" in os.environ:
+        lgbm_params["num_leaves"] = int(os.environ["LGBM_NUM_LEAVES"])
+    if "LGBM_LEARNING_RATE" in os.environ:
+        lgbm_params["learning_rate"] = float(os.environ["LGBM_LEARNING_RATE"])
+    if "LGBM_FEATURE_FRACTION" in os.environ:
+        lgbm_params["feature_fraction"] = float(os.environ["LGBM_FEATURE_FRACTION"])
+
+    model = LightGBMSelector(model_path=model_path, **lgbm_params)
     
     # Try a simple prediction to check if the model is trained
     try:

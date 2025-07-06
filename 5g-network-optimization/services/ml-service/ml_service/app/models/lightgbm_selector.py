@@ -5,6 +5,7 @@ import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
+import os
 
 
 class LightGBMSelector(AntennaSelector):
@@ -14,19 +15,39 @@ class LightGBMSelector(AntennaSelector):
         self,
         model_path: str | None = None,
         *,
-        n_estimators: int = 100,
-        max_depth: int = 10,
-        num_leaves: int = 31,
-        learning_rate: float = 0.1,
-        feature_fraction: float = 1.0,
+        n_estimators: int | None = None,
+        max_depth: int | None = None,
+        num_leaves: int | None = None,
+        learning_rate: float | None = None,
+        feature_fraction: float | None = None,
         **kwargs,
     ) -> None:
-        self.n_estimators = n_estimators
-        self.max_depth = max_depth
-        self.num_leaves = num_leaves
-        self.learning_rate = learning_rate
-        self.feature_fraction = feature_fraction
+        """Create a LightGBM selector optionally configured via env vars."""
+
+        env = os.getenv
+        self.n_estimators = (
+            n_estimators
+            if n_estimators is not None
+            else int(env("LGBM_N_ESTIMATORS", "100"))
+        )
+        self.max_depth = (
+            max_depth if max_depth is not None else int(env("LGBM_MAX_DEPTH", "10"))
+        )
+        self.num_leaves = (
+            num_leaves if num_leaves is not None else int(env("LGBM_NUM_LEAVES", "31"))
+        )
+        self.learning_rate = (
+            learning_rate
+            if learning_rate is not None
+            else float(env("LGBM_LEARNING_RATE", "0.1"))
+        )
+        self.feature_fraction = (
+            feature_fraction
+            if feature_fraction is not None
+            else float(env("LGBM_FEATURE_FRACTION", "1.0"))
+        )
         self.extra_params = kwargs
+
         super().__init__(model_path=model_path)
 
     def _initialize_model(self):

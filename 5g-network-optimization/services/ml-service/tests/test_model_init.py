@@ -114,3 +114,41 @@ def test_initialize_model_uses_env_parameters(monkeypatch, tmp_path):
     initialize_model(str(model_path))
     assert seen["n_iter"] == 5
     assert seen["cv"] == 4
+
+
+def test_initialize_model_passes_lgbm_params(monkeypatch, tmp_path):
+    path = tmp_path / "model.joblib"
+    captured = {}
+
+    class DummySelector:
+        def __init__(self, model_path=None, **params):
+            captured.update(params)
+            self.model = DummyModel()
+
+        def predict(self, _):
+            raise Exception()
+
+        def train(self, data):
+            return {"samples": len(data)}
+
+        def save(self, p=None):
+            pass
+
+    monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+
+    monkeypatch.setenv("LGBM_N_ESTIMATORS", "123")
+    monkeypatch.setenv("LGBM_MAX_DEPTH", "7")
+    monkeypatch.setenv("LGBM_NUM_LEAVES", "50")
+    monkeypatch.setenv("LGBM_LEARNING_RATE", "0.3")
+    monkeypatch.setenv("LGBM_FEATURE_FRACTION", "0.9")
+
+    initialize_model(str(path))
+
+    assert captured == {
+        "n_estimators": 123,
+        "max_depth": 7,
+        "num_leaves": 50,
+        "learning_rate": 0.3,
+        "feature_fraction": 0.9,
+    }

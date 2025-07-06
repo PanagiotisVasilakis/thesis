@@ -114,6 +114,11 @@ The service reads configuration from the Flask app settings. Important variables
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 | `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
 | `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
+| `LGBM_N_ESTIMATORS` | Boosting stages when initializing a new model | `100` |
+| `LGBM_MAX_DEPTH` | Maximum depth of individual trees | `10` |
+| `LGBM_NUM_LEAVES` | Maximum leaves in one tree | `31` |
+| `LGBM_LEARNING_RATE` | Learning rate used during training | `0.1` |
+| `LGBM_FEATURE_FRACTION` | Fraction of features used per iteration | `1.0` |
 
 The service always runs with a LightGBM model; no other model types are supported.
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.

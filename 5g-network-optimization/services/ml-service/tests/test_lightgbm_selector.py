@@ -79,3 +79,19 @@ def test_lightgbm_custom_params():
     assert params["num_leaves"] == 64
     assert abs(params["learning_rate"] - 0.05) < 1e-6
     assert abs(params["feature_fraction"] - 0.8) < 1e-6
+
+
+def test_lightgbm_env_params(monkeypatch):
+    monkeypatch.setenv("LGBM_N_ESTIMATORS", "150")
+    monkeypatch.setenv("LGBM_MAX_DEPTH", "5")
+    monkeypatch.setenv("LGBM_NUM_LEAVES", "40")
+    monkeypatch.setenv("LGBM_LEARNING_RATE", "0.2")
+    monkeypatch.setenv("LGBM_FEATURE_FRACTION", "0.7")
+
+    model = LightGBMSelector()
+    params = model.model.get_params()
+    assert params["n_estimators"] == 150
+    assert params["max_depth"] == 5
+    assert params["num_leaves"] == 40
+    assert abs(params["learning_rate"] - 0.2) < 1e-6
+    assert abs(params["feature_fraction"] - 0.7) < 1e-6
