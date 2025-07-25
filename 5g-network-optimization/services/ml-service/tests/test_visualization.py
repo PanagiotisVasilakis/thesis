@@ -18,7 +18,7 @@ def test_coverage_map_endpoint(client, tmp_path):
     mock_model = MagicMock()
     mock_model.predict.return_value = {"antenna_id": "a1", "confidence": 1.0}
     img_path = _create_png(tmp_path / "coverage", "coverage.png")
-    with patch("ml_service.app.api.visualization.get_model", return_value=mock_model) as mock_get, \
+    with patch("ml_service.app.api.visualization.ModelManager.get_instance", return_value=mock_model) as mock_get, \
          patch("ml_service.app.api.visualization.plot_antenna_coverage", return_value=str(img_path)):
         resp = client.get("/api/visualization/coverage-map")
         assert resp.status_code == 200

@@ -35,7 +35,8 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
     dummy_model.predict.return_value = {"antenna_id": "B", "confidence": 1.0}
 
     monkeypatch.setattr(
-        "ml_service.app.initialization.model_init.get_model", lambda p=None: dummy_model
+        "ml_service.app.initialization.model_init.ModelManager.get_instance",
+        lambda p=None, **_: dummy_model,
     )
 
     for name in list(sys.modules.keys()):

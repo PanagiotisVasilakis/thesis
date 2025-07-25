@@ -4,17 +4,15 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
-from .initialization import model_init
+from .initialization.model_init import ModelManager
 
 
 def load_model(
     model_path: str | None = None,
     neighbor_count: int | None = None,
 ) -> Any:
-    """Return a LightGBM model instance using ``model_init.get_model``."""
-    if neighbor_count is None:
-        return model_init.get_model(model_path)
-    return model_init.get_model(model_path, neighbor_count=neighbor_count)
+    """Return a LightGBM model instance using ``ModelManager``."""
+    return ModelManager.get_instance(model_path, neighbor_count=neighbor_count)
 
 
 def predict(ue_data: dict, model: Any | None = None):

@@ -4,7 +4,7 @@ import os
 import logging
 import requests
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
-from ..initialization.model_init import get_model
+from ..initialization.model_init import ModelManager
 from ..visualization.plotter import (
     plot_antenna_coverage,
     plot_movement_trajectory,
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def coverage_map():
     """Generate and return an antenna coverage map."""
     try:
-        model = get_model(current_app.config["MODEL_PATH"])
+        model = ModelManager.get_instance(current_app.config["MODEL_PATH"])
         # First, check if the model is trained
         try:
             # Try a simple prediction to see if model is trained

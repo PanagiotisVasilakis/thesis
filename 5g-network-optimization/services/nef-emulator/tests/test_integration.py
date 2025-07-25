@@ -1,4 +1,5 @@
 import json
+import asyncio
 from unittest.mock import MagicMock
 
 from ml_service.app.data import nef_collector
