@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request, send_file, current_app
 import os
 import logging
+import requests
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
 from ..initialization.model_init import get_model
 from ..visualization.plotter import (
@@ -55,11 +56,14 @@ def coverage_map():
         # Return the image file
         return send_file(output_file, mimetype="image/png")
 
+    except FileNotFoundError as e:
+        logger.error("Coverage map file not found: %s", e)
+        return jsonify({"error": str(e)}), 404
+    except requests.exceptions.RequestException as e:
+        logger.error("Request error generating coverage map: %s", e)
+        return jsonify({"error": "Failed to fetch required data"}), 502
     except Exception as e:
-        import traceback
-
-        logger.error(f"Error generating coverage map: {str(e)}")
-        traceback.print_exc()
+        logger.exception("Error generating coverage map")
         return jsonify({"error": str(e)}), 500
 
 
@@ -85,5 +89,12 @@ def trajectory():
         # Return the image file
         return send_file(output_file, mimetype="image/png")
 
+    except FileNotFoundError as e:
+        logger.error("Trajectory file not found: %s", e)
+        return jsonify({"error": str(e)}), 404
+    except requests.exceptions.RequestException as e:
+        logger.error("Request error generating trajectory: %s", e)
+        return jsonify({"error": "Failed to fetch required data"}), 502
     except Exception as e:
+        logger.exception("Error generating trajectory")
         return jsonify({"error": str(e)}), 500

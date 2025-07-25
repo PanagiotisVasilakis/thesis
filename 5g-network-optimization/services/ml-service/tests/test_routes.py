@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock, patch
+import requests
 
 
 def test_predict_route(client):
@@ -59,6 +60,17 @@ def test_nef_status(client):
         mock_get.assert_called_once()
 
 
+def test_nef_status_request_error(client):
+    with patch(
+        "ml_service.app.api.routes.requests.get",
+        side_effect=requests.exceptions.RequestException("boom"),
+    ):
+        resp = client.get("/api/nef-status")
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["status"] == "error"
+
+
 def test_collect_data_route(client, monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
@@ -75,4 +87,24 @@ def test_collect_data_route(client, monkeypatch):
     assert data["samples"] == 2
     collector.login.assert_called_once()
     collector.collect_training_data.assert_called_once()
+
+
+def test_collect_data_oserror(client, monkeypatch):
+    collector = MagicMock()
+    collector.login.return_value = True
+    collector.get_ue_movement_state.return_value = {"ue": {}}
+    collector.collect_training_data.return_value = []
+    collector.data_dir = "path"
+    monkeypatch.setattr("ml_service.app.api.routes.NEFDataCollector", lambda **kw: collector)
+    def raise_oserror(*a, **k):
+        raise OSError("err")
+    monkeypatch.setattr("ml_service.app.api.routes.Path.glob", raise_oserror)
+
+    resp = client.post(
+        "/api/collect-data",
+        json={"username": "u", "password": "p"},
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["file"] is None
 

@@ -49,6 +49,9 @@ class NEFClient:
                     response.text,
                 )
                 return False
+        except requests.exceptions.RequestException as exc:
+            self.logger.error("HTTP error during authentication: %s", exc)
+            return False
         except Exception as e:
             self.logger.error(f"Error during authentication: {str(e)}")
             return False
@@ -105,6 +108,11 @@ class NEFClient:
                     response.text,
                 )
                 return None
+        except requests.exceptions.RequestException as exc:
+            self.logger.error(
+                "HTTP error generating mobility pattern: %s", exc
+            )
+            return None
         except Exception as e:
             self.logger.error(f"Error in generate_mobility_pattern: {str(e)}")
             return None
@@ -127,6 +135,9 @@ class NEFClient:
                     response.text,
                 )
                 return {}
+        except requests.exceptions.RequestException as exc:
+            self.logger.error("HTTP error getting movement state: %s", exc)
+            return {}
         except Exception as e:
             self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
             return {}
@@ -143,6 +154,9 @@ class NEFClient:
                 response.status_code,
                 response.text,
             )
+            return {}
+        except requests.exceptions.RequestException as exc:
+            self.logger.error("HTTP error getting feature vector: %s", exc)
             return {}
         except Exception as e:
             self.logger.error(f"Error in get_feature_vector: {str(e)}")
