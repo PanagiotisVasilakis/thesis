@@ -66,7 +66,7 @@ def test_nef_status_request_error(client):
         side_effect=requests.exceptions.RequestException("boom"),
     ):
         resp = client.get("/api/nef-status")
-        assert resp.status_code == 500
+        assert resp.status_code == 502
         data = resp.get_json()
         assert data["status"] == "error"
 

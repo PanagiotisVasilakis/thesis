@@ -54,9 +54,25 @@ paths_mod = types.ModuleType("app.api.api_v1.endpoints.paths")
 paths_mod.get_random_point = lambda *a, **k: {}
 ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
 ue_move_mod.retrieve_ue_state = lambda *a, **k: False
+state_manager_mod = types.ModuleType("app.api.api_v1.state_manager")
+class DummySM:
+    def __init__(self):
+        self._event_notifications = []
+        self._counter = 0
+    def add_notification(self, n):
+        n["id"] = self._counter
+        self._counter += 1
+        self._event_notifications.append(n)
+        return n
+    def get_notifications(self, *a, **k):
+        return list(self._event_notifications)
+    def all_notifications(self):
+        return list(self._event_notifications)
+state_manager_mod.state_manager = DummySM()
 endpoints_pkg.paths = paths_mod
 endpoints_pkg.ue_movement = ue_move_mod
 api_v1_pkg.endpoints = endpoints_pkg
+api_v1_pkg.state_manager = state_manager_mod
 api_pkg.api_v1 = api_v1_pkg
 app_pkg.api = api_pkg
 
@@ -78,6 +94,7 @@ for name, mod in {
     "app.api.api_v1.endpoints": endpoints_pkg,
     "app.api.api_v1.endpoints.paths": paths_mod,
     "app.api.api_v1.endpoints.ue_movement": ue_move_mod,
+    "app.api.api_v1.state_manager": state_manager_mod,
     "app.core": core_pkg,
     "app.core.config": config_mod,
 }.items():
@@ -125,8 +142,8 @@ def test_ccf_logs(monkeypatch):
 
 
 def test_add_notifications(monkeypatch):
-    monkeypatch.setattr(utils, "event_notifications", [], raising=False)
-    monkeypatch.setattr(utils, "counter", 0, raising=False)
+    monkeypatch.setattr(utils.state_manager, "_event_notifications", [], raising=False)
+    monkeypatch.setattr(utils.state_manager, "_counter", 0, raising=False)
 
     req = SimpleNamespace(method="POST",
                           url=SimpleNamespace(path="/monitoring", hostname="localhost"),
@@ -135,7 +152,7 @@ def test_add_notifications(monkeypatch):
 
     data = utils.add_notifications(req, resp, False)
 
-    assert utils.event_notifications[0] == data
+    assert utils.state_manager.all_notifications()[0] == data
     assert data["isNotification"] is False
     assert data["endpoint"] == "/monitoring"
     assert data["status_code"] == 201

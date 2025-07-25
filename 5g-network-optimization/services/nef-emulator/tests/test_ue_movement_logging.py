@@ -18,8 +18,27 @@ def load_helper(monkeypatch):
     app_pkg.tools.distance.check_distance = lambda *a, **k: None
     app_pkg.tools.qos_callback = types.ModuleType("app.tools.qos_callback")
     app_pkg.models = types.ModuleType("app.models")
+    schemas_mod = types.ModuleType("app.schemas")
+    class Msg: ...
+    schemas_mod.Msg = Msg
     app_pkg.api = types.ModuleType("app.api")
     app_pkg.api.deps = types.ModuleType("app.api.deps")
+    api_v1_pkg = types.ModuleType("app.api.api_v1")
+    state_mod = types.ModuleType("app.api.api_v1.state_manager")
+
+    class DummySM:
+        def __init__(self):
+            self.count = 0
+
+        def increment_timer_error(self):
+            self.count += 1
+            return self.count
+
+        def get_timer_error_counter(self):
+            return self.count
+
+    state_mod.state_manager = DummySM()
+    api_v1_pkg.state_manager = state_mod
     db_pkg = types.ModuleType("app.db")
     session_mod = types.ModuleType("app.db.session")
     session_mod.SessionLocal = object
@@ -36,6 +55,9 @@ def load_helper(monkeypatch):
         "app.models": app_pkg.models,
         "app.api": app_pkg.api,
         "app.api.deps": app_pkg.api.deps,
+        "app.api.api_v1": api_v1_pkg,
+        "app.api.api_v1.state_manager": state_mod,
+        "app.schemas": schemas_mod,
         "app.db": db_pkg,
         "app.db.session": session_mod,
     }
@@ -50,7 +72,7 @@ def load_helper(monkeypatch):
 def test_log_timer_exception_increments_counter_and_logs(caplog, monkeypatch):
     ue_module = load_helper(monkeypatch)
     caplog.set_level(logging.WARNING)
-    original = ue_module.timer_error_counter
+    original = ue_module.state_manager.get_timer_error_counter()
     ue_module.log_timer_exception(Exception("boom"))
-    assert ue_module.timer_error_counter == original + 1
+    assert ue_module.state_manager.get_timer_error_counter() == original + 1
     assert any("Timer error" in rec.getMessage() for rec in caplog.records)
