@@ -24,9 +24,9 @@ def create_app(config=None):
     os.makedirs(os.path.dirname(app.config['MODEL_PATH']), exist_ok=True)
     
     # Initialize model with synthetic data if needed
-    from .initialization.model_init import initialize_model
+    from .initialization.model_init import ModelManager
     app.logger.info("Initializing ML model...")
-    initialize_model(app.config['MODEL_PATH'])
+    ModelManager.initialize(app.config['MODEL_PATH'])
     app.logger.info("ML model initialization complete")
     
     # Register API blueprint

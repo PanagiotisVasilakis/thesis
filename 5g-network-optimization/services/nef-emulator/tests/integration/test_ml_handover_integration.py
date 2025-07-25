@@ -31,7 +31,8 @@ def _create_ml_client(monkeypatch: pytest.MonkeyPatch):
 
     # Skip expensive model initialization
     monkeypatch.setattr(
-        "ml_service.app.initialization.model_init.initialize_model", lambda *a, **k: None
+        "ml_service.app.initialization.model_init.ModelManager.initialize",
+        lambda *a, **k: None,
     )
 
     dummy_model = MagicMock()

@@ -1,9 +1,10 @@
 from ml_service.app.initialization import model_init
+from ml_service.app.initialization.model_init import ModelManager
 from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils import synthetic_data
 
-initialize_model = model_init.initialize_model
+initialize_model = ModelManager.initialize
 
 
 class DummyModel:
@@ -34,7 +35,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     assert model_path.exists()
     assert isinstance(model.model, DummyModel)
     # initialize_model should store the trained instance for reuse
-    assert model_init._model_instance is model
+    assert ModelManager.get_instance() is model
 
     # Second call should load without retraining
     loaded = initialize_model(str(model_path))
@@ -43,7 +44,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
 
 
 def test_get_model_returns_singleton(monkeypatch):
-    model_init._model_instance = None
+    ModelManager._model_instance = None
     created = []
 
     class DummySelector:
@@ -52,15 +53,15 @@ def test_get_model_returns_singleton(monkeypatch):
 
     monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
 
-    first = model_init.get_model("foo")
-    second = model_init.get_model("bar")
+    first = ModelManager.get_instance("foo")
+    second = ModelManager.get_instance("bar")
 
     assert first is second
     assert created == ["foo"]
 
 
 def test_get_model_uses_env_path(monkeypatch):
-    model_init._model_instance = None
+    ModelManager._model_instance = None
     created = []
 
     class DummySelector:
@@ -70,7 +71,7 @@ def test_get_model_uses_env_path(monkeypatch):
     monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
     monkeypatch.setenv("MODEL_PATH", "env.joblib")
 
-    model_init.get_model()
+    ModelManager.get_instance()
     assert created == ["env.joblib"]
 
 
