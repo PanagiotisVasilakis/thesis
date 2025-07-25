@@ -1,7 +1,7 @@
 import importlib.util
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 from test_helpers import load_module
 
@@ -38,14 +38,14 @@ def test_collect_training_data_main_success(monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1}}
-    collector.collect_training_data.return_value = [{"dummy": 1}]
+    collector.collect_training_data = AsyncMock(return_value=[{"dummy": 1}])
     monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
     response = MagicMock(status_code=200, json=lambda: {"metrics": {}})
     monkeypatch.setitem(sys.modules, "requests", MagicMock(post=MagicMock(return_value=response)))
     monkeypatch.setattr(sys, "argv", ["collect_training_data", "--train"])
     assert module.main() == 0
     collector.login.assert_called_once()
-    collector.collect_training_data.assert_called_once()
+    collector.collect_training_data.assert_awaited_once()
 
 
 def test_collect_training_data_main_failure(monkeypatch):

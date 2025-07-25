@@ -25,7 +25,11 @@ def test_get_ue_movement_state(monkeypatch):
     assert state == {"ue1": {"latitude": 1}}
 
 
-def test_collect_training_data(tmp_path, monkeypatch):
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_collect_training_data(tmp_path, monkeypatch):
     collector = NEFDataCollector(nef_url="http://nef")
     collector.data_dir = str(tmp_path)
 
@@ -37,11 +41,14 @@ def test_collect_training_data(tmp_path, monkeypatch):
         "neighbor_sinrs": {"A": 12}
     }
     collector.client = mock_client
-    monkeypatch.setattr(nef_collector.time, "sleep", lambda x: None)
+    async def fake_sleep(_):
+        return None
+
+    monkeypatch.setattr(nef_collector.asyncio, "sleep", fake_sleep)
     times = iter([0, 0.1, 1.1])
     monkeypatch.setattr(nef_collector.time, "time", lambda: next(times))
 
-    data = collector.collect_training_data(duration=1, interval=1)
+    data = await collector.collect_training_data(duration=1, interval=1)
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12}}

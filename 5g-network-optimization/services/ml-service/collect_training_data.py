@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Script for collecting training data from NEF emulator."""
 import argparse
+import asyncio
 import os
 import json
 import time
@@ -92,7 +93,11 @@ def main():
         f"Collecting data for {args.duration} seconds at {args.interval}s intervals..."
     )
     start_time = time.time()
-    data = collector.collect_training_data(duration=args.duration, interval=args.interval)
+    data = asyncio.run(
+        collector.collect_training_data(
+            duration=args.duration, interval=args.interval
+        )
+    )
     collection_time = time.time() - start_time
     
     if not data:

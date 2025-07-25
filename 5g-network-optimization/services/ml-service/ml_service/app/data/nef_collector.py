@@ -4,6 +4,7 @@ import logging
 import os
 from datetime import datetime
 
+import asyncio
 import time
 
 from ..clients.nef_client import NEFClient
@@ -39,7 +40,7 @@ class NEFDataCollector:
             self.logger.error(f"Error getting UE movement state: {str(e)}")
             return {}
     
-    def collect_training_data(self, duration=60, interval=1):
+    async def collect_training_data(self, duration=60, interval=1):
         """
         Collect training data for the specified duration.
         
@@ -107,11 +108,11 @@ class NEFDataCollector:
                     collected_data.append(sample)
                 
                 # Sleep until next sample
-                time.sleep(interval)
+                await asyncio.sleep(interval)
             
             except Exception as e:
                 self.logger.error(f"Error during data collection: {str(e)}")
-                time.sleep(interval)
+                await asyncio.sleep(interval)
         
         # Save collected data
         if collected_data:

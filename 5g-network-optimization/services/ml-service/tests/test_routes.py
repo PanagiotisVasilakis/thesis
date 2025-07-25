@@ -71,11 +71,14 @@ def test_nef_status_request_error(client):
         assert data["status"] == "error"
 
 
+from unittest.mock import AsyncMock
+
+
 def test_collect_data_route(client, monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {}}
-    collector.collect_training_data.return_value = [1, 2]
+    collector.collect_training_data = AsyncMock(return_value=[1, 2])
     monkeypatch.setattr("ml_service.app.api.routes.NEFDataCollector", lambda **kw: collector)
 
     resp = client.post(
@@ -86,14 +89,14 @@ def test_collect_data_route(client, monkeypatch):
     data = resp.get_json()
     assert data["samples"] == 2
     collector.login.assert_called_once()
-    collector.collect_training_data.assert_called_once()
+    collector.collect_training_data.assert_awaited_once()
 
 
 def test_collect_data_oserror(client, monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {}}
-    collector.collect_training_data.return_value = []
+    collector.collect_training_data = AsyncMock(return_value=[])
     collector.data_dir = "path"
     monkeypatch.setattr("ml_service.app.api.routes.NEFDataCollector", lambda **kw: collector)
     def raise_oserror(*a, **k):
@@ -107,4 +110,5 @@ def test_collect_data_oserror(client, monkeypatch):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["file"] is None
+    collector.collect_training_data.assert_awaited_once()
 

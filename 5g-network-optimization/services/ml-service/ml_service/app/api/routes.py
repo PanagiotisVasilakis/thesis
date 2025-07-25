@@ -117,7 +117,7 @@ def nef_status():
 
 
 @api_bp.route("/collect-data", methods=["POST"])
-def collect_data():
+async def collect_data():
     """Collect training data from the NEF emulator."""
     params = request.json or {}
 
@@ -137,7 +137,7 @@ def collect_data():
     if not collector.get_ue_movement_state():
         return jsonify({"error": "No UEs found in movement state"}), 400
 
-    samples = collector.collect_training_data(
+    samples = await collector.collect_training_data(
         duration=duration, interval=interval
     )
 
