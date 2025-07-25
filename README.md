@@ -82,7 +82,12 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
 | `ML_LOCAL` | Install the ML service in the NEF emulator container and skip the separate `ml-service` container | `0` |
+| `LOG_LEVEL` | Root logger level used by both services | `INFO` |
+| `LOG_FILE` | Optional path for a rotating log file | *(unset)* |
 | `min_antennas_ml` (param) | Minimum antennas required for automatic ML mode. Override when instantiating `HandoverEngine` | `3` |
+
+`LOG_LEVEL` sets the verbosity of both services (`DEBUG`, `INFO`, etc.) while
+`LOG_FILE` enables file-based logging with automatic rotation when specified.
 
 The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector.joblib`).
 Override this variable and mount a host directory in a `docker-compose.override.yml` file if you want the model to persist across container runs.
