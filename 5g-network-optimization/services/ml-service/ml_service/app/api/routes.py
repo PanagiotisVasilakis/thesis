@@ -92,7 +92,19 @@ def nef_status():
                     "message": response.text,
                 }
             )
+    except requests.exceptions.RequestException as exc:
+        current_app.logger.error("NEF connection error: %s", exc)
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Failed to connect to NEF: {exc}",
+                }
+            ),
+            500,
+        )
     except Exception as e:
+        current_app.logger.exception("Unexpected error contacting NEF")
         return (
             jsonify(
                 {
@@ -134,7 +146,7 @@ def collect_data():
         files = sorted(Path(collector.data_dir).glob("training_data_*.json"))
         if files:
             latest = str(files[-1])
-    except Exception:
+    except OSError:
         current_app.logger.exception("Failed to find latest training data file")
 
     return jsonify({"samples": len(samples), "file": latest})
