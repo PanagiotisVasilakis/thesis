@@ -14,6 +14,7 @@ from app.schemas import monitoringevent, UserPlaneNotificationData
 from pydantic import BaseModel
 from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
+from app.api.api_v1.state_manager import state_manager
 try:
     from evolved5g.sdk import CAPIFLogger
 except (ImportError, AttributeError):
@@ -94,16 +95,11 @@ def ccf_logs(input_request: Request, output_response: dict, service_api_descript
         logging.critical("Potential cause of failure: CAPIF Core Function is not deployed or unreachable")
     
 
-#List holding notifications from 
-event_notifications = []
-counter = 0
+# Runtime state is stored in the shared StateManager instance
 
 def add_notifications(request: Request, response: JSONResponse, is_notification: bool):
 
-    global counter
-
-    json_data = {}
-    json_data.update({"id" : counter})
+    json_data: dict = {}
 
     #Find the service API 
     #Keep in mind that whether endpoint changes format, the following if statement needs review
@@ -130,12 +126,7 @@ def add_notifications(request: Request, response: JSONResponse, is_notification:
     json_data["isNotification"] = is_notification
     json_data["timestamp"] = datetime.now()
 
-    #Check that event_notifications length does not exceed 100
-    event_notifications.append(json_data)
-    if len(event_notifications) > 100:
-        event_notifications.pop(0)
-
-    counter += 1
+    state_manager.add_notification(json_data)
 
     return json_data
     
@@ -330,8 +321,7 @@ def get_notifications(
     limit: int = 100,
     current_user: models.User = Depends(deps.get_current_active_user)
     ):
-    notification = event_notifications[skip:limit]
-    return notification
+    return state_manager.get_notifications(skip, limit)
 
 @router.get("/monitoring/last_notifications")
 def get_last_notifications(
@@ -339,7 +329,7 @@ def get_last_notifications(
     current_user: models.User = Depends(deps.get_current_active_user)
     ):
     updated_notification = []
-    event_notifications_snapshot = event_notifications
+    event_notifications_snapshot = state_manager.all_notifications()
 
 
     if id == -1:
