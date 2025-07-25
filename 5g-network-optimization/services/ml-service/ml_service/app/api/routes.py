@@ -101,7 +101,7 @@ def nef_status():
                     "message": f"Failed to connect to NEF: {exc}",
                 }
             ),
-            500,
+            502,
         )
     except Exception as e:
         current_app.logger.exception("Unexpected error contacting NEF")
