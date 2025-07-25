@@ -379,7 +379,6 @@ def initiate_movement(
     state_manager.set_thread(msg.supi, f"{current_user.id}", t)
     state_manager.set_ue(msg.supi, ue_data)
     t.start()
-    # print(threads)
     return {"msg": "Loop started"}
 
 @router.post("/stop-loop", status_code=200)
