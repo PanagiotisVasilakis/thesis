@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Main entry point for data collection script."""
-    configure_logging()
+    configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))
     parser = argparse.ArgumentParser(description='Collect training data from NEF emulator')
     parser.add_argument('--url', type=str, default='http://localhost:8080',
                         help='NEF emulator URL (default: http://localhost:8080)')

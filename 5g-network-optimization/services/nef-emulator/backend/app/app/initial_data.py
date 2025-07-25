@@ -129,5 +129,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    configure_logging()
+    configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))
     main()
