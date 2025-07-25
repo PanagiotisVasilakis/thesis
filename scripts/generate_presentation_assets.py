@@ -12,6 +12,9 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 import matplotlib
 
@@ -25,9 +28,11 @@ SERVICES_ROOT = REPO_ROOT / "5g-network-optimization" / "services"
 ML_SERVICE_ROOT = SERVICES_ROOT / "ml-service"
 NEF_APP_ROOT = SERVICES_ROOT / "nef-emulator" / "backend" / "app" / "app"
 
-for path in (ML_SERVICE_ROOT, NEF_APP_ROOT):
+for path in (SERVICES_ROOT, ML_SERVICE_ROOT, NEF_APP_ROOT):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
+
+from services.logging_config import configure_logging
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.visualization.plotter import (
@@ -98,12 +103,14 @@ def generate_assets(output_base: Path) -> None:
         "L-shaped movement with a 90-degree turn at the corner point.",
     )
 
-    print("Generated assets:")
+    logger.info("Generated assets:")
     for p in (coverage_png, lin_png, l_png):
-        print(" -", p)
+        logger.info(" - %s", p)
 
 
 def main() -> None:
+    configure_logging()
+    logger.info("Generating presentation assets")
     base = REPO_ROOT / "presentation_assets"
     generate_assets(base)
 

@@ -1,6 +1,17 @@
 import logging
+import sys
 from pathlib import Path
 from typing import List
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SERVICES_ROOT = REPO_ROOT / "5g-network-optimization" / "services"
+
+if str(SERVICES_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVICES_ROOT))
+
+from services.logging_config import configure_logging
+
+logger = logging.getLogger(__name__)
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -58,9 +69,10 @@ def build_presentation_pdf():
         add_image_page(c, image, caption)
 
     c.save()
-    print(f"Created {output_pdf}")
+    logger.info("Created %s", output_pdf)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    configure_logging()
+    logger.info("Building presentation PDF")
     build_presentation_pdf()
