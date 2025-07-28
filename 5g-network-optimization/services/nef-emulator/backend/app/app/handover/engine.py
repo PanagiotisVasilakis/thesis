@@ -11,7 +11,8 @@ from .a3_rule import A3EventRule
 
 
 class HandoverEngine:
-    """Decide and apply handovers using the A3 rule or an external ML service."""
+    """Decide and apply handovers using the A3 rule or an external
+    ML service."""
 
     def __init__(
         self,
@@ -62,6 +63,7 @@ class HandoverEngine:
         else:
             self._auto = True
             self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
+
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
         if self._auto:
@@ -70,6 +72,7 @@ class HandoverEngine:
                 self.use_ml = want_ml
 
     # ------------------------------------------------------------------
+
     def _select_ml(self, ue_id: str) -> Optional[str]:
         fv = self.state_mgr.get_feature_vector(ue_id)
         rf_metrics = {
@@ -116,10 +119,13 @@ class HandoverEngine:
         return None
 
     # ------------------------------------------------------------------
+
     def decide_and_apply(self, ue_id: str):
         """Select the best antenna and apply the handover."""
         self._update_mode()
-        target = self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
+        target = (
+            self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
+        )
         if not target:
             return None
         return self.state_mgr.apply_handover_decision(ue_id, target)
