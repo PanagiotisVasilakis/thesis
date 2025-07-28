@@ -10,6 +10,7 @@ def test_extract_features_defaults():
     assert features == {
         'latitude': 0,
         'longitude': 0,
+        'altitude': 0,
         'speed': 0,
         'direction_x': 0,
         'direction_y': 0,
@@ -107,7 +108,7 @@ class DummyModel:
     def predict_proba(self, X):
         return [[0.2, 0.8]]
 
-    feature_importances_ = np.zeros(9)
+    feature_importances_ = np.zeros(10)
 
 
 def test_predict_with_mock_and_persistence(tmp_path):
@@ -117,6 +118,7 @@ def test_predict_with_mock_and_persistence(tmp_path):
     features = {
         'latitude': 1,
         'longitude': 2,
+        'altitude': 3,
         'speed': 0,
         'direction_x': 0,
         'direction_y': 1,
@@ -181,4 +183,19 @@ def test_extract_features_neighbor_padding():
     assert few_features['sinr_a2'] == 0
     assert few_features['rsrp_a3'] == -120
     assert few_features['sinr_a3'] == 0
+
+
+def test_altitude_feature_in_training():
+    data = _tiny_dataset()
+    for i, sample in enumerate(data, start=1):
+        sample['altitude'] = float(i)
+
+    model = LightGBMSelector()
+    metrics = model.train(data)
+
+    assert 'altitude' in model.base_feature_names
+    assert 'altitude' in model.feature_names
+    assert metrics['samples'] == len(data)
+    extracted = model.extract_features(data[0])
+    assert extracted['altitude'] == 1.0
 

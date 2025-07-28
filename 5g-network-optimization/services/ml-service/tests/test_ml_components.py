@@ -19,6 +19,7 @@ def test_feature_extraction():
         'ue_id': 'test_ue_1',
         'latitude': 500.0,
         'longitude': 250.0,
+        'altitude': 0.0,
         'speed': 5.0,
         'direction': [0.8, 0.6, 0],
         'connected_to': 'antenna_1',
@@ -32,7 +33,7 @@ def test_feature_extraction():
     features = model.extract_features(ue_data)
 
     expected_features = [
-        'latitude', 'longitude', 'speed',
+        'latitude', 'longitude', 'altitude', 'speed',
         'direction_x', 'direction_y',
         'rsrp_current', 'sinr_current',
         'best_rsrp_diff', 'best_sinr_diff',

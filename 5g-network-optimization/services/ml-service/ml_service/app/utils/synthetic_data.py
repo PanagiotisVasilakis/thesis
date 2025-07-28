@@ -39,6 +39,7 @@ def generate_synthetic_training_data(num_samples: int = 500):
             "ue_id": f"synthetic_ue_{i}",
             "latitude": x,
             "longitude": y,
+            "altitude": 0.0,
             "speed": speed,
             "direction": direction,
             "connected_to": closest_antenna,

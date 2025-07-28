@@ -15,6 +15,7 @@ DEFAULT_TEST_FEATURES = {
     "sinr_current": 10,
     "best_rsrp_diff": 0.0,
     "best_sinr_diff": 0.0,
+    "altitude": 0.0,
 }
 
 class AntennaSelector:
@@ -39,7 +40,8 @@ class AntennaSelector:
             'latitude', 'longitude', 'speed',
             'direction_x', 'direction_y',
             'rsrp_current', 'sinr_current',
-            'best_rsrp_diff', 'best_sinr_diff'
+            'best_rsrp_diff', 'best_sinr_diff',
+            'altitude'
         ]
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -87,6 +89,7 @@ class AntennaSelector:
         # Location features
         features['latitude'] = data.get('latitude', 0)
         features['longitude'] = data.get('longitude', 0)
+        features['altitude'] = data.get('altitude', 0)
         
         # Movement features
         features['speed'] = data.get('speed', 0)
