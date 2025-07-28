@@ -51,45 +51,12 @@ class LightGBMSelector(AntennaSelector):
         early_stopping_rounds: int | None = 20,
     ) -> dict:
         """Train the model with optional validation and early stopping."""
-
-        X = []
-        y = []
-        for sample in training_data:
-            features = self.extract_features(sample)
-            X.append([features[name] for name in self.feature_names])
-            y.append(sample.get("optimal_antenna"))
-
-        X_arr = np.array(X)
-        y_arr = np.array(y)
-
-        X_val = None
-        y_val = None
-        if validation_split > 0 and len(X_arr) > 1:
-            from collections import Counter
-
-            counts = Counter(y_arr)
-            stratify = y_arr if all(c >= 2 for c in counts.values()) else None
-            try:
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X_arr,
-                    y_arr,
-                    test_size=validation_split,
-                    random_state=42,
-                    stratify=stratify,
-                )
-            except ValueError:
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X_arr,
-                    y_arr,
-                    test_size=validation_split,
-                    random_state=42,
-                    stratify=None,
-                )
-        else:
-            X_train, y_train = X_arr, y_arr
+        X_arr, y_arr = self._build_dataset(training_data)
+        X_train, X_val, y_train, y_val = self._split_dataset(
+            X_arr, y_arr, validation_split
+        )
 
         eval_set = [(X_val, y_val)] if X_val is not None else None
-
         fit_params = {}
         if eval_set:
             fit_params["eval_set"] = eval_set
@@ -115,3 +82,40 @@ class LightGBMSelector(AntennaSelector):
             )
 
         return metrics
+
+    def _build_dataset(self, training_data: list) -> tuple[np.ndarray, np.ndarray]:
+        """Convert list of samples into feature and label arrays."""
+        X, y = [], []
+        for sample in training_data:
+            features = self.extract_features(sample)
+            X.append([features[name] for name in self.feature_names])
+            y.append(sample.get("optimal_antenna"))
+        return np.array(X), np.array(y)
+
+    def _split_dataset(
+        self, X: np.ndarray, y: np.ndarray, validation_split: float
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray, np.ndarray | None]:
+        """Split dataset into train and validation parts."""
+        if validation_split <= 0 or len(X) <= 1:
+            return X, None, y, None
+
+        from collections import Counter
+
+        counts = Counter(y)
+        stratify = y if all(c >= 2 for c in counts.values()) else None
+        try:
+            return train_test_split(
+                X,
+                y,
+                test_size=validation_split,
+                random_state=42,
+                stratify=stratify,
+            )
+        except ValueError:
+            return train_test_split(
+                X,
+                y,
+                test_size=validation_split,
+                random_state=42,
+                stratify=None,
+            )
