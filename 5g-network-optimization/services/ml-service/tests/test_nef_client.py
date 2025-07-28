@@ -1,5 +1,5 @@
 import ml_service.app.clients.nef_client as nef_client
-from ml_service.app.clients.nef_client import NEFClient
+from ml_service.app.clients.nef_client import NEFClient, NEFClientError
 import requests
 import pytest
 
@@ -58,7 +58,8 @@ def test_login_request_error(monkeypatch):
         raise requests.exceptions.RequestException("boom")
 
     monkeypatch.setattr(nef_client.requests, "post", raise_exc)
-    assert client.login() is False
+    with pytest.raises(NEFClientError):
+        client.login()
 
 
 def test_login_unexpected_error(monkeypatch):
@@ -108,8 +109,8 @@ def test_generate_mobility_pattern_request_error(monkeypatch):
         raise requests.exceptions.RequestException("boom")
 
     monkeypatch.setattr(nef_client.requests, "post", raise_exc)
-    result = client.generate_mobility_pattern("linear", "u1", {"speed": 1})
-    assert result is None
+    with pytest.raises(NEFClientError):
+        client.generate_mobility_pattern("linear", "u1", {"speed": 1})
 
 
 def test_generate_mobility_pattern_unexpected_error(monkeypatch):
@@ -159,8 +160,8 @@ def test_get_ue_movement_state_request_error(monkeypatch):
         raise requests.exceptions.RequestException("boom")
 
     monkeypatch.setattr(nef_client.requests, "get", raise_exc)
-    result = client.get_ue_movement_state()
-    assert result == {}
+    with pytest.raises(NEFClientError):
+        client.get_ue_movement_state()
 
 
 def test_get_ue_movement_state_unexpected_error(monkeypatch):
@@ -207,8 +208,8 @@ def test_get_feature_vector_request_error(monkeypatch):
         raise requests.exceptions.RequestException("boom")
 
     monkeypatch.setattr(nef_client.requests, "get", raise_exc)
-    result = client.get_feature_vector("ue1")
-    assert result == {}
+    with pytest.raises(NEFClientError):
+        client.get_feature_vector("ue1")
 
 
 def test_get_feature_vector_unexpected_error(monkeypatch):

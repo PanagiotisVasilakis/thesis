@@ -7,7 +7,7 @@ from datetime import datetime
 import asyncio
 import time
 
-from ..clients.nef_client import NEFClient
+from ..clients.nef_client import NEFClient, NEFClientError
 
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
@@ -26,7 +26,11 @@ class NEFDataCollector:
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
-        return self.client.login()
+        try:
+            return self.client.login()
+        except NEFClientError as exc:
+            self.logger.error(f"NEF authentication error: {exc}")
+            return False
     
     def get_ue_movement_state(self):
         """Get current state of all UEs in movement."""
@@ -36,6 +40,9 @@ class NEFDataCollector:
                 ue_count = len(state.keys())
                 self.logger.info(f"Retrieved state for {ue_count} moving UEs")
             return state
+        except NEFClientError as exc:
+            self.logger.error(f"NEF movement state error: {exc}")
+            return {}
         except Exception as e:
             self.logger.error(f"Error getting UE movement state: {str(e)}")
             return {}
@@ -110,6 +117,9 @@ class NEFDataCollector:
                 # Sleep until next sample
                 await asyncio.sleep(interval)
             
+            except NEFClientError as exc:
+                self.logger.error(f"NEF client error during collection: {exc}")
+                await asyncio.sleep(interval)
             except Exception as e:
                 self.logger.error(f"Error during data collection: {str(e)}")
                 await asyncio.sleep(interval)
