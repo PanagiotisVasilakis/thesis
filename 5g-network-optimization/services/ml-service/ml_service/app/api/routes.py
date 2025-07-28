@@ -92,6 +92,17 @@ def nef_status():
                     "message": response.text,
                 }
             )
+    except ValueError as exc:
+        current_app.logger.error("Invalid NEF response: %s", exc)
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": f"Invalid response from NEF: {exc}",
+                }
+            ),
+            500,
+        )
     except requests.exceptions.RequestException as exc:
         current_app.logger.error("NEF connection error: %s", exc)
         return (
@@ -102,17 +113,6 @@ def nef_status():
                 }
             ),
             502,
-        )
-    except Exception as e:
-        current_app.logger.exception("Unexpected error contacting NEF")
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": f"Failed to connect to NEF: {str(e)}",
-                }
-            ),
-            500,
         )
 
 

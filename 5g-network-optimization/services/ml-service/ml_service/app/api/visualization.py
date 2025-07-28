@@ -62,9 +62,6 @@ def coverage_map():
     except requests.exceptions.RequestException as e:
         logger.error("Request error generating coverage map: %s", e)
         return jsonify({"error": "Failed to fetch required data"}), 502
-    except Exception as e:
-        logger.exception("Error generating coverage map")
-        return jsonify({"error": str(e)}), 500
 
 
 @viz_bp.route("/trajectory", methods=["POST"])
@@ -95,6 +92,3 @@ def trajectory():
     except requests.exceptions.RequestException as e:
         logger.error("Request error generating trajectory: %s", e)
         return jsonify({"error": "Failed to fetch required data"}), 502
-    except Exception as e:
-        logger.exception("Error generating trajectory")
-        return jsonify({"error": str(e)}), 500

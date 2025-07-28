@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 import json
 import requests
+import pytest
 
 
 def _create_png(tmp_path, name):
@@ -66,3 +67,26 @@ def test_trajectory_request_error(client):
         )
         assert resp.status_code == 502
         assert resp.get_json()["error"]
+
+
+def test_coverage_map_unexpected_error(client):
+    with patch(
+        "ml_service.app.api.visualization.plot_antenna_coverage",
+        side_effect=ValueError("fail"),
+    ):
+        with pytest.raises(ValueError):
+            client.get("/api/visualization/coverage-map")
+
+
+def test_trajectory_unexpected_error(client):
+    with patch(
+        "ml_service.app.api.visualization.plot_movement_trajectory",
+        side_effect=ValueError("fail"),
+    ):
+        movement = [{"ue_id": "u1", "timestamp": "2025", "latitude": 0, "longitude": 0, "connected_to": "a"}]
+        with pytest.raises(ValueError):
+            client.post(
+                "/api/visualization/trajectory",
+                data=json.dumps(movement),
+                content_type="application/json",
+            )
