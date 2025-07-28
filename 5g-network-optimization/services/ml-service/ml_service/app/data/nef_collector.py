@@ -71,8 +71,7 @@ class NEFDataCollector:
                 ue_state = self.get_ue_movement_state()
 
                 for ue_id, ue_data in ue_state.items():
-                    sample = self._collect_sample(ue_id, ue_data)
-                    if sample:
+                    if sample := self._collect_sample(ue_id, ue_data):
                         collected_data.append(sample)
 
                 await asyncio.sleep(interval)
