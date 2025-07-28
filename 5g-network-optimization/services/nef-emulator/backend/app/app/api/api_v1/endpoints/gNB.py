@@ -1,11 +1,15 @@
 from typing import Any, List
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.param_functions import Path
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app import crud, models, schemas
 from app.api import deps
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -150,7 +154,11 @@ def delete_gNB(
     
     try:
         gNB = crud.gnb.remove_by_gNB_id(db=db, id=gNB_id)
-    except:
-        raise HTTPException(status_code=409, detail="Foreign key violation! gNB id is still referenced from another table")
+    except IntegrityError as exc:
+        logger.exception("Failed to delete gNB %s", gNB_id)
+        raise HTTPException(
+            status_code=409,
+            detail="Foreign key violation! gNB id is still referenced from another table",
+        ) from exc
 
     return gNB
