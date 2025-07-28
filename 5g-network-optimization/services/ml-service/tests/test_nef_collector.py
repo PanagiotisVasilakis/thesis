@@ -66,3 +66,35 @@ def test_collect_training_data_invalid():
     collector = NEFDataCollector(nef_url="http://nef")
     with pytest.raises(ValueError):
         asyncio.run(collector.collect_training_data(duration=0, interval=1))
+
+
+def test_collect_sample_missing_cell_id(monkeypatch):
+    collector = NEFDataCollector(nef_url="http://nef")
+    mock_client = MagicMock()
+    collector.client = mock_client
+
+    result = collector._collect_sample("ue1", {"latitude": 0})
+
+    assert result is None
+    mock_client.get_feature_vector.assert_not_called()
+
+
+def test_collect_sample_selects_best_antenna(monkeypatch):
+    collector = NEFDataCollector(nef_url="http://nef")
+    fv = {
+        "neighbor_rsrp_dbm": {"A": -80, "B": -75},
+        "neighbor_sinrs": {"A": 10, "B": 5},
+    }
+    mock_client = MagicMock(get_feature_vector=MagicMock(return_value=fv))
+    collector.client = mock_client
+
+    ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
+    sample = collector._collect_sample("ue1", ue_data)
+
+    assert sample["connected_to"] == "A"
+    assert sample["optimal_antenna"] == "B"
+    assert sample["rf_metrics"] == {
+        "A": {"rsrp": -80, "sinr": 10},
+        "B": {"rsrp": -75, "sinr": 5},
+    }
+    mock_client.get_feature_vector.assert_called_once_with("ue1")
