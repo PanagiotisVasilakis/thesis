@@ -58,83 +58,81 @@ class NEFDataCollector:
         Returns:
             List of collected data samples
         """
-        self.logger.info(f"Starting data collection for {duration} seconds at {interval}s intervals")
-        
-        # Initialize data collection
+        self.logger.info(
+            f"Starting data collection for {duration} seconds at {interval}s intervals"
+        )
+
         collected_data = []
         start_time = time.time()
         end_time = start_time + duration
-        
+
         while time.time() < end_time:
             try:
-                # Get current UE movement state
                 ue_state = self.get_ue_movement_state()
-                
-                # Process each UE
+
                 for ue_id, ue_data in ue_state.items():
-                    # Skip UEs not connected to any cell
-                    if ue_data.get('Cell_id') is None:
-                        continue
-                    
-                    # Determine the best antenna based on reported RF metrics
-                    fv = self.client.get_feature_vector(ue_id)
-                    rf_metrics = {}
-                    rsrps = fv.get('neighbor_rsrp_dbm', {})
-                    sinrs = fv.get('neighbor_sinrs', {})
+                    if sample := self._collect_sample(ue_id, ue_data):
+                        collected_data.append(sample)
 
-                    connected_cell_id = ue_data.get('Cell_id')
-                    best_antenna = connected_cell_id
-                    best_rsrp = float('-inf')
-                    best_sinr = float('-inf')
-
-                    for aid, rsrp in rsrps.items():
-                        sinr = sinrs.get(aid)
-                        rf_metrics[aid] = {
-                            'rsrp': rsrp,
-                            'sinr': sinr,
-                        }
-
-                        sinr_val = sinr if sinr is not None else float('-inf')
-                        if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
-                            best_rsrp = rsrp
-                            best_sinr = sinr_val
-                            best_antenna = aid
-
-                    # Create a data sample
-                    sample = {
-                        'timestamp': datetime.now().isoformat(),
-                        'ue_id': ue_id,
-                        'latitude': ue_data.get('latitude'),
-                        'longitude': ue_data.get('longitude'),
-                        'speed': ue_data.get('speed'),
-                        'connected_to': connected_cell_id,
-                        'optimal_antenna': best_antenna,
-                        'rf_metrics': rf_metrics,
-                    }
-                    
-                    collected_data.append(sample)
-                
-                # Sleep until next sample
                 await asyncio.sleep(interval)
-            
+
             except NEFClientError as exc:
                 self.logger.error(f"NEF client error during collection: {exc}")
                 await asyncio.sleep(interval)
             except Exception as e:
                 self.logger.error(f"Error during data collection: {str(e)}")
                 await asyncio.sleep(interval)
-        
-        # Save collected data
+
         if collected_data:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = os.path.join(self.data_dir, f'training_data_{timestamp}.json')
-            os.makedirs(self.data_dir, exist_ok=True)
-            
-            with open(filename, 'w') as f:
-                json.dump(collected_data, f, indent=2)
-            
-            self.logger.info(f"Collected {len(collected_data)} samples, saved to {filename}")
+            self._save_collected_data(collected_data)
         else:
             self.logger.warning("No data collected")
-            
+
         return collected_data
+
+    def _collect_sample(self, ue_id: str, ue_data: dict) -> dict | None:
+        """Create a single training sample for the given UE."""
+        if ue_data.get("Cell_id") is None:
+            return None
+
+        fv = self.client.get_feature_vector(ue_id)
+        rsrps = fv.get("neighbor_rsrp_dbm", {})
+        sinrs = fv.get("neighbor_sinrs", {})
+
+        connected_cell_id = ue_data.get("Cell_id")
+        rf_metrics: dict[str, dict] = {}
+        best_antenna = connected_cell_id
+        best_rsrp = float("-inf")
+        best_sinr = float("-inf")
+
+        for aid, rsrp in rsrps.items():
+            sinr = sinrs.get(aid)
+            rf_metrics[aid] = {"rsrp": rsrp, "sinr": sinr}
+
+            sinr_val = sinr if sinr is not None else float("-inf")
+            if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
+                best_rsrp = rsrp
+                best_sinr = sinr_val
+                best_antenna = aid
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "ue_id": ue_id,
+            "latitude": ue_data.get("latitude"),
+            "longitude": ue_data.get("longitude"),
+            "speed": ue_data.get("speed"),
+            "connected_to": connected_cell_id,
+            "optimal_antenna": best_antenna,
+            "rf_metrics": rf_metrics,
+        }
+
+    def _save_collected_data(self, collected_data: list) -> None:
+        """Persist collected samples to disk."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(self.data_dir, f"training_data_{timestamp}.json")
+        os.makedirs(self.data_dir, exist_ok=True)
+        with open(filename, "w") as f:
+            json.dump(collected_data, f, indent=2)
+        self.logger.info(
+            f"Collected {len(collected_data)} samples, saved to {filename}"
+        )

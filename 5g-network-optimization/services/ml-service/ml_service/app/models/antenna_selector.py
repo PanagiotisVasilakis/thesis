@@ -72,88 +72,73 @@ class AntennaSelector:
             random_state=42,
         )
     
-    def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data.
-
-        Parameters
-        ----------
-        data : dict
-            UE data including position, direction and rf_metrics.
-        include_neighbors : bool, optional
-            When True, include RSRP/SINR of neighbouring antennas sorted by
-            signal strength. The number of neighbours is determined from the
-            first call and kept constant afterwards.
-        """
-        features = {}
-        
-        # Location features
-        features['latitude'] = data.get('latitude', 0)
-        features['longitude'] = data.get('longitude', 0)
-        features['altitude'] = data.get('altitude', 0)
-        
-        # Movement features
-        features['speed'] = data.get('speed', 0)
-        direction = data.get('direction', (0, 0, 0))
-        # Convert direction to 2D unit vector components
+    def _direction_to_unit(self, direction: tuple | list) -> tuple[float, float]:
+        """Convert a 2D direction vector to unit components."""
         if isinstance(direction, (list, tuple)) and len(direction) >= 2:
-            # Normalize if needed
-            magnitude = (direction[0]**2 + direction[1]**2)**0.5
+            magnitude = (direction[0] ** 2 + direction[1] ** 2) ** 0.5
             if magnitude > 0:
-                features['direction_x'] = direction[0] / magnitude
-                features['direction_y'] = direction[1] / magnitude
-            else:
-                features['direction_x'] = 0
-                features['direction_y'] = 0
-        else:
-            features['direction_x'] = 0
-            features['direction_y'] = 0
-        
-        # Signal features
-        rf_metrics = data.get('rf_metrics', {})
-        current_antenna = data.get('connected_to')
-        if current_antenna and current_antenna in rf_metrics:
-            features['rsrp_current'] = rf_metrics[current_antenna].get('rsrp', -120)
-            features['sinr_current'] = rf_metrics[current_antenna].get('sinr', 0)
-        else:
-            features['rsrp_current'] = -120  # Default poor signal
-            features['sinr_current'] = 0     # Default neutral SINR
+                return direction[0] / magnitude, direction[1] / magnitude
+        return 0.0, 0.0
 
-        best_rsrp = features['rsrp_current']
-        best_sinr = features['sinr_current']
+    def _current_signal(self, current: str | None, metrics: dict) -> tuple[float, float]:
+        """Return RSRP/SINR for the currently connected antenna."""
+        if current and current in metrics:
+            data = metrics[current]
+            return data.get("rsrp", -120), data.get("sinr", 0)
+        return -120, 0
 
-        # Neighbor metrics ordered by signal strength
-        neighbors = []
-        if include_neighbors and rf_metrics:
-            neighbors = [
-                (aid, vals.get('rsrp', -120), vals.get('sinr', 0))
-                for aid, vals in rf_metrics.items()
-                if aid != current_antenna
-            ]
-            neighbors.sort(key=lambda x: x[1], reverse=True)
+    def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
+        """Return sorted list of neighbour metrics."""
+        if not include or not metrics:
+            return []
+        neighbors = [
+            (aid, vals.get("rsrp", -120), vals.get("sinr", 0))
+            for aid, vals in metrics.items()
+            if aid != current
+        ]
+        neighbors.sort(key=lambda x: x[1], reverse=True)
+        return neighbors
 
-            if neighbors:
-                best_rsrp = neighbors[0][1]
-                best_sinr = neighbors[0][2]
+    def extract_features(self, data, include_neighbors=True):
+        """Extract features from UE data."""
+        features = {
+            "latitude": data.get("latitude", 0),
+            "longitude": data.get("longitude", 0),
+            "altitude": data.get("altitude", 0),
+            "speed": data.get("speed", 0),
+        }
 
-            if self.neighbor_count == 0:
-                self.neighbor_count = len(neighbors)
-                for idx in range(self.neighbor_count):
-                    self.feature_names.extend([
-                        f'rsrp_a{idx+1}', f'sinr_a{idx+1}'
-                    ])
+        dx, dy = self._direction_to_unit(data.get("direction", (0, 0, 0)))
+        features["direction_x"] = dx
+        features["direction_y"] = dy
 
+        rf_metrics = data.get("rf_metrics", {})
+        current_antenna = data.get("connected_to")
+        rsrp_curr, sinr_curr = self._current_signal(current_antenna, rf_metrics)
+        features["rsrp_current"] = rsrp_curr
+        features["sinr_current"] = sinr_curr
+
+        neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
+        best_rsrp, best_sinr = rsrp_curr, sinr_curr
+        if neighbors:
+            best_rsrp, best_sinr = neighbors[0][1], neighbors[0][2]
+
+        if self.neighbor_count == 0:
+            self.neighbor_count = len(neighbors)
             for idx in range(self.neighbor_count):
-                if idx < len(neighbors):
-                    features[f'rsrp_a{idx+1}'] = neighbors[idx][1]
-                    features[f'sinr_a{idx+1}'] = neighbors[idx][2]
-                else:
-                    features[f'rsrp_a{idx+1}'] = -120
-                    features[f'sinr_a{idx+1}'] = 0
+                self.feature_names.extend([f"rsrp_a{idx+1}", f"sinr_a{idx+1}"])
 
-        # Signal quality improvement compared to current connection
-        features['best_rsrp_diff'] = best_rsrp - features['rsrp_current']
-        features['best_sinr_diff'] = best_sinr - features['sinr_current']
-        
+        for idx in range(self.neighbor_count):
+            if idx < len(neighbors):
+                features[f"rsrp_a{idx+1}"] = neighbors[idx][1]
+                features[f"sinr_a{idx+1}"] = neighbors[idx][2]
+            else:
+                features[f"rsrp_a{idx+1}"] = -120
+                features[f"sinr_a{idx+1}"] = 0
+
+        features["best_rsrp_diff"] = best_rsrp - rsrp_curr
+        features["best_sinr_diff"] = best_sinr - sinr_curr
+
         return features
     
     def predict(self, features):
