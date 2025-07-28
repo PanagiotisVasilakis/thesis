@@ -120,6 +120,20 @@ When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
 `ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
 contains the recommended antenna which is then applied automatically.
 
+## Altitude Input for AntennaSelector
+
+The UE feature set now includes an `altitude` field representing the z‑axis
+position of the device. `AntennaSelector` exposes this value in
+`base_feature_names` and incorporates it when extracting features for both
+training and live predictions. Including altitude lets the model distinguish
+between scenarios such as multi‑storey buildings or drones flying at different
+heights. Prediction requests should therefore supply an `altitude` value along
+with latitude and longitude for best accuracy.
+
+Example test data demonstrating altitude usage can be found in
+[`test_antenna_selector.py`](5g-network-optimization/services/ml-service/tests/test_antenna_selector.py),
+where altitude is assigned before training【F:5g-network-optimization/services/ml-service/tests/test_antenna_selector.py†L188-L200】.
+
 ## Running the System
 Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
 
