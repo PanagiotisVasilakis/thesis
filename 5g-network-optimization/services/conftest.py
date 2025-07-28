@@ -5,12 +5,15 @@ import sys
 SERVICES_ROOT = os.path.abspath(os.path.dirname(__file__))
 REPO_ROOT = os.path.dirname(SERVICES_ROOT)
 NEF_ROOT = os.path.join(SERVICES_ROOT, 'nef-emulator')
+# Also include the ml-service so local tests run without ``pip install -e``.
+# This avoids needing ``pip install -e`` when running tests locally.
+ML_SERVICE_ROOT = os.path.join(SERVICES_ROOT, 'ml-service')
 NEF_BACKEND_ROOT = os.path.join(NEF_ROOT, 'backend')
 NEF_APP_ROOT = os.path.join(NEF_BACKEND_ROOT, 'app', 'app')
 
 # Add service directories to ``sys.path`` so modules like ``services.logging_config``
 # are importable during tests.
-for path in reversed([REPO_ROOT, SERVICES_ROOT, NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
+for path in reversed([REPO_ROOT, SERVICES_ROOT, ML_SERVICE_ROOT, NEF_APP_ROOT, NEF_BACKEND_ROOT, NEF_ROOT]):
     if path not in sys.path:
         sys.path.insert(0, path)
 
