@@ -47,7 +47,9 @@ class NEFDataCollector:
             self.logger.error(f"Error getting UE movement state: {str(e)}")
             return {}
     
-    async def collect_training_data(self, duration=60, interval=1):
+    async def collect_training_data(
+        self, duration: float = 60, interval: float = 1
+    ) -> list[dict]:
         """
         Collect training data for the specified duration.
         
@@ -58,6 +60,15 @@ class NEFDataCollector:
         Returns:
             List of collected data samples
         """
+        if duration <= 0:
+            msg = f"duration must be positive, got {duration}"
+            self.logger.warning(msg)
+            raise ValueError(msg)
+        if interval <= 0:
+            msg = f"interval must be positive, got {interval}"
+            self.logger.warning(msg)
+            raise ValueError(msg)
+
         self.logger.info(
             f"Starting data collection for {duration} seconds at {interval}s intervals"
         )
