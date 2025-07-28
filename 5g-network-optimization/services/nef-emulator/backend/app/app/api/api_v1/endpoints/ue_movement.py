@@ -31,6 +31,7 @@ class BackgroundTasks(threading.Thread):
         self._args = args
         self._kwargs = kwargs
         self._stop_threads = False
+        self._wait_event = threading.Event()
         return
 
     def run(self):
@@ -288,7 +289,8 @@ class BackgroundTasks(threading.Thread):
                     # skip 10 points --> 10m / sec
                     moving_position_index += 10
 
-                time.sleep(1)
+                self._wait_event.clear()
+                self._wait_event.wait(1)
 
                 current_position_index = moving_position_index % (len(points))
                 state_manager.set_ue(supi, ue_data)
@@ -314,6 +316,7 @@ class BackgroundTasks(threading.Thread):
 
     def stop(self):
         self._stop_threads = True
+        self._wait_event.set()
 
 #API
 router = APIRouter()
