@@ -2,8 +2,9 @@
 from flask import Blueprint, jsonify, request, send_file, current_app
 import os
 import logging
+import requests
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
-from ..initialization.model_init import get_model
+from ..initialization.model_init import ModelManager
 from ..visualization.plotter import (
     plot_antenna_coverage,
     plot_movement_trajectory,
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 def coverage_map():
     """Generate and return an antenna coverage map."""
     try:
-        model = get_model(current_app.config["MODEL_PATH"])
+        model = ModelManager.get_instance(current_app.config["MODEL_PATH"])
         # First, check if the model is trained
         try:
             # Try a simple prediction to see if model is trained
@@ -55,12 +56,12 @@ def coverage_map():
         # Return the image file
         return send_file(output_file, mimetype="image/png")
 
-    except Exception as e:
-        import traceback
-
-        logger.error(f"Error generating coverage map: {str(e)}")
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+    except FileNotFoundError as e:
+        logger.error("Coverage map file not found: %s", e)
+        return jsonify({"error": str(e)}), 404
+    except requests.exceptions.RequestException as e:
+        logger.error("Request error generating coverage map: %s", e)
+        return jsonify({"error": "Failed to fetch required data"}), 502
 
 
 @viz_bp.route("/trajectory", methods=["POST"])
@@ -85,5 +86,9 @@ def trajectory():
         # Return the image file
         return send_file(output_file, mimetype="image/png")
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except FileNotFoundError as e:
+        logger.error("Trajectory file not found: %s", e)
+        return jsonify({"error": str(e)}), 404
+    except requests.exceptions.RequestException as e:
+        logger.error("Request error generating trajectory: %s", e)
+        return jsonify({"error": "Failed to fetch required data"}), 502

@@ -122,6 +122,7 @@ def plot_antenna_coverage(model, output_dir='output'):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'antenna_coverage_{timestamp}.png')
     plt.savefig(filename)
+    plt.close()
     
     # Log the file path for debugging
     logger.info(f"Saved coverage map to: {filename}")
@@ -184,6 +185,7 @@ def plot_movement_trajectory(movement_data, output_dir='output'):
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'trajectory_{timestamp}.png')
     plt.savefig(filename)
+    plt.close()
     
     # Log the file path for debugging
     logger.info(f"Saved trajectory visualization to: {filename}")

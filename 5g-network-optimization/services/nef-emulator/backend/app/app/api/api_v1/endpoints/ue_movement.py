@@ -8,26 +8,21 @@ from app.tools.distance import check_distance
 from app.tools import qos_callback
 from app.db.session import SessionLocal, client
 from app.api import deps
+from app.api.api_v1.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
 
-# Counter for timer related errors
-timer_error_counter = 0
+# Counter for timer related errors is stored in StateManager
 
 def log_timer_exception(ex: Exception) -> None:
     """Log timer exceptions and track how many times they occur."""
-    global timer_error_counter
-    timer_error_counter += 1
+    state_manager.increment_timer_error()
     logger.warning("Timer error: %s", ex)
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer
 from sqlalchemy.orm import Session
 
-#Dictionary holding threads that are running per user id.
-threads = {}
-
-#Dictionary holding UEs' information
-ues = {}
+#Dictionary holding threads and UEs' information are stored in StateManager
 
 class BackgroundTasks(threading.Thread):
 
@@ -36,6 +31,7 @@ class BackgroundTasks(threading.Thread):
         self._args = args
         self._kwargs = kwargs
         self._stop_threads = False
+        self._wait_event = threading.Event()
         return
 
     def run(self):
@@ -96,7 +92,7 @@ class BackgroundTasks(threading.Thread):
 
             # find the index of the point where the UE is located
             for index, point in enumerate(points):
-                if (ues[f"{supi}"]["latitude"] == point["latitude"]) and (ues[f"{supi}"]["longitude"] == point["longitude"]):
+                if (ue_data["latitude"] == point["latitude"]) and (ue_data["longitude"] == point["longitude"]):
                     current_position_index = index
 
             # start iterating from this index and keep increasing the moving_position_index...
@@ -106,9 +102,9 @@ class BackgroundTasks(threading.Thread):
                 try:
                     # UE = crud.ue.update_coordinates(db=db, lat=points[current_position_index]["latitude"], long=points[current_position_index]["longitude"], db_obj=UE)
                     # cell_now = check_distance(UE.latitude, UE.longitude, json_cells) #calculate the distance from all the cells
-                    ues[f"{supi}"]["latitude"] = points[current_position_index]["latitude"]
-                    ues[f"{supi}"]["longitude"] = points[current_position_index]["longitude"]
-                    cell_now = check_distance(ues[f"{supi}"]["latitude"], ues[f"{supi}"]["longitude"], json_cells) #calculate the distance from all the cells
+                    ue_data["latitude"] = points[current_position_index]["latitude"]
+                    ue_data["longitude"] = points[current_position_index]["longitude"]
+                    cell_now = check_distance(ue_data["latitude"], ue_data["longitude"], json_cells) #calculate the distance from all the cells
                 except Exception as ex:
                     logging.warning("Failed to update coordinates")
                     logging.warning(ex)
@@ -116,7 +112,7 @@ class BackgroundTasks(threading.Thread):
                 
                 #MonitoringEvent API - Loss of connectivity
                 if not active_subscriptions.get("loss_of_connectivity"):
-                    loss_of_connectivity_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ues[f"{supi}"]["external_identifier"], monitoringType = "LOSS_OF_CONNECTIVITY")
+                    loss_of_connectivity_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ue_data["external_identifier"], monitoringType = "LOSS_OF_CONNECTIVITY")
                     if loss_of_connectivity_sub:
                         active_subscriptions.update({"loss_of_connectivity" : True})
                     
@@ -129,7 +125,7 @@ class BackgroundTasks(threading.Thread):
                             try:
                                 elapsed_time = t.status()
                                 if elapsed_time > loss_of_connectivity_sub.get("maximumDetectionTime"):
-                                    response = monitoring_callbacks.loss_of_connectivity_callback(ues[f"{supi}"], loss_of_connectivity_sub.get("notificationDestination"), loss_of_connectivity_sub.get("link"))
+                                    response = monitoring_callbacks.loss_of_connectivity_callback(ue_data, loss_of_connectivity_sub.get("notificationDestination"), loss_of_connectivity_sub.get("link"))
                                     
                                     logging.critical(response.json())
                                     #This ack is used to send one time the loss of connectivity callback
@@ -153,15 +149,22 @@ class BackgroundTasks(threading.Thread):
 
                 #As Session With QoS API - search for active subscription in db
                 if not active_subscriptions.get("as_session_with_qos"):
-                    qos_sub = crud_mongo.read(db_mongo, 'QoSMonitoring', 'ipv4Addr', ues[f"{supi}"]["ip_address_v4"])
+                    qos_sub = crud_mongo.read(db_mongo, 'QoSMonitoring', 'ipv4Addr', ue_data["ip_address_v4"])
                     if qos_sub:
                         active_subscriptions.update({"as_session_with_qos" : True})
                         reporting_freq = qos_sub["qosMonInfo"]["repFreqs"]
                         
                         if "PERIODIC" in reporting_freq:
                             reporting_period = qos_sub["qosMonInfo"]["repPeriod"]
-                            rt = timer.RepeatedTimer(reporting_period, qos_callback.qos_notification_control, qos_sub, ues[f"{supi}"]["ip_address_v4"], ues.copy(),  ues[f"{supi}"])
-                            # qos_callback.qos_notification_control(qos_sub, ues[f"{supi}"]["ip_address_v4"], ues.copy(),  ues[f"{supi}"])
+                            rt = timer.RepeatedTimer(
+                                reporting_period,
+                                qos_callback.qos_notification_control,
+                                qos_sub,
+                                ue_data["ip_address_v4"],
+                                state_manager.all_ues(),
+                                ue_data,
+                            )
+                            # qos_callback.qos_notification_control(qos_sub, ue_data["ip_address_v4"], state_manager.all_ues(), ue_data)
 
 
                 #If the document exists then validate the owner
@@ -180,14 +183,14 @@ class BackgroundTasks(threading.Thread):
                         log_timer_exception(ex)
 
                     # if UE.Cell_id != cell_now.get('id'): #Cell has changed in the db "handover"
-                    if ues[f"{supi}"]["Cell_id"] != cell_now.get('id'): #Cell has changed in the db "handover"
+                    if ue_data["Cell_id"] != cell_now.get('id'): #Cell has changed in the db "handover"
                         
                         #Monitoring Event API - UE reachability 
                         #check if the ue was disconnected before
-                        if ues[f"{supi}"]["Cell_id"] == None:
+                        if ue_data["Cell_id"] == None:
                             
                             if not active_subscriptions.get("ue_reachability"):
-                                ue_reachability_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ues[f"{supi}"]["external_identifier"], monitoringType = "UE_REACHABILITY")
+                                ue_reachability_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ue_data["external_identifier"], monitoringType = "UE_REACHABILITY")
                                 if ue_reachability_sub:
                                     active_subscriptions.update({"ue_reachability" : True})
 
@@ -198,7 +201,7 @@ class BackgroundTasks(threading.Thread):
                                 if sub_is_valid:
                                     try:
                                         try:
-                                            monitoring_callbacks.ue_reachability_callback(ues[f"{supi}"], ue_reachability_sub.get("notificationDestination"), ue_reachability_sub.get("link"), ue_reachability_sub.get("reachabilityType"))
+                                            monitoring_callbacks.ue_reachability_callback(ue_data, ue_reachability_sub.get("notificationDestination"), ue_reachability_sub.get("link"), ue_reachability_sub.get("reachabilityType"))
                                             ue_reachability_sub.update({"maximumNumberOfReports" : ue_reachability_sub.get("maximumNumberOfReports") - 1})
                                             crud_mongo.update(db_mongo, "MonitoringEvent", ue_reachability_sub.get("_id"), ue_reachability_sub)
                                         except timer.TimerError as ex:
@@ -217,15 +220,15 @@ class BackgroundTasks(threading.Thread):
                         
                         
                         # logging.warning(f"UE({UE.supi}) with ipv4 {UE.ip_address_v4} handovers to Cell {cell_now.get('id')}, {cell_now.get('description')}")
-                        ues[f"{supi}"]["Cell_id"] = cell_now.get('id')
-                        ues[f"{supi}"]["cell_id_hex"] = cell_now.get('cell_id')
-                        ues[f"{supi}"]["gnb_id_hex"] = cell_now.get('cell_id')[:6]
+                        ue_data["Cell_id"] = cell_now.get('id')
+                        ue_data["cell_id_hex"] = cell_now.get('cell_id')
+                        ue_data["gnb_id_hex"] = cell_now.get('cell_id')[:6]
 
                         
                         #Monitoring Event API - Location Reporting
                         #Retrieve the subscription of the UE by external Id | This could be outside while true but then the user cannot subscribe when the loop runs
                         if not active_subscriptions.get("location_reporting"):
-                            location_reporting_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ues[f"{supi}"]["external_identifier"], monitoringType = "LOCATION_REPORTING")
+                            location_reporting_sub = crud_mongo.read_by_multiple_pairs(db_mongo, "MonitoringEvent", externalId = ue_data["external_identifier"], monitoringType = "LOCATION_REPORTING")
                             if location_reporting_sub:
                                 active_subscriptions.update({"location_reporting" : True})
 
@@ -235,7 +238,7 @@ class BackgroundTasks(threading.Thread):
                             if sub_is_valid:
                                 try:
                                     try:
-                                        monitoring_callbacks.location_callback(ues[f"{supi}"], location_reporting_sub.get("notificationDestination"), location_reporting_sub.get("link"))
+                                        monitoring_callbacks.location_callback(ue_data, location_reporting_sub.get("notificationDestination"), location_reporting_sub.get("link"))
                                         location_reporting_sub.update({"maximumNumberOfReports" : location_reporting_sub.get("maximumNumberOfReports") - 1})
                                         crud_mongo.update(db_mongo, "MonitoringEvent", location_reporting_sub.get("_id"), location_reporting_sub)
                                     except timer.TimerError as ex:
@@ -256,7 +259,12 @@ class BackgroundTasks(threading.Thread):
                         if active_subscriptions.get("as_session_with_qos"):
                             reporting_freq = qos_sub["qosMonInfo"]["repFreqs"]
                             if "EVENT_TRIGGERED" in reporting_freq:
-                                qos_callback.qos_notification_control(qos_sub, ues[f"{supi}"]["ip_address_v4"], ues.copy(),  ues[f"{supi}"])
+                                qos_callback.qos_notification_control(
+                                    qos_sub,
+                                    ue_data["ip_address_v4"],
+                                    state_manager.all_ues(),
+                                    ue_data,
+                                )
                         #As Session With QoS API - if EVENT_TRIGGER then send callback on handover
 
                 else:
@@ -268,22 +276,24 @@ class BackgroundTasks(threading.Thread):
                     except timer.TimerError as ex:
                         log_timer_exception(ex)
 
-                    ues[f"{supi}"]["Cell_id"] = None
-                    ues[f"{supi}"]["cell_id_hex"] = None
-                    ues[f"{supi}"]["gnb_id_hex"] = None
+                    ue_data["Cell_id"] = None
+                    ue_data["cell_id_hex"] = None
+                    ue_data["gnb_id_hex"] = None
 
                 # logging.info(f'User: {current_user.id} | UE: {supi} | Current location: latitude ={UE.latitude} | longitude = {UE.longitude} | Speed: {UE.speed}' )
                 
-                if ues[f"{supi}"]["speed"] == 'LOW':
+                if ue_data["speed"] == 'LOW':
                     # don't skip any points, keep default speed 1m /sec
                     moving_position_index += 1
-                elif ues[f"{supi}"]["speed"] == 'HIGH':
+                elif ue_data["speed"] == 'HIGH':
                     # skip 10 points --> 10m / sec
                     moving_position_index += 10
 
-                time.sleep(1)
+                self._wait_event.clear()
+                self._wait_event.wait(1)
 
-                current_position_index = moving_position_index%(len(points))
+                current_position_index = moving_position_index % (len(points))
+                state_manager.set_ue(supi, ue_data)
 
                 
                 if self._stop_threads:
@@ -291,9 +301,9 @@ class BackgroundTasks(threading.Thread):
                     logging.critical("Updating UE with the latest coordinates and cell in the database (last known position)...")
                     db = SessionLocal()
                     UE = crud.ue.get_supi(db, supi)
-                    crud.ue.update_coordinates(db=db, lat=ues[f"{supi}"]["latitude"], long=ues[f"{supi}"]["longitude"], db_obj=UE)
-                    crud.ue.update(db=db, db_obj=UE, obj_in={"Cell_id" : ues[f"{supi}"]["Cell_id"]})
-                    ues.pop(f"{supi}")
+                    crud.ue.update_coordinates(db=db, lat=ue_data["latitude"], long=ue_data["longitude"], db_obj=UE)
+                    crud.ue.update(db=db, db_obj=UE, obj_in={"Cell_id" : ue_data["Cell_id"]})
+                    state_manager.remove_ue(supi)
                     db.close()
                     if rt is not None:
                         rt.stop()
@@ -306,6 +316,7 @@ class BackgroundTasks(threading.Thread):
 
     def stop(self):
         self._stop_threads = True
+        self._wait_event.set()
 
 #API
 router = APIRouter()
@@ -320,43 +331,42 @@ def initiate_movement(
     """
     Start the loop.
     """
-    if msg.supi in threads:
+    if state_manager.get_thread(msg.supi, f"{current_user.id}"):
         raise HTTPException(status_code=409, detail=f"There is a thread already running for this supi:{msg.supi}")
     
     #Check if UE 
     UE = crud.ue.get_supi(db=db, supi=msg.supi)
     if not UE:
         logging.warning("UE not found")
-        threads.pop(f"{msg.supi}")
+        state_manager.remove_thread(msg.supi)
         return
     if (UE.owner_id != current_user.id):
         logging.warning("Not enough permissions")
-        threads.pop(f"{msg.supi}")
+        state_manager.remove_thread(msg.supi)
         return
     
     #Insert running UE in the dictionary
 
-    global ues
-    ues[f"{msg.supi}"] = jsonable_encoder(UE)
-    ues[f"{msg.supi}"].pop("id")
+    ue_data = jsonable_encoder(UE)
+    ue_data.pop("id")
 
     if UE.Cell_id != None:
-        ues[f"{msg.supi}"]["cell_id_hex"] = UE.Cell.cell_id
-        ues[f"{msg.supi}"]["gnb_id_hex"] = UE.Cell.gNB.gNB_id
+        ue_data["cell_id_hex"] = UE.Cell.cell_id
+        ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
     else:
-        ues[f"{msg.supi}"]["cell_id_hex"] = None
-        ues[f"{msg.supi}"]["gnb_id_hex"] = None
+        ue_data["cell_id_hex"] = None
+        ue_data["gnb_id_hex"] = None
 
 
     #Retrieve paths & points
     path = crud.path.get(db=db, id=UE.path_id)
     if not path:
         logging.warning("Path not found")
-        threads.pop(f"{msg.supi}")
+        state_manager.remove_thread(msg.supi)
         return
     if (path.owner_id != current_user.id):
         logging.warning("Not enough permissions")
-        threads.pop(f"{msg.supi}")
+        state_manager.remove_thread(msg.supi)
         return
 
     points = crud.points.get_points(db=db, path_id=UE.path_id)
@@ -368,11 +378,10 @@ def initiate_movement(
 
     is_superuser = crud.user.is_superuser(current_user)
 
-    t = BackgroundTasks(args= (current_user, msg.supi, json_cells, points, is_superuser))
-    threads[f"{msg.supi}"] = {}
-    threads[f"{msg.supi}"][f"{current_user.id}"] = t
+    t = BackgroundTasks(args=(current_user, msg.supi, json_cells, points, is_superuser))
+    state_manager.set_thread(msg.supi, f"{current_user.id}", t)
+    state_manager.set_ue(msg.supi, ue_data)
     t.start()
-    # print(threads)
     return {"msg": "Loop started"}
 
 @router.post("/stop-loop", status_code=200)
@@ -385,9 +394,12 @@ def terminate_movement(
     Stop the loop.
     """
     try:
-        threads[f"{msg.supi}"][f"{current_user.id}"].stop() 
-        threads[f"{msg.supi}"][f"{current_user.id}"].join()
-        threads.pop(f"{msg.supi}")
+        t = state_manager.get_thread(msg.supi, f"{current_user.id}")
+        if not t:
+            raise KeyError
+        t.stop()
+        t.join()
+        state_manager.remove_thread(msg.supi)
         return {"msg": "Loop ended"}
     except KeyError as ke:
         logger.error('Key Not Found in Threads Dictionary: %s', ke)
@@ -411,21 +423,22 @@ def state_ues(
     """
     Get the state
     """
-    return ues
+    return state_manager.all_ues()
 
 #Functions
-def retrieve_ue_state(supi: str, user_id: int) -> bool: 
+def retrieve_ue_state(supi: str, user_id: int) -> bool:
     try:
-        return threads[f"{supi}"][f"{user_id}"].is_alive()
+        t = state_manager.get_thread(supi, f"{user_id}")
+        return t.is_alive() if t else False
     except KeyError as ke:
         logger.error('Key Not Found in Threads Dictionary: %s', ke)
         return False
 
 def retrieve_ues() -> dict:
-    return ues
+    return state_manager.all_ues()
 
 def retrieve_ue(supi: str) -> dict:
-    return ues.get(supi)
+    return state_manager.get_ue(supi)
 
 
 def monitoring_event_sub_validation(sub: dict, is_superuser: bool, current_user_id: int, owner_id) -> bool:

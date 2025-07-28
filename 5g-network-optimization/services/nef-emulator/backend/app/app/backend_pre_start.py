@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 import sys
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
@@ -38,5 +39,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    configure_logging()
+    configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))
     main()

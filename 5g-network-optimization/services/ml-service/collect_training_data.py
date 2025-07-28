@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Script for collecting training data from NEF emulator."""
 import argparse
+import asyncio
 import os
 import json
 import time
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     """Main entry point for data collection script."""
-    configure_logging()
+    configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))
     parser = argparse.ArgumentParser(description='Collect training data from NEF emulator')
     parser.add_argument('--url', type=str, default='http://localhost:8080',
                         help='NEF emulator URL (default: http://localhost:8080)')
@@ -55,10 +56,10 @@ def main():
             logger.warning(
                 f"Service responded with {resp.status_code}: {resp.text}"
             )
-            return 1
-        except Exception as e:
+            return 2
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error contacting ML service: {str(e)}")
-            return 1
+            return 2
 
     # Initialize collector
     collector = NEFDataCollector(
@@ -92,7 +93,11 @@ def main():
         f"Collecting data for {args.duration} seconds at {args.interval}s intervals..."
     )
     start_time = time.time()
-    data = collector.collect_training_data(duration=args.duration, interval=args.interval)
+    data = asyncio.run(
+        collector.collect_training_data(
+            duration=args.duration, interval=args.interval
+        )
+    )
     collection_time = time.time() - start_time
     
     if not data:
@@ -121,13 +126,17 @@ def main():
                 "http://localhost:5050/api/train",
                 json=data
             )
-            
+
             if response.status_code == 200:
                 logger.info("Model training successful!")
-                metrics = response.json().get('metrics', {})
+                try:
+                    metrics = response.json().get('metrics', {})
+                except json.JSONDecodeError as exc:
+                    logger.error(f"Failed to decode training response: {exc}")
+                    return 4
                 logger.info(f"Trained with {metrics.get('samples', 0)} samples")
                 logger.info(f"Found {metrics.get('classes', 0)} antenna classes")
-                
+
                 # If feature importance is available, print top features
                 if 'feature_importance' in metrics:
                     logger.info("\nFeature importance:")
@@ -143,9 +152,9 @@ def main():
                     f"Model training failed: {response.status_code} - {response.text}"
                 )
                 return 1
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error during model training: {str(e)}")
-            return 1
+            return 3
     
     return 0
 

@@ -1,4 +1,5 @@
 import json
+import asyncio
 from unittest.mock import MagicMock
 
 from ml_service.app.data import nef_collector
@@ -32,7 +33,8 @@ def test_collect_training_data(monkeypatch, tmp_path):
     times = iter([0, 0.1, 1.1])
     monkeypatch.setattr(nef_collector.time, "time", lambda: next(times))
 
-    data = collector.collect_training_data(duration=1, interval=1)
+    import asyncio
+    data = asyncio.run(collector.collect_training_data(duration=1, interval=1))
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -70, "sinr": 8}}

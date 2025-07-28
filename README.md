@@ -82,7 +82,12 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `A3_TTT_S` | Time-to-trigger in seconds for the A3 event rule | `0.0` |
 | `NEF_API_URL` | Base URL of the NEF emulator used by the ML service | `http://localhost:8080` |
 | `ML_LOCAL` | Install the ML service in the NEF emulator container and skip the separate `ml-service` container | `0` |
+| `LOG_LEVEL` | Root logger level used by both services | `INFO` |
+| `LOG_FILE` | Optional path for a rotating log file | *(unset)* |
 | `min_antennas_ml` (param) | Minimum antennas required for automatic ML mode. Override when instantiating `HandoverEngine` | `3` |
+
+`LOG_LEVEL` sets the verbosity of both services (`DEBUG`, `INFO`, etc.) while
+`LOG_FILE` enables file-based logging with automatic rotation when specified.
 
 The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector.joblib`).
 Override this variable and mount a host directory in a `docker-compose.override.yml` file if you want the model to persist across container runs.
@@ -177,19 +182,19 @@ docker push <registry>/ml-service:latest
 
 ## Testing
 ### Installing Test Dependencies
-Install the Python packages required by the test suite:
-```bash
-pip install -r requirements.txt
-# or run ./scripts/install_deps.sh
-```
-Some tests rely on optional packages such as `matplotlib` for generating plots
-and `Flask` for API integration checks. These are included in
-`requirements.txt`, so ensure they are installed before running the tests.
-
-After installing the Python dependencies, set up the required system libraries
-and run the test suite:
+Before running `pytest`, install both the system and Python dependencies:
 ```bash
 ./scripts/install_system_deps.sh
+./scripts/install_deps.sh
+```
+These helper scripts install everything in `requirements.txt` (including
+`fastapi` and `matplotlib`) and register the `ml_service` package in editable
+mode. They also pull in OS libraries such as `libcairo` and `libjpeg` that the
+tests require. If you encounter errors about missing shared libraries, rerun the
+system dependency step.
+
+After the dependencies are installed, execute the test suite:
+```bash
 pytest
 ```
 
@@ -207,6 +212,7 @@ Start the containers and run the full integration suite:
 ```bash
 ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
 pip install -r requirements.txt
+pip install -e 5g-network-optimization/services/ml-service
 pytest 5g-network-optimization/services/nef-emulator/tests/integration \
        5g-network-optimization/services/ml-service/tests/integration
 ```
@@ -237,6 +243,6 @@ The second command collects the generated images and captions under
 
 ## Useful Scripts
 
-- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt`.
 - `scripts/install_system_deps.sh` – install OS libraries needed by the services and tests.
-- `scripts/run_tests.sh` – install dependencies and run the tests with coverage output.
+- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt` and the `ml_service` package.
+- `scripts/run_tests.sh` – run both installation steps and execute the tests with coverage output.

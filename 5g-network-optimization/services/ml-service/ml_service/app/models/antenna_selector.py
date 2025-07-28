@@ -21,8 +21,18 @@ DEFAULT_TEST_FEATURES = {
 class AntennaSelector:
     """ML model for selecting optimal antenna based on UE data."""
 
-    def __init__(self, model_path=None):
-        """Initialize the model."""
+    def __init__(self, model_path=None, neighbor_count: int | None = None):
+        """Initialize the model.
+
+        Parameters
+        ----------
+        model_path:
+            Optional path to a saved model.
+        neighbor_count:
+            If given, preallocate feature names for this many neighbouring
+            antennas instead of determining the number dynamically on the first
+            call to :meth:`extract_features`.
+        """
         self.model_path = model_path
         self.model = None
         # Base features independent of neighbour count
@@ -35,6 +45,14 @@ class AntennaSelector:
         ]
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
+
+        if neighbor_count and neighbor_count > 0:
+            self.neighbor_count = int(neighbor_count)
+            for idx in range(self.neighbor_count):
+                self.feature_names.extend([
+                    f"rsrp_a{idx+1}",
+                    f"sinr_a{idx+1}",
+                ])
         
         # Try to load existing model
         try:
