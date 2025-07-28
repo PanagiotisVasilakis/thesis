@@ -30,7 +30,9 @@ jobs:
             git
 
       - name: Install Python dependencies
-        run: python -m pip install -r thesis/requirements.txt
+        run: |
+          python -m pip install -r requirements.txt
+          pip install -e 5g-network-optimization/services/ml-service
 
       - name: Run tests
         run: |
