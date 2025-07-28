@@ -185,6 +185,7 @@ docker push <registry>/ml-service:latest
 Install the Python packages required by the test suite:
 ```bash
 pip install -r requirements.txt
+pip install -e 5g-network-optimization/services/ml-service
 # or run ./scripts/install_deps.sh
 ```
 Some tests rely on optional packages such as `matplotlib` for generating plots
@@ -212,6 +213,7 @@ Start the containers and run the full integration suite:
 ```bash
 ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
 pip install -r requirements.txt
+pip install -e 5g-network-optimization/services/ml-service
 pytest 5g-network-optimization/services/nef-emulator/tests/integration \
        5g-network-optimization/services/ml-service/tests/integration
 ```
