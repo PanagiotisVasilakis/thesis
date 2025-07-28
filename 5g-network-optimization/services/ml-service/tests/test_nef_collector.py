@@ -1,4 +1,5 @@
 import json
+import asyncio
 from unittest.mock import MagicMock
 
 from ml_service.app.data import nef_collector
@@ -59,3 +60,9 @@ async def test_collect_training_data(tmp_path, monkeypatch):
     with open(files[0]) as f:
         saved = json.load(f)
     assert saved == data
+
+
+def test_collect_training_data_invalid():
+    collector = NEFDataCollector(nef_url="http://nef")
+    with pytest.raises(ValueError):
+        asyncio.run(collector.collect_training_data(duration=0, interval=1))
