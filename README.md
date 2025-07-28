@@ -182,20 +182,19 @@ docker push <registry>/ml-service:latest
 
 ## Testing
 ### Installing Test Dependencies
-Install the Python packages required by the test suite:
-```bash
-pip install -r requirements.txt
-pip install -e 5g-network-optimization/services/ml-service
-# or run ./scripts/install_deps.sh
-```
-Some tests rely on optional packages such as `matplotlib` for generating plots
-and `Flask` for API integration checks. These are included in
-`requirements.txt`, so ensure they are installed before running the tests.
-
-After installing the Python dependencies, set up the required system libraries
-and run the test suite:
+Before running `pytest`, install both the system and Python dependencies:
 ```bash
 ./scripts/install_system_deps.sh
+./scripts/install_deps.sh
+```
+These helper scripts install everything in `requirements.txt` (including
+`fastapi` and `matplotlib`) and register the `ml_service` package in editable
+mode. They also pull in OS libraries such as `libcairo` and `libjpeg` that the
+tests require. If you encounter errors about missing shared libraries, rerun the
+system dependency step.
+
+After the dependencies are installed, execute the test suite:
+```bash
 pytest
 ```
 
@@ -244,6 +243,6 @@ The second command collects the generated images and captions under
 
 ## Useful Scripts
 
-- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt`.
 - `scripts/install_system_deps.sh` – install OS libraries needed by the services and tests.
-- `scripts/run_tests.sh` – install dependencies and run the tests with coverage output.
+- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt` and the `ml_service` package.
+- `scripts/run_tests.sh` – run both installation steps and execute the tests with coverage output.
