@@ -1,6 +1,8 @@
 import importlib.util
+import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, AsyncMock
 
 from test_helpers import load_module
@@ -41,7 +43,11 @@ def test_collect_training_data_main_success(monkeypatch):
     collector.collect_training_data = AsyncMock(return_value=[{"dummy": 1}])
     monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
     response = MagicMock(status_code=200, json=lambda: {"metrics": {}})
-    monkeypatch.setitem(sys.modules, "requests", MagicMock(post=MagicMock(return_value=response)))
+    requests_stub = SimpleNamespace(
+        post=MagicMock(return_value=response),
+        exceptions=SimpleNamespace(RequestException=Exception),
+    )
+    monkeypatch.setitem(sys.modules, "requests", requests_stub)
     monkeypatch.setattr(sys, "argv", ["collect_training_data", "--train"])
     assert module.main() == 0
     collector.login.assert_called_once()
@@ -60,8 +66,54 @@ def test_collect_training_data_main_failure(monkeypatch):
 def test_collect_training_data_remote(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script_remote")
     response = MagicMock(status_code=200, json=lambda: {"samples": 3})
-    mock_requests = MagicMock(post=MagicMock(return_value=response))
+    mock_requests = SimpleNamespace(
+        post=MagicMock(return_value=response),
+        exceptions=SimpleNamespace(RequestException=Exception),
+    )
     monkeypatch.setitem(sys.modules, "requests", mock_requests)
-    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--ml-service-url", "http://ml"]) 
+    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--ml-service-url", "http://ml"])
     assert module.main() == 0
     mock_requests.post.assert_called_once()
+
+
+def test_collect_training_data_remote_failure(monkeypatch):
+    module = load_module(COLLECT_ENTRY, "collect_script_remote_fail")
+    import requests
+
+    def raise_exc(*args, **kwargs):
+        raise requests.exceptions.RequestException("boom")
+
+    mock_requests = SimpleNamespace(
+        post=MagicMock(side_effect=raise_exc),
+        exceptions=SimpleNamespace(RequestException=requests.exceptions.RequestException),
+    )
+    monkeypatch.setitem(sys.modules, "requests", mock_requests)
+    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--ml-service-url", "http://ml"])
+    assert module.main() == 2
+
+
+def test_collect_training_data_training_errors(monkeypatch):
+    module = load_module(COLLECT_ENTRY, "collect_script_train_errors")
+    collector = MagicMock()
+    collector.login.return_value = True
+    collector.get_ue_movement_state.return_value = {"ue": {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1}}
+    collector.collect_training_data = AsyncMock(return_value=[{"dummy": 1}])
+    monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
+
+    import requests
+    mock_requests = SimpleNamespace(
+        post=MagicMock(),
+        exceptions=SimpleNamespace(RequestException=requests.exceptions.RequestException),
+    )
+
+    def raise_req(*args, **kwargs):
+        raise requests.exceptions.RequestException("boom")
+
+    mock_requests.post.side_effect = raise_req
+    monkeypatch.setitem(sys.modules, "requests", mock_requests)
+    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--train"])
+    assert module.main() == 3
+
+    mock_requests.post.side_effect = None
+    mock_requests.post.return_value = MagicMock(status_code=200, json=MagicMock(side_effect=json.JSONDecodeError("err", "", 0)))
+    assert module.main() == 4

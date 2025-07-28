@@ -56,10 +56,10 @@ def main():
             logger.warning(
                 f"Service responded with {resp.status_code}: {resp.text}"
             )
-            return 1
-        except Exception as e:
+            return 2
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error contacting ML service: {str(e)}")
-            return 1
+            return 2
 
     # Initialize collector
     collector = NEFDataCollector(
@@ -126,13 +126,17 @@ def main():
                 "http://localhost:5050/api/train",
                 json=data
             )
-            
+
             if response.status_code == 200:
                 logger.info("Model training successful!")
-                metrics = response.json().get('metrics', {})
+                try:
+                    metrics = response.json().get('metrics', {})
+                except json.JSONDecodeError as exc:
+                    logger.error(f"Failed to decode training response: {exc}")
+                    return 4
                 logger.info(f"Trained with {metrics.get('samples', 0)} samples")
                 logger.info(f"Found {metrics.get('classes', 0)} antenna classes")
-                
+
                 # If feature importance is available, print top features
                 if 'feature_importance' in metrics:
                     logger.info("\nFeature importance:")
@@ -148,9 +152,9 @@ def main():
                     f"Model training failed: {response.status_code} - {response.text}"
                 )
                 return 1
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error during model training: {str(e)}")
-            return 1
+            return 3
     
     return 0
 
