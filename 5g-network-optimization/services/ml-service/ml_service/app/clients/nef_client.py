@@ -54,7 +54,7 @@ class NEFClient:
             return False
         except Exception as e:
             self.logger.error(f"Error during authentication: {str(e)}")
-            return False
+            raise
 
     def get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication token if available."""
@@ -115,7 +115,7 @@ class NEFClient:
             return None
         except Exception as e:
             self.logger.error(f"Error in generate_mobility_pattern: {str(e)}")
-            return None
+            raise
 
     def get_ue_movement_state(self) -> Dict[str, Any]:
         """Get current state of all UEs in movement."""
@@ -140,7 +140,7 @@ class NEFClient:
             return {}
         except Exception as e:
             self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
-            return {}
+            raise
 
     def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
         """Return the ML feature vector for the given UE."""
@@ -160,4 +160,4 @@ class NEFClient:
             return {}
         except Exception as e:
             self.logger.error(f"Error in get_feature_vector: {str(e)}")
-            return {}
+            raise
