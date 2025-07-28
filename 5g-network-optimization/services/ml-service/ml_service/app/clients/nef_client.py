@@ -1,10 +1,21 @@
 # File: services/ml-service/app/clients/nef_client.py
 
-"""Client for interacting with the NEF emulator."""
-import requests
+"""Client for interacting with the NEF emulator.
+
+This module defines :class:`NEFClient` for communicating with the NEF emulator
+and :class:`NEFClientError` which is raised whenever an HTTP request fails
+because of a :class:`requests.exceptions.RequestException`.
+"""
+
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
+
+import requests
+
+
+class NEFClientError(Exception):
+    """Raised when an HTTP request to the NEF emulator fails."""
 
 
 class NEFClient:
@@ -44,14 +55,14 @@ class NEFClient:
                 return True
             else:
                 self.logger.error(
-                    "Authentication failed: %s - %s",
+                    "Authentication failed: %s - body: %s",
                     response.status_code,
                     response.text,
                 )
                 return False
         except requests.exceptions.RequestException as exc:
-            self.logger.error("HTTP error during authentication: %s", exc)
-            return False
+            self.logger.error("Request to %s failed: %s", login_url, exc)
+            raise NEFClientError(f"Authentication request failed: {exc}") from exc
         except Exception as e:
             self.logger.error(f"Error during authentication: {str(e)}")
             raise
@@ -62,6 +73,22 @@ class NEFClient:
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
         return headers
+
+    def get_status(self) -> requests.Response:
+        """Return the raw response from the NEF status endpoint."""
+        url = urljoin(self.base_url, "/api/v1/paths/")
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code != 200:
+                self.logger.error(
+                    "Error querying NEF status: %s - body: %s",
+                    response.status_code,
+                    response.text,
+                )
+            return response
+        except requests.exceptions.RequestException as exc:
+            self.logger.error("Request to %s failed: %s", url, exc)
+            raise NEFClientError(f"Status request failed: {exc}") from exc
 
     def generate_mobility_pattern(
         self,
@@ -103,16 +130,14 @@ class NEFClient:
                 return response.json()
             else:
                 self.logger.error(
-                    "Error generating mobility pattern: %s - %s",
+                    "Error generating mobility pattern: %s - body: %s",
                     response.status_code,
                     response.text,
                 )
                 return None
         except requests.exceptions.RequestException as exc:
-            self.logger.error(
-                "HTTP error generating mobility pattern: %s", exc
-            )
-            return None
+            self.logger.error("Request to %s failed: %s", url, exc)
+            raise NEFClientError(f"Mobility pattern request failed: {exc}") from exc
         except Exception as e:
             self.logger.error(f"Error in generate_mobility_pattern: {str(e)}")
             raise
@@ -130,14 +155,14 @@ class NEFClient:
                 return response.json()
             else:
                 self.logger.error(
-                    "Error getting UE movement state: %s - %s",
+                    "Error getting UE movement state: %s - body: %s",
                     response.status_code,
                     response.text,
                 )
                 return {}
         except requests.exceptions.RequestException as exc:
-            self.logger.error("HTTP error getting movement state: %s", exc)
-            return {}
+            self.logger.error("Request to %s failed: %s", url, exc)
+            raise NEFClientError(f"Movement state request failed: {exc}") from exc
         except Exception as e:
             self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
             raise
@@ -150,14 +175,14 @@ class NEFClient:
             if response.status_code == 200:
                 return response.json()
             self.logger.error(
-                "Error getting feature vector: %s - %s",
+                "Error getting feature vector: %s - body: %s",
                 response.status_code,
                 response.text,
             )
             return {}
         except requests.exceptions.RequestException as exc:
-            self.logger.error("HTTP error getting feature vector: %s", exc)
-            return {}
+            self.logger.error("Request to %s failed: %s", url, exc)
+            raise NEFClientError(f"Feature vector request failed: {exc}") from exc
         except Exception as e:
             self.logger.error(f"Error in get_feature_vector: {str(e)}")
             raise

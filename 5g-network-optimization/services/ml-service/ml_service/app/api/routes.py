@@ -1,6 +1,5 @@
 """API routes for ML Service."""
 from flask import jsonify, request, current_app
-import requests
 import time
 from pathlib import Path
 from pydantic import ValidationError
@@ -8,6 +7,7 @@ from pydantic import ValidationError
 from . import api_bp
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
+from ..clients.nef_client import NEFClient, NEFClientError
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample
 
@@ -73,7 +73,8 @@ def nef_status():
     """Check NEF connectivity and get status."""
     try:
         nef_url = current_app.config["NEF_API_URL"]
-        response = requests.get(f"{nef_url}/api/v1/paths/")
+        client = NEFClient(nef_url)
+        response = client.get_status()
 
         if response.status_code == 200:
             return jsonify(
@@ -103,7 +104,7 @@ def nef_status():
             ),
             500,
         )
-    except requests.exceptions.RequestException as exc:
+    except NEFClientError as exc:
         current_app.logger.error("NEF connection error: %s", exc)
         return (
             jsonify(

@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock, patch
 import requests
+from ml_service.app.clients.nef_client import NEFClientError
 
 
 def test_predict_route(client):
@@ -51,20 +52,21 @@ def test_train_invalid_request(client):
 
 
 def test_nef_status(client):
+    mock_client = MagicMock()
     mock_response = MagicMock(status_code=200, headers={"X-API-Version": "v1"})
-    with patch("ml_service.app.api.routes.requests.get", return_value=mock_response) as mock_get:
+    mock_client.get_status.return_value = mock_response
+    with patch("ml_service.app.api.routes.NEFClient", return_value=mock_client):
         resp = client.get("/api/nef-status")
         assert resp.status_code == 200
         data = resp.get_json()
         assert data == {"status": "connected", "nef_version": "v1"}
-        mock_get.assert_called_once()
+        mock_client.get_status.assert_called_once()
 
 
 def test_nef_status_request_error(client):
-    with patch(
-        "ml_service.app.api.routes.requests.get",
-        side_effect=requests.exceptions.RequestException("boom"),
-    ):
+    mock_client = MagicMock()
+    mock_client.get_status.side_effect = NEFClientError("boom")
+    with patch("ml_service.app.api.routes.NEFClient", return_value=mock_client):
         resp = client.get("/api/nef-status")
         assert resp.status_code == 502
         data = resp.get_json()
