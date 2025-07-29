@@ -30,6 +30,8 @@ pymongo==4.1.0
 pyopenssl==22.1.0
 pytest==6.2.4
 pytest-cov==2.8.1
+pytest-asyncio==0.18.3
+anyio>=3.4,<5
 python-dotenv==0.19.1
 python-jose==3.1.0
 python-multipart==0.0.5
