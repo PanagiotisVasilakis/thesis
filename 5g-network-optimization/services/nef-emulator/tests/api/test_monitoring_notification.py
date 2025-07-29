@@ -75,6 +75,7 @@ def _setup_module(monkeypatch, user=None):
     deps_mod = types.ModuleType("app.api.deps")
     deps_mod.get_current_active_user = lambda: user
     deps_mod.verify_with_public_key = lambda: {"sub": str(user.id)}
+
     def fake_get_db():
         yield None
     deps_mod.get_db = fake_get_db
@@ -115,7 +116,8 @@ def _setup_module(monkeypatch, user=None):
         "app.db.session": session_mod,
     })
 
-    endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    endpoints_dir = Path(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
     spec = importlib.util.spec_from_file_location(
         "app.api.api_v1.endpoints.monitoringevent", endpoints_dir / "monitoringevent.py"
     )
@@ -137,11 +139,14 @@ def test_monitoring_notification_success(monkeypatch):
     crud.crud_mongo.create = lambda db, coll, data: stored.update(data)
     utils.add_notifications = lambda *a, **k: None
 
-    body = mod.schemas.MonitoringNotification(subscription="sub", monitoringType="LOCATION_REPORTING")
-    resp: JSONResponse = mod.monitoring_notification(body, http_request=_make_request())
+    body = mod.schemas.MonitoringNotification(
+        subscription="sub", monitoringType="LOCATION_REPORTING")
+    resp: JSONResponse = mod.monitoring_notification(
+        body, http_request=_make_request())
     assert resp.status_code == 200
     assert resp.body == b'{"ok":true}'
-    assert stored == {"subscription": "sub", "monitoringType": "LOCATION_REPORTING"}
+    assert stored == {"subscription": "sub",
+                      "monitoringType": "LOCATION_REPORTING"}
 
 
 def test_monitoring_notification_error(monkeypatch):
@@ -153,7 +158,8 @@ def test_monitoring_notification_error(monkeypatch):
     crud.crud_mongo.create = raise_error
     utils.add_notifications = lambda *a, **k: None
 
-    body = mod.schemas.MonitoringNotification(subscription="sub", monitoringType="LOCATION_REPORTING")
+    body = mod.schemas.MonitoringNotification(
+        subscription="sub", monitoringType="LOCATION_REPORTING")
     with pytest.raises(mod.HTTPException) as exc:
         mod.monitoring_notification(body, http_request=_make_request())
     assert exc.value.status_code == 400

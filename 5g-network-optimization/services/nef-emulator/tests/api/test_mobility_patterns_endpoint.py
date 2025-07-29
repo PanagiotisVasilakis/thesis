@@ -18,6 +18,7 @@ def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             del sys.modules[name]
 
     adapter_mod = ModuleType("app.tools.mobility.adapter")
+
     class MobilityPatternAdapter:
         pass
 
@@ -33,7 +34,8 @@ def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     api_pkg = ModuleType("app.api")
     deps_mod = ModuleType("app.api.deps")
-    deps_mod.get_current_active_user = lambda: SimpleNamespace(id=1, is_superuser=True)
+    deps_mod.get_current_active_user = lambda: SimpleNamespace(
+        id=1, is_superuser=True)
     api_pkg.deps = deps_mod
 
     models_pkg = ModuleType("app.models")
@@ -62,13 +64,16 @@ def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setitem(sys.modules, "app.models.user", user_mod)
 
     endpoints_dir = backend_root / "app" / "api" / "api_v1" / "endpoints"
-    spec = importlib.util.spec_from_file_location("mobility_patterns", endpoints_dir / "mobility_patterns.py")
+    spec = importlib.util.spec_from_file_location(
+        "mobility_patterns", endpoints_dir / "mobility_patterns.py")
     mobility_patterns = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mobility_patterns)
 
     app = FastAPI()
-    app.include_router(mobility_patterns.router, prefix="/api/v1/mobility-patterns")
-    app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(id=1, is_superuser=True)
+    app.include_router(mobility_patterns.router,
+                       prefix="/api/v1/mobility-patterns")
+    app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(
+        id=1, is_superuser=True)
     return TestClient(app)
 
 
@@ -77,8 +82,10 @@ def test_generate_pattern_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
     from app.tools.mobility.adapter import MobilityPatternAdapter
 
-    monkeypatch.setattr(MobilityPatternAdapter, "get_mobility_model", lambda *a, **k: object(), raising=False)
-    monkeypatch.setattr(MobilityPatternAdapter, "generate_path_points", lambda *a, **k: [{"latitude": 0.0, "longitude": 0.0}], raising=False)
+    monkeypatch.setattr(MobilityPatternAdapter, "get_mobility_model",
+                        lambda *a, **k: object(), raising=False)
+    monkeypatch.setattr(MobilityPatternAdapter, "generate_path_points",
+                        lambda *a, **k: [{"latitude": 0.0, "longitude": 0.0}], raising=False)
 
     payload = {
         "model_type": "linear",

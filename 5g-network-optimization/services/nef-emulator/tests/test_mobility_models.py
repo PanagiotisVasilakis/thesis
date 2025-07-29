@@ -13,6 +13,7 @@ from backend.app.app.mobility_models.models import (
     UrbanGridMobilityModel,
 )
 
+
 def test_linear_mobility():
     """Linear model should travel from start towards end at approximately constant speed."""
     start = (0, 0, 0)
@@ -37,7 +38,8 @@ def test_linear_mobility():
     last_pos = traj[-1]['position']
     dist_to_end = math.hypot(last_pos[0]-end[0], last_pos[1]-end[1])
     # allow up to one time_step*speed tolerance
-    assert dist_to_end <= speed + 1e-6, f"End point {last_pos} too far from {end}"
+    assert dist_to_end <= speed + \
+        1e-6, f"End point {last_pos} too far from {end}"
 
     # check approximate constant speed
     times = [p['timestamp'] for p in traj]
@@ -49,7 +51,9 @@ def test_linear_mobility():
     ]
     speeds = [dist/dt for dist, dt in zip(dists, dts) if dt > 0]
     avg_speed = sum(speeds) / len(speeds)
-    assert abs(avg_speed - speed) < 0.1, f"Average speed {avg_speed:.2f} deviates from {speed}"
+    assert abs(
+        avg_speed - speed) < 0.1, f"Average speed {avg_speed:.2f} deviates from {speed}"
+
 
 def test_l_shaped_mobility():
     """L‑shaped model must pass near the corner point."""
@@ -78,6 +82,7 @@ def test_l_shaped_mobility():
     ]
     assert min(distances) <= speed + 1e-6, "Did not pass near corner"
 
+
 def test_random_waypoint_mobility():
     """Random Waypoint stays within bounds and speeds in [v_min, v_max]."""
     bounds = ((0, 0, 0), (500, 500, 0))
@@ -103,6 +108,7 @@ def test_random_waypoint_mobility():
         s = p['speed']
         assert (s == 0) or (v_min <= s <= v_max)
 
+
 def test_manhattan_grid_mobility():
     """Manhattan grid moves along grid lines only."""
     # 5×5 blocks of length 100 m
@@ -123,14 +129,15 @@ def test_manhattan_grid_mobility():
         on_y = abs(y % grid[2]) < 1e-6
         assert on_x or on_y
 
+
 def test_reference_point_group_mobility():
     """RPGM: each UE point within d_max of its group center."""
     center = LinearMobilityModel(
         ue_id="group_center",
-        start_position=(0,0,0),
-        end_position=(300,300,0),
+        start_position=(0, 0, 0),
+        end_position=(300, 300, 0),
         speed=10.0,
-        start_time=datetime(2025,1,1)
+        start_time=datetime(2025, 1, 1)
     )
     # generate center trajectory
     dur = math.hypot(300, 300)/10.0 + 1
@@ -140,7 +147,7 @@ def test_reference_point_group_mobility():
         ue_id="ue_group",
         group_center_model=center,
         d_max=d_max,
-        start_time=datetime(2025,1,1)
+        start_time=datetime(2025, 1, 1)
     )
     traj = model.generate_trajectory(dur, time_step=1.0)
     assert len(traj) == len(center_traj)
@@ -242,4 +249,3 @@ def test_urban_grid_mobility():
         if at_intersection and dirs[i] != dirs[i-1]:
             changed = True
     assert changed, "Direction never changed at intersections despite probability=1"
-

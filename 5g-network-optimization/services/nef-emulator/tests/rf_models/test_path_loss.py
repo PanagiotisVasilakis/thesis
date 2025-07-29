@@ -7,14 +7,19 @@ models so that they run quickly.
 from math import log10
 import numpy as np
 
-from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel, FastFading
+from rf_models.path_loss import (
+    ABGPathLossModel,
+    CloseInPathLossModel,
+    FastFading,
+)
 
 
 def test_abg_against_reference():
     """Validate ABG path loss calculation against a hand computed reference."""
     model = ABGPathLossModel()
     pl = model.calculate_path_loss(100, 3.5, include_shadowing=False)
-    expected = 10 * model.alpha * log10(100) + model.beta + 10 * model.gamma * log10(3.5)
+    expected = 10 * model.alpha * \
+        log10(100) + model.beta + 10 * model.gamma * log10(3.5)
     assert abs(pl - expected) < 1e-6
 
 

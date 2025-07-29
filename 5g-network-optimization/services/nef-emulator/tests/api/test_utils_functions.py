@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from types import SimpleNamespace
 from pathlib import Path
 from fastapi.responses import JSONResponse
@@ -6,9 +7,11 @@ import types
 import sys
 
 # Dynamically load the utils module under test
-UTILS_PATH = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "utils.py"
+UTILS_PATH = Path(__file__).resolve(
+).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "utils.py"
 # Stub optional external dependency 'requests' before loading the module
-requests_stub = sys.modules.setdefault("requests", types.ModuleType("requests"))
+requests_stub = sys.modules.setdefault(
+    "requests", types.ModuleType("requests"))
 setattr(requests_stub, "post", lambda *a, **k: None)
 # Minimal "app" package structure required by utils module
 app_pkg = types.ModuleType("app")
@@ -21,24 +24,34 @@ crud_mod.points = types.SimpleNamespace()
 app_pkg.crud = crud_mod
 
 models_mod = types.ModuleType("app.models")
+
+
 class User(SimpleNamespace):
     id: int = 1
     is_superuser: bool = False
+
+
 models_mod.User = User
 
 schemas_mod = types.ModuleType("app.schemas")
-from pydantic import BaseModel
 
 monitoringevent_mod = types.ModuleType("monitoringevent")
+
+
 class MonitoringNotification(BaseModel):
     pass
+
+
 monitoringevent_mod.MonitoringNotification = MonitoringNotification
+
 
 class UserPlaneNotificationData(BaseModel):
     pass
 
+
 class scenario(BaseModel):
     pass
+
 
 schemas_mod.monitoringevent = monitoringevent_mod
 schemas_mod.UserPlaneNotificationData = UserPlaneNotificationData
@@ -55,19 +68,26 @@ paths_mod.get_random_point = lambda *a, **k: {}
 ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
 ue_move_mod.retrieve_ue_state = lambda *a, **k: False
 state_manager_mod = types.ModuleType("app.api.api_v1.state_manager")
+
+
 class DummySM:
     def __init__(self):
         self._event_notifications = []
         self._counter = 0
+
     def add_notification(self, n):
         n["id"] = self._counter
         self._counter += 1
         self._event_notifications.append(n)
         return n
+
     def get_notifications(self, *a, **k):
         return list(self._event_notifications)
+
     def all_notifications(self):
         return list(self._event_notifications)
+
+
 state_manager_mod.state_manager = DummySM()
 endpoints_pkg.paths = paths_mod
 endpoints_pkg.ue_movement = ue_move_mod
@@ -118,22 +138,27 @@ def test_ccf_logs(monkeypatch):
             def __init__(self, **kwargs):
                 self.__dict__.update(kwargs)
         instances = []
+
         def __init__(self, *args, **kwargs):
             self.saved = []
             DummyLogger.instances.append(self)
+
         def get_capif_service_description(self, capif_service_api_description_json_full_path):
             self.desc_path = capif_service_api_description_json_full_path
             return {"apiId": "abc"}
+
         def save_log(self, api_invoker_id, log_entries):
             self.saved.append((api_invoker_id, log_entries))
 
     monkeypatch.setattr(utils, "CAPIFLogger", DummyLogger)
 
     req = SimpleNamespace(method="POST",
-                          url=SimpleNamespace(path="/monitoring/event", hostname="localhost"),
+                          url=SimpleNamespace(
+                              path="/monitoring/event", hostname="localhost"),
                           _body=b"{}")
 
-    utils.ccf_logs(req, {"status_code": 200, "response": {}}, "service.json", "invoker")
+    utils.ccf_logs(req, {"status_code": 200, "response": {}},
+                   "service.json", "invoker")
 
     logger = DummyLogger.instances[0]
     assert logger.desc_path.endswith("service.json")
@@ -142,11 +167,13 @@ def test_ccf_logs(monkeypatch):
 
 
 def test_add_notifications(monkeypatch):
-    monkeypatch.setattr(utils.state_manager, "_event_notifications", [], raising=False)
+    monkeypatch.setattr(utils.state_manager,
+                        "_event_notifications", [], raising=False)
     monkeypatch.setattr(utils.state_manager, "_counter", 0, raising=False)
 
     req = SimpleNamespace(method="POST",
-                          url=SimpleNamespace(path="/monitoring", hostname="localhost"),
+                          url=SimpleNamespace(
+                              path="/monitoring", hostname="localhost"),
                           _body=b"{\"foo\": 1}")
     resp = JSONResponse(content={"ack": "ok"}, status_code=201)
 
@@ -190,5 +217,5 @@ def test_get_scenario(monkeypatch):
     assert result["cells"][0]["cell_id"] == "CELL1"
     assert result["UEs"][0]["supi"] == "UE1"
     assert result["paths"][0]["points"] == [{"latitude": 0.0, "longitude": 0.0},
-                                              {"latitude": 1.0, "longitude": 1.0}]
+                                            {"latitude": 1.0, "longitude": 1.0}]
     assert result["ue_path_association"] == [{"supi": "UE1", "path": 1}]

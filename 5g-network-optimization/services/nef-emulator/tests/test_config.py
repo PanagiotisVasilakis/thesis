@@ -66,4 +66,7 @@ def test_multiple_settings_import(monkeypatch):
     cfg2 = _load_config()
     settings2 = cfg2.Settings()
 
-    assert settings2.SQLALCHEMY_DATABASE_URI == settings1.SQLALCHEMY_DATABASE_URI
+    assert (
+        settings2.SQLALCHEMY_DATABASE_URI
+        == settings1.SQLALCHEMY_DATABASE_URI
+    )

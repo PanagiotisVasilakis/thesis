@@ -38,15 +38,17 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
 
     # Load network state manager module
     spec_state = importlib.util.spec_from_file_location(
-        "app.network.state_manager", backend_root / "app" / "network" / "state_manager.py"
+        "app.network.state_manager", backend_root /
+        "app" / "network" / "state_manager.py"
     )
     state_mod = importlib.util.module_from_spec(spec_state)
     spec_state.loader.exec_module(state_mod)
 
-
     # Patch requests.post used by the handover engine
+
     def fake_post(url, json=None, timeout=None):
-        best = max(json["rf_metrics"], key=lambda a: json["rf_metrics"][a]["rsrp"])
+        best = max(json["rf_metrics"],
+                   key=lambda a: json["rf_metrics"][a]["rsrp"])
         return DummyResponse(best)
 
     monkeypatch.setattr("requests.post", fake_post)
@@ -90,7 +92,8 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
 def test_end_to_end_handover(monkeypatch: pytest.MonkeyPatch) -> None:
     client, ml_api = _create_client(monkeypatch)
 
-    ml_api.state_mgr.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}
+    ml_api.state_mgr.antenna_list = {
+        "A": DummyAntenna(-80), "B": DummyAntenna(-76)}
     ml_api.state_mgr.ue_states = {
         "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}
     }

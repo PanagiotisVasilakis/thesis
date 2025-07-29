@@ -1,5 +1,6 @@
 """Test importing the mobility models in the NEF emulator environment."""
 
+
 def test_imports():
     """Ensure required mobility modules can be imported."""
     try:
@@ -19,5 +20,3 @@ def test_imports():
     assert LinearMobilityModel
     assert LShapedMobilityModel
     assert MobilityPatternAdapter
-
-

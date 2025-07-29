@@ -60,7 +60,8 @@ def test_l_shaped_mobility(monkeypatch: pytest.MonkeyPatch):
     assert last[0] == pytest.approx(5, abs=1)
     assert last[1] == pytest.approx(5, abs=1)
     corner = (5, 0, 0)
-    assert min(math.hypot(p["position"][0]-corner[0], p["position"][1]-corner[1]) for p in traj) <= 1.0
+    assert min(math.hypot(p["position"][0]-corner[0],
+                          p["position"][1]-corner[1]) for p in traj) <= 1.0
 
 
 def test_random_directional_mobility(monkeypatch: pytest.MonkeyPatch):
@@ -112,7 +113,8 @@ def test_reference_point_group_mobility(monkeypatch: pytest.MonkeyPatch):
 
     class Wrapper(ReferencePointGroupMobilityModel):
         def __init__(self, ue_id, reference_model, relative_position, max_deviation=5.0, deviation_change_mean=10.0, start_time=None):
-            super().__init__(ue_id, group_center_model=reference_model, d_max=max_deviation, start_time=start_time)
+            super().__init__(ue_id, group_center_model=reference_model,
+                             d_max=max_deviation, start_time=start_time)
 
     monkeypatch.setitem(Adapter.MODEL_TYPES, "group", Wrapper)
     random.seed(2)
@@ -136,5 +138,6 @@ def test_reference_point_group_mobility(monkeypatch: pytest.MonkeyPatch):
     traj = group_model.generate_trajectory(duration, time_step=1.0)
     assert traj and len(traj) == len(center_traj)
     for p, c in zip(traj, center_traj):
-        dist = math.hypot(p["position"][0]-c["position"][0], p["position"][1]-c["position"][1])
+        dist = math.hypot(p["position"][0]-c["position"][0],
+                          p["position"][1]-c["position"][1])
         assert dist <= 2.0 + 1e-6

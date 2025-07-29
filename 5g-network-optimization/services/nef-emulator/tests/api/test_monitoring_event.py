@@ -25,7 +25,8 @@ def _setup_client(monkeypatch, user=None):
     crud_mod = types.ModuleType("app.crud")
     crud_mod.crud_mongo = SimpleNamespace()
     crud_mod.ue = SimpleNamespace()
-    crud_mod.user = SimpleNamespace(is_superuser=lambda u: getattr(u, "is_superuser", False))
+    crud_mod.user = SimpleNamespace(
+        is_superuser=lambda u: getattr(u, "is_superuser", False))
     app_pkg.crud = crud_mod
 
     tools_mod = types.ModuleType("app.tools")
@@ -119,7 +120,8 @@ def _setup_client(monkeypatch, user=None):
     sys.modules["app.db"] = db_pkg
     sys.modules["app.db.session"] = session_mod
 
-    endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    endpoints_dir = Path(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
     spec = importlib.util.spec_from_file_location(
         "app.api.api_v1.endpoints.monitoringevent", endpoints_dir / "monitoringevent.py"
     )
@@ -127,7 +129,8 @@ def _setup_client(monkeypatch, user=None):
     spec.loader.exec_module(monitoring_mod)
 
     app_instance = FastAPI()
-    app_instance.include_router(monitoring_mod.router, prefix="/api/v1/monitoring-event")
+    app_instance.include_router(
+        monitoring_mod.router, prefix="/api/v1/monitoring-event")
     client = TestClient(app_instance)
     return client, crud_mod, tools_mod
 
@@ -142,7 +145,8 @@ def test_read_active_subscriptions(monkeypatch):
 
     crud.crud_mongo.read_all = lambda db, coll, owner: items
     crud.crud_mongo.delete_by_item = lambda *a, **k: None
-    tools.check_expiration_time = lambda *a, **kw: (kw.get("expire_time") or (a[0] if a else None)) == "valid"
+    tools.check_expiration_time = lambda *a, **kw: (
+        kw.get("expire_time") or (a[0] if a else None)) == "valid"
 
     resp = client.get("/api/v1/monitoring-event/myNetapp/subscriptions")
     assert resp.status_code == 200
@@ -184,7 +188,8 @@ def test_create_subscription(monkeypatch):
         "monitorExpireTime": "valid",
     }
 
-    resp = client.post("/api/v1/monitoring-event/myNetapp/subscriptions", json=payload)
+    resp = client.post(
+        "/api/v1/monitoring-event/myNetapp/subscriptions", json=payload)
     assert resp.status_code == 201
     location = "http://testserver/api/v1/monitoring-event/myNetapp/subscriptions/abc"
     assert resp.headers["location"] == location

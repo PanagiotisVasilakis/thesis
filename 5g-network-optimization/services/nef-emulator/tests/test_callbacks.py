@@ -1,3 +1,4 @@
+from backend.app.app.tools import monitoring_callbacks, qos_callback
 import json
 import requests
 import pytest
@@ -33,11 +34,8 @@ app_pkg.db.session = db_session_mod
 sys.modules.setdefault("app.db", app_pkg.db)
 sys.modules.setdefault("app.db.session", db_session_mod)
 
-from backend.app.app.tools import monitoring_callbacks, qos_callback
-
 
 @pytest.fixture
-
 def sample_ue():
     return {
         "external_identifier": "ue-ext",
@@ -84,7 +82,8 @@ def test_location_callback_payload(sample_ue, monkeypatch):
 
 def test_loss_of_connectivity_payload(sample_ue, monkeypatch):
     calls = _patch_request(monkeypatch)
-    monitoring_callbacks.loss_of_connectivity_callback(sample_ue, "http://cb", "sub")
+    monitoring_callbacks.loss_of_connectivity_callback(
+        sample_ue, "http://cb", "sub")
 
     payload = json.loads(calls['data'])
     assert payload["monitoringType"] == "LOSS_OF_CONNECTIVITY"
@@ -93,7 +92,8 @@ def test_loss_of_connectivity_payload(sample_ue, monkeypatch):
 
 def test_ue_reachability_payload(sample_ue, monkeypatch):
     calls = _patch_request(monkeypatch)
-    monitoring_callbacks.ue_reachability_callback(sample_ue, "http://cb", "sub", "NR_REACHABLE")
+    monitoring_callbacks.ue_reachability_callback(
+        sample_ue, "http://cb", "sub", "NR_REACHABLE")
     payload = json.loads(calls['data'])
     assert payload["reachabilityType"] == "NR_REACHABLE"
 
@@ -110,13 +110,15 @@ def test_qos_callback_payload(monkeypatch):
 
 def test_qos_notification_control_timeout(monkeypatch):
     monkeypatch.setattr(qos_callback, "ues_in_cell", lambda ues, current: 2)
-    monkeypatch.setattr(qos_callback, "qos_reference_match", lambda ref: {"type": "GBR"})
+    monkeypatch.setattr(qos_callback, "qos_reference_match",
+                        lambda ref: {"type": "GBR"})
 
     from unittest.mock import MagicMock
     mock = MagicMock(side_effect=requests.exceptions.Timeout)
     monkeypatch.setattr(requests, "request", mock)
 
-    doc = {"notificationDestination": "http://cb", "link": "res", "qosReference": "5"}
+    doc = {"notificationDestination": "http://cb",
+           "link": "res", "qosReference": "5"}
     qos_callback.qos_notification_control(doc, "1.1.1.1", {}, {"Cell_id": 1})
 
     assert mock.call_count == 1
@@ -124,10 +126,12 @@ def test_qos_notification_control_timeout(monkeypatch):
 
 def test_qos_notification_control_success(monkeypatch):
     monkeypatch.setattr(qos_callback, "ues_in_cell", lambda ues, current: 1)
-    monkeypatch.setattr(qos_callback, "qos_reference_match", lambda ref: {"type": "GBR"})
+    monkeypatch.setattr(qos_callback, "qos_reference_match",
+                        lambda ref: {"type": "GBR"})
 
     calls = _patch_request(monkeypatch)
-    doc = {"notificationDestination": "http://cb", "link": "res", "qosReference": "5"}
+    doc = {"notificationDestination": "http://cb",
+           "link": "res", "qosReference": "5"}
     qos_callback.qos_notification_control(doc, "1.1.1.1", {}, {"Cell_id": 1})
 
     payload = json.loads(calls['data'])
