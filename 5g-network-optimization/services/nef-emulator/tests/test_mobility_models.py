@@ -1,7 +1,9 @@
 # services/nef-emulator/tests/test_mobility_models.py
 
 import math
+import random
 from datetime import datetime
+import pytest
 
 from backend.app.app.mobility_models.models import (
     LinearMobilityModel,
@@ -249,3 +251,39 @@ def test_urban_grid_mobility():
         if at_intersection and dirs[i] != dirs[i-1]:
             changed = True
     assert changed, "Direction never changed at intersections despite probability=1"
+
+
+def _check_interpolation(model):
+    traj = model.generate_trajectory(10, time_step=1.0)
+    assert len(traj) >= 2
+    p0, p1 = traj[0], traj[1]
+    mid_t = p0["timestamp"] + (p1["timestamp"] - p0["timestamp"]) / 2
+    expected = tuple(
+        p0["position"][i] + 0.5 * (p1["position"][i] - p0["position"][i])
+        for i in range(3)
+    )
+    assert model.get_position_at_time(mid_t) == pytest.approx(expected)
+
+
+def test_get_position_at_time_linear():
+    model = LinearMobilityModel(
+        ue_id="interp_lin",
+        start_position=(0, 0, 0),
+        end_position=(10, 0, 0),
+        speed=1.0,
+        start_time=datetime(2025, 1, 1),
+    )
+    _check_interpolation(model)
+
+
+def test_get_position_at_time_random_waypoint():
+    random.seed(0)
+    model = RandomWaypointModel(
+        ue_id="interp_rwp",
+        area_bounds=((0, 0, 0), (10, 10, 0)),
+        v_min=1.0,
+        v_max=2.0,
+        pause_time=0.0,
+        start_time=datetime(2025, 1, 1),
+    )
+    _check_interpolation(model)
