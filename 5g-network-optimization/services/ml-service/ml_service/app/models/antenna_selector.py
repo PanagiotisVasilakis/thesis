@@ -153,7 +153,7 @@ class AntennaSelector:
             antenna_id = self.model.predict(X)[0]
             probabilities = self.model.predict_proba(X)[0]
             confidence = max(probabilities)
-        except (lgb.basic.LightGBMError, NotFittedError):
+        except (lgb.basic.LightGBMError, NotFittedError, AttributeError):
             return {
                 'antenna_id': 'antenna_1',
                 'confidence': 0.5,
