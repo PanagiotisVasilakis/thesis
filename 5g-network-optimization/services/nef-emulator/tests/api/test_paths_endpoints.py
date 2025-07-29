@@ -13,7 +13,13 @@ except ImportError:
     sqlalchemy.orm.Session = object
     sys.modules["sqlalchemy.orm"] = sqlalchemy.orm
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -108,7 +114,7 @@ def _setup_client(monkeypatch, user=None):
     app_instance = FastAPI()
     app_instance.include_router(paths_mod.router, prefix="/api/v1/paths")
 
-    client = TestClient(app_instance)
+    client = TestClient(transport=ASGITransport(app=app_instance))
     return client, crud_mod, paths_mod
 
 

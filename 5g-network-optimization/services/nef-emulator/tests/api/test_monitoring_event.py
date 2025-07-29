@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 from pydantic import BaseModel
 
 
@@ -131,7 +137,7 @@ def _setup_client(monkeypatch, user=None):
     app_instance = FastAPI()
     app_instance.include_router(
         monitoring_mod.router, prefix="/api/v1/monitoring-event")
-    client = TestClient(app_instance)
+    client = TestClient(transport=ASGITransport(app=app_instance))
     return client, crud_mod, tools_mod
 
 

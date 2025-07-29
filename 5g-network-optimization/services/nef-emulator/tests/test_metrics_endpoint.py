@@ -1,5 +1,11 @@
 from fastapi import FastAPI, Response
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from backend.app.app.monitoring import metrics
@@ -20,7 +26,7 @@ def create_app():
 
 def test_metrics_endpoint_returns_data():
     app = create_app()
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     resp = client.get("/metrics")
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/plain")

@@ -4,7 +4,13 @@ import importlib.util
 from pathlib import Path
 import sys
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 
 
 @pytest.fixture
@@ -296,7 +302,7 @@ def client(monkeypatch):
     monkeypatch.setattr(crud.gnb, "get_gNB_id", lambda *a,
                         **k: None, raising=False)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     yield client
     app.dependency_overrides = {}
 
