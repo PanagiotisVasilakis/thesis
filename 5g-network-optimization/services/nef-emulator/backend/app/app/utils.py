@@ -96,5 +96,6 @@ def verify_password_reset_token(token: str) -> Optional[str]:
         # encoded in the token. Use ``dict.get`` to avoid ``KeyError`` if the
         # claim is missing and return ``None`` instead.
         return decoded_token.get("sub")
+
     except jwt.JWTError:
         return None
