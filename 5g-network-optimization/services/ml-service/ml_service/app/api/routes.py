@@ -54,7 +54,9 @@ def train():
     samples = []
     try:
         for item in payload:
-            samples.append(TrainingSample.parse_obj(item).dict(exclude_none=True))
+            samples.append(
+                TrainingSample.parse_obj(item).dict(exclude_none=True)
+            )
     except ValidationError as err:
         return jsonify({"error": err.errors()}), 400
 
@@ -62,7 +64,9 @@ def train():
     start = time.time()
     metrics = train_model(samples, model=model)
     duration = time.time() - start
-    track_training(duration, metrics.get("samples", 0), metrics.get("val_accuracy"))
+    track_training(
+        duration, metrics.get("samples", 0), metrics.get("val_accuracy")
+    )
     model.save()
 
     return jsonify({"status": "success", "metrics": metrics})
@@ -148,6 +152,8 @@ async def collect_data():
         if files:
             latest = str(files[-1])
     except OSError:
-        current_app.logger.exception("Failed to find latest training data file")
+        current_app.logger.exception(
+            "Failed to find latest training data file"
+        )
 
     return jsonify({"samples": len(samples), "file": latest})

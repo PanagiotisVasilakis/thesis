@@ -62,7 +62,9 @@ class NEFClient:
                 return False
         except requests.exceptions.RequestException as exc:
             self.logger.error("Request to %s failed: %s", login_url, exc)
-            raise NEFClientError(f"Authentication request failed: {exc}") from exc
+            raise NEFClientError(
+                f"Authentication request failed: {exc}"
+            ) from exc
         except Exception as e:
             self.logger.error(f"Error during authentication: {str(e)}")
             raise
@@ -137,7 +139,9 @@ class NEFClient:
                 return None
         except requests.exceptions.RequestException as exc:
             self.logger.error("Request to %s failed: %s", url, exc)
-            raise NEFClientError(f"Mobility pattern request failed: {exc}") from exc
+            raise NEFClientError(
+                f"Mobility pattern request failed: {exc}"
+            ) from exc
         except Exception as e:
             self.logger.error(f"Error in generate_mobility_pattern: {str(e)}")
             raise
@@ -162,7 +166,9 @@ class NEFClient:
                 return {}
         except requests.exceptions.RequestException as exc:
             self.logger.error("Request to %s failed: %s", url, exc)
-            raise NEFClientError(f"Movement state request failed: {exc}") from exc
+            raise NEFClientError(
+                f"Movement state request failed: {exc}"
+            ) from exc
         except Exception as e:
             self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
             raise
@@ -171,7 +177,9 @@ class NEFClient:
         """Return the ML feature vector for the given UE."""
         try:
             url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
-            response = requests.get(url, headers=self.get_headers(), timeout=10)
+            response = requests.get(
+                url, headers=self.get_headers(), timeout=10
+            )
             if response.status_code == 200:
                 return response.json()
             self.logger.error(
@@ -182,7 +190,9 @@ class NEFClient:
             return {}
         except requests.exceptions.RequestException as exc:
             self.logger.error("Request to %s failed: %s", url, exc)
-            raise NEFClientError(f"Feature vector request failed: {exc}") from exc
+            raise NEFClientError(
+                f"Feature vector request failed: {exc}"
+            ) from exc
         except Exception as e:
             self.logger.error(f"Error in get_feature_vector: {str(e)}")
             raise
