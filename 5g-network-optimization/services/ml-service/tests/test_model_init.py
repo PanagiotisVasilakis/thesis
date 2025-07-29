@@ -8,6 +8,8 @@ initialize_model = ModelManager.initialize
 
 
 class DummyModel:
+    classes_ = ["a1", "a2"]
+
     def predict(self, X):
         return ["a1"]
 

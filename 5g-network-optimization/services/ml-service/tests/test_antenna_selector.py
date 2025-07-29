@@ -102,6 +102,8 @@ def test_train_metrics_and_prediction_flow(tmp_path):
 
 
 class DummyModel:
+    classes_ = ['other', 'mock_ant']
+
     def predict(self, X):
         return ['mock_ant']
 
