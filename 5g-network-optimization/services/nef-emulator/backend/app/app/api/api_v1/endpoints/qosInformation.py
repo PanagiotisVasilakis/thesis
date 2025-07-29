@@ -49,7 +49,11 @@ def read_qos_characteristics(
 @router.get("/qosProfiles/{gNB_id}")
 def read_qos_active_profiles(
     *,
-    gNB_id: str = Path(..., title="The ID of the gNB", example="AAAAA1"),
+    gNB_id: str = Path(
+        ...,
+        title="The ID of the gNB",
+        examples={"default": {"value": "AAAAA1"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
     http_request: Request,
     db: Session = Depends(deps.get_db)
@@ -77,7 +81,11 @@ def read_qos_active_profiles(
 @router.get("/qosRules/{supi}", deprecated=True)
 def read_qos_active_rules(
     *,
-    supi: str = Path(..., title="The subscription unique permanent identifier (SUPI) of the UE", example="202010000000001"),
+    supi: str = Path(
+        ...,
+        title="The subscription unique permanent identifier (SUPI) of the UE",
+        examples={"default": {"value": "202010000000001"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
     http_request: Request,
     db: Session = Depends(deps.get_db)

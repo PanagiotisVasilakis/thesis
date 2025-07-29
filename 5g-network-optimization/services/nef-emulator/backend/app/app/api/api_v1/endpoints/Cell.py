@@ -121,7 +121,11 @@ def read_Cell(
 def get_by_gNB_id(
     *,
     db: Session = Depends(deps.get_db),
-    gNB_id: str = Path(..., description="The gNB id of the gNB in hexadecimal format", example='AAAAA1'),
+    gNB_id: str = Path(
+        ...,
+        description="The gNB id of the gNB in hexadecimal format",
+        examples={"default": {"value": "AAAAA1"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """

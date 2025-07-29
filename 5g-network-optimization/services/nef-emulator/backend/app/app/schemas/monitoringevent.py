@@ -29,7 +29,13 @@ class ReachabilityType(str, Enum):
 
 class MonitoringEventReport(BaseModel):
 #    msisdn: Optional[str] = None
-    externalId: Optional[str] = Field("123456789@domain.com", description="Globally unique identifier containing a Domain Identifier and a Local Identifier. \<Local Identifier\>@\<Domain Identifier\>")
+    externalId: Optional[str] = Field(
+        "123456789@domain.com",
+        description=(
+            "Globally unique identifier containing a Domain Identifier and a "
+            "Local Identifier. <Local Identifier>@<Domain Identifier>"
+        ),
+    )
     monitoringType: MonitoringType
     locationInfo: Optional[LocationInfo] = None
     ipv4Addr: Optional[IPvAnyAddress] = Field(None, description="String identifying an Ipv4 address")
@@ -37,7 +43,13 @@ class MonitoringEventReport(BaseModel):
 
 class MonitoringEventSubscriptionCreate(BaseModel):
     # mtcProviderId: Optional[str] = Field(None, description="Identifies the MTC Service Provider and/or MTC Application")
-    externalId: Optional[str] = Field("123456789@domain.com", description="Globally unique identifier containing a Domain Identifier and a Local Identifier. \<Local Identifier\>@\<Domain Identifier\>")
+    externalId: Optional[str] = Field(
+        "123456789@domain.com",
+        description=(
+            "Globally unique identifier containing a Domain Identifier and a "
+            "Local Identifier. <Local Identifier>@<Domain Identifier>"
+        ),
+    )
     # msisdn: Optional[str] = Field("918369110173", description="Mobile Subscriber ISDN number that consists of Country Code, National Destination Code and Subscriber Number.")
     # externalGroupId: Optional[str] = Field("Group1@domain.com", description="Identifies a group made up of one or more subscriptions associated to a group of IMSIs, containing a Domain Identifier and a Local Identifier. \<Local Identifier\>@\<Domain Identifier\>")
     # addExtGroupIds: Optional[str] = None
