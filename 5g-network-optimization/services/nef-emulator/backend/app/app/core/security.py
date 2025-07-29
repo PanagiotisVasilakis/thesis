@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any, Union
 from OpenSSL import crypto
 from jose import jwt
-from passlib.context import CryptContext
+import bcrypt
 import logging
 # from typing import Optional, Dict, Tuple
 # from fastapi import HTTPException, Request, status
@@ -13,7 +13,6 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 ALGORITHM = ("HS256", "RS256")
@@ -78,11 +77,25 @@ def create_access_token(
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    """Return ``True`` if ``plain_password`` matches ``hashed_password``."""
+
+    if hashed_password is None:
+        return False
+
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"),
+            hashed_password.encode("utf-8"),
+        )
+    except ValueError:
+        # if hashed_password has invalid format
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    """Hash ``password`` using bcrypt."""
+
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def extract_public_key(cert_path: str):
     try:

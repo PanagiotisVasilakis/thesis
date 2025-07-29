@@ -5,6 +5,7 @@ click==8.0.1
 email-validator==1.0.5
 emails==0.6
 fastapi==0.116.1
+starlette>=0.27
 flake8==3.7.9
 flask==2.0.0
 grpcio==1.62.3
@@ -21,7 +22,7 @@ markdown2==2.4.3
 matplotlib==3.8.2
 mypy==0.910
 numpy==1.24.4
-passlib==1.7.4
+bcrypt==4.1.2
 pillow==10.2.0
 prometheus_client==0.20.0
 psycopg2-binary==2.9.10
