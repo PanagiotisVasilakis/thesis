@@ -28,7 +28,7 @@ commands manually.
 4. add some test data (optional)
 
 ```bash
-cd NEF_emulator
+cd nef-emulator
 
 # 1.
 make prepare-dev-env
