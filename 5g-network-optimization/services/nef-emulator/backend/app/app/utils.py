@@ -93,7 +93,9 @@ def verify_password_reset_token(token: str) -> Optional[str]:
         # here results in a ``KeyError`` when decoding a valid token.
         #
         # Returning the ``sub`` value restores the original email that was
-        # encoded in the token.
-        return decoded_token["sub"]
+        # encoded in the token. Use ``dict.get`` to avoid ``KeyError`` if the
+        # claim is missing and return ``None`` instead.
+        return decoded_token.get("sub")
+
     except jwt.JWTError:
         return None
