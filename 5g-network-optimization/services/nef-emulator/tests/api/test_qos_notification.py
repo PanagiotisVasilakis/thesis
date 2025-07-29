@@ -107,7 +107,8 @@ def _setup_module(monkeypatch, user=None):
         "app.db.session": session_mod,
     })
 
-    endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    endpoints_dir = Path(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
     spec = importlib.util.spec_from_file_location(
         "app.api.api_v1.endpoints.qosMonitoring", endpoints_dir / "qosMonitoring.py"
     )
@@ -156,5 +157,6 @@ def test_qos_notification_error(monkeypatch):
         transaction="res", eventReports=[{"event": "QOS_GUARANTEED"}]
     )
     with pytest.raises(mod.HTTPException) as exc:
-        mod.as_session_with_qos_notification(body, http_request=_make_request())
+        mod.as_session_with_qos_notification(
+            body, http_request=_make_request())
     assert exc.value.status_code == 400

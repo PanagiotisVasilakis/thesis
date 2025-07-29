@@ -3,11 +3,15 @@ from pathlib import Path
 import types
 import sys
 
-UE_MOVEMENT_PATH = Path(__file__).resolve().parents[1] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "ue_movement.py"
+UE_MOVEMENT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "backend/app/app/api/api_v1/endpoints/ue_movement.py"
+)
 
 with open(UE_MOVEMENT_PATH) as f:
     lines = [next(f) for _ in range(21)]
 SOURCE = ''.join(lines)
+
 
 def load_helper(monkeypatch):
     app_pkg = types.ModuleType("app")
@@ -19,7 +23,9 @@ def load_helper(monkeypatch):
     app_pkg.tools.qos_callback = types.ModuleType("app.tools.qos_callback")
     app_pkg.models = types.ModuleType("app.models")
     schemas_mod = types.ModuleType("app.schemas")
-    class Msg: ...
+
+    class Msg:
+        ...
     schemas_mod.Msg = Msg
     app_pkg.api = types.ModuleType("app.api")
     app_pkg.api.deps = types.ModuleType("app.api.deps")
@@ -68,6 +74,7 @@ def load_helper(monkeypatch):
     ue_module = types.ModuleType("ue_partial")
     exec(SOURCE, ue_module.__dict__)
     return ue_module
+
 
 def test_log_timer_exception_increments_counter_and_logs(caplog, monkeypatch):
     ue_module = load_helper(monkeypatch)

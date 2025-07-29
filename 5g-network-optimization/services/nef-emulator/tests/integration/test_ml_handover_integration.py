@@ -26,7 +26,8 @@ def _create_ml_client(monkeypatch: pytest.MonkeyPatch):
     # Stub optional dependency used during app import
     sys.modules.setdefault(
         "seaborn",
-        importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
+        importlib.util.module_from_spec(
+            importlib.util.spec_from_loader("seaborn", loader=None)),
     )
 
     # Skip expensive model initialization
@@ -58,7 +59,8 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
             del sys.modules[name]
 
     spec_state = importlib.util.spec_from_file_location(
-        "app.network.state_manager", backend_root / "app" / "network" / "state_manager.py"
+        "app.network.state_manager", backend_root /
+        "app" / "network" / "state_manager.py"
     )
     state_mod = importlib.util.module_from_spec(spec_state)
     spec_state.loader.exec_module(state_mod)
@@ -118,7 +120,8 @@ def test_handover_triggers_prediction(monkeypatch: pytest.MonkeyPatch) -> None:
     ml_client, dummy_model = _create_ml_client(monkeypatch)
     nef_client, ml_api = _create_nef_client(monkeypatch, ml_client)
 
-    ml_api.state_mgr.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    ml_api.state_mgr.antenna_list = {
+        "A": DummyAntenna(-80), "B": DummyAntenna(-70)}
     ml_api.state_mgr.ue_states = {
         "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}
     }

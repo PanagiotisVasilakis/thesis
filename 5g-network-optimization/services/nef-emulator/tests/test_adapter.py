@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def test_adapter():
     """Test the MobilityPatternAdapter functionality."""
     # Create a linear mobility model using the adapter

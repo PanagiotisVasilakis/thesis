@@ -98,8 +98,10 @@ def _setup_client(monkeypatch, user=None):
     monkeypatch.setitem(sys.modules, "app.models", models_mod)
     monkeypatch.setitem(sys.modules, "app.schemas", schemas_mod)
 
-    endpoints_dir = PathLib(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
-    spec = importlib.util.spec_from_file_location("paths", endpoints_dir / "paths.py")
+    endpoints_dir = PathLib(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    spec = importlib.util.spec_from_file_location(
+        "paths", endpoints_dir / "paths.py")
     paths_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(paths_mod)
 
@@ -125,8 +127,10 @@ def _dummy_path(owner_id=1):
 
 def test_get_random_point(monkeypatch):
     client, crud, paths_mod = _setup_client(monkeypatch)
-    points = [SimpleNamespace(latitude=0.0, longitude=0.0), SimpleNamespace(latitude=1.0, longitude=1.0)]
-    monkeypatch.setattr(crud.points, "get_points", lambda db, path_id: points, raising=False)
+    points = [SimpleNamespace(latitude=0.0, longitude=0.0), SimpleNamespace(
+        latitude=1.0, longitude=1.0)]
+    monkeypatch.setattr(crud.points, "get_points", lambda db,
+                        path_id: points, raising=False)
     monkeypatch.setattr(paths_mod.random, "randrange", lambda a, b: 1)
     pt = paths_mod.get_random_point(db=None, path_id=1)
     assert pt == {"latitude": 1.0, "longitude": 1.0}
@@ -134,7 +138,8 @@ def test_get_random_point(monkeypatch):
 
 def test_read_paths(monkeypatch):
     client, crud, _ = _setup_client(monkeypatch)
-    monkeypatch.setattr(crud.path, "get_multi", lambda db, skip=0, limit=100: [_dummy_path()], raising=False)
+    monkeypatch.setattr(crud.path, "get_multi", lambda db,
+                        skip=0, limit=100: [_dummy_path()], raising=False)
     resp = client.get("/api/v1/paths")
     assert resp.status_code == 200
     data = resp.json()
@@ -144,10 +149,14 @@ def test_read_paths(monkeypatch):
 
 def test_create_path(monkeypatch):
     client, crud, _ = _setup_client(monkeypatch)
-    monkeypatch.setattr(crud.path, "get_description", lambda db, description: None, raising=False)
-    monkeypatch.setattr(crud.path, "create_with_owner", lambda db, obj_in, owner_id: _dummy_path(), raising=False)
-    monkeypatch.setattr(crud.points, "create", lambda db, obj_in, path_id: None, raising=False)
-    payload = {"description": "p1", "start_point": {"latitude": 0.0, "longitude": 0.0}, "end_point": {"latitude": 1.0, "longitude": 1.0}, "color": "blue", "points": []}
+    monkeypatch.setattr(crud.path, "get_description",
+                        lambda db, description: None, raising=False)
+    monkeypatch.setattr(crud.path, "create_with_owner", lambda db,
+                        obj_in, owner_id: _dummy_path(), raising=False)
+    monkeypatch.setattr(crud.points, "create", lambda db,
+                        obj_in, path_id: None, raising=False)
+    payload = {"description": "p1", "start_point": {"latitude": 0.0, "longitude": 0.0},
+               "end_point": {"latitude": 1.0, "longitude": 1.0}, "color": "blue", "points": []}
     resp = client.post("/api/v1/paths", json=payload)
     assert resp.status_code == 200
     assert resp.json()["description"] == "p1"
@@ -156,7 +165,8 @@ def test_create_path(monkeypatch):
 def test_update_path(monkeypatch):
     client, crud, _ = _setup_client(monkeypatch)
     original = _dummy_path()
-    monkeypatch.setattr(crud.path, "get", lambda db, id: original, raising=False)
+    monkeypatch.setattr(crud.path, "get", lambda db,
+                        id: original, raising=False)
 
     def fake_update(db, db_obj, obj_in):
         if isinstance(obj_in, dict):
@@ -166,7 +176,8 @@ def test_update_path(monkeypatch):
         return db_obj
     monkeypatch.setattr(crud.path, "update", fake_update, raising=False)
 
-    payload = {"description": "new", "start_point": {"latitude": 0.0, "longitude": 0.0}, "end_point": {"latitude": 1.0, "longitude": 1.0}, "color": "blue", "points": []}
+    payload = {"description": "new", "start_point": {"latitude": 0.0, "longitude": 0.0},
+               "end_point": {"latitude": 1.0, "longitude": 1.0}, "color": "blue", "points": []}
     resp = client.put("/api/v1/paths/1", json=payload)
     assert resp.status_code == 200
     assert resp.json()["description"] == "new"
@@ -174,8 +185,10 @@ def test_update_path(monkeypatch):
 
 def test_read_path(monkeypatch):
     client, crud, _ = _setup_client(monkeypatch)
-    monkeypatch.setattr(crud.path, "get", lambda db, id: _dummy_path(), raising=False)
-    monkeypatch.setattr(crud.points, "get_points", lambda db, path_id: [SimpleNamespace(latitude=0.0, longitude=0.0)], raising=False)
+    monkeypatch.setattr(crud.path, "get", lambda db,
+                        id: _dummy_path(), raising=False)
+    monkeypatch.setattr(crud.points, "get_points", lambda db, path_id: [
+                        SimpleNamespace(latitude=0.0, longitude=0.0)], raising=False)
     resp = client.get("/api/v1/paths/1")
     assert resp.status_code == 200
     data = resp.json()

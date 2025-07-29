@@ -99,7 +99,8 @@ def test_ml_handover(monkeypatch):
 
     nsm = NetworkStateManager()
     nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}
-    nsm.ue_states = {"u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}}
+    nsm.ue_states = {
+        "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}}
 
     eng = HandoverEngine(nsm, use_ml=True)
     ev = eng.decide_and_apply("u1")
@@ -148,7 +149,6 @@ def test_engine_mode_explicit_overrides_env(monkeypatch):
 
 def test_engine_auto_switch_runtime(monkeypatch):
     """Engine should switch modes automatically when antenna count changes."""
-
 
     nsm = NetworkStateManager()
     # Start with a single antenna -> rule mode
@@ -222,7 +222,8 @@ def test_select_ml_local(monkeypatch):
     class DummyStateMgr:
         def __init__(self):
             self.fv = fv
-            self.antenna_list = {aid: DummyAntenna(-80) for aid in fv["neighbor_rsrp_dbm"]}
+            self.antenna_list = {
+                aid: DummyAntenna(-80) for aid in fv["neighbor_rsrp_dbm"]}
 
         def get_feature_vector(self, ue_id):
             assert ue_id == "u1"
@@ -245,7 +246,8 @@ def test_select_ml_local(monkeypatch):
 
     monkeypatch.setattr("requests.post", fake_post)
 
-    import types, sys
+    import types
+    import sys
 
     model_mod = types.ModuleType("ml_service.app.api_lib")
     model_mod.load_model = lambda p=None: DummyModel()
@@ -259,7 +261,8 @@ def test_select_ml_local(monkeypatch):
     monkeypatch.setitem(sys.modules, "ml_service.app.api_lib", model_mod)
 
     sm = DummyStateMgr()
-    eng = HandoverEngine(sm, use_ml=True, use_local_ml=True, ml_model_path="foo")
+    eng = HandoverEngine(
+        sm, use_ml=True, use_local_ml=True, ml_model_path="foo")
     assert eng._select_ml("u1") == "B"
     assert calls["post"] == 0
 
@@ -299,7 +302,6 @@ def test_select_rule(monkeypatch):
 
 def test_env_overrides_auto(monkeypatch):
     """ML_HANDOVER_ENABLED env var should override automatic mode selection."""
-
 
     # Env forces ML even though antenna count would disable it
     nsm = NetworkStateManager()

@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from jose import jwt
-import pytest
 
 from backend.app.app.core import security
 
@@ -17,9 +16,11 @@ def test_create_access_token_expiry(monkeypatch):
             return fixed_now
 
     monkeypatch.setattr(security, "datetime", DummyDatetime)
-    monkeypatch.setattr(security.settings, "SECRET_KEY", "secret", raising=False)
+    monkeypatch.setattr(security.settings, "SECRET_KEY",
+                        "secret", raising=False)
 
-    token = security.create_access_token("u1", expires_delta=timedelta(minutes=5))
+    token = security.create_access_token(
+        "u1", expires_delta=timedelta(minutes=5))
     claims = jwt.get_unverified_claims(token)
     assert claims["sub"] == "u1"
     exp = datetime.utcfromtimestamp(claims["exp"])
@@ -47,9 +48,9 @@ def test_extract_public_key(tmp_path, monkeypatch):
         assert obj == "PUBKEYOBJ"
         return b"PUBLIC"
 
-    monkeypatch.setattr(security.crypto, "load_certificate", fake_load_certificate)
+    monkeypatch.setattr(security.crypto, "load_certificate",
+                        fake_load_certificate)
     monkeypatch.setattr(security.crypto, "dump_publickey", fake_dump_publickey)
 
     result = security.extract_public_key(str(cert_file))
     assert result == b"PUBLIC"
-

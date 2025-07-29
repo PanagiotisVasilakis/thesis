@@ -83,7 +83,8 @@ def client(monkeypatch):
     sqlalchemy_mod.orm = ModuleType("sqlalchemy.orm")
     sqlalchemy_mod.ext = ModuleType("sqlalchemy.ext")
     sqlalchemy_mod.ext.declarative = ModuleType("sqlalchemy.ext.declarative")
-    sqlalchemy_mod.ext.declarative.as_declarative = lambda *a, **k: (lambda cls: cls)
+    sqlalchemy_mod.ext.declarative.as_declarative = lambda *a, **k: (
+        lambda cls: cls)
     sqlalchemy_mod.ext.declarative.declared_attr = lambda f: f
     sqlalchemy_mod.Column = lambda *a, **k: None
     sqlalchemy_mod.Integer = int
@@ -99,7 +100,8 @@ def client(monkeypatch):
     sys.modules.setdefault("sqlalchemy", sqlalchemy_mod)
     sys.modules.setdefault("sqlalchemy.orm", sqlalchemy_mod.orm)
     sys.modules.setdefault("sqlalchemy.ext", sqlalchemy_mod.ext)
-    sys.modules.setdefault("sqlalchemy.ext.declarative", sqlalchemy_mod.ext.declarative)
+    sys.modules.setdefault("sqlalchemy.ext.declarative",
+                           sqlalchemy_mod.ext.declarative)
     try:
         import pymongo
     except Exception:
@@ -141,7 +143,8 @@ def client(monkeypatch):
         get_mac=lambda *a, **k: None,
         get_externalId=lambda *a, **k: None,
     )
-    crud_mod.user = SimpleNamespace(is_superuser=lambda u: getattr(u, "is_superuser", False))
+    crud_mod.user = SimpleNamespace(
+        is_superuser=lambda u: getattr(u, "is_superuser", False))
     crud_mod.gnb = SimpleNamespace()
     crud_mod.cell = SimpleNamespace()
     crud_mod.crud_mongo = SimpleNamespace(
@@ -196,6 +199,7 @@ def client(monkeypatch):
             if isinstance(v, cls):
                 return v
             return cls(v)
+
         @property
         def exploded(self):
             return str(self)
@@ -248,22 +252,26 @@ def client(monkeypatch):
     sys.modules["app.models"] = models_mod
     sys.modules["app.schemas"] = schemas_mod
 
-    endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    endpoints_dir = Path(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
     utils_mod = ModuleType("app.api.api_v1.endpoints.utils")
     utils_mod.retrieve_ue_state = lambda supi, owner_id: False
     utils_mod.router = SimpleNamespace()
     paths_mod = ModuleType("app.api.api_v1.endpoints.paths")
-    paths_mod.get_random_point = lambda db, path_id: {"latitude": 0.0, "longitude": 0.0}
+    paths_mod.get_random_point = lambda db, path_id: {
+        "latitude": 0.0, "longitude": 0.0}
     paths_mod.router = SimpleNamespace()
     sys.modules["app.api.api_v1.endpoints.utils"] = utils_mod
     sys.modules["app.api.api_v1.endpoints.paths"] = paths_mod
-    spec = importlib.util.spec_from_file_location("UE", endpoints_dir / "UE.py")
+    spec = importlib.util.spec_from_file_location(
+        "UE", endpoints_dir / "UE.py")
     ue_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ue_mod)
     sys.modules["app.api.api_v1.endpoints.UE"] = ue_mod
     api_pkg = ModuleType("app.api")
     api_v1_pkg = ModuleType("app.api.api_v1")
-    api_v1_pkg.endpoints = SimpleNamespace(UE=ue_mod, utils=utils_mod, paths=paths_mod)
+    api_v1_pkg.endpoints = SimpleNamespace(
+        UE=ue_mod, utils=utils_mod, paths=paths_mod)
     api_pkg.api_v1 = api_v1_pkg
     sys.modules.setdefault("app.api", api_pkg)
     sys.modules.setdefault("app.api.api_v1", api_v1_pkg)
@@ -277,12 +285,16 @@ def client(monkeypatch):
     def _get_db():
         yield None
     app.dependency_overrides[deps.get_db] = _get_db
-    app.dependency_overrides[deps.get_current_active_user] = lambda: SimpleNamespace(id=1, is_superuser=True)
+    app.dependency_overrides[deps.get_current_active_user] = lambda: SimpleNamespace(
+        id=1, is_superuser=True)
 
     # Basic stubs for unrelated CRUD calls
-    monkeypatch.setattr(crud.cell, "get_Cell_id", lambda *a, **k: None, raising=False)
-    monkeypatch.setattr(crud.cell, "get_by_gNB_id", lambda *a, **k: [], raising=False)
-    monkeypatch.setattr(crud.gnb, "get_gNB_id", lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(crud.cell, "get_Cell_id",
+                        lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(crud.cell, "get_by_gNB_id",
+                        lambda *a, **k: [], raising=False)
+    monkeypatch.setattr(crud.gnb, "get_gNB_id", lambda *a,
+                        **k: None, raising=False)
 
     client = TestClient(app)
     yield client
@@ -315,7 +327,8 @@ def _dummy_ue():
 
 def test_list_ues(client, monkeypatch):
     from app import crud
-    monkeypatch.setattr(crud.ue, "get_multi", lambda db, skip=0, limit=100: [_dummy_ue()])
+    monkeypatch.setattr(crud.ue, "get_multi", lambda db,
+                        skip=0, limit=100: [_dummy_ue()])
     resp = client.get("/api/v1/UEs")
     assert resp.status_code == 200
     data = resp.json()
@@ -329,7 +342,8 @@ def test_create_ue_duplicate(client, monkeypatch):
     monkeypatch.setattr(crud.ue, "get_supi", lambda *a, **k: _dummy_ue())
     for name in ["get_ipv4", "get_ipv6", "get_mac", "get_externalId"]:
         monkeypatch.setattr(crud.ue, name, lambda *a, **k: None)
-    monkeypatch.setattr(crud.ue, "create_with_owner", lambda *a, **k: _dummy_ue())
+    monkeypatch.setattr(crud.ue, "create_with_owner",
+                        lambda *a, **k: _dummy_ue())
 
     payload = {
         "supi": "202010000000001",
@@ -353,7 +367,8 @@ def test_create_update_delete_ue(client, monkeypatch):
     monkeypatch.setattr(crud.ue, "get_supi", lambda *a, **k: None)
     for name in ["get_ipv4", "get_ipv6", "get_mac", "get_externalId"]:
         monkeypatch.setattr(crud.ue, name, lambda *a, **k: None)
-    monkeypatch.setattr(crud.ue, "create_with_owner", lambda *a, **k: _dummy_ue())
+    monkeypatch.setattr(crud.ue, "create_with_owner",
+                        lambda *a, **k: _dummy_ue())
 
     payload = {
         "supi": "202010000000002",
@@ -378,7 +393,8 @@ def test_create_update_delete_ue(client, monkeypatch):
     monkeypatch.setattr(
         crud.ue,
         "update",
-        lambda db, db_obj, obj_in: SimpleNamespace(path_id=0, ip_address_v4=obj_in["ip_address_v4"]),
+        lambda db, db_obj, obj_in: SimpleNamespace(
+            path_id=0, ip_address_v4=obj_in["ip_address_v4"]),
     )
 
     update_payload = payload.copy()
@@ -390,7 +406,8 @@ def test_create_update_delete_ue(client, monkeypatch):
     monkeypatch.setattr(crud.ue, "remove_supi", lambda *a, **k: created)
     monkeypatch.setattr(crud.ue, "get_supi", lambda *a, **k: created)
     import app.api.api_v1.endpoints.UE as ue_endpoints
-    monkeypatch.setattr(ue_endpoints, "retrieve_ue_state", lambda supi, uid: False)
+    monkeypatch.setattr(ue_endpoints, "retrieve_ue_state",
+                        lambda supi, uid: False)
 
     resp = client.delete(f"/api/v1/UEs/{payload['supi']}")
     assert resp.status_code == 200

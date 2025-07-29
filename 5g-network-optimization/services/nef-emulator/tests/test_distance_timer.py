@@ -15,8 +15,18 @@ def test_distance_haversine():
 
 def test_check_distance():
     cells = [
-        {"latitude": 0.0, "longitude": 0.0, "radius": 150, "description": "A"},
-        {"latitude": 0.0, "longitude": 0.002, "radius": 50, "description": "B"},
+        {
+            "latitude": 0.0,
+            "longitude": 0.0,
+            "radius": 150,
+            "description": "A",
+        },
+        {
+            "latitude": 0.0,
+            "longitude": 0.002,
+            "radius": 50,
+            "description": "B",
+        },
     ]
     # Position near cell A but outside B
     cell = dist_mod.check_distance(0.0, 0.001, cells)
@@ -72,7 +82,8 @@ def test_adapter_functions(tmp_path):
         end_position=(10, 0, 0),
         speed=1.0,
     )
-    pts = MobilityPatternAdapter.generate_path_points(model, duration=5, time_step=1)
+    pts = MobilityPatternAdapter.generate_path_points(
+        model, duration=5, time_step=1)
     assert pts and pts[0]["latitude"] == 0
     json_path = tmp_path / "path.json"
     out = MobilityPatternAdapter.save_path_to_json(pts, json_path.as_posix())

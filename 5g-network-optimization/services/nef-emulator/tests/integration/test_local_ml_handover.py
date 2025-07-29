@@ -44,7 +44,8 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
             del sys.modules[name]
 
     spec_state = importlib.util.spec_from_file_location(
-        "app.network.state_manager", backend_root / "app" / "network" / "state_manager.py"
+        "app.network.state_manager", backend_root /
+        "app" / "network" / "state_manager.py"
     )
     state_mod = importlib.util.module_from_spec(spec_state)
     spec_state.loader.exec_module(state_mod)
@@ -84,7 +85,8 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
 def test_local_model_used(monkeypatch: pytest.MonkeyPatch) -> None:
     client, ml_api, dummy_model = _create_client(monkeypatch)
 
-    ml_api.state_mgr.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    ml_api.state_mgr.antenna_list = {
+        "A": DummyAntenna(-80), "B": DummyAntenna(-70)}
     ml_api.state_mgr.ue_states = {
         "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}
     }

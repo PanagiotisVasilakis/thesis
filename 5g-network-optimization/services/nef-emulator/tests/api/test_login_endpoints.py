@@ -1,3 +1,7 @@
+from app.core import security
+from app import crud
+from app.api import deps
+import importlib.util
 import os
 import sys
 import types
@@ -29,7 +33,8 @@ sys.modules.setdefault("emails.message", types.ModuleType("emails.message"))
 tmpl_mod = types.ModuleType("emails.template")
 tmpl_mod.JinjaTemplate = lambda x: x
 sys.modules.setdefault("emails.template", tmpl_mod)
-sys.modules["emails"].Message = lambda *a, **k: SimpleNamespace(send=lambda **kw: None)
+sys.modules["emails"].Message = lambda *a, **k: SimpleNamespace(
+    send=lambda **kw: None)
 
 openssl = types.ModuleType("OpenSSL")
 openssl.crypto = SimpleNamespace(
@@ -55,7 +60,6 @@ for name in list(sys.modules.keys()):
 # Dynamically load the ``app`` package so the real routers are available
 BACKEND_ROOT = PROJECT_ROOT / "services" / "nef-emulator" / "backend"
 APP_ROOT = BACKEND_ROOT / "app"
-import importlib.util
 spec = importlib.util.spec_from_file_location(
     "app", APP_ROOT / "app" / "__init__.py", submodule_search_locations=[str(APP_ROOT / "app")]
 )
@@ -75,16 +79,17 @@ sys.modules["app.crud"] = crud_module
 
 # Import after stubbing
 login_path = APP_ROOT / "app" / "api" / "api_v1" / "endpoints" / "login.py"
-spec_login = importlib.util.spec_from_file_location("login_endpoints", login_path)
+spec_login = importlib.util.spec_from_file_location(
+    "login_endpoints", login_path)
 login_endpoints = importlib.util.module_from_spec(spec_login)
 spec_login.loader.exec_module(login_endpoints)
-from app.api import deps
-from app import crud
-from app.core import security
 
 # Fix mismatched response models
+
+
 class SimpleMsg(BaseModel):
     msg: str
+
 
 for route in login_endpoints.router.routes:
     if route.name in {"recover_password", "reset_password"}:
@@ -118,33 +123,41 @@ class FakeUser(SimpleNamespace):
 
 def test_login_access_token_success(monkeypatch):
     user = FakeUser(id=1)
-    monkeypatch.setattr(crud.user, "authenticate", lambda db, email, password: user)
+    monkeypatch.setattr(crud.user, "authenticate",
+                        lambda db, email, password: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: True)
-    monkeypatch.setattr(security, "create_access_token", lambda uid, expires_delta=None: "tok")
-    monkeypatch.setattr(login_endpoints.settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15, raising=False)
+    monkeypatch.setattr(security, "create_access_token",
+                        lambda uid, expires_delta=None: "tok")
+    monkeypatch.setattr(login_endpoints.settings,
+                        "ACCESS_TOKEN_EXPIRE_MINUTES", 15, raising=False)
 
     client = TestClient(app)
-    response = client.post("/api/v1/login/access-token", data={"username": "user@example.com", "password": "secret"})
+    response = client.post("/api/v1/login/access-token",
+                           data={"username": "user@example.com", "password": "secret"})
     assert response.status_code == 200
     assert response.json() == {"access_token": "tok", "token_type": "bearer"}
 
 
 def test_login_access_token_bad_credentials(monkeypatch):
-    monkeypatch.setattr(crud.user, "authenticate", lambda db, email, password: None)
+    monkeypatch.setattr(crud.user, "authenticate",
+                        lambda db, email, password: None)
 
     client = TestClient(app)
-    response = client.post("/api/v1/login/access-token", data={"username": "user@example.com", "password": "wrong"})
+    response = client.post("/api/v1/login/access-token",
+                           data={"username": "user@example.com", "password": "wrong"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Incorrect email or password"
 
 
 def test_login_access_token_inactive_user(monkeypatch):
     user = FakeUser(id=1)
-    monkeypatch.setattr(crud.user, "authenticate", lambda db, email, password: user)
+    monkeypatch.setattr(crud.user, "authenticate",
+                        lambda db, email, password: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: False)
 
     client = TestClient(app)
-    response = client.post("/api/v1/login/access-token", data={"username": "user@example.com", "password": "secret"})
+    response = client.post("/api/v1/login/access-token",
+                           data={"username": "user@example.com", "password": "secret"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Inactive user"
 
@@ -152,8 +165,10 @@ def test_login_access_token_inactive_user(monkeypatch):
 def test_recover_password(monkeypatch):
     user = FakeUser(email="user@example.com")
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
-    monkeypatch.setattr(login_endpoints, "generate_password_reset_token", lambda *a, **k: "tok")
-    monkeypatch.setattr(login_endpoints, "send_reset_password_email", lambda **kw: None)
+    monkeypatch.setattr(
+        login_endpoints, "generate_password_reset_token", lambda *a, **k: "tok")
+    monkeypatch.setattr(
+        login_endpoints, "send_reset_password_email", lambda **kw: None)
 
     client = TestClient(app)
     response = client.post("/api/v1/password-recovery/user@example.com")
@@ -167,49 +182,61 @@ def test_recover_password_user_not_found(monkeypatch):
     client = TestClient(app)
     response = client.post("/api/v1/password-recovery/none@example.com")
     assert response.status_code == 404
-    assert response.json()["detail"] == "The user with this username does not exist in the system."
+    assert response.json()[
+        "detail"] == "The user with this username does not exist in the system."
 
 
 def test_reset_password(monkeypatch):
-    user = FakeUser(email="user@example.com", hashed_password="old", is_active=True)
-    monkeypatch.setattr(login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
+    user = FakeUser(email="user@example.com",
+                    hashed_password="old", is_active=True)
+    monkeypatch.setattr(
+        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
-    monkeypatch.setattr(login_endpoints, "get_password_hash", lambda pw: f"hashed-{pw}")
+    monkeypatch.setattr(login_endpoints, "get_password_hash",
+                        lambda pw: f"hashed-{pw}")
 
     client = TestClient(app)
-    response = client.post("/api/v1/reset-password/", json={"token": "tok", "new_password": "new"})
+    response = client.post("/api/v1/reset-password/",
+                           json={"token": "tok", "new_password": "new"})
     assert response.status_code == 200
     assert response.json() == {"msg": "Password updated successfully"}
     assert user.hashed_password == "hashed-new"
 
 
 def test_reset_password_invalid_token(monkeypatch):
-    monkeypatch.setattr(login_endpoints, "verify_password_reset_token", lambda token: None)
+    monkeypatch.setattr(
+        login_endpoints, "verify_password_reset_token", lambda token: None)
 
     client = TestClient(app)
-    response = client.post("/api/v1/reset-password/", json={"token": "bad", "new_password": "x"})
+    response = client.post("/api/v1/reset-password/",
+                           json={"token": "bad", "new_password": "x"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid token"
 
 
 def test_reset_password_user_not_found(monkeypatch):
-    monkeypatch.setattr(login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
+    monkeypatch.setattr(
+        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: None)
 
     client = TestClient(app)
-    response = client.post("/api/v1/reset-password/", json={"token": "tok", "new_password": "pass"})
+    response = client.post("/api/v1/reset-password/",
+                           json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 404
-    assert response.json()["detail"] == "The user with this username does not exist in the system."
+    assert response.json()[
+        "detail"] == "The user with this username does not exist in the system."
 
 
 def test_reset_password_inactive_user(monkeypatch):
     user = FakeUser(email="user@example.com", is_active=False)
-    monkeypatch.setattr(login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
+    monkeypatch.setattr(
+        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: False)
 
     client = TestClient(app)
-    response = client.post("/api/v1/reset-password/", json={"token": "tok", "new_password": "pass"})
+    response = client.post("/api/v1/reset-password/",
+                           json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Inactive user"
 

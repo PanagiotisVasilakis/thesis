@@ -1,21 +1,22 @@
 """Test the mobility patterns API functionality with mocks."""
-import json
 import logging
 
 # Import our models and adapter
-from backend.app.app.mobility_models.models import LinearMobilityModel
 from backend.app.app.tools.mobility.adapter import MobilityPatternAdapter
 
 logger = logging.getLogger(__name__)
 
+
 class MockRequest:
     """Mock request object for testing."""
+
     def __init__(self, model_type, ue_id, duration, time_step, parameters):
         self.model_type = model_type
         self.ue_id = ue_id
         self.duration = duration
         self.time_step = time_step
         self.parameters = parameters
+
 
 def mock_generate_mobility_pattern(req):
     """Mock the API endpoint functionality."""
@@ -26,14 +27,14 @@ def mock_generate_mobility_pattern(req):
             ue_id=req.ue_id,
             **req.parameters
         )
-        
+
         # Generate path points
         points = MobilityPatternAdapter.generate_path_points(
             model=model,
             duration=req.duration,
             time_step=req.time_step
         )
-        
+
         return points
     except ValueError as e:
         logger.error(f"ValueError: {e}")
@@ -41,6 +42,7 @@ def mock_generate_mobility_pattern(req):
     except Exception as e:
         logger.error(f"Error: {e}")
         return None
+
 
 def test_mock_api():
     """Test the mock API functionality."""
@@ -56,8 +58,8 @@ def test_mock_api():
             "speed": 10.0
         }
     )
-    
+
     # Call the mock API
     points = mock_generate_mobility_pattern(req)
-    
+
     assert points is not None and len(points) > 0

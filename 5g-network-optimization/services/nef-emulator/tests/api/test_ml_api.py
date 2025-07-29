@@ -42,6 +42,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     # Provide minimal stub modules expected by ml_api during import
     handover_pkg = types.ModuleType("app.handover")
     engine_mod = types.ModuleType("app.handover.engine")
+
     class HandoverEngine:
         def __init__(self, *a, **k):
             pass
@@ -56,8 +57,10 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     monitoring_pkg = types.ModuleType("app.monitoring")
     metrics_mod = types.ModuleType("app.monitoring.metrics")
-    metrics_mod.HANDOVER_DECISIONS = types.SimpleNamespace(labels=lambda *a, **k: types.SimpleNamespace(inc=lambda: None))
-    metrics_mod.REQUEST_DURATION = types.SimpleNamespace(labels=lambda *a, **k: types.SimpleNamespace(observe=lambda v: None))
+    metrics_mod.HANDOVER_DECISIONS = types.SimpleNamespace(
+        labels=lambda *a, **k: types.SimpleNamespace(inc=lambda: None))
+    metrics_mod.REQUEST_DURATION = types.SimpleNamespace(
+        labels=lambda *a, **k: types.SimpleNamespace(observe=lambda v: None))
     monitoring_pkg.metrics = metrics_mod
 
     app_pkg = types.ModuleType("app")

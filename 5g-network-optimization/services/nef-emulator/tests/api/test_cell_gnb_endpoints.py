@@ -5,7 +5,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 def _setup_client(monkeypatch, user=None):
     if user is None:
         user = SimpleNamespace(id=1, is_superuser=False)
@@ -26,7 +25,8 @@ def _setup_client(monkeypatch, user=None):
     crud_mod.gnb = types.SimpleNamespace()
     crud_mod.cell = types.SimpleNamespace()
     crud_mod.ue = types.SimpleNamespace()
-    crud_mod.user = types.SimpleNamespace(is_superuser=lambda u: u.is_superuser)
+    crud_mod.user = types.SimpleNamespace(
+        is_superuser=lambda u: u.is_superuser)
 
     models_mod = types.ModuleType("app.models")
     from pydantic import BaseModel
@@ -101,13 +101,16 @@ def _setup_client(monkeypatch, user=None):
     import importlib.util
     from pathlib import Path
 
-    endpoints_dir = Path(__file__).resolve().parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
+    endpoints_dir = Path(__file__).resolve(
+    ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
 
-    gnb_spec = importlib.util.spec_from_file_location("gNB", endpoints_dir / "gNB.py")
+    gnb_spec = importlib.util.spec_from_file_location(
+        "gNB", endpoints_dir / "gNB.py")
     gnb_mod = importlib.util.module_from_spec(gnb_spec)
     gnb_spec.loader.exec_module(gnb_mod)
 
-    cell_spec = importlib.util.spec_from_file_location("Cell", endpoints_dir / "Cell.py")
+    cell_spec = importlib.util.spec_from_file_location(
+        "Cell", endpoints_dir / "Cell.py")
     cell_mod = importlib.util.module_from_spec(cell_spec)
     cell_spec.loader.exec_module(cell_mod)
 
@@ -126,7 +129,8 @@ def test_get_gnbs(monkeypatch):
     client, crud = _setup_client(monkeypatch)
 
     gnb_obj = {"id": 1, "gNB_id": "AAAAAA", "owner_id": 1, "name": "n"}
-    crud.gnb.get_multi_by_owner = lambda db, owner_id, skip=0, limit=100: [gnb_obj]
+    crud.gnb.get_multi_by_owner = lambda db, owner_id, skip=0, limit=100: [
+        gnb_obj]
 
     resp = client.get("/api/v1/gNBs")
     assert resp.status_code == 200
@@ -149,7 +153,8 @@ def test_update_gnb_not_owner(monkeypatch):
     gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA", owner_id=2, name="n")
     crud.gnb.get_gNB_id = lambda db, id: gnb_obj
 
-    resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "n"})
+    resp = client.put("/api/v1/gNBs/AAAAAA",
+                      json={"gNB_id": "AAAAAA", "name": "n"})
     assert resp.status_code == 400
 
 
@@ -157,7 +162,8 @@ def test_update_gnb_as_owner(monkeypatch):
     user = SimpleNamespace(id=1, is_superuser=False)
     client, crud = _setup_client(monkeypatch, user=user)
 
-    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA", owner_id=1, name="old_name")
+    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA",
+                              owner_id=1, name="old_name")
     crud.gnb.get_gNB_id = lambda db, id: gnb_obj
 
     # Simulate successful update
@@ -170,7 +176,8 @@ def test_update_gnb_as_owner(monkeypatch):
         return {"id": db_obj.id, "gNB_id": db_obj.gNB_id, "owner_id": db_obj.owner_id, "name": db_obj.name}
     crud.gnb.update = fake_update
 
-    resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "new_name"})
+    resp = client.put("/api/v1/gNBs/AAAAAA",
+                      json={"gNB_id": "AAAAAA", "name": "new_name"})
     assert resp.status_code == 200
     assert resp.json()["name"] == "new_name"
 
@@ -179,7 +186,8 @@ def test_update_gnb_as_superuser(monkeypatch):
     user = SimpleNamespace(id=99, is_superuser=True)
     client, crud = _setup_client(monkeypatch, user=user)
 
-    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA", owner_id=2, name="old_name")
+    gnb_obj = SimpleNamespace(id=1, gNB_id="AAAAAA",
+                              owner_id=2, name="old_name")
     crud.gnb.get_gNB_id = lambda db, id: gnb_obj
 
     # Simulate successful update
@@ -192,7 +200,8 @@ def test_update_gnb_as_superuser(monkeypatch):
         return {"id": db_obj.id, "gNB_id": db_obj.gNB_id, "owner_id": db_obj.owner_id, "name": db_obj.name}
     crud.gnb.update = fake_update
 
-    resp = client.put("/api/v1/gNBs/AAAAAA", json={"gNB_id": "AAAAAA", "name": "superuser_update"})
+    resp = client.put("/api/v1/gNBs/AAAAAA",
+                      json={"gNB_id": "AAAAAA", "name": "superuser_update"})
     assert resp.status_code == 200
     assert resp.json()["name"] == "superuser_update"
 
@@ -210,7 +219,8 @@ def test_get_cells(monkeypatch):
         "radius": 1.0,
         "name": "c",
     }
-    crud.cell.get_multi_by_owner = lambda db, owner_id, skip=0, limit=100: [cell_obj]
+    crud.cell.get_multi_by_owner = lambda db, owner_id, skip=0, limit=100: [
+        cell_obj]
 
     resp = client.get("/api/v1/Cells")
     assert resp.status_code == 200
@@ -265,7 +275,8 @@ def test_create_cell_db_failure(monkeypatch):
     resp = client.post("/api/v1/Cells", json=payload)
     assert resp.status_code == 500
     data = resp.json()
-    assert "db error" in str(data).lower() or "database error" in str(data).lower()
+    assert "db error" in str(data).lower(
+    ) or "database error" in str(data).lower()
 
 
 def test_delete_cell_db_failure(monkeypatch):

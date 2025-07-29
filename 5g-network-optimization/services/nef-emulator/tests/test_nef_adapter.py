@@ -1,5 +1,8 @@
 import json
-from backend.app.app.mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
+from backend.app.app.mobility_models.nef_adapter import (
+    generate_nef_path_points,
+    save_path_to_json,
+)
 
 
 def test_generate_nef_path_points_linear():
@@ -33,7 +36,8 @@ def test_generate_nef_path_points_l_shaped():
     assert len(points) >= 3
     assert points[0]["latitude"] == 0.0
     assert points[-1]["longitude"] == 2.0
-    assert any(p["latitude"] != points[0]["latitude"] and p["longitude"] != points[-1]["longitude"] for p in points[1:-1])
+    assert any(p["latitude"] != points[0]["latitude"] and p["longitude"]
+               != points[-1]["longitude"] for p in points[1:-1])
 
 
 def test_save_path_to_json(tmp_path):

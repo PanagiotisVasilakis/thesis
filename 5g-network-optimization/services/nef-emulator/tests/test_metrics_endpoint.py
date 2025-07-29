@@ -10,7 +10,10 @@ def create_app():
 
     @app.get("/metrics")
     def metrics_route() -> Response:
-        return Response(generate_latest(metrics.REGISTRY), media_type=CONTENT_TYPE_LATEST)
+        return Response(
+            generate_latest(metrics.REGISTRY),
+            media_type=CONTENT_TYPE_LATEST,
+        )
 
     return app
 

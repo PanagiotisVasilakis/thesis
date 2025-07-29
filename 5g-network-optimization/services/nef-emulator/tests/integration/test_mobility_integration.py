@@ -57,14 +57,16 @@ def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     spec_router = importlib.util.spec_from_file_location(
         "patterns",
-        backend_root / "app" / "api" / "api_v1" / "endpoints" / "mobility" / "patterns.py",
+        backend_root / "app" / "api" / "api_v1" /
+        "endpoints" / "mobility" / "patterns.py",
     )
     patterns = importlib.util.module_from_spec(spec_router)
     spec_router.loader.exec_module(patterns)
 
     app = FastAPI()
     app.include_router(patterns.router, prefix="/api/v1/mobility-patterns")
-    app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(id=1)
+    app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(
+        id=1)
     return TestClient(app)
 
 

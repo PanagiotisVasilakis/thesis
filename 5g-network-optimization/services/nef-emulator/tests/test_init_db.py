@@ -32,6 +32,7 @@ def _load_init_db(monkeypatch):
     db_pkg = ModuleType("app.db")
     db_pkg.__path__ = []
     base_class_mod = ModuleType("app.db.base_class")
+
     class Base:
         metadata = SimpleNamespace(create_all=MagicMock())
     base_class_mod.Base = Base
@@ -46,7 +47,8 @@ def _load_init_db(monkeypatch):
 
     # CRUD module with MagicMocks
     crud_mod = ModuleType("app.crud")
-    crud_mod.user = SimpleNamespace(get_by_email=MagicMock(return_value=SimpleNamespace(id=1)))
+    crud_mod.user = SimpleNamespace(
+        get_by_email=MagicMock(return_value=SimpleNamespace(id=1)))
     crud_mod.gnb = SimpleNamespace(create_with_owner=MagicMock())
     crud_mod.cell = SimpleNamespace(create_with_owner=MagicMock())
     crud_mod.ue = SimpleNamespace(
@@ -54,7 +56,8 @@ def _load_init_db(monkeypatch):
         get_supi=MagicMock(return_value={}),
         update=MagicMock(),
     )
-    crud_mod.path = SimpleNamespace(create_with_owner=MagicMock(return_value=SimpleNamespace(id=1)))
+    crud_mod.path = SimpleNamespace(
+        create_with_owner=MagicMock(return_value=SimpleNamespace(id=1)))
     crud_mod.points = SimpleNamespace(create=MagicMock())
     app_pkg.crud = crud_mod
     monkeypatch.setitem(sys.modules, "app.crud", crud_mod)
@@ -74,14 +77,19 @@ def _load_init_db(monkeypatch):
 
     # paths.get_random_point
     paths_mod = ModuleType("app.api.api_v1.endpoints.paths")
-    paths_mod.get_random_point = lambda db, path_id: {"latitude": 0.0, "longitude": 0.0}
-    monkeypatch.setitem(sys.modules, "app.api.api_v1.endpoints.paths", paths_mod)
+    paths_mod.get_random_point = lambda db, path_id: {
+        "latitude": 0.0, "longitude": 0.0}
+    monkeypatch.setitem(
+        sys.modules, "app.api.api_v1.endpoints.paths", paths_mod)
 
     monkeypatch.setitem(sys.modules, "app", app_pkg)
     monkeypatch.setitem(sys.modules, "app.db", db_pkg)
 
     # Load init_db module from file
-    path = Path(__file__).resolve().parents[1] / "backend" / "app" / "app" / "db" / "init_db.py"
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "backend/app/app/db/init_db.py"
+    )
     spec = importlib.util.spec_from_file_location("app.db.init_db", path)
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, "app.db.init_db", module)
@@ -114,4 +122,7 @@ def test_init_db(monkeypatch):
     assert crud.path.create_with_owner.call_count == 1
     assert crud.points.create.call_count == 1
     assert crud.ue.update.call_count == len(scenario["ue_path_association"])
-    assert db.executed == "TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY"
+    assert (
+        db.executed
+        == "TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY"
+    )

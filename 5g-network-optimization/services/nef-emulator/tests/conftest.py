@@ -1,3 +1,4 @@
+import pytest
 import os
 import sys
 import importlib.util
@@ -33,7 +34,6 @@ sys.modules.setdefault("app", app_pkg)
 sys.modules.setdefault("app.network", network_pkg)
 sys.modules.setdefault("app.network.state_manager", state_mgr)
 
-import pytest
 
 @pytest.fixture(autouse=True)
 def clear_ml_local(monkeypatch):

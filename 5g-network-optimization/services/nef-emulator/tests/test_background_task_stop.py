@@ -3,20 +3,26 @@ import sys
 import time
 from pathlib import Path
 
-UE_PATH = Path(__file__).resolve().parents[1] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "ue_movement.py"
+UE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "backend/app/app/api/api_v1/endpoints/ue_movement.py"
+)
 
 # Load the portion of the module containing BackgroundTasks
 with open(UE_PATH) as f:
     lines = [next(f) for _ in range(320)]
 SOURCE = ''.join(lines)
 
+
 def load_module(monkeypatch):
     app_pkg = types.ModuleType("app")
     # crud stubs
     crud_mod = types.ModuleType("app.crud")
-    crud_mod.ue = types.SimpleNamespace(get_supi=lambda *a, **k: None,
-                                        update_coordinates=lambda *a, **k: None,
-                                        update=lambda *a, **k: None)
+    crud_mod.ue = types.SimpleNamespace(
+        get_supi=lambda *a, **k: None,
+        update_coordinates=lambda *a, **k: None,
+        update=lambda *a, **k: None,
+    )
     crud_mod.path = types.SimpleNamespace()
     crud_mod.points = types.SimpleNamespace()
     crud_mod.cell = types.SimpleNamespace()
@@ -26,7 +32,8 @@ def load_module(monkeypatch):
     crud_mongo_mod.read_by_multiple_pairs = lambda *a, **k: None
     crud_mongo_mod.update = lambda *a, **k: None
     crud_mongo_mod.delete_by_uuid = lambda *a, **k: None
-    crud_mongo_mod.read = lambda *a, **k: {"qosMonInfo": {"repFreqs": [], "repPeriod": 1}, "owner_id": 0}
+    crud_mongo_mod.read = lambda *a, **k: {"qosMonInfo": {
+        "repFreqs": [], "repPeriod": 1}, "owner_id": 0}
     app_pkg.crud = crud_mod
 
     tools_pkg = types.ModuleType("app.tools")
@@ -35,26 +42,36 @@ def load_module(monkeypatch):
     tools_pkg.distance = dist_mod
     tools_pkg.qos_callback = types.ModuleType("app.tools.qos_callback")
     mc_mod = types.ModuleType("app.tools.monitoring_callbacks")
-    mc_mod.loss_of_connectivity_callback = lambda *a, **k: types.SimpleNamespace(json=lambda: {"ack": "ok"})
+    mc_mod.loss_of_connectivity_callback = lambda *a, **k: types.SimpleNamespace(
+        json=lambda: {"ack": "ok"}
+    )
     mc_mod.ue_reachability_callback = lambda *a, **k: None
     mc_mod.location_callback = lambda *a, **k: None
     timer_mod = types.ModuleType("app.tools.timer")
+
     class DummySeqTimer:
         def __init__(self, **kw):
             pass
+
         def start(self):
             pass
+
         def stop(self):
             pass
+
         def status(self):
             return 0
+
     class DummyRT:
         def __init__(self, *a, **k):
             self.is_running = False
+
         def start(self):
             self.is_running = True
+
         def stop(self):
             self.is_running = False
+
     class TimerError(Exception):
         pass
     timer_mod.SequencialTimer = DummySeqTimer
@@ -75,23 +92,32 @@ def load_module(monkeypatch):
 
     api_v1_pkg = types.ModuleType("app.api.api_v1")
     state_mod = types.ModuleType("app.api.api_v1.state_manager")
+
     class DummySM:
         def __init__(self):
             self._ues = {}
+
         def set_ue(self, supi, data):
             self._ues[supi] = data
+
         def get_ue(self, supi):
             return self._ues.get(supi)
+
         def remove_ue(self, supi):
             self._ues.pop(supi, None)
+
         def set_thread(self, *a, **k):
             pass
+
         def get_thread(self, *a, **k):
             return None
+
         def remove_thread(self, *a, **k):
             pass
+
         def all_ues(self):
             return self._ues
+
         def increment_timer_error(self):
             pass
     state_mod.state_manager = DummySM()
@@ -100,6 +126,7 @@ def load_module(monkeypatch):
 
     db_pkg = types.ModuleType("app.db")
     session_mod = types.ModuleType("app.db.session")
+
     class DummySession:
         def close(self):
             pass
@@ -109,7 +136,9 @@ def load_module(monkeypatch):
     app_pkg.db = db_pkg
 
     schemas_mod = types.ModuleType("app.schemas")
-    class Msg: ...
+
+    class Msg:
+        ...
     schemas_mod.Msg = Msg
 
     modules = {
@@ -149,7 +178,8 @@ def test_thread_stops_quickly(monkeypatch):
         "ip_address_v4": "1.1.1.1",
         "Cell_id": None,
     }
-    task = ue_module.BackgroundTasks(args=(object(), "ue1", [], [{"latitude": 0, "longitude": 0}], True))
+    task = ue_module.BackgroundTasks(
+        args=(object(), "ue1", [], [{"latitude": 0, "longitude": 0}], True))
     task.start()
     time.sleep(0.05)
     start = time.perf_counter()
