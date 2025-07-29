@@ -186,8 +186,11 @@ def delete_UE(
 def read_gNB_id(
     *,
     db: Session = Depends(deps.get_db),
-    gNB_id: str = Path(..., description="The gNB id of the gNB in hexadecimal format",
-                       example='AAAAA1'),
+    gNB_id: str = Path(
+        ...,
+        description="The gNB id of the gNB in hexadecimal format",
+        examples={"default": {"value": "AAAAA1"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """
@@ -229,8 +232,11 @@ def read_gNB_id(
 def read_UE_Cell(
     *,
     db: Session = Depends(deps.get_db),
-    cell_id: str = Path(..., description="The cell id of the cell in hexadecimal format",
-                        example='AAAAA1001'),
+    cell_id: str = Path(
+        ...,
+        description="The cell id of the cell in hexadecimal format",
+        examples={"default": {"value": "AAAAA1001"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
 ) -> Any:
     """

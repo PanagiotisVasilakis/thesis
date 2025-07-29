@@ -18,7 +18,11 @@ db_collection= 'MonitoringEvent'
 @router.get("/{scsAsId}/subscriptions", response_model=List[schemas.MonitoringEventSubscription], responses={204: {"model" : None}})
 def read_active_subscriptions(
     *,
-    scsAsId: str = Path(..., title="The ID of the Netapp that read all the subscriptions", example="myNetapp"),
+    scsAsId: str = Path(
+        ...,
+        title="The ID of the Netapp that read all the subscriptions",
+        examples={"default": {"value": "myNetapp"}},
+    ),
     current_user: models.User = Depends(deps.get_current_active_user),
     token_payload = Depends(deps.verify_with_public_key),
     http_request: Request
@@ -90,7 +94,11 @@ def monitoring_notification(
 @router.post("/{scsAsId}/subscriptions", response_model=schemas.MonitoringEventReport, responses={201: {"model" : schemas.MonitoringEventSubscription}}, callbacks=monitoring_callback_router.routes)
 def create_subscription(
     *,
-    scsAsId: str = Path(..., title="The ID of the Netapp that creates a subscription", example="myNetapp"),
+    scsAsId: str = Path(
+        ...,
+        title="The ID of the Netapp that creates a subscription",
+        examples={"default": {"value": "myNetapp"}},
+    ),
     db: Session = Depends(deps.get_db),
     item_in: schemas.MonitoringEventSubscriptionCreate,
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -278,7 +286,11 @@ def create_subscription(
 @router.put("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
 def update_subscription(
     *,
-    scsAsId: str = Path(..., title="The ID of the Netapp that creates a subscription", example="myNetapp"),
+    scsAsId: str = Path(
+        ...,
+        title="The ID of the Netapp that creates a subscription",
+        examples={"default": {"value": "myNetapp"}},
+    ),
     subscriptionId: str = Path(..., title="Identifier of the subscription resource"),
     item_in: schemas.MonitoringEventSubscriptionCreate,
     current_user: models.User = Depends(deps.get_current_active_user),
@@ -358,7 +370,11 @@ def update_subscription(
 @router.get("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
 def read_subscription(
     *,
-    scsAsId: str = Path(..., title="The ID of the Netapp that creates a subscription", example="myNetapp"),
+    scsAsId: str = Path(
+        ...,
+        title="The ID of the Netapp that creates a subscription",
+        examples={"default": {"value": "myNetapp"}},
+    ),
     subscriptionId: str = Path(..., title="Identifier of the subscription resource"),
     current_user: models.User = Depends(deps.get_current_active_user),
     token_payload = Depends(deps.verify_with_public_key),
@@ -429,7 +445,11 @@ def read_subscription(
 @router.delete("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
 def delete_subscription(
     *,
-    scsAsId: str = Path(..., title="The ID of the Netapp that creates a subscription", example="myNetapp"),
+    scsAsId: str = Path(
+        ...,
+        title="The ID of the Netapp that creates a subscription",
+        examples={"default": {"value": "myNetapp"}},
+    ),
     subscriptionId: str = Path(..., title="Identifier of the subscription resource"),
     current_user: models.User = Depends(deps.get_current_active_user),
     token_payload = Depends(deps.verify_with_public_key),
