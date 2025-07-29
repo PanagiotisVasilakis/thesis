@@ -76,6 +76,7 @@ crud_module.crud_mongo = SimpleNamespace()
 crud_module.ue = SimpleNamespace()
 crud_module.gnb = SimpleNamespace()
 sys.modules["app.crud"] = crud_module
+crud = crud_module
 
 # Import after stubbing
 login_path = APP_ROOT / "app" / "api" / "api_v1" / "endpoints" / "login.py"
@@ -114,7 +115,7 @@ def override_get_db():
     yield DummyDB()
 
 
-app.dependency_overrides[deps.get_db] = override_get_db
+app.dependency_overrides[login_endpoints.deps.get_db] = override_get_db
 
 
 class FakeUser(SimpleNamespace):
@@ -126,7 +127,7 @@ def test_login_access_token_success(monkeypatch):
     monkeypatch.setattr(crud.user, "authenticate",
                         lambda db, email, password: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: True)
-    monkeypatch.setattr(security, "create_access_token",
+    monkeypatch.setattr(login_endpoints.security, "create_access_token",
                         lambda uid, expires_delta=None: "tok")
     monkeypatch.setattr(login_endpoints.settings,
                         "ACCESS_TOKEN_EXPIRE_MINUTES", 15, raising=False)

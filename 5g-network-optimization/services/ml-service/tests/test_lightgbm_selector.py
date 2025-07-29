@@ -103,3 +103,14 @@ def test_lightgbm_fixed_neighbor_count():
     assert features["sinr_a1"] == 8
     assert features["rsrp_a2"] == -70
     assert features["sinr_a2"] == 5
+
+
+def test_predict_unfitted_returns_default():
+    """Unfitted LightGBMSelector should return default prediction."""
+    model = LightGBMSelector()
+    sample = _tiny_dataset()[0]
+    features = model.extract_features(sample)
+
+    result = model.predict(features)
+
+    assert result == {"antenna_id": "antenna_1", "confidence": 0.5}

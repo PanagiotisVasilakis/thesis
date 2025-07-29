@@ -49,45 +49,44 @@ class ModelManager:
         else:
             model = LightGBMSelector(model_path=model_path, neighbor_count=neighbor_count)
 
-        # Try a simple prediction to check if the model is trained
-        try:
-            model.predict(DEFAULT_TEST_FEATURES)
+        # Determine if the model is already trained
+        if hasattr(model.model, "booster_") or (model_path and os.path.exists(model_path)):
             logger.info("Model is already trained and ready")
             with cls._lock:
                 cls._model_instance = model
             return model
-        except Exception as e:
-            # Model needs training
-            logger.info(f"Model needs training: {str(e)}")
 
-            # Generate synthetic data and train
-            logger.info("Generating synthetic training data...")
-            training_data = generate_synthetic_training_data(500)
+        # Model needs training
+        logger.info("Model needs training")
 
-            if os.getenv("LIGHTGBM_TUNE") == "1":
-                n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
-                cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
-                logger.info(
-                    "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
-                    n_iter,
-                    cv,
-                )
-                metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
-            else:
-                logger.info("Training model with synthetic data...")
-                metrics = model.train(training_data)
+        # Generate synthetic data and train
+        logger.info("Generating synthetic training data...")
+        training_data = generate_synthetic_training_data(500)
 
+        if os.getenv("LIGHTGBM_TUNE") == "1":
+            n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
+            cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
             logger.info(
-                f"Model trained successfully with {metrics.get('samples')} samples"
+                "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
+                n_iter,
+                cv,
             )
+            metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
+        else:
+            logger.info("Training model with synthetic data...")
+            metrics = model.train(training_data)
 
-            # Save the model
-            if model_path:
-                model.save(model_path)
-                logger.info(f"Model saved to {model_path}")
+        logger.info(
+            f"Model trained successfully with {metrics.get('samples')} samples"
+        )
 
-            with cls._lock:
-                cls._model_instance = model
-            return model
+        # Save the model
+        if model_path:
+            model.save(model_path)
+            logger.info(f"Model saved to {model_path}")
+
+        with cls._lock:
+            cls._model_instance = model
+        return model
 
 
