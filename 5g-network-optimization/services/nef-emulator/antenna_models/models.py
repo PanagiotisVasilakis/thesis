@@ -1,10 +1,11 @@
 import math
 import numpy as np
 from datetime import datetime
+from abc import ABC, abstractmethod
 from .patterns import AntennaPattern
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel
 
-class BaseAntennaModel:
+class BaseAntennaModel(ABC):
     """Abstract antenna with position, frequency, and TX power."""
 
     def __init__(self, antenna_id, position, frequency_hz, tx_power_dbm):
@@ -20,8 +21,9 @@ class BaseAntennaModel:
         self.frequency_hz = frequency_hz
         self.tx_power_dbm = tx_power_dbm
 
+    @abstractmethod
     def path_loss_db(self, ue_position, include_shadowing: bool = False):
-        """Override in subclasses with a specific path‑loss model."""
+        """Override in subclasses with a specific path-loss model."""
         raise NotImplementedError
 
     def rsrp_dbm(self, ue_position, include_shadowing: bool = False):
