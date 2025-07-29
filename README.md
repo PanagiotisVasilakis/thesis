@@ -196,10 +196,13 @@ docker push <registry>/ml-service:latest
 
 ## Testing
 ### Installing Test Dependencies
-Before running `pytest`, install both the system and Python dependencies:
+Before running `pytest`, install all required packages.  You can execute the
+helper scripts or run `pip install -r requirements.txt` manually:
 ```bash
 ./scripts/install_system_deps.sh
 ./scripts/install_deps.sh
+# or simply
+pip install -r requirements.txt
 ```
 These helper scripts install everything in `requirements.txt` (including
 `fastapi` and `matplotlib`) and register the `ml_service` package in editable
