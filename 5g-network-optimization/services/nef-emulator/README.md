@@ -60,7 +60,7 @@ docker compose up
 
 After the containers are up and running:
 
- - access and start playing with the Swager UI at: [http://localhost:8090/nef/docs](http://localhost:8090/nef/docs) or [https://localhost:4443/nef/docs](http://localhost:4443/nef/docs)
+ - access and start playing with the Swagger UI at: [http://localhost:8090/nef/docs](http://localhost:8090/nef/docs) or [https://localhost:4443/nef/docs](http://localhost:4443/nef/docs)
 - login to the admin dashboard at: [http://localhost:8090/login](http://localhost:8090) or [https://localhost:4443/login](http://localhost:4443/login)
      - Default credentials: `admin@my-email.com` / `pass`
      - they can be found/changed inside your `.env` file
