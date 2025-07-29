@@ -4,6 +4,7 @@ import lightgbm as lgb
 import joblib
 import os
 import logging
+from sklearn.exceptions import NotFittedError
 
 DEFAULT_TEST_FEATURES = {
     "latitude": 500,
@@ -143,25 +144,24 @@ class AntennaSelector:
     
     def predict(self, features):
         """Predict the optimal antenna for the UE."""
-        # If model is not trained, return dummy prediction
-        if not hasattr(self.model, 'predict_proba'):
+        # Convert features to the format expected by the model
+        X = np.array([[features[name] for name in self.feature_names]])
+
+        try:
+            # Get prediction and probability
+            antenna_id = self.model.predict(X)[0]
+            probabilities = self.model.predict_proba(X)[0]
+            confidence = max(probabilities)
+            return {
+                'antenna_id': antenna_id,
+                'confidence': float(confidence)
+            }
+        except (AttributeError, NotFittedError):
+            # Model is either missing expected methods or not yet trained
             return {
                 'antenna_id': 'antenna_1',  # Default antenna
                 'confidence': 0.5           # Neutral confidence
             }
-        
-        # Convert features to the format expected by the model
-        X = np.array([[features[name] for name in self.feature_names]])
-        
-        # Get prediction and probability
-        antenna_id = self.model.predict(X)[0]
-        probabilities = self.model.predict_proba(X)[0]
-        confidence = max(probabilities)
-        
-        return {
-            'antenna_id': antenna_id,
-            'confidence': float(confidence)
-        }
     
     def train(self, training_data):
         """Train the model with provided data."""

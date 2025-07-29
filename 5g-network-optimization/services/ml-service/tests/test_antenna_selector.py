@@ -199,3 +199,20 @@ def test_altitude_feature_in_training():
     extracted = model.extract_features(data[0])
     assert extracted['altitude'] == 1.0
 
+
+def test_default_prediction_unfitted_model(tmp_path):
+    """Predict on a fresh model without prior training."""
+    model_path = tmp_path / "untrained.joblib"
+    model = LightGBMSelector(model_path=str(model_path))
+
+    features = model.extract_features({})
+    prediction = model.predict(features)
+
+    assert prediction == {
+        'antenna_id': 'antenna_1',
+        'confidence': 0.5,
+    }
+
+    if model_path.exists():
+        model_path.unlink()
+
