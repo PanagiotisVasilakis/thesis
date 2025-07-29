@@ -61,7 +61,7 @@ class LightGBMSelector(AntennaSelector):
         if eval_set:
             fit_params["eval_set"] = eval_set
             if early_stopping_rounds:
-                fit_params["early_stopping_rounds"] = early_stopping_rounds
+                fit_params["callbacks"] = [lgb.early_stopping(early_stopping_rounds)]
             fit_params["verbose"] = False
 
         self.model.fit(X_train, y_train, **fit_params)
