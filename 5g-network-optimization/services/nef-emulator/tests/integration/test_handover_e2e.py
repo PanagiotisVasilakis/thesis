@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 
 
 class DummyAntenna:
@@ -86,7 +92,7 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
 
     app = FastAPI()
     app.include_router(ml_api.router, prefix="/api/v1")
-    return TestClient(app), ml_api
+    return TestClient(transport=ASGITransport(app=app)), ml_api
 
 
 def test_end_to_end_handover(monkeypatch: pytest.MonkeyPatch) -> None:

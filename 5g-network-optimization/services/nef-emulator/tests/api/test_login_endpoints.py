@@ -24,8 +24,14 @@ except ImportError:  # pragma: no cover - optional dependency
     sys.modules["pymongo"] = pymongo
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
 from pydantic import BaseModel
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 
 # Stub external dependencies before importing the application
 sys.modules.setdefault("emails", types.ModuleType("emails"))
@@ -132,7 +138,7 @@ def test_login_access_token_success(monkeypatch):
     monkeypatch.setattr(login_endpoints.settings,
                         "ACCESS_TOKEN_EXPIRE_MINUTES", 15, raising=False)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "secret"})
     assert response.status_code == 200
@@ -143,7 +149,7 @@ def test_login_access_token_bad_credentials(monkeypatch):
     monkeypatch.setattr(crud.user, "authenticate",
                         lambda db, email, password: None)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "wrong"})
     assert response.status_code == 400
@@ -156,7 +162,7 @@ def test_login_access_token_inactive_user(monkeypatch):
                         lambda db, email, password: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: False)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "secret"})
     assert response.status_code == 400
@@ -171,7 +177,7 @@ def test_recover_password(monkeypatch):
     monkeypatch.setattr(
         login_endpoints, "send_reset_password_email", lambda **kw: None)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/password-recovery/user@example.com")
     assert response.status_code == 200
     assert response.json() == {"msg": "Password recovery email sent"}
@@ -180,7 +186,7 @@ def test_recover_password(monkeypatch):
 def test_recover_password_user_not_found(monkeypatch):
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: None)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/password-recovery/none@example.com")
     assert response.status_code == 404
     assert response.json()[
@@ -196,7 +202,7 @@ def test_reset_password(monkeypatch):
     monkeypatch.setattr(login_endpoints, "get_password_hash",
                         lambda pw: f"hashed-{pw}")
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/reset-password/",
                            json={"token": "tok", "new_password": "new"})
     assert response.status_code == 200
@@ -208,7 +214,7 @@ def test_reset_password_invalid_token(monkeypatch):
     monkeypatch.setattr(
         login_endpoints, "verify_password_reset_token", lambda token: None)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/reset-password/",
                            json={"token": "bad", "new_password": "x"})
     assert response.status_code == 400
@@ -220,7 +226,7 @@ def test_reset_password_user_not_found(monkeypatch):
         login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: None)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/reset-password/",
                            json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 404
@@ -235,7 +241,7 @@ def test_reset_password_inactive_user(monkeypatch):
     monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
     monkeypatch.setattr(crud.user, "is_active", lambda u: False)
 
-    client = TestClient(app)
+    client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/reset-password/",
                            json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 400

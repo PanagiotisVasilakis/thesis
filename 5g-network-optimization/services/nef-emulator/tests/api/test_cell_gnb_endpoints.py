@@ -2,7 +2,13 @@ import types
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 
 
 def _setup_client(monkeypatch, user=None):
@@ -121,7 +127,7 @@ def _setup_client(monkeypatch, user=None):
     app_instance.include_router(gnb_router, prefix="/api/v1/gNBs")
     app_instance.include_router(cell_router, prefix="/api/v1/Cells")
 
-    client = TestClient(app_instance)
+    client = TestClient(transport=ASGITransport(app=app_instance))
     return client, crud_mod
 
 

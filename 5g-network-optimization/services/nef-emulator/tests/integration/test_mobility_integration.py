@@ -4,7 +4,13 @@ from pathlib import Path
 import sys
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 import pytest
 
 
@@ -67,7 +73,7 @@ def _create_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.include_router(patterns.router, prefix="/api/v1/mobility-patterns")
     app.dependency_overrides[deps_mod.get_current_active_user] = lambda: SimpleNamespace(
         id=1)
-    return TestClient(app)
+    return TestClient(transport=ASGITransport(app=app))
 
 
 def test_generate_pattern_invalid_payload(monkeypatch: pytest.MonkeyPatch) -> None:

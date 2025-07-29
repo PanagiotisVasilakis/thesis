@@ -5,7 +5,13 @@ import types
 
 import pytest
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient as FastAPITestClient
+from httpx import ASGITransport
+
+
+class TestClient(FastAPITestClient):
+    def __init__(self, *, transport: ASGITransport, **kwargs):
+        super().__init__(transport.app, **kwargs)
 
 
 class DummyStateManager:
@@ -84,7 +90,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
     app = FastAPI()
     app.include_router(ml_api.router, prefix="/api/v1")
-    return TestClient(app)
+    return TestClient(transport=ASGITransport(app=app))
 
 
 def test_get_state_success(client: TestClient) -> None:
