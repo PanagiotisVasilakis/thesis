@@ -88,6 +88,13 @@ def generate_password_reset_token(email: str) -> str:
 def verify_password_reset_token(token: str) -> Optional[str]:
     try:
         decoded_token = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        return decoded_token["email"]
+        # The reset token stores the email in the ``sub`` claim when generated
+        # by :func:`generate_password_reset_token`.  Using the ``email`` key
+        # here results in a ``KeyError`` when decoding a valid token.
+        #
+        # Returning the ``sub`` value restores the original email that was
+        # encoded in the token. Use ``dict.get`` to avoid ``KeyError`` if the
+        # claim is missing and return ``None`` instead.
+        return decoded_token.get("sub")
     except jwt.JWTError:
         return None
