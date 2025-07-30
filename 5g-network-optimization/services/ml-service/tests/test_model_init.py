@@ -3,16 +3,20 @@ from ml_service.app.initialization.model_init import ModelManager
 from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils import synthetic_data
+import numpy as np
 
 initialize_model = ModelManager.initialize
 
 
 class DummyModel:
+    classes_ = ["a1", "a2"]
+
     def predict(self, X):
-        return ["a1"]
+        return ["a1"] * len(X)
 
     def predict_proba(self, X):
-        return [[0.6, 0.4]]
+        """Return a fixed two-class probability distribution."""
+        return np.tile([0.6, 0.4], (len(X), 1))
 
 
 def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):

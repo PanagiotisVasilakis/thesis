@@ -5,7 +5,9 @@ from sklearn.exceptions import NotFittedError
 import joblib
 import os
 import logging
-from sklearn.exceptions import NotFittedError
+
+FALLBACK_ANTENNA_ID = "antenna_1"
+FALLBACK_CONFIDENCE = 0.5
 
 DEFAULT_TEST_FEATURES = {
     "latitude": 500,
@@ -19,6 +21,7 @@ DEFAULT_TEST_FEATURES = {
     "best_sinr_diff": 0.0,
     "altitude": 0.0,
 }
+
 
 class AntennaSelector:
     """ML model for selecting optimal antenna based on UE data."""
@@ -39,11 +42,16 @@ class AntennaSelector:
         self.model = None
         # Base features independent of neighbour count
         self.base_feature_names = [
-            'latitude', 'longitude', 'speed',
-            'direction_x', 'direction_y',
-            'rsrp_current', 'sinr_current',
-            'best_rsrp_diff', 'best_sinr_diff',
-            'altitude'
+            "latitude",
+            "longitude",
+            "speed",
+            "direction_x",
+            "direction_y",
+            "rsrp_current",
+            "sinr_current",
+            "best_rsrp_diff",
+            "best_sinr_diff",
+            "altitude",
         ]
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -51,11 +59,13 @@ class AntennaSelector:
         if neighbor_count and neighbor_count > 0:
             self.neighbor_count = int(neighbor_count)
             for idx in range(self.neighbor_count):
-                self.feature_names.extend([
-                    f"rsrp_a{idx+1}",
-                    f"sinr_a{idx+1}",
-                ])
-        
+                self.feature_names.extend(
+                    [
+                        f"rsrp_a{idx+1}",
+                        f"sinr_a{idx+1}",
+                    ]
+                )
+
         # Try to load existing model
         try:
             if model_path and os.path.exists(model_path):
@@ -65,7 +75,7 @@ class AntennaSelector:
         except Exception as e:
             logging.warning(f"Could not load model: {e}")
             self._initialize_model()
-    
+
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
@@ -73,7 +83,7 @@ class AntennaSelector:
             max_depth=10,
             random_state=42,
         )
-    
+
     def _direction_to_unit(self, direction: tuple | list) -> tuple[float, float]:
         """Convert a 2D direction vector to unit components."""
         if isinstance(direction, (list, tuple)) and len(direction) >= 2:
@@ -82,7 +92,9 @@ class AntennaSelector:
                 return direction[0] / magnitude, direction[1] / magnitude
         return 0.0, 0.0
 
-    def _current_signal(self, current: str | None, metrics: dict) -> tuple[float, float]:
+    def _current_signal(
+        self, current: str | None, metrics: dict
+    ) -> tuple[float, float]:
         """Return RSRP/SINR for the currently connected antenna."""
         if current and current in metrics:
             data = metrics[current]
@@ -142,83 +154,90 @@ class AntennaSelector:
         features["best_sinr_diff"] = best_sinr - sinr_curr
 
         return features
-    
+
     def predict(self, features):
         """Predict the optimal antenna for the UE."""
         # Convert features to the format expected by the model
         X = np.array([[features[name] for name in self.feature_names]])
 
         try:
-            # Get prediction and probability
-            antenna_id = self.model.predict(X)[0]
+            # Perform a single prediction attempt via probabilities
             probabilities = self.model.predict_proba(X)[0]
-            confidence = max(probabilities)
-        except (lgb.basic.LightGBMError, NotFittedError):
+            idx = int(np.argmax(probabilities))
+            antenna_id = self.model.classes_[idx]
+            confidence = float(probabilities[idx])
+        except (lgb.basic.LightGBMError, NotFittedError, AttributeError) as e:
+            logging.warning("Prediction failed: %s", e)
             return {
-                'antenna_id': 'antenna_1',
-                'confidence': 0.5,
+                "antenna_id": FALLBACK_ANTENNA_ID,
+                "confidence": FALLBACK_CONFIDENCE,
             }
-        
-        return {
-            'antenna_id': antenna_id,
-            'confidence': float(confidence)
-        }
-    
+        except Exception:
+            logging.exception("Unexpected error during prediction")
+            return {
+                "antenna_id": FALLBACK_ANTENNA_ID,
+                "confidence": FALLBACK_CONFIDENCE,
+            }
+
+        return {"antenna_id": antenna_id, "confidence": float(confidence)}
+
     def train(self, training_data):
         """Train the model with provided data."""
         # Extract features and labels from training data
         X = []
         y = []
-        
+
         for sample in training_data:
             features = self.extract_features(sample)
             feature_vector = [features[name] for name in self.feature_names]
-            
+
             # The label is the optimal antenna ID
-            label = sample.get('optimal_antenna')
-            
+            label = sample.get("optimal_antenna")
+
             X.append(feature_vector)
             y.append(label)
-        
+
         # Convert to numpy arrays
         X = np.array(X)
         y = np.array(y)
-        
+
         # Train the model
         self.model.fit(X, y)
-        
+
         # Return training metrics
         return {
-            'samples': len(X),
-            'classes': len(set(y)),
-            'feature_importance': dict(zip(
-                self.feature_names,
-                self.model.feature_importances_
-            ))
+            "samples": len(X),
+            "classes": len(set(y)),
+            "feature_importance": dict(
+                zip(self.feature_names, self.model.feature_importances_)
+            ),
         }
-    
+
     def save(self, path=None):
         """Save the model to disk."""
         save_path = path or self.model_path
         if save_path:
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            joblib.dump({
-                'model': self.model,
-                'feature_names': self.feature_names,
-                'neighbor_count': self.neighbor_count,
-            }, save_path)
+            joblib.dump(
+                {
+                    "model": self.model,
+                    "feature_names": self.feature_names,
+                    "neighbor_count": self.neighbor_count,
+                },
+                save_path,
+            )
             return True
         return False
-    
+
     def load(self, path=None):
         """Load the model from disk."""
         load_path = path or self.model_path
         if load_path and os.path.exists(load_path):
             data = joblib.load(load_path)
-            if isinstance(data, dict) and 'model' in data:
-                self.model = data['model']
-                self.feature_names = data.get('feature_names', self.feature_names)
-                self.neighbor_count = data.get('neighbor_count', self.neighbor_count)
+            if isinstance(data, dict) and "model" in data:
+                self.model = data["model"]
+                self.feature_names = data.get("feature_names", self.feature_names)
+                self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
             else:
                 self.model = data
             return True
