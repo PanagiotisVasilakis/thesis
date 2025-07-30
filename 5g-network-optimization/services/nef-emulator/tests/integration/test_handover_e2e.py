@@ -30,7 +30,7 @@ class DummyResponse:
         pass
 
     def json(self):
-        return {"predicted_antenna": self._antenna}
+        return {"predicted_antenna": self._antenna, "confidence": 1.0}
 
 
 def _create_client(monkeypatch: pytest.MonkeyPatch):
