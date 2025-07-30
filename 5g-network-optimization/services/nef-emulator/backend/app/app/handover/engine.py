@@ -8,6 +8,8 @@ import logging
 import requests
 from requests import RequestException
 
+from ..monitoring import metrics
+
 from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
 
@@ -27,6 +29,7 @@ class HandoverEngine:
         min_antennas_ml: int = 3,
         a3_hysteresis_db: float = 2.0,
         a3_ttt_s: float = 0.0,
+        confidence_threshold: float = 0.5,
     ) -> None:
         self.state_mgr = state_mgr
         self.logger = getattr(state_mgr, "logger", logging.getLogger("HandoverEngine"))
@@ -35,6 +38,16 @@ class HandoverEngine:
             "ML_SERVICE_URL", "http://ml-service:5050"
         )
         self.min_antennas_ml = min_antennas_ml
+        env_thresh = os.getenv("ML_CONFIDENCE_THRESHOLD")
+        if env_thresh is not None:
+            try:
+                confidence_threshold = float(env_thresh)
+            except ValueError:
+                self.logger.warning(
+                    "Invalid value for ML_CONFIDENCE_THRESHOLD: '%s'. Using default.",
+                    env_thresh,
+                )
+        self.confidence_threshold = confidence_threshold
         env_local = os.getenv("ML_LOCAL")
         if env_local is not None:
             self.use_local_ml = env_local.lower() in {"1", "true", "yes"}
@@ -76,7 +89,7 @@ class HandoverEngine:
 
     # ------------------------------------------------------------------
 
-    def _select_ml(self, ue_id: str) -> Optional[str]:
+    def _select_ml(self, ue_id: str) -> Optional[dict]:
         fv = self.state_mgr.get_feature_vector(ue_id)
         rf_metrics = {
             aid: {
@@ -99,7 +112,13 @@ class HandoverEngine:
             try:
                 features = self.model.extract_features(ue_data)
                 pred = self.model.predict(features)
-                return pred.get("antenna_id") or pred.get("predicted_antenna")
+                if isinstance(pred, dict):
+                    return {
+                        "antenna_id": pred.get("antenna_id")
+                        or pred.get("predicted_antenna"),
+                        "confidence": pred.get("confidence"),
+                    }
+                return {"antenna_id": pred, "confidence": None}
             except Exception as exc:  # noqa: BLE001 - log and fall back
                 logger.exception("Local ML prediction failed", exc_info=exc)
                 return None
@@ -108,7 +127,11 @@ class HandoverEngine:
             resp = requests.post(url, json=ue_data, timeout=5)
             resp.raise_for_status()
             data = resp.json()
-            return data.get("predicted_antenna") or data.get("antenna_id")
+            return {
+                "antenna_id": data.get("predicted_antenna")
+                or data.get("antenna_id"),
+                "confidence": data.get("confidence"),
+            }
         except Exception as exc:  # noqa: BLE001 - capture any ML service error
             logger.exception("Remote ML request failed", exc_info=exc)
             return None
@@ -129,7 +152,21 @@ class HandoverEngine:
     def decide_and_apply(self, ue_id: str):
         """Select the best antenna and apply the handover."""
         self._update_mode()
-        target = self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
+        if self.use_ml:
+            result = self._select_ml(ue_id)
+            if result is None:
+                target = None
+            else:
+                target = result.get("antenna_id")
+                confidence = result.get("confidence")
+                if confidence is None:
+                    confidence = 0.0
+                if confidence < self.confidence_threshold:
+                    metrics.HANDOVER_FALLBACKS.inc()
+                    target = self._select_rule(ue_id)
+        else:
+            target = self._select_rule(ue_id)
+
         if not target:
             return None
         return self.state_mgr.apply_handover_decision(ue_id, target)

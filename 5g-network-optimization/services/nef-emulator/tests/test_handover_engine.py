@@ -5,6 +5,7 @@ import requests
 import pytest
 from backend.app.app.handover.engine import HandoverEngine
 from backend.app.app.network.state_manager import NetworkStateManager
+from backend.app.app.monitoring import metrics
 
 
 class DummyAntenna:
@@ -103,7 +104,7 @@ def test_ml_handover(monkeypatch):
     nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}
     nsm.ue_states = {"u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}}
 
-    eng = HandoverEngine(nsm, use_ml=True)
+    eng = HandoverEngine(nsm, use_ml=True, confidence_threshold=0.0)
     ev = eng.decide_and_apply("u1")
     assert ev and ev["to"] == "B"
 
@@ -205,7 +206,8 @@ def test_select_ml(monkeypatch):
 
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True)
-    assert eng._select_ml("u1") == "B"
+    pred = eng._select_ml("u1")
+    assert pred == {"antenna_id": "B", "confidence": None}
 
 
 def test_select_ml_local(monkeypatch):
@@ -264,7 +266,8 @@ def test_select_ml_local(monkeypatch):
 
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True, use_local_ml=True, ml_model_path="foo")
-    assert eng._select_ml("u1") == "B"
+    pred = eng._select_ml("u1")
+    assert pred == {"antenna_id": "B", "confidence": None}
     assert calls["post"] == 0
 
 
@@ -510,3 +513,39 @@ def test_env_overrides_auto(monkeypatch):
     eng2 = HandoverEngine(nsm2, use_ml=None, min_antennas_ml=3)
     assert eng2.use_ml is False
     monkeypatch.delenv("ML_HANDOVER_ENABLED", raising=False)
+
+
+def test_decide_and_apply_fallback(monkeypatch):
+    """Engine should fall back to rule when confidence is low."""
+
+    class DummyResp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"predicted_antenna": "B", "confidence": 0.2}
+
+    monkeypatch.setattr("requests.post", lambda *a, **k: DummyResp())
+    monkeypatch.setenv("ML_SERVICE_URL", "http://ml")
+
+    nsm = NetworkStateManager()
+    nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    nsm.ue_states = {"u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}}
+
+    count = {"val": 0}
+
+    class DummyCounter:
+        def inc(self):
+            count["val"] += 1
+
+    monkeypatch.setattr(metrics, "HANDOVER_FALLBACKS", DummyCounter())
+
+    eng = HandoverEngine(nsm, use_ml=True, confidence_threshold=0.5)
+    class DummyRule:
+        def check(self, serv, targ, now):
+            return True
+
+    eng.rule = DummyRule()
+    ev = eng.decide_and_apply("u1")
+    assert ev and ev["to"] == "B"
+    assert count["val"] == 1

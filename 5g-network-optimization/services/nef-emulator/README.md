@@ -79,6 +79,7 @@ The emulator reads several variables from `.env` or the shell:
 | `ML_LOCAL` | Use the local ML package instead of the `ml-service` container (`1` or `0`) | `0` |
 | `A3_HYSTERESIS_DB` | A3 hysteresis value in dB | `2.0` |
 | `A3_TTT_S` | A3 time-to-trigger in seconds | `0.0` |
+| `ML_CONFIDENCE_THRESHOLD` | Minimum confidence required to accept ML predictions | `0.5` |
 | `NOISE_FLOOR_DBM` | Noise floor used when computing SINR | `-100.0` |
 
 When ML handovers are enabled, `HandoverEngine` posts UE feature vectors to
@@ -95,7 +96,8 @@ curl -X POST "http://localhost:8080/api/v1/ml/handover?ue_id=u1"
 Metrics for Prometheus are exposed at `/metrics`. The default Docker Compose
 setup scrapes this endpoint and records counters like
 `nef_handover_decisions_total` and the `nef_request_duration_seconds`
-histogram.
+histogram. A separate `nef_handover_fallback_total` counter tracks how often
+low-confidence predictions fall back to the A3 rule.
 
 ## Local ML Mode
 

@@ -10,6 +10,13 @@ HANDOVER_DECISIONS = Counter(
     registry=REGISTRY
 )
 
+# Count how many times ML predictions were discarded due to low confidence
+HANDOVER_FALLBACKS = Counter(
+    'nef_handover_fallback_total',
+    'Number of ML predictions falling back to the A3 rule',
+    registry=REGISTRY
+)
+
 # Observe request processing time for each endpoint
 REQUEST_DURATION = Histogram(
     'nef_request_duration_seconds',
