@@ -4,6 +4,7 @@ import lightgbm as lgb
 import joblib
 import os
 import logging
+import threading
 from sklearn.exceptions import NotFittedError
 
 from ..utils.env_utils import get_neighbor_count_from_env
@@ -37,6 +38,11 @@ DEFAULT_TEST_FEATURES = {
 
 class AntennaSelector:
     """ML model for selecting optimal antenna based on UE data."""
+
+    # Guard lazy initialization of neighbour feature names. This initialization
+    # may run during the first prediction call when ``extract_features`` is
+    # invoked concurrently, so a lock ensures feature names are added only once.
+    _init_lock = threading.Lock()
 
     def __init__(self, model_path=None, neighbor_count: int | None = None):
         """Initialize the model.
@@ -192,13 +198,19 @@ class AntennaSelector:
             best_rsrp, best_sinr, best_rsrq = neighbors[0][1], neighbors[0][2], neighbors[0][3]
 
         if self.neighbor_count == 0:
-            self.neighbor_count = len(neighbors)
-            for idx in range(self.neighbor_count):
-                self.feature_names.extend([
-                    f"rsrp_a{idx+1}",
-                    f"sinr_a{idx+1}",
-                    f"rsrq_a{idx+1}",
-                ])
+            # Lazy initialisation of neighbour-specific feature names. This may
+            # be triggered during the first prediction if no explicit neighbour
+            # count was configured. Guard with a lock so concurrent calls don't
+            # append duplicate names.
+            with self._init_lock:
+                if self.neighbor_count == 0:
+                    self.neighbor_count = len(neighbors)
+                    for idx in range(self.neighbor_count):
+                        self.feature_names.extend([
+                            f"rsrp_a{idx+1}",
+                            f"sinr_a{idx+1}",
+                            f"rsrq_a{idx+1}",
+                        ])
 
         for idx in range(self.neighbor_count):
             if idx < len(neighbors):
