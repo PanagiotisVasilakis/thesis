@@ -4,10 +4,12 @@ from sklearn.model_selection import train_test_split
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils.synthetic_data import generate_synthetic_training_data
 
+NUM_ANTENNAS = 4
+
 def test_model_training_and_prediction(tmp_path):
     """Training the model should yield predictions with reasonable accuracy."""
 
-    data = generate_synthetic_training_data(1000)
+    data = generate_synthetic_training_data(1000, num_antennas=NUM_ANTENNAS)
 
     train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
 
