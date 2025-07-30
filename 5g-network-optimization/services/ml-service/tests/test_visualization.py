@@ -15,19 +15,19 @@ def _create_png(tmp_path, name):
     return path
 
 
-def test_coverage_map_endpoint(client, tmp_path):
+def test_coverage_map_endpoint(client, auth_header, tmp_path):
     mock_model = MagicMock()
     mock_model.predict.return_value = {"antenna_id": "a1", "confidence": 1.0}
     img_path = _create_png(tmp_path / "coverage", "coverage.png")
     with patch("ml_service.app.api.visualization.ModelManager.get_instance", return_value=mock_model) as mock_get, \
          patch("ml_service.app.api.visualization.plot_antenna_coverage", return_value=str(img_path)):
-        resp = client.get("/api/visualization/coverage-map")
+        resp = client.get("/api/visualization/coverage-map", headers=auth_header)
         assert resp.status_code == 200
         assert len(resp.data) > 0
         mock_get.assert_called_once_with(client.application.config["MODEL_PATH"])
 
 
-def test_trajectory_endpoint(client, tmp_path):
+def test_trajectory_endpoint(client, auth_header, tmp_path):
     movement = [{
         "ue_id": "u1",
         "timestamp": "2025-01-01T00:00:00",
@@ -39,22 +39,27 @@ def test_trajectory_endpoint(client, tmp_path):
 
     img_path = _create_png(tmp_path / "trajectory", "traj.png")
     with patch("ml_service.app.api.visualization.plot_movement_trajectory", return_value=str(img_path)):
-        resp = client.post("/api/visualization/trajectory", data=json.dumps(movement), content_type="application/json")
+        resp = client.post(
+            "/api/visualization/trajectory",
+            data=json.dumps(movement),
+            content_type="application/json",
+            headers=auth_header,
+        )
         assert resp.status_code == 200
         assert len(resp.data) > 0
 
 
-def test_coverage_map_file_not_found(client):
+def test_coverage_map_file_not_found(client, auth_header):
     with patch(
         "ml_service.app.api.visualization.plot_antenna_coverage",
         side_effect=FileNotFoundError("missing"),
     ):
-        resp = client.get("/api/visualization/coverage-map")
+        resp = client.get("/api/visualization/coverage-map", headers=auth_header)
         assert resp.status_code == 404
         assert resp.get_json()["error"]
 
 
-def test_trajectory_request_error(client):
+def test_trajectory_request_error(client, auth_header):
     with patch(
         "ml_service.app.api.visualization.plot_movement_trajectory",
         side_effect=requests.exceptions.RequestException("fail"),
@@ -64,21 +69,22 @@ def test_trajectory_request_error(client):
             "/api/visualization/trajectory",
             data=json.dumps(movement),
             content_type="application/json",
+            headers=auth_header,
         )
         assert resp.status_code == 502
         assert resp.get_json()["error"]
 
 
-def test_coverage_map_unexpected_error(client):
+def test_coverage_map_unexpected_error(client, auth_header):
     with patch(
         "ml_service.app.api.visualization.plot_antenna_coverage",
         side_effect=ValueError("fail"),
     ):
         with pytest.raises(ValueError):
-            client.get("/api/visualization/coverage-map")
+            client.get("/api/visualization/coverage-map", headers=auth_header)
 
 
-def test_trajectory_unexpected_error(client):
+def test_trajectory_unexpected_error(client, auth_header):
     with patch(
         "ml_service.app.api.visualization.plot_movement_trajectory",
         side_effect=ValueError("fail"),
@@ -89,4 +95,5 @@ def test_trajectory_unexpected_error(client):
                 "/api/visualization/trajectory",
                 data=json.dumps(movement),
                 content_type="application/json",
+                headers=auth_header,
             )

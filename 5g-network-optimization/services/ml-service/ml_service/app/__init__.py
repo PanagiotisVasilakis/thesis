@@ -3,6 +3,7 @@ from flask import Flask, Response
 import os
 from prometheus_client import generate_latest
 from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
+from ml_service.app.rate_limiter import init_app as init_limiter
 
 
 def create_app(config=None):
@@ -16,6 +17,10 @@ def create_app(config=None):
         MODEL_PATH=os.path.join(
             os.path.dirname(__file__), "models/antenna_selector.joblib"
         ),
+        AUTH_USERNAME=os.getenv("AUTH_USERNAME", "admin"),
+        AUTH_PASSWORD=os.getenv("AUTH_PASSWORD", "admin"),
+        JWT_SECRET=os.getenv("JWT_SECRET", "change-me"),
+        JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
     )
 
     # Load provided configuration if available
@@ -41,6 +46,10 @@ def create_app(config=None):
     from .api.visualization import viz_bp
 
     app.register_blueprint(viz_bp)
+
+    # Initialise rate limiting (disabled during testing)
+    if not app.testing:
+        init_limiter(app)
 
     @app.route("/metrics")
     def metrics():
