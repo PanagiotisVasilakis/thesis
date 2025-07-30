@@ -1,9 +1,11 @@
 """ML Service for 5G Network Optimization."""
-from flask import Flask, Response
+from flask import Flask, Response, g, request
+import uuid
 import os
 from prometheus_client import generate_latest
 from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
 from ml_service.app.rate_limiter import init_app as init_limiter
+from ml_service.app.error_handlers import register_error_handlers
 
 
 def create_app(config=None):
@@ -66,6 +68,25 @@ def create_app(config=None):
     collector = MetricsCollector()
     collector.start()
     app.metrics_collector = collector
+
+    register_error_handlers(app)
+
+    @app.before_request
+    def _set_correlation_id():
+        g.correlation_id = str(uuid.uuid4())
+        app.logger.info(
+            "Received %s request for %s [cid=%s]",
+            request.method,
+            request.path,
+            g.correlation_id,
+        )
+
+    @app.after_request
+    def _log_response(resp):
+        cid = getattr(g, "correlation_id", "")
+        app.logger.info("Responding with %s [cid=%s]", resp.status, cid)
+        resp.headers["X-Correlation-ID"] = cid
+        return resp
 
     # Log that initialization is complete
     app.logger.info("Flask application initialization complete")

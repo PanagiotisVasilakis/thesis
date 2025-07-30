@@ -10,6 +10,12 @@ from . import api_bp
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 from ..clients.nef_client import NEFClient, NEFClientError
+from ..errors import (
+    RequestValidationError,
+    ModelError,
+    NEFConnectionError,
+    ResourceNotFoundError,
+)
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
 from ..initialization.model_init import ModelManager
@@ -75,15 +81,19 @@ def predict():
     """Make antenna selection prediction based on UE data."""
     payload = request.get_json(silent=True)
     if payload is None:
-        return jsonify({"error": "Invalid JSON"}), 400
+        raise RequestValidationError("Invalid JSON")
 
     try:
         req = PredictionRequest.parse_obj(payload)
     except ValidationError as err:
-        return jsonify({"error": err.errors()}), 400
+        raise RequestValidationError(err)
 
-    model = load_model(current_app.config["MODEL_PATH"])
-    result, features = predict_ue(req.dict(exclude_none=True), model=model)
+    try:
+        model = load_model(current_app.config["MODEL_PATH"])
+        result, features = predict_ue(req.dict(exclude_none=True), model=model)
+    except Exception as exc:
+        raise ModelError(exc)
+
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
         current_app.metrics_collector.drift_monitor.update(features)
@@ -104,7 +114,7 @@ def train():
     """Train the model with provided data."""
     payload = request.get_json(silent=True)
     if not isinstance(payload, list):
-        return jsonify({"error": "Training data must be a list"}), 400
+        raise RequestValidationError("Training data must be a list")
 
     samples = []
     try:
@@ -113,12 +123,15 @@ def train():
                 TrainingSample.parse_obj(item).dict(exclude_none=True)
             )
     except ValidationError as err:
-        return jsonify({"error": err.errors()}), 400
+        raise RequestValidationError(err)
 
-    model = load_model(current_app.config["MODEL_PATH"])
-    start = time.time()
-    metrics = train_model(samples, model=model)
-    duration = time.time() - start
+    try:
+        model = load_model(current_app.config["MODEL_PATH"])
+        start = time.time()
+        metrics = train_model(samples, model=model)
+        duration = time.time() - start
+    except Exception as exc:
+        raise ModelError(exc)
     track_training(
         duration, metrics.get("samples", 0), metrics.get("val_accuracy")
     )
@@ -145,36 +158,15 @@ def nef_status():
                     ),
                 }
             )
-        else:
-            return jsonify(
-                {
-                    "status": "error",
-                    "code": response.status_code,
-                    "message": response.text,
-                }
-            )
+        raise NEFConnectionError(
+            f"NEF returned {response.status_code}: {response.text}"
+        )
     except ValueError as exc:
         current_app.logger.error("Invalid NEF response: %s", exc)
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": f"Invalid response from NEF: {exc}",
-                }
-            ),
-            500,
-        )
+        raise NEFConnectionError(f"Invalid response from NEF: {exc}") from exc
     except NEFClientError as exc:
         current_app.logger.error("NEF connection error: %s", exc)
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "message": f"Failed to connect to NEF: {exc}",
-                }
-            ),
-            502,
-        )
+        raise NEFConnectionError(f"Failed to connect to NEF: {exc}") from exc
 
 
 @api_bp.route("/collect-data", methods=["POST"])
@@ -194,14 +186,17 @@ async def collect_data():
     )
 
     if username and password and not collector.login():
-        return jsonify({"error": "Authentication failed"}), 400
+        raise RequestValidationError("Authentication failed")
 
     if not collector.get_ue_movement_state():
-        return jsonify({"error": "No UEs found in movement state"}), 400
+        raise RequestValidationError("No UEs found in movement state")
 
-    samples = await collector.collect_training_data(
-        duration=duration, interval=interval
-    )
+    try:
+        samples = await collector.collect_training_data(
+            duration=duration, interval=interval
+        )
+    except NEFClientError as exc:
+        raise NEFConnectionError(exc) from exc
 
     latest = None
     try:
@@ -222,7 +217,7 @@ def feedback():
     """Receive handover outcome feedback from the NEF emulator."""
     payload = request.get_json(silent=True)
     if payload is None:
-        return jsonify({"error": "Invalid JSON"}), 400
+        raise RequestValidationError("Invalid JSON")
 
     data_list = payload if isinstance(payload, list) else [payload]
     samples = []
@@ -230,7 +225,7 @@ def feedback():
         for item in data_list:
             samples.append(FeedbackSample.parse_obj(item))
     except ValidationError as err:
-        return jsonify({"error": err.errors()}), 400
+        raise RequestValidationError(err)
 
     retrained = False
     for sample in samples:
