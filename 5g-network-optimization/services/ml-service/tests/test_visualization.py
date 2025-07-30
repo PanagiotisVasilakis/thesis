@@ -84,8 +84,11 @@ def test_coverage_map_unexpected_error(client, auth_header):
         "ml_service.app.api.visualization.plot_antenna_coverage",
         side_effect=ValueError("fail"),
     ):
-        with pytest.raises(ValueError):
-            client.get("/api/visualization/coverage-map", headers=auth_header)
+        resp = client.get("/api/visualization/coverage-map", headers=auth_header)
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["type"] == "ValueError"
+        assert data["correlation_id"]
 
 
 def test_trajectory_unexpected_error(client, auth_header):
@@ -94,10 +97,13 @@ def test_trajectory_unexpected_error(client, auth_header):
         side_effect=ValueError("fail"),
     ):
         movement = [{"ue_id": "u1", "timestamp": "2025", "latitude": 0, "longitude": 0, "connected_to": "a"}]
-        with pytest.raises(ValueError):
-            client.post(
-                "/api/visualization/trajectory",
-                data=json.dumps(movement),
-                content_type="application/json",
-                headers=auth_header,
-            )
+        resp = client.post(
+            "/api/visualization/trajectory",
+            data=json.dumps(movement),
+            content_type="application/json",
+            headers=auth_header,
+        )
+        assert resp.status_code == 500
+        data = resp.get_json()
+        assert data["type"] == "ValueError"
+        assert data["correlation_id"]

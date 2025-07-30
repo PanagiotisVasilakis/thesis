@@ -46,3 +46,10 @@ def register_error_handlers(app):
     app.register_error_handler(NEFConnectionError, handle_nef_error)
     app.register_error_handler(ResourceNotFoundError, handle_not_found)
     app.register_error_handler(MLServiceError, handle_generic)
+
+    def handle_unexpected(err):
+        """Handle uncaught exceptions."""
+        app.logger.exception("Unhandled exception: %s [cid=%s]", err, getattr(g, "correlation_id", ""))
+        return jsonify(_format_error(err)), 500
+
+    app.register_error_handler(Exception, handle_unexpected)
