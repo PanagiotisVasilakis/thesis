@@ -17,9 +17,39 @@ class MobilityModel:
         """Generate trajectory points for the specified duration."""
         raise NotImplementedError("Subclasses must implement generate_trajectory")
 
+    # ------------------------------------------------------------------
+    # Position interpolation helpers
+    # ------------------------------------------------------------------
+    def _interpolate_position(self, trajectory, query_time):
+        """Interpolate ``(x, y, z)`` for ``query_time`` given a trajectory."""
+        if not trajectory:
+            raise ValueError("Trajectory is empty")
+
+        traj = sorted(trajectory, key=lambda p: p["timestamp"])
+
+        if query_time <= traj[0]["timestamp"]:
+            return traj[0]["position"]
+        if query_time >= traj[-1]["timestamp"]:
+            return traj[-1]["position"]
+
+        for i in range(len(traj) - 1):
+            t0, t1 = traj[i]["timestamp"], traj[i + 1]["timestamp"]
+            if t0 <= query_time <= t1:
+                p0, p1 = traj[i]["position"], traj[i + 1]["position"]
+                total = (t1 - t0).total_seconds()
+                frac = (
+                    (query_time - t0).total_seconds() / total if total > 0 else 0.0
+                )
+                return tuple(p0[j] + frac * (p1[j] - p0[j]) for j in range(3))
+
+        # Should not reach here but fallback to last position
+        return traj[-1]["position"]
+
     def get_position_at_time(self, query_time):
         """Return interpolated ``(x, y, z)`` position at ``query_time``."""
-        raise NotImplementedError("Subclasses must implement get_position_at_time")
+        if not self.trajectory:
+            raise ValueError("Trajectory not generated")
+        return self._interpolate_position(self.trajectory, query_time)
 
 
 class LinearMobilityModel(MobilityModel):
@@ -71,6 +101,10 @@ class LinearMobilityModel(MobilityModel):
             current_time += timedelta(seconds=time_step)
 
         return self.trajectory
+
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
 
 class LShapedMobilityModel(MobilityModel):
     """L-shaped path composed of two linear segments (TR 38.901 §7.6.3.2)."""
@@ -127,8 +161,12 @@ class LShapedMobilityModel(MobilityModel):
         
         # Combine trajectories
         self.trajectory = first_traj + second_traj
-        
+
         return self.trajectory
+
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
 
 class RandomWaypointModel(MobilityModel):
     """
@@ -198,6 +236,10 @@ class RandomWaypointModel(MobilityModel):
                 random.uniform(ymin, ymax),
                 random.uniform(zmin, zmax))
 
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
+
 class ManhattanGridMobilityModel(MobilityModel):
     """
     Manhattan grid mobility model (TR 38.901 §7.6.3.4):
@@ -253,6 +295,10 @@ class ManhattanGridMobilityModel(MobilityModel):
                 dir_x, dir_y = dir_y, -dir_x   # right turn
         return self.trajectory
 
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
+
 class ReferencePointGroupMobilityModel(MobilityModel):
     """
     Reference‑Point Group Mobility (RPGM) model, aligned with
@@ -286,6 +332,10 @@ class ReferencePointGroupMobilityModel(MobilityModel):
                 'speed': point['speed']
             })
         return self.trajectory
+
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
 
 class RandomDirectionalMobilityModel(MobilityModel):
     """
@@ -402,6 +452,10 @@ class RandomDirectionalMobilityModel(MobilityModel):
         
         return self.trajectory
 
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
+
 
 class UrbanGridMobilityModel(MobilityModel):
     """
@@ -517,4 +571,7 @@ class UrbanGridMobilityModel(MobilityModel):
         
         return self.trajectory
 
+    def get_position_at_time(self, query_time):
+        """Return interpolated position at ``query_time``."""
+        return self._interpolate_position(self.trajectory, query_time)
 

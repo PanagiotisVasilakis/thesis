@@ -55,8 +55,8 @@ Install the Python dependencies before running any of the services:
 
 ```bash
 pip install -r requirements.txt
-# or run the helper script
-scripts/install_deps.sh
+# or run the helper script (use --skip-if-present to avoid reinstalling)
+scripts/install_deps.sh --skip-if-present
 ```
 
 The environment variables documented below (`ML_HANDOVER_ENABLED` and others) can be passed on the command line or in an `.env` file to control the behavior of both services.
@@ -200,7 +200,7 @@ Before running `pytest`, install all required packages.  You can execute the
 helper scripts or run `pip install -r requirements.txt` manually:
 ```bash
 ./scripts/install_system_deps.sh
-./scripts/install_deps.sh
+./scripts/install_deps.sh --skip-if-present
 # or simply
 pip install -r requirements.txt
 ```
@@ -261,5 +261,5 @@ The second command collects the generated images and captions under
 ## Useful Scripts
 
 - `scripts/install_system_deps.sh` – install OS libraries needed by the services and tests.
-- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt` and the `ml_service` package.
+- `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt` and the `ml_service` package. Pass `--skip-if-present` to bypass installation when a suitable virtual environment already has them.
 - `scripts/run_tests.sh` – run both installation steps and execute the tests with coverage output.
