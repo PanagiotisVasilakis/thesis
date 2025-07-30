@@ -21,8 +21,10 @@ def test_extract_features_defaults():
         "direction_y": 0,
         "rsrp_current": -120,
         "sinr_current": 0,
+        "rsrq_current": -30,
         "best_rsrp_diff": 0,
         "best_sinr_diff": 0,
+        "best_rsrq_diff": 0,
     }
 
 
@@ -77,6 +79,8 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     sample_features = model.extract_features(data[0])
     assert "rsrp_a1" in sample_features
     assert "best_rsrp_diff" in sample_features
+    assert "rsrq_a1" in sample_features
+    assert "best_rsrq_diff" in sample_features
 
     # Simulate untrained state
     model.model = object()
@@ -134,8 +138,10 @@ def test_predict_with_mock_and_persistence(tmp_path):
         "direction_y": 1,
         "rsrp_current": -80,
         "sinr_current": 10,
+        "rsrq_current": -30,
         "best_rsrp_diff": 0,
         "best_sinr_diff": 0,
+        "best_rsrq_diff": 0,
     }
 
     result = model.predict(features)
@@ -169,6 +175,7 @@ def test_extract_features_neighbor_padding():
     assert model.neighbor_count == 3
     assert "rsrp_a3" in many_features
     assert "rsrp_a3" in model.feature_names
+    assert "rsrq_a3" in many_features
 
     second_sample = {
         "connected_to": "a1",
@@ -183,14 +190,27 @@ def test_extract_features_neighbor_padding():
     assert model.neighbor_count == 3
     assert {
         key
-        for key in ("rsrp_a1", "rsrp_a2", "rsrp_a3", "sinr_a1", "sinr_a2", "sinr_a3")
+        for key in (
+            "rsrp_a1",
+            "rsrp_a2",
+            "rsrp_a3",
+            "sinr_a1",
+            "sinr_a2",
+            "sinr_a3",
+            "rsrq_a1",
+            "rsrq_a2",
+            "rsrq_a3",
+        )
     } <= few_features.keys()
     assert few_features["rsrp_a1"] == -70
     assert few_features["sinr_a1"] == 8
+    assert few_features["rsrq_a1"] == -30
     assert few_features["rsrp_a2"] == -120
     assert few_features["sinr_a2"] == 0
+    assert few_features["rsrq_a2"] == -30
     assert few_features["rsrp_a3"] == -120
     assert few_features["sinr_a3"] == 0
+    assert few_features["rsrq_a3"] == -30
 
 
 def test_altitude_feature_in_training():

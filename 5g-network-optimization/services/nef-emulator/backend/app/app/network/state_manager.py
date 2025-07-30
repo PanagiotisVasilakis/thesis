@@ -75,17 +75,25 @@ class NetworkStateManager:
 
         # Compute per-antenna SINR
         neighbor_sinrs = {}
+        neighbor_rsrqs = {}
         for aid, sig in rsrp_mw.items():
             interf = sum(m for other, m in rsrp_mw.items() if other != aid)
-            lin = sig / (noise_mw + interf) if (noise_mw + interf) > 0 else 0.0
+            denom = noise_mw + interf
+            lin = sig / denom if denom > 0 else 0.0
             neighbor_sinrs[aid] = (
                 10 * math.log10(lin) if lin > 0 else -float("inf")
+            )
+            rssi = sig + denom
+            rsrq_lin = sig / rssi if rssi > 0 else 0.0
+            neighbor_rsrqs[aid] = (
+                10 * math.log10(rsrq_lin) if rsrq_lin > 0 else -float("inf")
             )
 
         # Order neighbors by RSRP strength
         ordered = sorted(rsrp_dbm.items(), key=lambda x: x[1], reverse=True)
         rsrp_dbm = {aid: val for aid, val in ordered}
         neighbor_sinrs = {aid: neighbor_sinrs[aid] for aid, _ in ordered}
+        neighbor_rsrqs = {aid: neighbor_rsrqs[aid] for aid, _ in ordered}
 
         features = {
             "ue_id": ue_id,
@@ -96,6 +104,7 @@ class NetworkStateManager:
             "connected_to": connected,
             "neighbor_rsrp_dbm": rsrp_dbm,
             "neighbor_sinrs": neighbor_sinrs,
+            "neighbor_rsrqs": neighbor_rsrqs,
         }
         return features
 

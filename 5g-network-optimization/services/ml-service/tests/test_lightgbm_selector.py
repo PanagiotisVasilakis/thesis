@@ -56,6 +56,8 @@ def test_lightgbm_train_and_predict(tmp_path):
     sample_features = model.extract_features(data[0])
     assert "rsrp_a1" in sample_features
     assert "best_rsrp_diff" in sample_features
+    assert "rsrq_a1" in sample_features
+    assert "best_rsrq_diff" in sample_features
 
     metrics = model.train(data)
     assert metrics["samples"] == len(data)
@@ -100,12 +102,14 @@ def test_lightgbm_fixed_neighbor_count():
 
     assert model.neighbor_count == 2
     assert set(model.feature_names).issuperset(
-        {"rsrp_a1", "sinr_a1", "rsrp_a2", "sinr_a2"}
+        {"rsrp_a1", "sinr_a1", "rsrq_a1", "rsrp_a2", "sinr_a2", "rsrq_a2"}
     )
     assert features["rsrp_a1"] == -65
     assert features["sinr_a1"] == 8
+    assert features["rsrq_a1"] == -30
     assert features["rsrp_a2"] == -70
     assert features["sinr_a2"] == 5
+    assert features["rsrq_a2"] == -30
 
 
 def test_predict_unfitted_returns_default():
