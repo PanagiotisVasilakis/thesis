@@ -6,6 +6,11 @@ class A3EventRule:
     """Implements 3GPP Event A3 hysteresis/time-to-trigger logic."""
 
     def __init__(self, hysteresis_db: float = 2.0, ttt_seconds: float = 0.0):
+        if hysteresis_db < 0:
+            raise ValueError("hysteresis_db must be non-negative")
+        if ttt_seconds < 0:
+            raise ValueError("ttt_seconds must be non-negative")
+
         self.hysteresis_db = hysteresis_db
         self.ttt = timedelta(seconds=ttt_seconds)
         self._start: datetime | None = None

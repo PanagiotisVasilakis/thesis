@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytest
 from backend.app.app.network.state_manager import NetworkStateManager
 from backend.app.app.handover.engine import HandoverEngine
+from backend.app.app.handover.a3_rule import A3EventRule
 
 
 class DummyAntenna:
@@ -73,3 +74,13 @@ def test_a3_timer_reset(monkeypatch):
     # after ttt from restart -> should handover
     ev = eng.decide_and_apply('u1')
     assert ev and n.ue_states['u1']['connected_to'] == 'B'
+
+
+def test_a3_rule_negative_hysteresis():
+    with pytest.raises(ValueError):
+        A3EventRule(hysteresis_db=-1.0)
+
+
+def test_a3_rule_negative_ttt():
+    with pytest.raises(ValueError):
+        A3EventRule(ttt_seconds=-0.5)
