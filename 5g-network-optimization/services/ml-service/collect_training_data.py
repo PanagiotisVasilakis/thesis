@@ -9,6 +9,10 @@ import logging
 from datetime import datetime
 from services.logging_config import configure_logging
 from ml_service.app.data.nef_collector import NEFDataCollector
+from ml_service.app.data.feature_store_utils import (
+    ingest_samples,
+    fetch_training_data,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +111,13 @@ def main():
     logger.info(
         f"Successfully collected {len(data)} data points in {collection_time:.1f} seconds"
     )
-    
+
+    # Ingest collected samples into Feast
+    try:
+        ingest_samples(data)
+    except Exception as exc:
+        logger.error(f"Failed to ingest data into feature store: {exc}")
+
     # Save to specified output file if provided
     if args.output:
         output_file = args.output
@@ -119,12 +129,19 @@ def main():
     # Train model if requested
     if args.train:
         import requests
-        
+
+        logger.info("Preparing training data from feature store...")
+        try:
+            training_samples = fetch_training_data(data)
+        except Exception as exc:
+            logger.error(f"Failed to fetch training data: {exc}")
+            training_samples = data
+
         logger.info("Training ML model with collected data...")
         try:
             response = requests.post(
                 "http://localhost:5050/api/train",
-                json=data
+                json=training_samples
             )
 
             if response.status_code == 200:

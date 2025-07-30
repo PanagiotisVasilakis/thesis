@@ -2,3 +2,4 @@ thesis/
 **/__pycache__/
 *.pyc
 .env
+mlops/feast_repo/data/
