@@ -1,5 +1,6 @@
 import numpy as np
 import logging
+import threading
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.models.antenna_selector import (
@@ -262,3 +263,31 @@ def test_default_prediction_unfitted_model(tmp_path, caplog):
 
     if model_path.exists():
         model_path.unlink()
+
+
+def test_extract_features_thread_safe():
+    """Concurrent calls should not duplicate feature names."""
+    model = LightGBMSelector()
+
+    sample = {
+        "connected_to": "a1",
+        "rf_metrics": {
+            "a1": {"rsrp": -60, "sinr": 15},
+            "a2": {"rsrp": -65, "sinr": 10},
+            "a3": {"rsrp": -70, "sinr": 5},
+        },
+    }
+
+    results = []
+
+    def worker():
+        results.append(model.extract_features(sample))
+
+    threads = [threading.Thread(target=worker) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert model.neighbor_count == 2
+    assert len(model.feature_names) == len(set(model.feature_names))
