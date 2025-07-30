@@ -40,9 +40,9 @@ def test_feature_extraction():
     expected_features = [
         'latitude', 'longitude', 'altitude', 'speed',
         'direction_x', 'direction_y',
-        'rsrp_current', 'sinr_current',
-        'best_rsrp_diff', 'best_sinr_diff',
-        'rsrp_a1', 'sinr_a1', 'rsrp_a2', 'sinr_a2'
+        'rsrp_current', 'sinr_current', 'rsrq_current',
+        'best_rsrp_diff', 'best_sinr_diff', 'best_rsrq_diff',
+        'rsrp_a1', 'sinr_a1', 'rsrq_a1', 'rsrp_a2', 'sinr_a2', 'rsrq_a2'
     ]
 
     for feature in expected_features:

@@ -26,7 +26,8 @@ def test_collect_training_data(monkeypatch, tmp_path):
     mock_client.get_ue_movement_state.return_value = sample_state
     mock_client.get_feature_vector.return_value = {
         "neighbor_rsrp_dbm": {"A": -70},
-        "neighbor_sinrs": {"A": 8}
+        "neighbor_sinrs": {"A": 8},
+        "neighbor_rsrqs": {"A": -11},
     }
     monkeypatch.setattr(nef_collector, "NEFClient",
                         lambda *a, **k: mock_client)
@@ -40,7 +41,7 @@ def test_collect_training_data(monkeypatch, tmp_path):
     data = asyncio.run(collector.collect_training_data(duration=1, interval=1))
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
-    assert data[0]["rf_metrics"] == {"A": {"rsrp": -70, "sinr": 8}}
+    assert data[0]["rf_metrics"] == {"A": {"rsrp": -70, "sinr": 8, "rsrq": -11}}
     saved = list(tmp_path.iterdir())
     with open(saved[0]) as f:
         loaded = json.load(f)

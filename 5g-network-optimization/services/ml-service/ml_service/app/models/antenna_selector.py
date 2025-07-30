@@ -21,8 +21,10 @@ DEFAULT_TEST_FEATURES = {
     "direction_y": 0.7,
     "rsrp_current": -90,
     "sinr_current": 10,
+    "rsrq_current": -10,
     "best_rsrp_diff": 0.0,
     "best_sinr_diff": 0.0,
+    "best_rsrq_diff": 0.0,
     "altitude": 0.0,
 }
 
@@ -53,8 +55,10 @@ class AntennaSelector:
             "direction_y",
             "rsrp_current",
             "sinr_current",
+            "rsrq_current",
             "best_rsrp_diff",
             "best_sinr_diff",
+            "best_rsrq_diff",
             "altitude",
         ]
         self.neighbor_count = 0
@@ -69,6 +73,7 @@ class AntennaSelector:
                 self.feature_names.extend([
                     f"rsrp_a{idx+1}",
                     f"sinr_a{idx+1}",
+                    f"rsrq_a{idx+1}",
                 ])
 
         # Try to load existing model
@@ -99,19 +104,31 @@ class AntennaSelector:
 
     def _current_signal(
         self, current: str | None, metrics: dict
-    ) -> tuple[float, float]:
-        """Return RSRP/SINR for the currently connected antenna."""
+    ) -> tuple[float, float, float]:
+        """Return RSRP/SINR/RSRQ for the currently connected antenna."""
         if current and current in metrics:
             data = metrics[current]
-            return data.get("rsrp", -120), data.get("sinr", 0)
-        return -120, 0
+            rsrp = data.get("rsrp", -120)
+            sinr = data.get("sinr")
+            rsrq = data.get("rsrq")
+            if sinr is None:
+                sinr = 0
+            if rsrq is None:
+                rsrq = -30
+            return rsrp, sinr, rsrq
+        return -120, 0, -30
 
     def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
         """Return sorted list of neighbour metrics."""
         if not include or not metrics:
             return []
         neighbors = [
-            (aid, vals.get("rsrp", -120), vals.get("sinr", 0))
+            (
+                aid,
+                vals.get("rsrp", -120),
+                vals.get("sinr") if vals.get("sinr") is not None else 0,
+                vals.get("rsrq") if vals.get("rsrq") is not None else -30,
+            )
             for aid, vals in metrics.items()
             if aid != current
         ]
@@ -133,30 +150,38 @@ class AntennaSelector:
 
         rf_metrics = data.get("rf_metrics", {})
         current_antenna = data.get("connected_to")
-        rsrp_curr, sinr_curr = self._current_signal(current_antenna, rf_metrics)
+        rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
         features["rsrp_current"] = rsrp_curr
         features["sinr_current"] = sinr_curr
+        features["rsrq_current"] = rsrq_curr
 
         neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
-        best_rsrp, best_sinr = rsrp_curr, sinr_curr
+        best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
         if neighbors:
-            best_rsrp, best_sinr = neighbors[0][1], neighbors[0][2]
+            best_rsrp, best_sinr, best_rsrq = neighbors[0][1], neighbors[0][2], neighbors[0][3]
 
         if self.neighbor_count == 0:
             self.neighbor_count = len(neighbors)
             for idx in range(self.neighbor_count):
-                self.feature_names.extend([f"rsrp_a{idx+1}", f"sinr_a{idx+1}"])
+                self.feature_names.extend([
+                    f"rsrp_a{idx+1}",
+                    f"sinr_a{idx+1}",
+                    f"rsrq_a{idx+1}",
+                ])
 
         for idx in range(self.neighbor_count):
             if idx < len(neighbors):
                 features[f"rsrp_a{idx+1}"] = neighbors[idx][1]
                 features[f"sinr_a{idx+1}"] = neighbors[idx][2]
+                features[f"rsrq_a{idx+1}"] = neighbors[idx][3]
             else:
                 features[f"rsrp_a{idx+1}"] = -120
                 features[f"sinr_a{idx+1}"] = 0
+                features[f"rsrq_a{idx+1}"] = -30
 
         features["best_rsrp_diff"] = best_rsrp - rsrp_curr
         features["best_sinr_diff"] = best_sinr - sinr_curr
+        features["best_rsrq_diff"] = best_rsrq - rsrq_curr
 
         return features
 

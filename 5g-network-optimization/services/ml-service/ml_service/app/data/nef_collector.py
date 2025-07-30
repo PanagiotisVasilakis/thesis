@@ -113,6 +113,7 @@ class NEFDataCollector:
         fv = self.client.get_feature_vector(ue_id)
         rsrps = fv.get("neighbor_rsrp_dbm", {})
         sinrs = fv.get("neighbor_sinrs", {})
+        rsrqs = fv.get("neighbor_rsrqs", {})
 
         connected_cell_id = ue_data.get("Cell_id")
         rf_metrics: dict[str, dict] = {}
@@ -122,7 +123,13 @@ class NEFDataCollector:
 
         for aid, rsrp in rsrps.items():
             sinr = sinrs.get(aid)
-            rf_metrics[aid] = {"rsrp": rsrp, "sinr": sinr}
+            rsrq = rsrqs.get(aid)
+            metrics = {"rsrp": rsrp}
+            if sinr is not None:
+                metrics["sinr"] = sinr
+            if rsrq is not None:
+                metrics["rsrq"] = rsrq
+            rf_metrics[aid] = metrics
 
             sinr_val = sinr if sinr is not None else float("-inf")
             if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
