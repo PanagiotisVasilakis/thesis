@@ -66,11 +66,14 @@ class LightGBMSelector(AntennaSelector):
         self.model.fit(X_train, y_train, **fit_params)
 
         metrics = {
-            "samples": len(X_arr),
-            "classes": len(set(y_arr)),
-            "feature_importance": dict(
-                zip(self.feature_names, self.model.feature_importances_)
-            ),
+            "samples": int(len(X_arr)),
+            "classes": int(len(set(y_arr))),
+            "feature_importance": {
+                name: int(val)
+                for name, val in zip(
+                    self.feature_names, self.model.feature_importances_
+                )
+            },
         }
 
         if eval_set:

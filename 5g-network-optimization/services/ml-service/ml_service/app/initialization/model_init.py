@@ -7,6 +7,7 @@ from ..models import (
     LightGBMSelector,
     LSTMSelector,
     EnsembleSelector,
+    OnlineHandoverModel,
     DEFAULT_TEST_FEATURES,
 )
 
@@ -14,6 +15,7 @@ MODEL_CLASSES = {
     "lightgbm": LightGBMSelector,
     "lstm": LSTMSelector,
     "ensemble": EnsembleSelector,
+    "online": OnlineHandoverModel,
 }
 
 from ..utils.synthetic_data import generate_synthetic_training_data
@@ -26,6 +28,7 @@ class ModelManager:
 
     _model_instance = None
     _lock = threading.Lock()
+    _feedback_data: list[dict] = []
 
     @classmethod
     def get_instance(
@@ -120,5 +123,40 @@ class ModelManager:
         with cls._lock:
             cls._model_instance = model
         return model
+
+    @classmethod
+    def feed_feedback(cls, sample: dict, *, success: bool = True) -> bool:
+        """Feed a single feedback sample to the model.
+
+        Parameters
+        ----------
+        sample:
+            Training-like sample containing ``optimal_antenna``.
+        success:
+            Whether the handover succeeded. Used for drift detection.
+
+        Returns
+        -------
+        bool
+            ``True`` if the model was retrained due to drift.
+        """
+
+        model = cls.get_instance()
+        retrained = False
+        with cls._lock:
+            if hasattr(model, "update"):
+                model.update(sample, success=success)
+            cls._feedback_data.append(sample | {"success": success})
+            if hasattr(model, "drift_detected") and model.drift_detected():
+                logging.getLogger(__name__).info("Drift detected; retraining model")
+                try:
+                    model.retrain(cls._feedback_data)
+                    cls._feedback_data.clear()
+                    if hasattr(model, "save"):
+                        model.save()
+                    retrained = True
+                except Exception:  # noqa: BLE001 - log failure
+                    logging.getLogger(__name__).exception("Retraining failed")
+        return retrained
 
 

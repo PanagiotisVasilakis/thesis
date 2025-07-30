@@ -35,3 +35,12 @@ class TrainingSample(PredictionRequest):
 
     class Config:
         extra = "ignore"
+
+
+class FeedbackSample(TrainingSample):
+    """Schema for feedback on handover outcome."""
+
+    success: bool = True
+
+    class Config:
+        extra = "ignore"
