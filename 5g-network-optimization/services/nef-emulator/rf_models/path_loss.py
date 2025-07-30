@@ -52,6 +52,11 @@ class ABGPathLossModel(PathLossModel):
         Returns:
             Path loss in dB
         """
+        if distance <= 0:
+            raise ValueError("distance must be greater than 0")
+        if frequency <= 0:
+            raise ValueError("frequency must be greater than 0")
+
         # Ensure distance is at least 1 meter
         distance = max(1.0, distance)
         
@@ -101,6 +106,10 @@ class CloseInPathLossModel(PathLossModel):
         Returns:
             Path loss in dB
         """
+        if distance <= 0:
+            raise ValueError("distance must be greater than 0")
+        if frequency <= 0:
+            raise ValueError("frequency must be greater than 0")
         # Ensure distance is at least 1 meter
         distance = max(1.0, distance)
         

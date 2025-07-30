@@ -12,6 +12,7 @@ from rf_models.path_loss import (
     CloseInPathLossModel,
     FastFading,
 )
+import pytest
 
 
 def test_abg_against_reference():
@@ -39,3 +40,35 @@ def test_fast_fading_statistics():
     std = float(np.std(samples))
     assert abs(mean) < 1e-6
     assert 8.0 <= std <= 11.0
+
+
+@pytest.mark.parametrize(
+    "distance,frequency",
+    [
+        (0, 3.5),
+        (-1, 3.5),
+        (100, 0),
+        (100, -2),
+    ],
+)
+def test_abg_invalid_inputs(distance, frequency):
+    """ABG model should reject non-positive distance or frequency."""
+    model = ABGPathLossModel()
+    with pytest.raises(ValueError):
+        model.calculate_path_loss(distance, frequency)
+
+
+@pytest.mark.parametrize(
+    "distance,frequency",
+    [
+        (0, 3.5),
+        (-1, 3.5),
+        (100, 0),
+        (100, -2),
+    ],
+)
+def test_ci_invalid_inputs(distance, frequency):
+    """CI model should reject non-positive distance or frequency."""
+    model = CloseInPathLossModel()
+    with pytest.raises(ValueError):
+        model.calculate_path_loss(distance, frequency)
