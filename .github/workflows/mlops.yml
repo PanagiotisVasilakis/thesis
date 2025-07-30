@@ -1,0 +1,51 @@
+name: ML Ops Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io/my-org
+      MLFLOW_TRACKING_URI: http://mlflow.example.com
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker.io
+          pip install -r requirements.txt
+          pip install -e 5g-network-optimization/services/ml-service
+
+      - name: Build Docker images
+        run: |
+          docker build -t $REGISTRY/nef-emulator:${{ github.sha }} 5g-network-optimization/services/nef-emulator
+          docker build -t $REGISTRY/ml-service:${{ github.sha }} 5g-network-optimization/services/ml-service
+          echo ${{ secrets.REGISTRY_TOKEN }} | docker login $REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
+          docker push $REGISTRY/nef-emulator:${{ github.sha }}
+          docker push $REGISTRY/ml-service:${{ github.sha }}
+
+      - name: Apply Feast feature repo
+        run: |
+          python mlops/feast_repo/feature_repo.py
+
+      - name: Train and register model
+        run: |
+          python 5g-network-optimization/services/ml-service/collect_training_data.py --duration 30 --interval 1 --train
+          mlflow models register -m mlruns/0/*/artifacts/model -n handover-model
+
+      - name: Deploy with canary release
+        run: |
+          kubectl set image deployment/ml-service ml-service=$REGISTRY/ml-service:${{ github.sha }} --record
+          kubectl rollout status deployment/ml-service
+          kubectl rollout history deployment/ml-service
