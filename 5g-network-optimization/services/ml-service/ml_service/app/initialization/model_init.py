@@ -9,6 +9,7 @@ from ..models import (
 
 from ..utils.synthetic_data import generate_synthetic_training_data
 from ..utils.tuning import tune_and_train
+from ..utils.env_utils import get_neighbor_count_from_env
 
 
 class ModelManager:
@@ -45,14 +46,7 @@ class ModelManager:
         logger = logging.getLogger(__name__)
 
         if neighbor_count is None:
-            env_val = os.getenv("NEIGHBOR_COUNT")
-            if env_val is not None:
-                try:
-                    neighbor_count = int(env_val)
-                except ValueError:
-                    logger.warning(
-                        "Invalid NEIGHBOR_COUNT value '%s'; ignoring", env_val
-                    )
+            neighbor_count = get_neighbor_count_from_env(logger=logger)
 
         if neighbor_count is None:
             model = LightGBMSelector(model_path=model_path)

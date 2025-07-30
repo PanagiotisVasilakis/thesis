@@ -6,6 +6,8 @@ import os
 import logging
 from sklearn.exceptions import NotFittedError
 
+from ..utils.env_utils import get_neighbor_count_from_env
+
 FALLBACK_ANTENNA_ID = "antenna_1"
 FALLBACK_CONFIDENCE = 0.5
 
@@ -59,15 +61,7 @@ class AntennaSelector:
         self.feature_names = list(self.base_feature_names)
 
         if neighbor_count is None:
-            env_val = os.getenv("NEIGHBOR_COUNT")
-            if env_val is not None:
-                try:
-                    neighbor_count = int(env_val)
-                except ValueError:
-                    logger.warning(
-                        "Invalid NEIGHBOR_COUNT value '%s'; ignoring", env_val
-                    )
-                    neighbor_count = None
+            neighbor_count = get_neighbor_count_from_env(logger=logger)
 
         if neighbor_count and neighbor_count > 0:
             self.neighbor_count = int(neighbor_count)
