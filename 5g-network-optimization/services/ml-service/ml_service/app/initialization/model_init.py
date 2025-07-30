@@ -18,6 +18,11 @@ MODEL_CLASSES = {
     "online": OnlineHandoverModel,
 }
 
+# Maximum number of feedback samples to keep in memory for possible
+# drift-triggered retraining.  When the buffer exceeds this size the
+# oldest entries will be discarded.
+FEEDBACK_BUFFER_LIMIT = 1000
+
 from ..utils.synthetic_data import generate_synthetic_training_data
 from ..utils.tuning import tune_and_train
 from ..utils.env_utils import get_neighbor_count_from_env
@@ -147,6 +152,9 @@ class ModelManager:
             if hasattr(model, "update"):
                 model.update(sample, success=success)
             cls._feedback_data.append(sample | {"success": success})
+            # Trim buffer to avoid unbounded memory growth
+            while len(cls._feedback_data) > FEEDBACK_BUFFER_LIMIT:
+                cls._feedback_data.pop(0)
             if hasattr(model, "drift_detected") and model.drift_detected():
                 logging.getLogger(__name__).info("Drift detected; retraining model")
                 try:
