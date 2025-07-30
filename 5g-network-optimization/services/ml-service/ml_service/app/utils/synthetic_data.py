@@ -7,25 +7,11 @@ def _generate_antenna_positions(num_antennas: int) -> dict:
     if num_antennas <= 0:
         raise ValueError("num_antennas must be positive")
 
-    # If ``num_antennas`` is a perfect square, arrange them on a grid.  This
-    # allows tests to easily create square layouts (e.g. ``4`` -> ``2x2``).  In
-    # all other cases the antennas are positioned evenly on a circle.
     sqrt = int(np.sqrt(num_antennas))
     antennas: dict[str, tuple[float, float]] = {}
 
-    if sqrt * sqrt == num_antennas:
-        xs = np.linspace(0, 1000, sqrt)
-        ys = np.linspace(0, 866, sqrt)
-        idx = 1
-        for y in ys:
-            for x in xs:
-                antennas[f"antenna_{idx}"] = (float(x), float(y))
-                idx += 1
-                if idx > num_antennas:
-                    break
-            if idx > num_antennas:
-                break
-    else:
+    if sqrt * sqrt != num_antennas:
+        # Arrange in a circle
         radius_x = 500
         radius_y = 433
         cx, cy = 500.0, 433.0
@@ -37,6 +23,15 @@ def _generate_antenna_positions(num_antennas: int) -> dict:
                 float(np.clip(x, 0, 1000)),
                 float(np.clip(y, 0, 866)),
             )
+    else:
+        # Arrange in a grid
+        xs = np.linspace(0, 1000, sqrt)
+        ys = np.linspace(0, 866, sqrt)
+        idx = 1
+        for y in ys:
+            for x in xs:
+                antennas[f"antenna_{idx}"] = (float(x), float(y))
+                idx += 1
 
     return antennas
 

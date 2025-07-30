@@ -11,33 +11,39 @@ from ..utils import get_output_dir
 
 logger = logging.getLogger(__name__)
 
-def plot_antenna_coverage(model, output_dir='output'):
+
+def _get_distance_based_assignment(position, antennas):
+    """Assign antenna based on the closest distance."""
+    distances = {
+        ant_id: np.sqrt((position[0] - pos[0]) ** 2 + (position[1] - pos[1]) ** 2)
+        for ant_id, pos in antennas.items()
+    }
+    return min(distances, key=distances.get)
+
+
+def plot_antenna_coverage(model, output_dir="output"):
     """
     Visualize antenna selection across a geographic area.
-    
+
     Args:
         model: Trained AntennaSelector model
         output_dir: Directory to save the visualization
     """
     # Resolve output directory and ensure the "coverage" subfolder exists
     output_dir = get_output_dir(os.path.join(output_dir, "coverage"))
-    
+
     # Define a grid of positions
     resolution = 50
     x_values = np.linspace(0, 1000, resolution)
     y_values = np.linspace(0, 866, resolution)
     X, Y = np.meshgrid(x_values, y_values)
-    
+
     # Define antennas (triangle formation)
-    antennas = {
-        'antenna_1': (0, 0),
-        'antenna_2': (1000, 0),
-        'antenna_3': (500, 866)
-    }
-    
+    antennas = {"antenna_1": (0, 0), "antenna_2": (1000, 0), "antenna_3": (500, 866)}
+
     # Predict antenna selection for each position
     Z = np.zeros((resolution, resolution), dtype=object)
-    
+
     # First check if model is trained by making a test prediction
     try:
         model.predict(DEFAULT_TEST_FEATURES)
@@ -46,46 +52,41 @@ def plot_antenna_coverage(model, output_dir='output'):
         logger.warning(f"Model not properly trained: {e}")
         logger.info("Will use distance-based assignment instead")
         model_trained = False
-    
+
     for i in range(resolution):
         for j in range(resolution):
             position = (X[i, j], Y[i, j])
-            
+
             if model_trained:
                 # Use ML model for prediction
-                # Create synthetic UE data for this position
                 ue_data = {
-                    'latitude': X[i, j],
-                    'longitude': Y[i, j],
-                    'speed': 1.0,  # Fixed for visualization
-                    'direction': [1, 0, 0],  # Fixed for visualization
-                    'connected_to': 'antenna_1',  # Arbitrary initial connection
-                    'rf_metrics': {}
+                    "latitude": X[i, j],
+                    "longitude": Y[i, j],
+                    "speed": 1.0,  # Fixed for visualization
+                    "direction": [1, 0, 0],  # Fixed for visualization
+                    "connected_to": "antenna_1",  # Arbitrary initial connection
+                    "rf_metrics": {},
                 }
-                
+
                 # Add synthetic RF metrics
                 for antenna_id, pos in antennas.items():
-                    dist = np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2)
-                    rsrp = -60 - 20 * np.log10(max(1, dist/10))
-                    sinr = 20 * (1 - dist/1500)
-                    ue_data['rf_metrics'][antenna_id] = {'rsrp': rsrp, 'sinr': sinr}
-                
+                    dist = np.sqrt((X[i, j] - pos[0]) ** 2 + (Y[i, j] - pos[1]) ** 2)
+                    rsrp = -60 - 20 * np.log10(max(1, dist / 10))
+                    sinr = 20 * (1 - dist / 1500)
+                    ue_data["rf_metrics"][antenna_id] = {"rsrp": rsrp, "sinr": sinr}
+
                 # Make prediction
                 try:
                     features = model.extract_features(ue_data)
                     result = model.predict(features)
-                    Z[i, j] = result['antenna_id']
-                except Exception as e:
+                    Z[i, j] = result["antenna_id"]
+                except Exception:
                     # Fallback to distance-based assignment
-                    distances = {ant_id: np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2) 
-                                for ant_id, pos in antennas.items()}
-                    Z[i, j] = min(distances, key=distances.get)
+                    Z[i, j] = _get_distance_based_assignment(position, antennas)
             else:
                 # Use simple distance-based assignment
-                distances = {ant_id: np.sqrt((X[i, j] - pos[0])**2 + (Y[i, j] - pos[1])**2) 
-                            for ant_id, pos in antennas.items()}
-                Z[i, j] = min(distances, key=distances.get)
-    
+                Z[i, j] = _get_distance_based_assignment(position, antennas)
+
     # Convert to numeric for plotting
     Z_numeric = np.zeros((resolution, resolution))
     for i in range(resolution):
