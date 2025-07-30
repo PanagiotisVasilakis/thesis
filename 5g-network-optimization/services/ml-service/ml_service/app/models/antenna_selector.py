@@ -149,14 +149,15 @@ class AntennaSelector:
         X = np.array([[features[name] for name in self.feature_names]])
 
         try:
-            # Get prediction and probability
-            antenna_id = self.model.predict(X)[0]
+            # Perform a single prediction attempt via probabilities
             probabilities = self.model.predict_proba(X)[0]
-            confidence = max(probabilities)
+            idx = int(np.argmax(probabilities))
+            antenna_id = self.model.classes_[idx]
+            confidence = float(probabilities[idx])
         except (lgb.basic.LightGBMError, NotFittedError, AttributeError):
             return {
-                'antenna_id': 'antenna_1',
-                'confidence': 0.5,
+                "antenna_id": "antenna_1",
+                "confidence": 0.5,
             }
         
         return {
