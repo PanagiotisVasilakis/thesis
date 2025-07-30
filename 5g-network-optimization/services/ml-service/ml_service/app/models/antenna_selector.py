@@ -1,13 +1,14 @@
 """Antenna selector model for 5G network optimization."""
 import numpy as np
 import lightgbm as lgb
-from sklearn.exceptions import NotFittedError
 import joblib
 import os
 import logging
 
 FALLBACK_ANTENNA_ID = "antenna_1"
 FALLBACK_CONFIDENCE = 0.5
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_TEST_FEATURES = {
     "latitude": 500,
@@ -166,14 +167,20 @@ class AntennaSelector:
             idx = int(np.argmax(probabilities))
             antenna_id = self.model.classes_[idx]
             confidence = float(probabilities[idx])
-        except (lgb.basic.LightGBMError, NotFittedError, AttributeError) as e:
-            logging.warning("Prediction failed: %s", e)
-            return {
-                "antenna_id": FALLBACK_ANTENNA_ID,
-                "confidence": FALLBACK_CONFIDENCE,
-            }
-        except Exception:
-            logging.exception("Unexpected error during prediction")
+        except (lgb.basic.LightGBMError, NotFittedError, AttributeError) as exc:
+            if isinstance(exc, (lgb.basic.LightGBMError, NotFittedError)):
+                ue_id = features.get("ue_id")
+                if ue_id:
+                    logger.warning(
+                        "Model untrained or error during prediction for UE %s: %s. Returning default antenna.",
+                        ue_id,
+                        exc,
+                    )
+                else:
+                    logger.warning(
+                        "Model untrained or error during prediction: %s. Returning default antenna.",
+                        exc,
+                    )
             return {
                 "antenna_id": FALLBACK_ANTENNA_ID,
                 "confidence": FALLBACK_CONFIDENCE,
