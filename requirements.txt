@@ -52,3 +52,4 @@ mlflow==2.12.1
 feast==0.35.0
 pandas==1.5.3
 pyarrow==14.0.1
+Flask-Limiter==3.3.1

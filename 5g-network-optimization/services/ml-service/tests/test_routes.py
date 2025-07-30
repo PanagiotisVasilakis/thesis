@@ -3,14 +3,14 @@ import requests
 from ml_service.app.clients.nef_client import NEFClientError
 
 
-def test_predict_route(client):
+def test_predict_route(client, auth_header):
     mock_model = MagicMock()
     mock_model.extract_features.return_value = {"f": 1}
     mock_model.predict.return_value = {"antenna_id": "antenna_1", "confidence": 0.9}
 
     with patch("ml_service.app.api.routes.load_model", return_value=mock_model) as mock_get, \
          patch("ml_service.app.api.routes.track_prediction") as mock_track:
-        resp = client.post("/api/predict", json={"ue_id": "u1"})
+        resp = client.post("/api/predict", json={"ue_id": "u1"}, headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["predicted_antenna"] == "antenna_1"
@@ -19,21 +19,21 @@ def test_predict_route(client):
         mock_track.assert_called_once_with("antenna_1", 0.9)
 
 
-def test_predict_invalid_request(client):
+def test_predict_invalid_request(client, auth_header):
     mock_model = MagicMock()
     with patch("ml_service.app.api.routes.load_model", return_value=mock_model):
-        resp = client.post("/api/predict", json={})
+        resp = client.post("/api/predict", json={}, headers=auth_header)
         assert resp.status_code == 400
 
 
-def test_train_route(client):
+def test_train_route(client, auth_header):
     mock_model = MagicMock()
     mock_model.train.return_value = {"samples": 1, "classes": 1}
     mock_model.save.return_value = True
 
     with patch("ml_service.app.api.routes.load_model", return_value=mock_model) as mock_get, \
          patch("ml_service.app.api.routes.track_training") as mock_track:
-        resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}])
+        resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}], headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["metrics"]["samples"] == 1
@@ -43,31 +43,31 @@ def test_train_route(client):
         mock_track.assert_called_once()
 
 
-def test_train_invalid_request(client):
-    resp = client.post("/api/train", json={"foo": "bar"})
+def test_train_invalid_request(client, auth_header):
+    resp = client.post("/api/train", json={"foo": "bar"}, headers=auth_header)
     assert resp.status_code == 400
 
-    resp = client.post("/api/train", json=[{"foo": "bar"}])
+    resp = client.post("/api/train", json=[{"foo": "bar"}], headers=auth_header)
     assert resp.status_code == 400
 
 
-def test_nef_status(client):
+def test_nef_status(client, auth_header):
     mock_client = MagicMock()
     mock_response = MagicMock(status_code=200, headers={"X-API-Version": "v1"})
     mock_client.get_status.return_value = mock_response
     with patch("ml_service.app.api.routes.NEFClient", return_value=mock_client):
-        resp = client.get("/api/nef-status")
+        resp = client.get("/api/nef-status", headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
         assert data == {"status": "connected", "nef_version": "v1"}
         mock_client.get_status.assert_called_once()
 
 
-def test_nef_status_request_error(client):
+def test_nef_status_request_error(client, auth_header):
     mock_client = MagicMock()
     mock_client.get_status.side_effect = NEFClientError("boom")
     with patch("ml_service.app.api.routes.NEFClient", return_value=mock_client):
-        resp = client.get("/api/nef-status")
+        resp = client.get("/api/nef-status", headers=auth_header)
         assert resp.status_code == 502
         data = resp.get_json()
         assert data["status"] == "error"
@@ -76,7 +76,7 @@ def test_nef_status_request_error(client):
 from unittest.mock import AsyncMock
 
 
-def test_collect_data_route(client, monkeypatch):
+def test_collect_data_route(client, auth_header, monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {}}
@@ -86,6 +86,7 @@ def test_collect_data_route(client, monkeypatch):
     resp = client.post(
         "/api/collect-data",
         json={"username": "u", "password": "p", "duration": 1, "interval": 1},
+        headers=auth_header,
     )
     assert resp.status_code == 200
     data = resp.get_json()
@@ -94,7 +95,7 @@ def test_collect_data_route(client, monkeypatch):
     collector.collect_training_data.assert_awaited_once()
 
 
-def test_collect_data_oserror(client, monkeypatch):
+def test_collect_data_oserror(client, auth_header, monkeypatch):
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {}}
@@ -108,6 +109,7 @@ def test_collect_data_oserror(client, monkeypatch):
     resp = client.post(
         "/api/collect-data",
         json={"username": "u", "password": "p"},
+        headers=auth_header,
     )
     assert resp.status_code == 200
     data = resp.get_json()
@@ -116,7 +118,7 @@ def test_collect_data_oserror(client, monkeypatch):
 
 
 
-def test_feedback_route(client, monkeypatch):
+def test_feedback_route(client, auth_header, monkeypatch):
     called = {}
     def fake_feed(sample, success=True):
         called.setdefault('count', 0)
@@ -124,7 +126,7 @@ def test_feedback_route(client, monkeypatch):
         return False
     monkeypatch.setattr("ml_service.app.api.routes.ModelManager.feed_feedback", fake_feed)
 
-    resp = client.post("/api/feedback", json={"optimal_antenna": "a1", "success": True})
+    resp = client.post("/api/feedback", json={"optimal_antenna": "a1", "success": True}, headers=auth_header)
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["samples"] == 1

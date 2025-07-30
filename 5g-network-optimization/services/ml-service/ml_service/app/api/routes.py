@@ -1,7 +1,9 @@
 """API routes for ML Service."""
-from flask import jsonify, request, current_app
+from flask import jsonify, request, current_app, g
 import time
 from pathlib import Path
+from functools import wraps
+import asyncio
 from pydantic import ValidationError
 
 from . import api_bp
@@ -11,6 +13,39 @@ from ..clients.nef_client import NEFClient, NEFClientError
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
 from ..initialization.model_init import ModelManager
+from ..auth import create_access_token, verify_token
+
+
+def require_auth(func):
+    """Decorator enforcing JWT authentication."""
+    def _check_token():
+        header = request.headers.get("Authorization", "")
+        if not header.startswith("Bearer "):
+            return jsonify({"error": "Missing token"}), 401
+        token = header.split(" ", 1)[1]
+        user = verify_token(token)
+        if not user:
+            return jsonify({"error": "Invalid token"}), 401
+        g.user = user
+
+    if asyncio.iscoroutinefunction(func):
+        @wraps(func)
+        async def async_wrapper(*args, **kwargs):
+            resp = _check_token()
+            if resp is not None:
+                return resp
+            return await func(*args, **kwargs)
+
+        return async_wrapper
+    else:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            resp = _check_token()
+            if resp is not None:
+                return resp
+            return func(*args, **kwargs)
+
+        return wrapper
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -19,7 +54,23 @@ def health_check():
     return jsonify({"status": "ok", "service": "ml-service"})
 
 
+@api_bp.route("/login", methods=["POST"])
+def login():
+    """Return a JWT token for valid credentials."""
+    data = request.get_json(silent=True) or {}
+    username = data.get("username")
+    password = data.get("password")
+    if (
+        username == current_app.config["AUTH_USERNAME"]
+        and password == current_app.config["AUTH_PASSWORD"]
+    ):
+        token = create_access_token(username)
+        return jsonify({"access_token": token})
+    return jsonify({"error": "Invalid credentials"}), 401
+
+
 @api_bp.route("/predict", methods=["POST"])
+@require_auth
 def predict():
     """Make antenna selection prediction based on UE data."""
     payload = request.get_json(silent=True)
@@ -48,6 +99,7 @@ def predict():
 
 
 @api_bp.route("/train", methods=["POST"])
+@require_auth
 def train():
     """Train the model with provided data."""
     payload = request.get_json(silent=True)
@@ -76,6 +128,7 @@ def train():
 
 
 @api_bp.route("/nef-status", methods=["GET"])
+@require_auth
 def nef_status():
     """Check NEF connectivity and get status."""
     try:
@@ -125,6 +178,7 @@ def nef_status():
 
 
 @api_bp.route("/collect-data", methods=["POST"])
+@require_auth
 async def collect_data():
     """Collect training data from the NEF emulator."""
     params = request.json or {}
@@ -163,6 +217,7 @@ async def collect_data():
 
 
 @api_bp.route("/feedback", methods=["POST"])
+@require_auth
 def feedback():
     """Receive handover outcome feedback from the NEF emulator."""
     payload = request.get_json(silent=True)

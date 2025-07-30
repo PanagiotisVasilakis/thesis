@@ -73,7 +73,7 @@ def test_collect_training_data_remote(monkeypatch):
     monkeypatch.setitem(sys.modules, "requests", mock_requests)
     monkeypatch.setattr(sys, "argv", ["collect_training_data", "--ml-service-url", "http://ml"])
     assert module.main() == 0
-    mock_requests.post.assert_called_once()
+    assert mock_requests.post.call_count == 2
 
 
 def test_collect_training_data_remote_failure(monkeypatch):

@@ -9,12 +9,17 @@ import logging
 from datetime import datetime
 from services.logging_config import configure_logging
 from ml_service.app.data.nef_collector import NEFDataCollector
-from ml_service.app.data.feature_store_utils import (
-    ingest_samples,
-    fetch_training_data,
-)
 
 logger = logging.getLogger(__name__)
+
+try:
+    from ml_service.app.data.feature_store_utils import (
+        ingest_samples,
+        fetch_training_data,
+    )
+except Exception as exc:  # pragma: no cover - optional dependency
+    ingest_samples = fetch_training_data = None
+    logger.warning(f"Feature store unavailable: {exc}")
 
 def main():
     """Main entry point for data collection script."""
@@ -42,7 +47,25 @@ def main():
     if args.ml_service_url:
         import requests
 
-        endpoint = args.ml_service_url.rstrip('/') + '/api/collect-data'
+        base = args.ml_service_url.rstrip('/')
+        try:
+            login_resp = requests.post(
+                base + '/api/login',
+                json={'username': args.username, 'password': args.password},
+            )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error contacting ML service: {str(e)}")
+            return 2
+        token = None
+        if login_resp.status_code == 200:
+            token = login_resp.json().get('access_token')
+        else:
+            logger.error(
+                f"Authentication failed: {login_resp.status_code} {login_resp.text}"
+            )
+            return 2
+
+        endpoint = base + '/api/collect-data'
         payload = {
             'username': args.username,
             'password': args.password,
@@ -50,7 +73,11 @@ def main():
             'interval': args.interval,
         }
         try:
-            resp = requests.post(endpoint, json=payload)
+            resp = requests.post(
+                endpoint,
+                json=payload,
+                headers={'Authorization': f'Bearer {token}'},
+            )
             if resp.status_code == 200:
                 result = resp.json()
                 logger.info(f"Service collected {result.get('samples', 0)} samples")
@@ -113,10 +140,11 @@ def main():
     )
 
     # Ingest collected samples into Feast
-    try:
-        ingest_samples(data)
-    except Exception as exc:
-        logger.error(f"Failed to ingest data into feature store: {exc}")
+    if ingest_samples:
+        try:
+            ingest_samples(data)
+        except Exception as exc:
+            logger.error(f"Failed to ingest data into feature store: {exc}")
 
     # Save to specified output file if provided
     if args.output:
@@ -130,11 +158,14 @@ def main():
     if args.train:
         import requests
 
-        logger.info("Preparing training data from feature store...")
-        try:
-            training_samples = fetch_training_data(data)
-        except Exception as exc:
-            logger.error(f"Failed to fetch training data: {exc}")
+        if fetch_training_data:
+            logger.info("Preparing training data from feature store...")
+            try:
+                training_samples = fetch_training_data(data)
+            except Exception as exc:
+                logger.error(f"Failed to fetch training data: {exc}")
+                training_samples = data
+        else:
             training_samples = data
 
         logger.info("Training ML model with collected data...")

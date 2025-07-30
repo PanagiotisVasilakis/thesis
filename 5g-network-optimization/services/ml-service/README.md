@@ -28,13 +28,24 @@ Running `python app.py` simply invokes this factory and serves the app.
 ## API Endpoints
 
 The routes are defined in `app/api/routes.py`. Example calls are shown using
-`curl` with the default port `5050`.
+`curl` with the default port `5050`. Most endpoints require a JWT token which
+can be obtained from `/api/login` using the credentials configured via
+`AUTH_USERNAME` and `AUTH_PASSWORD`.
 
 ### `GET /api/health`
 Simple health probe.
 
 ```bash
 curl http://localhost:5050/api/health
+```
+
+### `POST /api/login`
+Obtain a JWT token. Use the configured username and password.
+
+```bash
+curl -X POST http://localhost:5050/api/login \
+     -H 'Content-Type: application/json' \
+     -d '{"username":"admin","password":"admin"}'
 ```
 
 ### `POST /api/predict`
@@ -45,6 +56,7 @@ The request body should contain fields such as `ue_id`, `latitude`, `longitude`,
 ```bash
 curl -X POST http://localhost:5050/api/predict \
      -H 'Content-Type: application/json' \
+     -H 'Authorization: Bearer <TOKEN>' \
      -d '{
            "ue_id": "u1",
            "latitude": 100,
@@ -64,6 +76,7 @@ label used during training.
 ```bash
 curl -X POST http://localhost:5050/api/train \
      -H 'Content-Type: application/json' \
+     -H 'Authorization: Bearer <TOKEN>' \
      -d @training_data.json
 ```
 
@@ -81,6 +94,7 @@ and optional `duration` and `interval` parameters.
 ```bash
 curl -X POST http://localhost:5050/api/collect-data \
      -H 'Content-Type: application/json' \
+     -H 'Authorization: Bearer <TOKEN>' \
      -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
 ```
 
@@ -115,6 +129,11 @@ The service reads configuration from the Flask app settings. Important variables
 | `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
 | `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
 | `NEIGHBOR_COUNT` | Preallocate feature slots for this many neighbouring antennas | *(dynamic)* |
+| `AUTH_USERNAME` | Username for the `/api/login` endpoint | `admin` |
+| `AUTH_PASSWORD` | Password for the `/api/login` endpoint | `admin` |
+| `JWT_SECRET` | Secret key used to sign JWT tokens | `change-me` |
+| `SSL_CERTFILE` | Path to TLS certificate for HTTPS | *(unset)* |
+| `SSL_KEYFILE` | Path to TLS key for HTTPS | *(unset)* |
 
 The service always runs with a LightGBM model; no other model types are supported.
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
@@ -141,6 +160,7 @@ Example request mirroring the NEF emulator:
 ```bash
 curl -X POST http://localhost:5050/api/predict \
      -H 'Content-Type: application/json' \
+     -H 'Authorization: Bearer <TOKEN>' \
      -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1"}'
 ```
 
@@ -154,6 +174,8 @@ python app.py
 ```
 
 The API will be available on `http://localhost:5050`.
+To serve the API over HTTPS set `SSL_CERTFILE` and `SSL_KEYFILE` to the
+paths of your certificate and key.
 
 ## Running with Docker
 
@@ -161,7 +183,12 @@ Build and run the container directly:
 
 ```bash
 docker build -t ml-service .
-docker run -p 5050:5050 -e NEF_API_URL=http://localhost:8080 ml-service
+docker run -p 5050:5050 \
+  -e NEF_API_URL=http://localhost:8080 \
+  -e SSL_CERTFILE=/certs/cert.pem \
+  -e SSL_KEYFILE=/certs/key.pem \
+  -v /path/to/certs:/certs:ro \
+  ml-service
 ```
 
 The service is also started automatically when using the repository
