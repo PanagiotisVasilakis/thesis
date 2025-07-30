@@ -1,6 +1,11 @@
 """Prometheus metrics for ML service."""
 from prometheus_client import Counter, Histogram, Gauge
 import time
+import os
+import threading
+from typing import Dict, List
+
+import psutil
 
 # Track prediction requests
 PREDICTION_REQUESTS = Counter(
@@ -47,6 +52,31 @@ MODEL_TRAINING_ACCURACY = Gauge(
     'Accuracy of trained model'
 )
 
+# --- Operational and Drift Metrics ---
+
+# Data drift indicator updated by ``MetricsCollector``
+DATA_DRIFT_SCORE = Gauge(
+    'ml_data_drift_score',
+    'Average change between consecutive feature distributions'
+)
+
+# Rate of failed prediction requests over the last collection interval
+ERROR_RATE = Gauge(
+    'ml_prediction_error_rate',
+    'Fraction of prediction requests resulting in an error'
+)
+
+# Resource usage of the ML service process
+CPU_USAGE = Gauge(
+    'ml_cpu_usage_percent',
+    'CPU utilisation of the ML service process'
+)
+
+MEMORY_USAGE = Gauge(
+    'ml_memory_usage_bytes',
+    'Resident memory usage of the ML service process in bytes'
+)
+
 class MetricsMiddleware:
     """Middleware to track metrics for API endpoints."""
     
@@ -78,11 +108,11 @@ class MetricsMiddleware:
                 # Track latency if it's a prediction request
                 if endpoint == 'predict':
                     PREDICTION_LATENCY.observe(time.time() - start_time)
-                
+
                 return start_response(status, headers, exc_info)
-            
+
             return self.app(environ, custom_start_response)
-        
+
         return self.app(environ, start_response)
 
 def track_prediction(antenna_id, confidence):
@@ -96,4 +126,98 @@ def track_training(duration, num_samples, accuracy=None):
     MODEL_TRAINING_SAMPLES.set(num_samples)
     if accuracy is not None:
         MODEL_TRAINING_ACCURACY.set(accuracy)
+
+
+class DataDriftMonitor:
+    """Compute feature distribution changes over rolling windows."""
+
+    def __init__(self, window_size: int = 100) -> None:
+        self.window_size = window_size
+        self._current: List[Dict[str, float]] = []
+        self._previous: List[Dict[str, float]] = []
+        self._lock = threading.Lock()
+
+    def update(self, features: Dict[str, float]) -> None:
+        """Add feature vector from a prediction request."""
+        numeric = {k: v for k, v in features.items() if isinstance(v, (int, float))}
+        if not numeric:
+            return
+        with self._lock:
+            self._current.append(numeric)
+            if len(self._current) > self.window_size:
+                self._current.pop(0)
+
+    def _mean(self, samples: List[Dict[str, float]]) -> Dict[str, float]:
+        totals: Dict[str, float] = {}
+        counts: Dict[str, int] = {}
+        for sample in samples:
+            for k, v in sample.items():
+                totals[k] = totals.get(k, 0.0) + v
+                counts[k] = counts.get(k, 0) + 1
+        return {k: totals[k] / counts[k] for k in totals}
+
+    def compute_drift(self) -> float:
+        """Return average absolute change between the latest windows."""
+        with self._lock:
+            if len(self._current) < self.window_size:
+                return 0.0
+            if not self._previous:
+                self._previous = list(self._current)
+                self._current.clear()
+                return 0.0
+
+            prev_means = self._mean(self._previous)
+            curr_means = self._mean(self._current)
+            keys = set(prev_means).intersection(curr_means)
+            if not keys:
+                self._previous = list(self._current)
+                self._current.clear()
+                return 0.0
+
+            diff = sum(abs(curr_means[k] - prev_means[k]) for k in keys) / len(keys)
+            self._previous = list(self._current)
+            self._current.clear()
+            return diff
+
+
+class MetricsCollector:
+    """Background thread updating operational metrics."""
+
+    def __init__(self, interval: float = 10.0, drift_monitor: DataDriftMonitor | None = None) -> None:
+        self.interval = interval
+        self.drift_monitor = drift_monitor or DataDriftMonitor()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._last_success = 0.0
+        self._last_error = 0.0
+        self._process = psutil.Process(os.getpid())
+
+    def start(self) -> None:
+        self._last_success = PREDICTION_REQUESTS.labels(status='success')._value.get()
+        self._last_error = PREDICTION_REQUESTS.labels(status='error')._value.get()
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self._update_resource_usage()
+            self._update_error_rate()
+            DATA_DRIFT_SCORE.set(self.drift_monitor.compute_drift())
+            self._stop.wait(self.interval)
+
+    def _update_resource_usage(self) -> None:
+        CPU_USAGE.set(self._process.cpu_percent(interval=None))
+        MEMORY_USAGE.set(self._process.memory_info().rss)
+
+    def _update_error_rate(self) -> None:
+        success = PREDICTION_REQUESTS.labels(status='success')._value.get()
+        error = PREDICTION_REQUESTS.labels(status='error')._value.get()
+        total = (success - self._last_success) + (error - self._last_error)
+        if total > 0:
+            ERROR_RATE.set((error - self._last_error) / total)
+        self._last_success = success
+        self._last_error = error
 

@@ -23,13 +23,19 @@ scrape_configs:
 The configuration also includes a job for Prometheus itself. Adjust the targets if the service names or ports change.
 
 The NEF emulator exposes counters like `nef_handover_decisions_total` and the
-`nef_request_duration_seconds` histogram on this endpoint.
+`nef_request_duration_seconds` histogram on this endpoint. The ML service
+provides additional gauges for drift and operational metrics:
+
+- `ml_data_drift_score` – average change in feature distributions.
+- `ml_prediction_error_rate` – fraction of prediction requests that failed.
+- `ml_cpu_usage_percent` – CPU utilisation of the service.
+- `ml_memory_usage_bytes` – resident memory usage.
 
 Start Prometheus with Docker Compose, or run the container manually and mount this directory at `/etc/prometheus`.
 
 ## Grafana
 
-Grafana reads data from Prometheus and provides dashboards. The sample dashboard under `grafana/dashboards/ml_service.json` visualizes request latency, prediction counts and training statistics from the ML service. When Grafana is launched via Docker Compose it automatically picks up dashboards from `grafana/dashboards`.
+Grafana reads data from Prometheus and provides dashboards. The sample dashboard under `grafana/dashboards/ml_service.json` visualizes request latency, prediction counts, training statistics and the new drift/usage gauges from the ML service. When Grafana is launched via Docker Compose it automatically picks up dashboards from `grafana/dashboards`.
 
 Dashboard provisioning is configured in `grafana/provisioning/dashboards.yml`, which instructs Grafana to load any JSON dashboards from that directory on startup.
 

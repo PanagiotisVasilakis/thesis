@@ -2,7 +2,7 @@
 from flask import Flask, Response
 import os
 from prometheus_client import generate_latest
-from ml_service.app.monitoring.metrics import MetricsMiddleware
+from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
 
 
 def create_app(config=None):
@@ -52,6 +52,11 @@ def create_app(config=None):
 
     # Wrap the application with metrics middleware
     app.wsgi_app = MetricsMiddleware(app.wsgi_app)
+
+    # Start background collector for drift and resource metrics
+    collector = MetricsCollector()
+    collector.start()
+    app.metrics_collector = collector
 
     # Log that initialization is complete
     app.logger.info("Flask application initialization complete")
