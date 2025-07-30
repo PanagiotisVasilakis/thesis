@@ -58,15 +58,24 @@ class AntennaSelector:
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
 
+        if neighbor_count is None:
+            env_val = os.getenv("NEIGHBOR_COUNT")
+            if env_val is not None:
+                try:
+                    neighbor_count = int(env_val)
+                except ValueError:
+                    logger.warning(
+                        "Invalid NEIGHBOR_COUNT value '%s'; ignoring", env_val
+                    )
+                    neighbor_count = None
+
         if neighbor_count and neighbor_count > 0:
             self.neighbor_count = int(neighbor_count)
             for idx in range(self.neighbor_count):
-                self.feature_names.extend(
-                    [
-                        f"rsrp_a{idx+1}",
-                        f"sinr_a{idx+1}",
-                    ]
-                )
+                self.feature_names.extend([
+                    f"rsrp_a{idx+1}",
+                    f"sinr_a{idx+1}",
+                ])
 
         # Try to load existing model
         try:

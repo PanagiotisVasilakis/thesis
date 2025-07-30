@@ -45,6 +45,16 @@ class ModelManager:
         logger = logging.getLogger(__name__)
 
         if neighbor_count is None:
+            env_val = os.getenv("NEIGHBOR_COUNT")
+            if env_val is not None:
+                try:
+                    neighbor_count = int(env_val)
+                except ValueError:
+                    logger.warning(
+                        "Invalid NEIGHBOR_COUNT value '%s'; ignoring", env_val
+                    )
+
+        if neighbor_count is None:
             model = LightGBMSelector(model_path=model_path)
         else:
             model = LightGBMSelector(model_path=model_path, neighbor_count=neighbor_count)

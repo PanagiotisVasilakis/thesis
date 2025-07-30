@@ -119,3 +119,21 @@ def test_initialize_model_uses_env_parameters(monkeypatch, tmp_path):
     initialize_model(str(model_path))
     assert seen["n_iter"] == 5
     assert seen["cv"] == 4
+
+
+def test_initialize_model_uses_neighbor_env(monkeypatch, tmp_path):
+    """NEIGHBOR_COUNT environment variable should preallocate features."""
+    model_path = tmp_path / "model.joblib"
+
+    def dummy_train(self, data):
+        self.model = DummyModel()
+        return {"samples": len(data)}
+
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
+    monkeypatch.setenv("NEIGHBOR_COUNT", "3")
+
+    model = initialize_model(str(model_path))
+
+    assert model.neighbor_count == 3
+    assert "rsrp_a3" in model.feature_names
