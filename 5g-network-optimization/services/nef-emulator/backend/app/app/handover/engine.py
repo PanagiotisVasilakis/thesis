@@ -94,13 +94,14 @@ class HandoverEngine:
             "connected_to": fv["connected_to"],
             "rf_metrics": rf_metrics,
         }
+        logger = getattr(self.state_mgr, "logger", self.logger)
         if self.use_local_ml and self.model:
             try:
                 features = self.model.extract_features(ue_data)
                 pred = self.model.predict(features)
                 return pred.get("antenna_id") or pred.get("predicted_antenna")
-            except (ValueError, AttributeError, RuntimeError) as exc:
-                self.logger.warning("Local ML prediction failed: %s", exc)
+            except Exception as exc:  # noqa: BLE001 - log and fall back
+                logger.exception("Local ML prediction failed", exc_info=exc)
                 return None
         url = f"{self.ml_service_url.rstrip('/')}/api/predict"
         try:
@@ -108,8 +109,8 @@ class HandoverEngine:
             resp.raise_for_status()
             data = resp.json()
             return data.get("predicted_antenna") or data.get("antenna_id")
-        except (RequestException, ValueError) as exc:
-            self.logger.warning("Remote ML request failed: %s", exc)
+        except Exception as exc:  # noqa: BLE001 - capture any ML service error
+            logger.exception("Remote ML request failed", exc_info=exc)
             return None
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
@@ -128,9 +129,7 @@ class HandoverEngine:
     def decide_and_apply(self, ue_id: str):
         """Select the best antenna and apply the handover."""
         self._update_mode()
-        target = (
-            self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
-        )
+        target = self._select_ml(ue_id) if self.use_ml else self._select_rule(ue_id)
         if not target:
             return None
         return self.state_mgr.apply_handover_decision(ue_id, target)
