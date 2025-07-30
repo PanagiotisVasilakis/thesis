@@ -31,6 +31,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     monkeypatch.setattr(AntennaSelector, "train", dummy_train)
     monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
     monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", LightGBMSelector)
 
     monkeypatch.setattr(synthetic_data, "generate_synthetic_training_data", lambda n: [{}] * n)
     # First call should train and create the file
@@ -38,6 +39,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     assert call_count["train"] == 1
     assert model_path.exists()
     assert isinstance(model.model, DummyModel)
+    assert (model_path.parent / "model.joblib.meta.json").exists()
     # initialize_model should store the trained instance for reuse
     assert ModelManager.get_instance() is model
 
@@ -52,10 +54,10 @@ def test_get_model_returns_singleton(monkeypatch):
     created = []
 
     class DummySelector:
-        def __init__(self, model_path=None):
+        def __init__(self, model_path=None, **_):
             created.append(model_path)
 
-    monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", DummySelector)
 
     first = ModelManager.get_instance("foo")
     second = ModelManager.get_instance("bar")
@@ -69,10 +71,10 @@ def test_get_model_uses_env_path(monkeypatch):
     created = []
 
     class DummySelector:
-        def __init__(self, model_path=None):
+        def __init__(self, model_path=None, **_):
             created.append(model_path)
 
-    monkeypatch.setattr(model_init, "LightGBMSelector", DummySelector)
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", DummySelector)
     monkeypatch.setenv("MODEL_PATH", "env.joblib")
 
     ModelManager.get_instance()
@@ -94,6 +96,8 @@ def test_initialize_model_with_tuning(monkeypatch, tmp_path):
     monkeypatch.setattr(model_init, "tune_and_train", dummy_tune)
     monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
     monkeypatch.setenv("LIGHTGBM_TUNE", "1")
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", LightGBMSelector)
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", LightGBMSelector)
 
     model = initialize_model(str(model_path))
     assert called["tune"] == 1
@@ -130,6 +134,7 @@ def test_initialize_model_uses_neighbor_env(monkeypatch, tmp_path):
         return {"samples": len(data)}
 
     monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "lightgbm", LightGBMSelector)
     monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
     monkeypatch.setenv("NEIGHBOR_COUNT", "3")
 

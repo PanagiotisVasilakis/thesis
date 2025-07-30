@@ -46,3 +46,4 @@ typing-extensions>=4.2.0
 uvicorn==0.17.6
 werkzeug==2.0.3
 reportlab==3.6.12
+tensorflow==2.15.0
