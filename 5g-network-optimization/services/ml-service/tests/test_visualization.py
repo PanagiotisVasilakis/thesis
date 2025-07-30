@@ -56,7 +56,9 @@ def test_coverage_map_file_not_found(client, auth_header):
     ):
         resp = client.get("/api/visualization/coverage-map", headers=auth_header)
         assert resp.status_code == 404
-        assert resp.get_json()["error"]
+        data = resp.get_json()
+        assert data["type"] == "ResourceNotFoundError"
+        assert data["correlation_id"]
 
 
 def test_trajectory_request_error(client, auth_header):
@@ -72,7 +74,9 @@ def test_trajectory_request_error(client, auth_header):
             headers=auth_header,
         )
         assert resp.status_code == 502
-        assert resp.get_json()["error"]
+        data = resp.get_json()
+        assert data["type"] == "NEFConnectionError"
+        assert data["correlation_id"]
 
 
 def test_coverage_map_unexpected_error(client, auth_header):

@@ -24,6 +24,9 @@ def test_predict_invalid_request(client, auth_header):
     with patch("ml_service.app.api.routes.load_model", return_value=mock_model):
         resp = client.post("/api/predict", json={}, headers=auth_header)
         assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["type"] == "RequestValidationError"
+        assert data["correlation_id"]
 
 
 def test_train_route(client, auth_header):
@@ -46,9 +49,11 @@ def test_train_route(client, auth_header):
 def test_train_invalid_request(client, auth_header):
     resp = client.post("/api/train", json={"foo": "bar"}, headers=auth_header)
     assert resp.status_code == 400
+    assert resp.get_json()["type"] == "RequestValidationError"
 
     resp = client.post("/api/train", json=[{"foo": "bar"}], headers=auth_header)
     assert resp.status_code == 400
+    assert resp.get_json()["type"] == "RequestValidationError"
 
 
 def test_nef_status(client, auth_header):
@@ -70,7 +75,8 @@ def test_nef_status_request_error(client, auth_header):
         resp = client.get("/api/nef-status", headers=auth_header)
         assert resp.status_code == 502
         data = resp.get_json()
-        assert data["status"] == "error"
+        assert data["type"] == "NEFConnectionError"
+        assert data["correlation_id"]
 
 
 from unittest.mock import AsyncMock

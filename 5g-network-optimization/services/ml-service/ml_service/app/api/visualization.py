@@ -1,8 +1,9 @@
 """Visualization endpoints for ML Service."""
-from flask import Blueprint, jsonify, request, send_file, current_app
+from flask import Blueprint, request, send_file, current_app
 import os
 import logging
 import requests
+from ..errors import RequestValidationError, NEFConnectionError, ResourceNotFoundError
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
 from ..initialization.model_init import ModelManager
 from ..visualization.plotter import (
@@ -58,10 +59,10 @@ def coverage_map():
 
     except FileNotFoundError as e:
         logger.error("Coverage map file not found: %s", e)
-        return jsonify({"error": str(e)}), 404
+        raise ResourceNotFoundError(e)
     except requests.exceptions.RequestException as e:
         logger.error("Request error generating coverage map: %s", e)
-        return jsonify({"error": "Failed to fetch required data"}), 502
+        raise NEFConnectionError("Failed to fetch required data") from e
 
 
 @viz_bp.route("/trajectory", methods=["POST"])
@@ -72,7 +73,7 @@ def trajectory():
         movement_data = request.json
 
         if not movement_data:
-            return jsonify({"error": "No movement data provided"}), 400
+            raise RequestValidationError("No movement data provided")
 
         # Resolve the output directory
         output_dir = get_output_dir()
@@ -88,7 +89,7 @@ def trajectory():
 
     except FileNotFoundError as e:
         logger.error("Trajectory file not found: %s", e)
-        return jsonify({"error": str(e)}), 404
+        raise ResourceNotFoundError(e)
     except requests.exceptions.RequestException as e:
         logger.error("Request error generating trajectory: %s", e)
-        return jsonify({"error": "Failed to fetch required data"}), 502
+        raise NEFConnectionError("Failed to fetch required data") from e
