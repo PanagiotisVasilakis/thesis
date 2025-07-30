@@ -1,6 +1,10 @@
 import numpy as np
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
+from ml_service.app.models.antenna_selector import (
+    FALLBACK_ANTENNA_ID,
+    FALLBACK_CONFIDENCE,
+)
 
 
 def test_extract_features_defaults():
@@ -8,59 +12,59 @@ def test_extract_features_defaults():
     features = model.extract_features({})
 
     assert features == {
-        'latitude': 0,
-        'longitude': 0,
-        'altitude': 0,
-        'speed': 0,
-        'direction_x': 0,
-        'direction_y': 0,
-        'rsrp_current': -120,
-        'sinr_current': 0,
-        'best_rsrp_diff': 0,
-        'best_sinr_diff': 0,
+        "latitude": 0,
+        "longitude": 0,
+        "altitude": 0,
+        "speed": 0,
+        "direction_x": 0,
+        "direction_y": 0,
+        "rsrp_current": -120,
+        "sinr_current": 0,
+        "best_rsrp_diff": 0,
+        "best_sinr_diff": 0,
     }
 
 
 def _tiny_dataset():
     return [
         {
-            'ue_id': '1',
-            'latitude': 0,
-            'longitude': 0,
-            'speed': 1.0,
-            'direction': [1, 0, 0],
-            'connected_to': 'a1',
-            'rf_metrics': {
-                'a1': {'rsrp': -70, 'sinr': 10},
-                'a2': {'rsrp': -80, 'sinr': 5},
+            "ue_id": "1",
+            "latitude": 0,
+            "longitude": 0,
+            "speed": 1.0,
+            "direction": [1, 0, 0],
+            "connected_to": "a1",
+            "rf_metrics": {
+                "a1": {"rsrp": -70, "sinr": 10},
+                "a2": {"rsrp": -80, "sinr": 5},
             },
-            'optimal_antenna': 'a1',
+            "optimal_antenna": "a1",
         },
         {
-            'ue_id': '2',
-            'latitude': 0,
-            'longitude': 100,
-            'speed': 1.0,
-            'direction': [0, 1, 0],
-            'connected_to': 'a2',
-            'rf_metrics': {
-                'a1': {'rsrp': -75, 'sinr': 7},
-                'a2': {'rsrp': -65, 'sinr': 12},
+            "ue_id": "2",
+            "latitude": 0,
+            "longitude": 100,
+            "speed": 1.0,
+            "direction": [0, 1, 0],
+            "connected_to": "a2",
+            "rf_metrics": {
+                "a1": {"rsrp": -75, "sinr": 7},
+                "a2": {"rsrp": -65, "sinr": 12},
             },
-            'optimal_antenna': 'a2',
+            "optimal_antenna": "a2",
         },
         {
-            'ue_id': '3',
-            'latitude': 50,
-            'longitude': 50,
-            'speed': 1.0,
-            'direction': [1, 1, 0],
-            'connected_to': 'a1',
-            'rf_metrics': {
-                'a1': {'rsrp': -80, 'sinr': 8},
-                'a2': {'rsrp': -70, 'sinr': 9},
+            "ue_id": "3",
+            "latitude": 50,
+            "longitude": 50,
+            "speed": 1.0,
+            "direction": [1, 1, 0],
+            "connected_to": "a1",
+            "rf_metrics": {
+                "a1": {"rsrp": -80, "sinr": 8},
+                "a2": {"rsrp": -70, "sinr": 9},
             },
-            'optimal_antenna': 'a1',
+            "optimal_antenna": "a1",
         },
     ]
 
@@ -70,42 +74,45 @@ def test_train_metrics_and_prediction_flow(tmp_path):
 
     model = LightGBMSelector()
     sample_features = model.extract_features(data[0])
-    assert 'rsrp_a1' in sample_features
-    assert 'best_rsrp_diff' in sample_features
+    assert "rsrp_a1" in sample_features
+    assert "best_rsrp_diff" in sample_features
 
     # Simulate untrained state
     model.model = object()
     default_pred = model.predict(sample_features)
-    assert default_pred == {'antenna_id': 'antenna_1', 'confidence': 0.5}
+    assert default_pred == {
+        "antenna_id": FALLBACK_ANTENNA_ID,
+        "confidence": FALLBACK_CONFIDENCE,
+    }
 
     model._initialize_model()
     metrics = model.train(data)
-    assert metrics['samples'] == len(data)
-    assert metrics['classes'] == 2
+    assert metrics["samples"] == len(data)
+    assert metrics["classes"] == 2
 
     metrics = model.train(data)
-    assert metrics['samples'] == len(data)
-    assert metrics['classes'] == 2
+    assert metrics["samples"] == len(data)
+    assert metrics["classes"] == 2
 
     trained_pred = model.predict(sample_features)
-    assert trained_pred['antenna_id'] in {'a1', 'a2'}
-    assert 0.0 <= trained_pred['confidence'] <= 1.0
+    assert trained_pred["antenna_id"] in {"a1", "a2"}
+    assert 0.0 <= trained_pred["confidence"] <= 1.0
 
-    save_path = tmp_path / 'model.joblib'
+    save_path = tmp_path / "model.joblib"
     assert model.save(save_path)
     assert save_path.exists()
 
     new_model = LightGBMSelector()
     assert new_model.load(save_path)
     after_load_pred = new_model.predict(sample_features)
-    assert after_load_pred['antenna_id'] in {'a1', 'a2'}
+    assert after_load_pred["antenna_id"] in {"a1", "a2"}
 
 
 class DummyModel:
-    classes_ = ['other', 'mock_ant']
+    classes_ = ["other", "mock_ant"]
 
     def predict(self, X):
-        return ['mock_ant']
+        return ["mock_ant"]
 
     def predict_proba(self, X):
         return [[0.2, 0.8]]
@@ -118,22 +125,22 @@ def test_predict_with_mock_and_persistence(tmp_path):
     model.model = DummyModel()
 
     features = {
-        'latitude': 1,
-        'longitude': 2,
-        'altitude': 3,
-        'speed': 0,
-        'direction_x': 0,
-        'direction_y': 1,
-        'rsrp_current': -80,
-        'sinr_current': 10,
-        'best_rsrp_diff': 0,
-        'best_sinr_diff': 0,
+        "latitude": 1,
+        "longitude": 2,
+        "altitude": 3,
+        "speed": 0,
+        "direction_x": 0,
+        "direction_y": 1,
+        "rsrp_current": -80,
+        "sinr_current": 10,
+        "best_rsrp_diff": 0,
+        "best_sinr_diff": 0,
     }
 
     result = model.predict(features)
-    assert result == {'antenna_id': 'mock_ant', 'confidence': 0.8}
+    assert result == {"antenna_id": "mock_ant", "confidence": 0.8}
 
-    path = tmp_path / 'mock.joblib'
+    path = tmp_path / "mock.joblib"
     assert model.save(path)
     assert path.exists()
 
@@ -147,26 +154,26 @@ def test_extract_features_neighbor_padding():
     model = LightGBMSelector()
 
     first_sample = {
-        'connected_to': 'a1',
-        'rf_metrics': {
-            'a1': {'rsrp': -60, 'sinr': 15},
-            'a2': {'rsrp': -65, 'sinr': 10},
-            'a3': {'rsrp': -70, 'sinr': 5},
-            'a4': {'rsrp': -80, 'sinr': 3},
+        "connected_to": "a1",
+        "rf_metrics": {
+            "a1": {"rsrp": -60, "sinr": 15},
+            "a2": {"rsrp": -65, "sinr": 10},
+            "a3": {"rsrp": -70, "sinr": 5},
+            "a4": {"rsrp": -80, "sinr": 3},
         },
     }
 
     many_features = model.extract_features(first_sample)
 
     assert model.neighbor_count == 3
-    assert 'rsrp_a3' in many_features
-    assert 'rsrp_a3' in model.feature_names
+    assert "rsrp_a3" in many_features
+    assert "rsrp_a3" in model.feature_names
 
     second_sample = {
-        'connected_to': 'a1',
-        'rf_metrics': {
-            'a1': {'rsrp': -60, 'sinr': 10},
-            'a2': {'rsrp': -70, 'sinr': 8},
+        "connected_to": "a1",
+        "rf_metrics": {
+            "a1": {"rsrp": -60, "sinr": 10},
+            "a2": {"rsrp": -70, "sinr": 8},
         },
     }
 
@@ -174,32 +181,30 @@ def test_extract_features_neighbor_padding():
 
     assert model.neighbor_count == 3
     assert {
-        key for key in (
-            'rsrp_a1', 'rsrp_a2', 'rsrp_a3',
-            'sinr_a1', 'sinr_a2', 'sinr_a3'
-        )
+        key
+        for key in ("rsrp_a1", "rsrp_a2", "rsrp_a3", "sinr_a1", "sinr_a2", "sinr_a3")
     } <= few_features.keys()
-    assert few_features['rsrp_a1'] == -70
-    assert few_features['sinr_a1'] == 8
-    assert few_features['rsrp_a2'] == -120
-    assert few_features['sinr_a2'] == 0
-    assert few_features['rsrp_a3'] == -120
-    assert few_features['sinr_a3'] == 0
+    assert few_features["rsrp_a1"] == -70
+    assert few_features["sinr_a1"] == 8
+    assert few_features["rsrp_a2"] == -120
+    assert few_features["sinr_a2"] == 0
+    assert few_features["rsrp_a3"] == -120
+    assert few_features["sinr_a3"] == 0
 
 
 def test_altitude_feature_in_training():
     data = _tiny_dataset()
     for i, sample in enumerate(data, start=1):
-        sample['altitude'] = float(i)
+        sample["altitude"] = float(i)
 
     model = LightGBMSelector()
     metrics = model.train(data)
 
-    assert 'altitude' in model.base_feature_names
-    assert 'altitude' in model.feature_names
-    assert metrics['samples'] == len(data)
+    assert "altitude" in model.base_feature_names
+    assert "altitude" in model.feature_names
+    assert metrics["samples"] == len(data)
     extracted = model.extract_features(data[0])
-    assert extracted['altitude'] == 1.0
+    assert extracted["altitude"] == 1.0
 
 
 def test_default_prediction_unfitted_model(tmp_path):
@@ -211,10 +216,9 @@ def test_default_prediction_unfitted_model(tmp_path):
     prediction = model.predict(features)
 
     assert prediction == {
-        'antenna_id': 'antenna_1',
-        'confidence': 0.5,
+        "antenna_id": FALLBACK_ANTENNA_ID,
+        "confidence": FALLBACK_CONFIDENCE,
     }
 
     if model_path.exists():
         model_path.unlink()
-
