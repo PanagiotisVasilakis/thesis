@@ -65,9 +65,6 @@ class NEFClient:
             raise NEFClientError(
                 f"Authentication request failed: {exc}"
             ) from exc
-        except Exception as e:
-            self.logger.error(f"Error during authentication: {str(e)}")
-            raise
 
     def get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication token if available."""
