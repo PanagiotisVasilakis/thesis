@@ -154,7 +154,7 @@ class AntennaSelector:
             idx = int(np.argmax(probabilities))
             antenna_id = self.model.classes_[idx]
             confidence = float(probabilities[idx])
-        except Exception:
+        except (lgb.basic.LightGBMError, NotFittedError, AttributeError):
             return {
                 "antenna_id": "antenna_1",
                 "confidence": 0.5,

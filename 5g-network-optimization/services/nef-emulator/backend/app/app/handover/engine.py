@@ -4,7 +4,9 @@ import os
 from datetime import datetime
 from typing import Optional
 
+import logging
 import requests
+from requests import RequestException
 
 from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
@@ -27,6 +29,7 @@ class HandoverEngine:
         a3_ttt_s: float = 0.0,
     ) -> None:
         self.state_mgr = state_mgr
+        self.logger = getattr(state_mgr, "logger", logging.getLogger("HandoverEngine"))
         self.ml_model_path = ml_model_path
         self.ml_service_url = ml_service_url or os.getenv(
             "ML_SERVICE_URL", "http://ml-service:5050"
@@ -96,7 +99,8 @@ class HandoverEngine:
                 features = self.model.extract_features(ue_data)
                 pred = self.model.predict(features)
                 return pred.get("antenna_id") or pred.get("predicted_antenna")
-            except Exception:
+            except (ValueError, AttributeError, RuntimeError) as exc:
+                self.logger.warning("Local ML prediction failed: %s", exc)
                 return None
         url = f"{self.ml_service_url.rstrip('/')}/api/predict"
         try:
@@ -104,7 +108,8 @@ class HandoverEngine:
             resp.raise_for_status()
             data = resp.json()
             return data.get("predicted_antenna") or data.get("antenna_id")
-        except Exception:
+        except (RequestException, ValueError) as exc:
+            self.logger.warning("Remote ML request failed: %s", exc)
             return None
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
