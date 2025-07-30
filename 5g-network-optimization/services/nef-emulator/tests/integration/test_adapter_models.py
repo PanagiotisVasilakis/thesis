@@ -1,10 +1,7 @@
 import importlib.util
 import math
-import random
 from pathlib import Path
 import sys
-
-import numpy as np
 import pytest
 
 
@@ -66,8 +63,6 @@ def test_l_shaped_mobility(monkeypatch: pytest.MonkeyPatch):
 
 def test_random_directional_mobility(monkeypatch: pytest.MonkeyPatch):
     Adapter = _load_adapter(monkeypatch)
-    random.seed(0)
-    np.random.seed(0)
     bounds = [(0, 10), (0, 10), (0, 0)]
     model = Adapter.get_mobility_model(
         "random_directional",
@@ -76,6 +71,7 @@ def test_random_directional_mobility(monkeypatch: pytest.MonkeyPatch):
         speed=1.0,
         area_bounds=bounds,
         direction_change_mean=5.0,
+        seed=0,
     )
     traj = model.generate_trajectory(10, time_step=1.0)
     assert traj
@@ -88,7 +84,6 @@ def test_random_directional_mobility(monkeypatch: pytest.MonkeyPatch):
 
 def test_urban_grid_mobility(monkeypatch: pytest.MonkeyPatch):
     Adapter = _load_adapter(monkeypatch)
-    random.seed(1)
     grid = 5.0
     model = Adapter.get_mobility_model(
         "urban_grid",
@@ -97,6 +92,7 @@ def test_urban_grid_mobility(monkeypatch: pytest.MonkeyPatch):
         speed=1.0,
         grid_size=grid,
         turn_probability=1.0,
+        seed=1,
     )
     traj = model.generate_trajectory(10, time_step=1.0)
     assert traj
@@ -112,19 +108,24 @@ def test_reference_point_group_mobility(monkeypatch: pytest.MonkeyPatch):
     from app.mobility_models.models import ReferencePointGroupMobilityModel
 
     class Wrapper(ReferencePointGroupMobilityModel):
-        def __init__(self, ue_id, reference_model, relative_position, max_deviation=5.0, deviation_change_mean=10.0, start_time=None):
-            super().__init__(ue_id, group_center_model=reference_model,
-                             d_max=max_deviation, start_time=start_time)
+        def __init__(self, ue_id, reference_model, relative_position, max_deviation=5.0, deviation_change_mean=10.0, start_time=None, seed=None):
+            super().__init__(
+                ue_id,
+                group_center_model=reference_model,
+                d_max=max_deviation,
+                start_time=start_time,
+                seed=seed,
+            )
 
     monkeypatch.setitem(Adapter.MODEL_TYPES, "group", Wrapper)
-    random.seed(2)
-    np.random.seed(2)
+    
     ref_model = Adapter.get_mobility_model(
         "linear",
         ue_id="center",
         start_position=(0, 0, 0),
         end_position=(10, 0, 0),
         speed=1.0,
+        seed=2,
     )
     duration = 5
     center_traj = ref_model.generate_trajectory(duration, time_step=1.0)
@@ -134,6 +135,7 @@ def test_reference_point_group_mobility(monkeypatch: pytest.MonkeyPatch):
         reference_model=ref_model,
         relative_position=(0, 0, 0),
         max_deviation=2.0,
+        seed=2,
     )
     traj = group_model.generate_trajectory(duration, time_step=1.0)
     assert traj and len(traj) == len(center_traj)

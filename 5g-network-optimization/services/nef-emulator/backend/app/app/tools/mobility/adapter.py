@@ -64,7 +64,8 @@ class MobilityPatternAdapter:
                     start_position=params["start_position"],
                     end_position=params["end_position"],
                     speed=params["speed"],
-                    start_time=params.get("start_time")
+                    start_time=params.get("start_time"),
+                    seed=params.get("seed")
                 )
             elif model_type == "l_shaped":
                 required_params = ["start_position", "corner_position", "end_position", "speed"]
@@ -75,7 +76,8 @@ class MobilityPatternAdapter:
                     corner_position=params["corner_position"],
                     end_position=params["end_position"],
                     speed=params["speed"],
-                    start_time=params.get("start_time")
+                    start_time=params.get("start_time"),
+                    seed=params.get("seed")
                 )
             elif model_type == "random_directional":
                 required_params = ["start_position", "speed"]
@@ -86,8 +88,9 @@ class MobilityPatternAdapter:
                     speed=params["speed"],
                     area_bounds=params.get("area_bounds"),
                     direction_change_mean=params.get("direction_change_mean", 30.0),
-                    start_time=params.get("start_time")
-            )
+                    start_time=params.get("start_time"),
+                    seed=params.get("seed")
+                )
             elif model_type == "urban_grid":
                 required_params = ["start_position", "speed"]
                 cls._validate_required_params(params, required_params)
@@ -97,7 +100,8 @@ class MobilityPatternAdapter:
                     speed=params["speed"],
                     grid_size=params.get("grid_size", 50.0),
                     turn_probability=params.get("turn_probability", 0.3),
-                    start_time=params.get("start_time")
+                    start_time=params.get("start_time"),
+                    seed=params.get("seed")
                 )
             elif model_type == "group":
                 required_params = ["reference_model", "relative_position"]
@@ -108,7 +112,8 @@ class MobilityPatternAdapter:
                     relative_position=params["relative_position"],
                     max_deviation=params.get("max_deviation", 5.0),
                     deviation_change_mean=params.get("deviation_change_mean", 10.0),
-                    start_time=params.get("start_time")
+                    start_time=params.get("start_time"),
+                    seed=params.get("seed")
                 )
         except Exception as e:
             logger.error(f"Error creating mobility model: {str(e)}")
