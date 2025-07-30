@@ -32,9 +32,7 @@ def require_auth(func):
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
             resp = _check_token()
-            if resp is not None:
-                return resp
-            return await func(*args, **kwargs)
+            return resp if resp is not None else await func(*args, **kwargs)
 
         return async_wrapper
     else:
