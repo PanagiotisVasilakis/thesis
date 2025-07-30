@@ -9,6 +9,7 @@ from ..models import (
 
 from ..utils.synthetic_data import generate_synthetic_training_data
 from ..utils.tuning import tune_and_train
+from ..utils.env_utils import get_neighbor_count_from_env
 
 
 class ModelManager:
@@ -43,6 +44,9 @@ class ModelManager:
     ):
         """Initialize the LightGBM model with synthetic data if needed."""
         logger = logging.getLogger(__name__)
+
+        if neighbor_count is None:
+            neighbor_count = get_neighbor_count_from_env(logger=logger)
 
         if neighbor_count is None:
             model = LightGBMSelector(model_path=model_path)

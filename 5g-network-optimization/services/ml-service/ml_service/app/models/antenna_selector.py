@@ -6,6 +6,8 @@ import os
 import logging
 from sklearn.exceptions import NotFittedError
 
+from ..utils.env_utils import get_neighbor_count_from_env
+
 FALLBACK_ANTENNA_ID = "antenna_1"
 FALLBACK_CONFIDENCE = 0.5
 
@@ -58,15 +60,16 @@ class AntennaSelector:
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
 
+        if neighbor_count is None:
+            neighbor_count = get_neighbor_count_from_env(logger=logger)
+
         if neighbor_count and neighbor_count > 0:
             self.neighbor_count = int(neighbor_count)
             for idx in range(self.neighbor_count):
-                self.feature_names.extend(
-                    [
-                        f"rsrp_a{idx+1}",
-                        f"sinr_a{idx+1}",
-                    ]
-                )
+                self.feature_names.extend([
+                    f"rsrp_a{idx+1}",
+                    f"sinr_a{idx+1}",
+                ])
 
         # Try to load existing model
         try:

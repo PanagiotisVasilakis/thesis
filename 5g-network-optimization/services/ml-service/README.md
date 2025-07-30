@@ -114,6 +114,7 @@ The service reads configuration from the Flask app settings. Important variables
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 | `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
 | `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
+| `NEIGHBOR_COUNT` | Preallocate feature slots for this many neighbouring antennas | *(dynamic)* |
 
 The service always runs with a LightGBM model; no other model types are supported.
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
