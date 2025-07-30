@@ -5,6 +5,8 @@ from ml_service.app.monitoring.metrics import (
     MetricsMiddleware,
     track_prediction,
     track_training,
+    DataDriftMonitor,
+    MetricsCollector,
 )
 
 
@@ -50,3 +52,25 @@ def test_metrics_endpoint_exposes_counters(app):
     resp = client.get("/metrics")
     assert resp.status_code == 200
     assert b"ml_prediction_requests_total" in resp.data
+
+
+def test_drift_monitor_detects_change():
+    monitor = DataDriftMonitor(window_size=2)
+    monitor.update({"f1": 1.0})
+    monitor.update({"f1": 1.0})
+    assert monitor.compute_drift() == 0.0
+    monitor.update({"f1": 2.0})
+    monitor.update({"f1": 2.0})
+    assert monitor.compute_drift() > 0.0
+
+
+def test_metrics_collector_updates_error_rate(monkeypatch):
+    collector = MetricsCollector(interval=0.01)
+    collector.start()
+    # simulate two successful requests
+    metrics.PREDICTION_REQUESTS.labels(status="success").inc(2)
+    # simulate one error
+    metrics.PREDICTION_REQUESTS.labels(status="error").inc()
+    collector._update_error_rate()
+    assert metrics.ERROR_RATE._value.get() == 1 / 3
+    collector.stop()

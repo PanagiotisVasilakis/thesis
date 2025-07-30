@@ -34,6 +34,8 @@ def predict():
     model = load_model(current_app.config["MODEL_PATH"])
     result, features = predict_ue(req.dict(exclude_none=True), model=model)
     track_prediction(result["antenna_id"], result["confidence"])
+    if hasattr(current_app, "metrics_collector"):
+        current_app.metrics_collector.drift_monitor.update(features)
 
     return jsonify(
         {
