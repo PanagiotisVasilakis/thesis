@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.models.antenna_selector import (
@@ -207,18 +208,25 @@ def test_altitude_feature_in_training():
     assert extracted["altitude"] == 1.0
 
 
-def test_default_prediction_unfitted_model(tmp_path):
+def test_default_prediction_unfitted_model(tmp_path, caplog):
     """Predict on a fresh model without prior training."""
     model_path = tmp_path / "untrained.joblib"
     model = LightGBMSelector(model_path=str(model_path))
 
     features = model.extract_features({})
+    features["ue_id"] = "u1"
+    caplog.set_level(logging.WARNING)
     prediction = model.predict(features)
 
     assert prediction == {
         "antenna_id": FALLBACK_ANTENNA_ID,
         "confidence": FALLBACK_CONFIDENCE,
     }
+
+    assert any(
+        "default antenna" in rec.getMessage().lower() and "u1" in rec.getMessage()
+        for rec in caplog.records
+    )
 
     if model_path.exists():
         model_path.unlink()
