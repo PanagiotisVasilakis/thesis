@@ -50,5 +50,5 @@ reportlab==3.6.12
 tensorflow==2.15.0
 mlflow==2.12.1
 feast==0.35.0
-pandas==2.3.1
+pandas==1.5.3
 pyarrow==14.0.1
