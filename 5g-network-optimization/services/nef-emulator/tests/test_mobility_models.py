@@ -1,7 +1,6 @@
 # services/nef-emulator/tests/test_mobility_models.py
 
 import math
-import random
 from datetime import datetime
 import pytest
 
@@ -163,12 +162,7 @@ def test_reference_point_group_mobility():
 
 def test_random_directional_mobility():
     """Random Directional model stays in bounds with consistent timing."""
-    import random
-    import numpy as np
-
-    random.seed(0)
-    np.random.seed(0)
-
+    
     bounds = [(0, 100), (0, 100), (0, 0)]
     start = (50, 50, 0)
     speed = 5.0
@@ -179,6 +173,7 @@ def test_random_directional_mobility():
         area_bounds=bounds,
         direction_change_mean=5.0,
         start_time=datetime(2025, 1, 1),
+        seed=0,
     )
     traj = model.generate_trajectory(30, time_step=1.0)
     assert traj
@@ -208,9 +203,6 @@ def test_random_directional_mobility():
 
 def test_urban_grid_mobility():
     """Urban grid obeys turning probability and grid alignment."""
-    import random
-
-    random.seed(1)
 
     grid = 20.0
     model = UrbanGridMobilityModel(
@@ -220,6 +212,7 @@ def test_urban_grid_mobility():
         grid_size=grid,
         turn_probability=1.0,
         start_time=datetime(2025, 1, 1),
+        seed=1,
     )
 
     traj = model.generate_trajectory(20, time_step=1.0)
@@ -277,7 +270,6 @@ def test_get_position_at_time_linear():
 
 
 def test_get_position_at_time_random_waypoint():
-    random.seed(0)
     model = RandomWaypointModel(
         ue_id="interp_rwp",
         area_bounds=((0, 0, 0), (10, 10, 0)),
@@ -285,5 +277,6 @@ def test_get_position_at_time_random_waypoint():
         v_max=2.0,
         pause_time=0.0,
         start_time=datetime(2025, 1, 1),
+        seed=0,
     )
     _check_interpolation(model)

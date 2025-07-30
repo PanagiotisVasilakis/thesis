@@ -4,6 +4,7 @@ import lightgbm as lgb
 import joblib
 import os
 import logging
+from sklearn.exceptions import NotFittedError
 
 FALLBACK_ANTENNA_ID = "antenna_1"
 FALLBACK_CONFIDENCE = 0.5
