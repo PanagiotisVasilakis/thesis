@@ -6,12 +6,17 @@ from datetime import datetime, timedelta
 class MobilityModel:
     """Base class for mobility models from 3GPP TR 38.901 Section 7.6."""
 
-    def __init__(self, ue_id, start_time=None, mobility_params=None):
+    def __init__(self, ue_id, start_time=None, mobility_params=None, seed=None):
         self.ue_id = ue_id
         self.start_time = start_time or datetime.now()
         self.mobility_params = mobility_params or {}
         self.current_position = None
         self.trajectory = []
+        self.seed = seed
+        if seed is not None:
+            # Seed both Python's and NumPy's RNGs for deterministic behaviour
+            random.seed(seed)
+            np.random.seed(seed)
 
     def generate_trajectory(self, duration_seconds, time_step=1.0):
         """Generate trajectory points for the specified duration."""
@@ -54,9 +59,9 @@ class MobilityModel:
 
 class LinearMobilityModel(MobilityModel):
     """Linear mobility model from 3GPP TR 38.901 Section 7.6.3.2."""
-    
-    def __init__(self, ue_id, start_position, end_position, speed, start_time=None):
-        super().__init__(ue_id, start_time)
+
+    def __init__(self, ue_id, start_position, end_position, speed, start_time=None, seed=None):
+        super().__init__(ue_id, start_time, seed=seed)
         self.start_position = start_position  # (x, y, z) in meters
         self.end_position = end_position  # (x, y, z) in meters
         self.speed = speed  # meters per second
@@ -108,9 +113,9 @@ class LinearMobilityModel(MobilityModel):
 
 class LShapedMobilityModel(MobilityModel):
     """L-shaped path composed of two linear segments (TR 38.901 §7.6.3.2)."""
-    
-    def __init__(self, ue_id, start_position, corner_position, end_position, speed, start_time=None):
-        super().__init__(ue_id, start_time)
+
+    def __init__(self, ue_id, start_position, corner_position, end_position, speed, start_time=None, seed=None):
+        super().__init__(ue_id, start_time, seed=seed)
         self.start_position = start_position  # (x, y, z) in meters
         self.corner_position = corner_position  # (x, y, z) in meters
         self.end_position = end_position  # (x, y, z) in meters
@@ -176,8 +181,8 @@ class RandomWaypointModel(MobilityModel):
     - Pause for pause_time seconds
     Repeat until duration ends.
     """
-    def __init__(self, ue_id, area_bounds, v_min, v_max, pause_time, start_time=None):
-        super().__init__(ue_id, start_time)
+    def __init__(self, ue_id, area_bounds, v_min, v_max, pause_time, start_time=None, seed=None):
+        super().__init__(ue_id, start_time, seed=seed)
         self.area_bounds = area_bounds    # ((xmin,ymin,z),(xmax,ymax,z))
         self.v_min = v_min
         self.v_max = v_max
@@ -246,8 +251,8 @@ class ManhattanGridMobilityModel(MobilityModel):
     - Moves only along X or Y axis on a grid.
     - At intersections: P(straight)=0.5, P(left)=0.25, P(right)=0.25
     """
-    def __init__(self, ue_id, grid_size, speed, start_time=None):
-        super().__init__(ue_id, start_time)
+    def __init__(self, ue_id, grid_size, speed, start_time=None, seed=None):
+        super().__init__(ue_id, start_time, seed=seed)
         self.grid_size = grid_size  # (x_count, y_count, block_length)
         self.speed = speed
         # initialize at random grid intersection
@@ -307,8 +312,8 @@ class ReferencePointGroupMobilityModel(MobilityModel):
     - A logical group “center” moves by some base model (e.g. RandomWaypoint)
     - Each member’s position = group_center + random offset (<= d_max)
     """
-    def __init__(self, ue_id, group_center_model, d_max, start_time=None):
-        super().__init__(ue_id, start_time)
+    def __init__(self, ue_id, group_center_model, d_max, start_time=None, seed=None):
+        super().__init__(ue_id, start_time, seed=seed)
         self.group_center_model = group_center_model
         self.d_max = d_max  # maximum radius from group center
 
@@ -344,8 +349,8 @@ class RandomDirectionalMobilityModel(MobilityModel):
     The UE moves in random directions, changing direction at random intervals.
     """
     
-    def __init__(self, ue_id, start_position, speed, area_bounds=None, 
-                 direction_change_mean=30.0, start_time=None):
+    def __init__(self, ue_id, start_position, speed, area_bounds=None,
+                 direction_change_mean=30.0, start_time=None, seed=None):
         """
         Initialize the random directional mobility model.
         
@@ -357,7 +362,7 @@ class RandomDirectionalMobilityModel(MobilityModel):
             direction_change_mean: Mean time between direction changes in seconds
             start_time: Starting time
         """
-        super().__init__(ue_id, start_time)
+        super().__init__(ue_id, start_time, seed=seed)
         self.start_position = start_position
         self.current_position = start_position
         self.speed = speed
@@ -465,8 +470,8 @@ class UrbanGridMobilityModel(MobilityModel):
     with random turns at intersections.
     """
     
-    def __init__(self, ue_id, start_position, speed, grid_size=50.0, 
-                 turn_probability=0.3, start_time=None):
+    def __init__(self, ue_id, start_position, speed, grid_size=50.0,
+                 turn_probability=0.3, start_time=None, seed=None):
         """
         Initialize the urban grid mobility model.
         
@@ -478,7 +483,7 @@ class UrbanGridMobilityModel(MobilityModel):
             turn_probability: Probability of turning at an intersection
             start_time: Starting time
         """
-        super().__init__(ue_id, start_time)
+        super().__init__(ue_id, start_time, seed=seed)
         self.start_position = start_position
         self.current_position = start_position
         self.speed = speed
