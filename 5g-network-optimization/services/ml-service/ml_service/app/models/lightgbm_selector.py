@@ -66,8 +66,8 @@ class LightGBMSelector(AntennaSelector):
         self.model.fit(X_train, y_train, **fit_params)
 
         metrics = {
-            "samples": int(len(X_arr)),
-            "classes": int(len(set(y_arr))),
+            "samples": len(X_arr),
+            "classes": len(set(y_arr)),
             "feature_importance": {
                 name: float(val)
                 for name, val in zip(
