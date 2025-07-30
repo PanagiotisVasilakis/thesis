@@ -12,6 +12,12 @@ class PredictionRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     speed: Optional[float] = None
+    velocity: Optional[float] = None
+    acceleration: Optional[float] = None
+    cell_load: Optional[float] = None
+    handover_count: Optional[int] = None
+    signal_trend: Optional[float] = None
+    environment: Optional[float] = None
     direction: Optional[List[float]] = None
     connected_to: Optional[str] = None
     rf_metrics: Optional[Dict[str, Dict[str, float]]] = None

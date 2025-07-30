@@ -20,9 +20,15 @@ class NEFDataCollector:
         self.password = password
         self.data_dir = os.path.join(os.path.dirname(__file__), 'collected_data')
         os.makedirs(self.data_dir, exist_ok=True)
-        
+
         # Set up logger for this collector
         self.logger = logging.getLogger('NEFDataCollector')
+
+        # Tracking previous metrics to compute derived features
+        self._prev_speed: dict[str, float] = {}
+        self._prev_cell: dict[str, str] = {}
+        self._handover_counts: dict[str, int] = {}
+        self._prev_signal: dict[str, dict[str, float]] = {}
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -114,6 +120,22 @@ class NEFDataCollector:
         rsrps = fv.get("neighbor_rsrp_dbm", {})
         sinrs = fv.get("neighbor_sinrs", {})
         rsrqs = fv.get("neighbor_rsrqs", {})
+        cell_load = fv.get("cell_load")
+        environment = fv.get("environment")
+        velocity = fv.get("velocity")
+        acceleration = fv.get("acceleration")
+        signal_trend = fv.get("signal_trend")
+
+        if not isinstance(cell_load, (int, float)):
+            cell_load = None
+        if not isinstance(environment, (int, float)):
+            environment = None
+        if not isinstance(velocity, (int, float)):
+            velocity = None
+        if not isinstance(acceleration, (int, float)):
+            acceleration = None
+        if not isinstance(signal_trend, (int, float)):
+            signal_trend = None
 
         connected_cell_id = ue_data.get("Cell_id")
         rf_metrics: dict[str, dict] = {}
@@ -137,12 +159,60 @@ class NEFDataCollector:
                 best_sinr = sinr_val
                 best_antenna = aid
 
+        speed = ue_data.get("speed")
+        prev_speed = self._prev_speed.get(ue_id)
+        if acceleration is None and prev_speed is not None and speed is not None:
+            acceleration = speed - prev_speed
+        self._prev_speed[ue_id] = speed if speed is not None else 0
+
+        prev_cell = self._prev_cell.get(ue_id)
+        if prev_cell is not None and prev_cell != connected_cell_id:
+            self._handover_counts[ue_id] = self._handover_counts.get(ue_id, 0) + 1
+        self._prev_cell[ue_id] = connected_cell_id
+        handover_count = self._handover_counts.get(ue_id, 0)
+
+        prev_sig = self._prev_signal.get(ue_id)
+        cur_rsrp = rsrps.get(connected_cell_id)
+        cur_sinr = sinrs.get(connected_cell_id)
+        cur_rsrq = rsrqs.get(connected_cell_id)
+        if signal_trend is None and prev_sig:
+            diffs = []
+            if cur_rsrp is not None:
+                diffs.append(cur_rsrp - prev_sig.get("rsrp", 0))
+            if cur_sinr is not None:
+                diffs.append(cur_sinr - prev_sig.get("sinr", 0))
+            if cur_rsrq is not None:
+                diffs.append(cur_rsrq - prev_sig.get("rsrq", 0))
+            signal_trend = sum(diffs) / len(diffs) if diffs else 0
+        self._prev_signal[ue_id] = {
+            "rsrp": cur_rsrp or 0,
+            "sinr": cur_sinr or 0,
+            "rsrq": cur_rsrq or 0,
+        }
+
+        if cell_load is None:
+            cell_load = len(rsrps) / 10.0 if rsrps else 0.0
+        if velocity is None:
+            velocity = speed
+        if acceleration is None:
+            acceleration = 0.0
+        if signal_trend is None:
+            signal_trend = 0.0
+        if environment is None:
+            environment = 0.0
+
         return {
             "timestamp": datetime.now().isoformat(),
             "ue_id": ue_id,
             "latitude": ue_data.get("latitude"),
             "longitude": ue_data.get("longitude"),
-            "speed": ue_data.get("speed"),
+            "speed": speed,
+            "velocity": velocity,
+            "acceleration": acceleration,
+            "cell_load": cell_load,
+            "handover_count": handover_count,
+            "signal_trend": signal_trend,
+            "environment": environment,
             "connected_to": connected_cell_id,
             "optimal_antenna": best_antenna,
             "rf_metrics": rf_metrics,

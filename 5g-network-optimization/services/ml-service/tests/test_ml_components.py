@@ -39,6 +39,8 @@ def test_feature_extraction():
 
     expected_features = [
         'latitude', 'longitude', 'altitude', 'speed',
+        'velocity', 'acceleration', 'cell_load', 'handover_count',
+        'signal_trend', 'environment',
         'direction_x', 'direction_y',
         'rsrp_current', 'sinr_current', 'rsrq_current',
         'best_rsrp_diff', 'best_sinr_diff', 'best_rsrq_diff',
