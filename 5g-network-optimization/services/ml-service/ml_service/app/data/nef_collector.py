@@ -94,10 +94,14 @@ class NEFDataCollector:
                 self.logger.error(f"Error during data collection: {str(e)}")
                 await asyncio.sleep(interval)
 
-        if collected_data:
-            self._save_collected_data(collected_data)
-        else:
-            self.logger.warning("No data collected")
+        # Always persist a file, even when no samples were collected, so that
+        # downstream processes relying on a training data artifact can operate
+        # consistently.  When the dataset is empty we still create an empty JSON
+        # file and log a warning for visibility.
+        if not collected_data:
+            self.logger.warning("No data collected; writing empty data file")
+
+        self._save_collected_data(collected_data)
 
         return collected_data
 
@@ -144,6 +148,12 @@ class NEFDataCollector:
         os.makedirs(self.data_dir, exist_ok=True)
         with open(filename, "w") as f:
             json.dump(collected_data, f, indent=2)
-        self.logger.info(
-            f"Collected {len(collected_data)} samples, saved to {filename}"
-        )
+
+        if not collected_data:
+            self.logger.warning(
+                f"Saved empty training data file to {filename}"
+            )
+        else:
+            self.logger.info(
+                f"Collected {len(collected_data)} samples, saved to {filename}"
+            )
