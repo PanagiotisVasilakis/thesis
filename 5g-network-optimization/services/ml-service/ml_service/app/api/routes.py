@@ -9,7 +9,8 @@ from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 from ..clients.nef_client import NEFClient, NEFClientError
 from ..monitoring.metrics import track_prediction, track_training
-from ..schemas import PredictionRequest, TrainingSample
+from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
+from ..initialization.model_init import ModelManager
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -157,3 +158,28 @@ async def collect_data():
         )
 
     return jsonify({"samples": len(samples), "file": latest})
+
+
+@api_bp.route("/feedback", methods=["POST"])
+def feedback():
+    """Receive handover outcome feedback from the NEF emulator."""
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    data_list = payload if isinstance(payload, list) else [payload]
+    samples = []
+    try:
+        for item in data_list:
+            samples.append(FeedbackSample.parse_obj(item))
+    except ValidationError as err:
+        return jsonify({"error": err.errors()}), 400
+
+    retrained = False
+    for sample in samples:
+        retrained = ModelManager.feed_feedback(
+            sample.dict(exclude_none=True, exclude={"success"}),
+            success=sample.success,
+        ) or retrained
+
+    return jsonify({"status": "received", "samples": len(samples), "retrained": retrained})

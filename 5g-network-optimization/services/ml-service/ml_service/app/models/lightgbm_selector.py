@@ -68,9 +68,12 @@ class LightGBMSelector(AntennaSelector):
         metrics = {
             "samples": len(X_arr),
             "classes": len(set(y_arr)),
-            "feature_importance": dict(
-                zip(self.feature_names, self.model.feature_importances_)
-            ),
+            "feature_importance": {
+                name: float(val)
+                for name, val in zip(
+                    self.feature_names, self.model.feature_importances_
+                )
+            },
         }
 
         if eval_set:

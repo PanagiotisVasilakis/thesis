@@ -114,3 +114,18 @@ def test_collect_data_oserror(client, monkeypatch):
     assert data["file"] is None
     collector.collect_training_data.assert_awaited_once()
 
+
+
+def test_feedback_route(client, monkeypatch):
+    called = {}
+    def fake_feed(sample, success=True):
+        called.setdefault('count', 0)
+        called['count'] += 1
+        return False
+    monkeypatch.setattr("ml_service.app.api.routes.ModelManager.feed_feedback", fake_feed)
+
+    resp = client.post("/api/feedback", json={"optimal_antenna": "a1", "success": True})
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["samples"] == 1
+    assert called['count'] == 1
