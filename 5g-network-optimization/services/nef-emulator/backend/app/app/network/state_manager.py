@@ -9,12 +9,18 @@ import math
 class NetworkStateManager:
     """Manages UEs, antennas, connections, and history for ML integration."""
 
-    def __init__(self, a3_hysteresis_db: float = 2.0, a3_ttt_s: float = 0.0):
+    def __init__(
+        self,
+        a3_hysteresis_db: float = 2.0,
+        a3_ttt_s: float = 0.0,
+        resource_blocks: int = 50,
+    ):
         """Initialize the network state manager.
 
         Parameters can be overridden by the following environment variables:
         A3_HYSTERESIS_DB - hysteresis in dB for the A3 event
         A3_TTT_S - time-to-trigger in seconds for the A3 event
+        RESOURCE_BLOCKS - number of resource blocks for RSRQ calculation
         """
         # Read overrides from environment variables
 
@@ -50,7 +56,18 @@ class NetworkStateManager:
                     "Invalid value for NOISE_FLOOR_DBM: "
                     f"'{env_noise}'. Using default."
                 )
+        env_rbs = os.getenv("RESOURCE_BLOCKS")
+        if env_rbs is not None:
+            try:
+                resource_blocks = int(env_rbs)
+            except ValueError:
+                self.logger.warning(
+                    "Invalid value for RESOURCE_BLOCKS: '%s'. Using default.",
+                    env_rbs,
+                )
+
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
+        self.resource_blocks = max(int(resource_blocks), 1)
 
     def get_feature_vector(self, ue_id):
         """
@@ -73,7 +90,7 @@ class NetworkStateManager:
         rsrp_mw = {aid: 10 ** (dbm / 10.0) for aid, dbm in rsrp_dbm.items()}
         noise_mw = 10 ** (self.noise_floor_dbm / 10.0)
 
-        # Compute per-antenna SINR
+        # Compute per-antenna SINR and RSRQ
         neighbor_sinrs = {}
         neighbor_rsrqs = {}
         for aid, sig in rsrp_mw.items():
@@ -83,8 +100,9 @@ class NetworkStateManager:
             neighbor_sinrs[aid] = (
                 10 * math.log10(lin) if lin > 0 else -float("inf")
             )
+
             rssi = sig + denom
-            rsrq_lin = sig / rssi if rssi > 0 else 0.0
+            rsrq_lin = (self.resource_blocks * sig) / rssi if rssi > 0 else 0.0
             neighbor_rsrqs[aid] = (
                 10 * math.log10(rsrq_lin) if rsrq_lin > 0 else -float("inf")
             )
