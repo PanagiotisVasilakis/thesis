@@ -69,7 +69,7 @@ class LightGBMSelector(AntennaSelector):
             "samples": int(len(X_arr)),
             "classes": int(len(set(y_arr))),
             "feature_importance": {
-                name: int(val)
+                name: float(val)
                 for name, val in zip(
                     self.feature_names, self.model.feature_importances_
                 )
