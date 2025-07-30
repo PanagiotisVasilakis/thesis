@@ -4,7 +4,9 @@ import lightgbm as lgb
 import joblib
 import os
 import logging
-from sklearn.exceptions import NotFittedError
+
+FALLBACK_ANTENNA_ID = "antenna_1"
+FALLBACK_CONFIDENCE = 0.5
 
 logger = logging.getLogger(__name__)
 
@@ -180,8 +182,8 @@ class AntennaSelector:
                         exc,
                     )
             return {
-                "antenna_id": "antenna_1",
-                "confidence": 0.5,
+                "antenna_id": FALLBACK_ANTENNA_ID,
+                "confidence": FALLBACK_CONFIDENCE,
             }
 
         return {"antenna_id": antenna_id, "confidence": float(confidence)}

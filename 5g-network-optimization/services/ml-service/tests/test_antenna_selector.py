@@ -2,6 +2,10 @@ import numpy as np
 import logging
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
+from ml_service.app.models.antenna_selector import (
+    FALLBACK_ANTENNA_ID,
+    FALLBACK_CONFIDENCE,
+)
 
 
 def test_extract_features_defaults():
@@ -77,7 +81,10 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     # Simulate untrained state
     model.model = object()
     default_pred = model.predict(sample_features)
-    assert default_pred == {"antenna_id": "antenna_1", "confidence": 0.5}
+    assert default_pred == {
+        "antenna_id": FALLBACK_ANTENNA_ID,
+        "confidence": FALLBACK_CONFIDENCE,
+    }
 
     model._initialize_model()
     metrics = model.train(data)
@@ -212,8 +219,8 @@ def test_default_prediction_unfitted_model(tmp_path, caplog):
     prediction = model.predict(features)
 
     assert prediction == {
-        "antenna_id": "antenna_1",
-        "confidence": 0.5,
+        "antenna_id": FALLBACK_ANTENNA_ID,
+        "confidence": FALLBACK_CONFIDENCE,
     }
 
     assert any(
