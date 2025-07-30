@@ -108,11 +108,14 @@ class AntennaSelector:
         """Return RSRP/SINR/RSRQ for the currently connected antenna."""
         if current and current in metrics:
             data = metrics[current]
-            return (
-                data.get("rsrp", -120),
-                data.get("sinr", 0),
-                data.get("rsrq", -30),
-            )
+            rsrp = data.get("rsrp", -120)
+            sinr = data.get("sinr")
+            rsrq = data.get("rsrq")
+            if sinr is None:
+                sinr = 0
+            if rsrq is None:
+                rsrq = -30
+            return rsrp, sinr, rsrq
         return -120, 0, -30
 
     def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
@@ -123,8 +126,8 @@ class AntennaSelector:
             (
                 aid,
                 vals.get("rsrp", -120),
-                vals.get("sinr", 0),
-                vals.get("rsrq", -30),
+                vals.get("sinr") if vals.get("sinr") is not None else 0,
+                vals.get("rsrq") if vals.get("rsrq") is not None else -30,
             )
             for aid, vals in metrics.items()
             if aid != current

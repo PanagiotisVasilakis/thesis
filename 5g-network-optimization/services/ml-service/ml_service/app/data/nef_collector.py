@@ -124,7 +124,12 @@ class NEFDataCollector:
         for aid, rsrp in rsrps.items():
             sinr = sinrs.get(aid)
             rsrq = rsrqs.get(aid)
-            rf_metrics[aid] = {"rsrp": rsrp, "sinr": sinr, "rsrq": rsrq}
+            metrics = {"rsrp": rsrp}
+            if sinr is not None:
+                metrics["sinr"] = sinr
+            if rsrq is not None:
+                metrics["rsrq"] = rsrq
+            rf_metrics[aid] = metrics
 
             sinr_val = sinr if sinr is not None else float("-inf")
             if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
