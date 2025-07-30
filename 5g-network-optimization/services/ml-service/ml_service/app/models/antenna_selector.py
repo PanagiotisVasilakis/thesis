@@ -19,6 +19,12 @@ DEFAULT_TEST_FEATURES = {
     "speed": 1.0,
     "direction_x": 0.7,
     "direction_y": 0.7,
+    "velocity": 1.0,
+    "acceleration": 0.0,
+    "cell_load": 0.0,
+    "handover_count": 0,
+    "signal_trend": 0.0,
+    "environment": 0.0,
     "rsrp_current": -90,
     "sinr_current": 10,
     "rsrq_current": -10,
@@ -53,6 +59,12 @@ class AntennaSelector:
             "speed",
             "direction_x",
             "direction_y",
+            "velocity",
+            "acceleration",
+            "cell_load",
+            "handover_count",
+            "signal_trend",
+            "environment",
             "rsrp_current",
             "sinr_current",
             "rsrq_current",
@@ -143,6 +155,25 @@ class AntennaSelector:
             "altitude": data.get("altitude", 0),
             "speed": data.get("speed", 0),
         }
+
+        # Velocity defaults to the provided value, falling back to speed
+        vel = data.get("velocity")
+        if vel is None:
+            vel = data.get("speed", 0)
+        features["velocity"] = vel if vel is not None else 0
+
+        # Simple acceleration estimate if previous speed is given
+        features["acceleration"] = data.get("acceleration", 0)
+
+        features["cell_load"] = data.get("cell_load", 0)
+        # handover history may be provided as list or count
+        if "handover_count" in data:
+            features["handover_count"] = data.get("handover_count", 0)
+        else:
+            hist = data.get("handover_history")
+            features["handover_count"] = len(hist) if isinstance(hist, list) else 0
+        features["signal_trend"] = data.get("signal_trend", 0)
+        features["environment"] = data.get("environment", 0)
 
         dx, dy = self._direction_to_unit(data.get("direction", (0, 0, 0)))
         features["direction_x"] = dx
