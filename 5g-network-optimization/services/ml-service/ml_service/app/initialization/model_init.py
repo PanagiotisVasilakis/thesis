@@ -57,6 +57,8 @@ class ModelManager:
     _lock = threading.Lock()
     # Bounded buffer holding recent feedback samples for potential retraining
     _feedback_data: deque[dict] = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
+    # Path of the last successfully initialized model
+    _last_good_model_path: str | None = None
 
     @classmethod
     def get_instance(
@@ -100,6 +102,11 @@ class ModelManager:
         """Initialize the ML model with synthetic data if needed."""
         logger = logging.getLogger(__name__)
 
+        # Preserve the current model state in case initialization fails
+        with cls._lock:
+            previous_model = cls._model_instance
+            previous_path = cls._last_good_model_path
+
         if neighbor_count is None:
             neighbor_count = get_neighbor_count_from_env(logger=logger)
 
@@ -125,65 +132,77 @@ class ModelManager:
                 MODEL_VERSION,
             )
 
-        model_cls = MODEL_CLASSES.get(model_type, LightGBMSelector)
-        if neighbor_count is None:
-            model = model_cls(model_path=model_path)
-        else:
-            model = model_cls(model_path=model_path, neighbor_count=neighbor_count)
+        try:
+            model_cls = MODEL_CLASSES.get(model_type, LightGBMSelector)
+            if neighbor_count is None:
+                model = model_cls(model_path=model_path)
+            else:
+                model = model_cls(
+                    model_path=model_path, neighbor_count=neighbor_count
+                )
 
-        # Determine if the model is already trained
-        loaded = False
-        if model_path and os.path.exists(model_path):
-            loaded = model.load(model_path)
-        if loaded:
-            logger.info("Model is already trained and ready")
+            # Determine if the model is already trained
+            loaded = False
+            if model_path and os.path.exists(model_path):
+                loaded = model.load(model_path)
+            if loaded:
+                logger.info("Model is already trained and ready")
+                with cls._lock:
+                    cls._model_instance = model
+                    cls._last_good_model_path = model_path
+                return model
+
+            # Model needs training
+            logger.info("Model needs training")
+
+            # Generate synthetic data and train
+            logger.info("Generating synthetic training data...")
+            training_data = generate_synthetic_training_data(500)
+
+            if model_type == "lightgbm" and os.getenv("LIGHTGBM_TUNE") == "1":
+                n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
+                cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
+                logger.info(
+                    "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
+                    n_iter,
+                    cv,
+                )
+                metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
+            else:
+                logger.info("Training model with synthetic data...")
+                metrics = model.train(training_data)
+
+            logger.info(
+                f"Model trained successfully with {metrics.get('samples')} samples"
+            )
+
+            # Save the model and metadata
+            if model_path:
+                model.save(model_path)
+                logger.info(f"Model saved to {model_path}")
+                meta_path = model_path + ".meta.json"
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "model_type": model_type,
+                            "metrics": metrics,
+                            "version": MODEL_VERSION,
+                        },
+                        f,
+                    )
+                logger.info(f"Metadata saved to {meta_path}")
+
             with cls._lock:
                 cls._model_instance = model
+                cls._last_good_model_path = model_path
             return model
-
-        # Model needs training
-        logger.info("Model needs training")
-
-        # Generate synthetic data and train
-        logger.info("Generating synthetic training data...")
-        training_data = generate_synthetic_training_data(500)
-
-        if model_type == "lightgbm" and os.getenv("LIGHTGBM_TUNE") == "1":
-            n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
-            cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
-            logger.info(
-                "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
-                n_iter,
-                cv,
-            )
-            metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
-        else:
-            logger.info("Training model with synthetic data...")
-            metrics = model.train(training_data)
-
-        logger.info(
-            f"Model trained successfully with {metrics.get('samples')} samples"
-        )
-
-        # Save the model and metadata
-        if model_path:
-            model.save(model_path)
-            logger.info(f"Model saved to {model_path}")
-            meta_path = model_path + ".meta.json"
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "model_type": model_type,
-                        "metrics": metrics,
-                        "version": MODEL_VERSION,
-                    },
-                    f,
-                )
-            logger.info(f"Metadata saved to {meta_path}")
-
-        with cls._lock:
-            cls._model_instance = model
-        return model
+        except Exception as exc:  # noqa: BLE001 - log failure
+            logger.exception("Model initialization failed: %s", exc)
+            # Restore previous model instance if available
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+            raise
 
     @classmethod
     def feed_feedback(cls, sample: dict, *, success: bool = True) -> bool:
