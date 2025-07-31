@@ -203,6 +203,6 @@ class MobilityMetricTracker:
             )
 
         buf = self._positions[ue_id]
-        buf.append((float(lat), float(lon)))
+        buf.append((lat, lon))
 
         return compute_heading_change_rate(buf), compute_path_curvature(buf)
