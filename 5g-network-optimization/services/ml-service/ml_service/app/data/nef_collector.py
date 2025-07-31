@@ -278,9 +278,6 @@ class NEFDataCollector:
             "timestamp": datetime.now().isoformat(),
             "ue_id": ue_id,
             "latitude": ue_data.get("latitude"),
-            "altitude": ue_data.get("altitude")
-            if ue_data.get("altitude") is not None
-            else fv.get("altitude"),
             "longitude": ue_data.get("longitude"),
             "heading_change_rate": heading_change_rate,
             "path_curvature": path_curvature,
