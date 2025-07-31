@@ -9,6 +9,18 @@ def test_heading_change_rate_straight_line():
     pts = [(0, 0), (1, 0), (2, 0)]
     assert compute_heading_change_rate(pts) == 0.0
 
+def test_heading_change_rate_empty_input():
+    pts = []
+    assert compute_heading_change_rate(pts) == 0.0
+
+def test_heading_change_rate_single_point():
+    pts = [(0, 0)]
+    assert compute_heading_change_rate(pts) == 0.0
+
+def test_heading_change_rate_two_identical_points():
+    pts = [(1, 1), (1, 1)]
+    assert compute_heading_change_rate(pts) == 0.0
+
 
 def test_heading_change_rate_turn():
     pts = [(0, 0), (1, 0), (1, 1)]
