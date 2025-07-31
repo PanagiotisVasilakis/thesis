@@ -14,4 +14,7 @@ using canary releases.
    promotion.
 
 The Feast feature store under `feast_repo/` stores training features so model
-training scripts can fetch consistent data across environments.
+training scripts can fetch consistent data across environments.  The feature
+view includes mobility metrics such as `heading_change_rate`,
+`path_curvature`, per-user signal variance and altitude in addition to basic
+location and handover statistics.
