@@ -8,7 +8,13 @@ import asyncio
 import time
 from collections import deque
 
+from ..utils.mobility_metrics import (
+    compute_heading_change_rate,
+    compute_path_curvature,
+)
+
 SIGNAL_WINDOW_SIZE = int(os.getenv("SIGNAL_WINDOW_SIZE", "5"))
+POSITION_WINDOW_SIZE = int(os.getenv("POSITION_WINDOW_SIZE", "5"))
 
 from ..clients.nef_client import NEFClient, NEFClientError
 
@@ -36,6 +42,8 @@ class NEFDataCollector:
         self._signal_buffer: dict[str, dict[str, deque]] = {}
         # Timestamp of last handover event per UE for time_since_handover
         self._last_handover_ts: dict[str, float] = {}
+        # Rolling window of recent position samples per UE
+        self._position_buffer: dict[str, deque] = {}
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -205,6 +213,17 @@ class NEFDataCollector:
         cur_rsrq = rsrqs.get(connected_cell_id)
         if not isinstance(cur_rsrq, (int, float)):
             cur_rsrq = None
+
+        pos_buf = self._position_buffer.setdefault(
+            ue_id, deque(maxlen=POSITION_WINDOW_SIZE)
+        )
+        lat = ue_data.get("latitude")
+        lon = ue_data.get("longitude")
+        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
+            pos_buf.append((float(lat), float(lon)))
+        heading_change_rate = compute_heading_change_rate(list(pos_buf))
+        path_curvature = compute_path_curvature(list(pos_buf))
+
         buf = self._signal_buffer.setdefault(
             ue_id,
             {
@@ -258,6 +277,8 @@ class NEFDataCollector:
             "ue_id": ue_id,
             "latitude": ue_data.get("latitude"),
             "longitude": ue_data.get("longitude"),
+            "heading_change_rate": heading_change_rate,
+            "path_curvature": path_curvature,
             "speed": speed,
             "velocity": velocity,
             "acceleration": acceleration,
