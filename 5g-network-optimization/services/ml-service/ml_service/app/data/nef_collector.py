@@ -11,6 +11,7 @@ from collections import deque
 from ..utils.mobility_metrics import (
     compute_heading_change_rate,
     compute_path_curvature,
+    MobilityMetricTracker,
 )
 
 SIGNAL_WINDOW_SIZE = int(os.getenv("SIGNAL_WINDOW_SIZE", "5"))
@@ -44,6 +45,8 @@ class NEFDataCollector:
         self._last_handover_ts: dict[str, float] = {}
         # Rolling window of recent position samples per UE
         self._position_buffer: dict[str, deque] = {}
+        # Incremental mobility metric trackers per UE
+        self._metric_trackers: dict[str, MobilityMetricTracker] = {}
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -224,10 +227,13 @@ class NEFDataCollector:
         )
         lat = ue_data.get("latitude")
         lon = ue_data.get("longitude")
+        tracker = self._metric_trackers.setdefault(ue_id, MobilityMetricTracker())
         if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
-            pos_buf.append((float(lat), float(lon)))
-        heading_change_rate = compute_heading_change_rate(list(pos_buf))
-        path_curvature = compute_path_curvature(list(pos_buf))
+            coord = (float(lat), float(lon))
+            pos_buf.append(coord)
+            tracker.update(coord)
+        heading_change_rate = tracker.heading_change_rate
+        path_curvature = tracker.path_curvature
 
         buf = self._signal_buffer.setdefault(
             ue_id,
