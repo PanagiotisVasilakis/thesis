@@ -57,6 +57,111 @@ class ModelManager:
     _lock = threading.Lock()
     # Bounded buffer holding recent feedback samples for potential retraining
     _feedback_data: deque[dict] = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
+    # Signal set when initialization completes
+    _init_event = threading.Event()
+    # Background initialization thread
+    _init_thread: threading.Thread | None = None
+
+    @classmethod
+    def _initialize_sync(
+        cls,
+        model_path: str | None,
+        neighbor_count: int | None,
+        model_type: str | None,
+    ):
+        """Internal helper performing synchronous initialization."""
+        logger = logging.getLogger(__name__)
+        try:
+            if neighbor_count is None:
+                neighbor_count = get_neighbor_count_from_env(logger=logger)
+
+            if model_type is None:
+                model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
+
+            meta = _load_metadata(model_path) if model_path else {}
+            meta_type = meta.get("model_type")
+            if meta_type and meta_type != model_type:
+                logger.error(
+                    "Model type mismatch: metadata has %s but %s was requested",
+                    meta_type,
+                    model_type,
+                )
+                raise ModelError("Model type mismatch")
+            if meta_type:
+                model_type = meta_type
+            meta_version = meta.get("version")
+            if meta_version and meta_version != MODEL_VERSION:
+                logger.warning(
+                    "Model version %s differs from expected %s",
+                    meta_version,
+                    MODEL_VERSION,
+                )
+
+            model_cls = MODEL_CLASSES.get(model_type, LightGBMSelector)
+            if neighbor_count is None:
+                model = model_cls(model_path=model_path)
+            else:
+                model = model_cls(
+                    model_path=model_path, neighbor_count=neighbor_count
+                )
+
+            loaded = False
+            if model_path and os.path.exists(model_path):
+                loaded = model.load(model_path)
+            if loaded:
+                logger.info("Model is already trained and ready")
+                with cls._lock:
+                    cls._model_instance = model
+                    cls._init_event.set()
+                return model
+
+            logger.info("Model needs training")
+
+            logger.info("Generating synthetic training data...")
+            training_data = generate_synthetic_training_data(500)
+
+            if model_type == "lightgbm" and os.getenv("LIGHTGBM_TUNE") == "1":
+                n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
+                cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
+                logger.info(
+                    "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
+                    n_iter,
+                    cv,
+                )
+                metrics = tune_and_train(
+                    model, training_data, n_iter=n_iter, cv=cv
+                )
+            else:
+                logger.info("Training model with synthetic data...")
+                metrics = model.train(training_data)
+
+            logger.info(
+                f"Model trained successfully with {metrics.get('samples')} samples"
+            )
+
+            if model_path:
+                model.save(model_path)
+                logger.info(f"Model saved to {model_path}")
+                meta_path = model_path + ".meta.json"
+                with open(meta_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        {
+                            "model_type": model_type,
+                            "metrics": metrics,
+                            "version": MODEL_VERSION,
+                        },
+                        f,
+                    )
+                logger.info(f"Metadata saved to {meta_path}")
+
+            with cls._lock:
+                cls._model_instance = model
+                cls._init_event.set()
+            return model
+        except Exception:  # noqa: BLE001
+            logger.exception("Model initialization failed")
+            cls._init_event.set()
+            raise
 
     @classmethod
     def get_instance(
@@ -96,94 +201,46 @@ class ModelManager:
         model_path: str | None = None,
         neighbor_count: int | None = None,
         model_type: str | None = None,
+        *,
+        background: bool = True,
     ):
-        """Initialize the ML model with synthetic data if needed."""
-        logger = logging.getLogger(__name__)
+        """Initialize the ML model.
 
-        if neighbor_count is None:
-            neighbor_count = get_neighbor_count_from_env(logger=logger)
+        If ``background`` is ``True`` (default), the heavy initialization work is
+        executed in a background thread and a lightweight placeholder model is
+        returned immediately.  When ``background`` is ``False`` the
+        initialization runs synchronously and the fully initialized model is
+        returned.
+        """
 
-        if model_type is None:
-            model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
-
-        meta = _load_metadata(model_path) if model_path else {}
-        meta_type = meta.get("model_type")
-        if meta_type and meta_type != model_type:
-            logger.error(
-                "Model type mismatch: metadata has %s but %s was requested",
-                meta_type,
-                model_type,
-            )
-            raise ModelError("Model type mismatch")
-        if meta_type:
-            model_type = meta_type
-        meta_version = meta.get("version")
-        if meta_version and meta_version != MODEL_VERSION:
-            logger.warning(
-                "Model version %s differs from expected %s",
-                meta_version,
-                MODEL_VERSION,
-            )
-
-        model_cls = MODEL_CLASSES.get(model_type, LightGBMSelector)
-        if neighbor_count is None:
-            model = model_cls(model_path=model_path)
-        else:
-            model = model_cls(model_path=model_path, neighbor_count=neighbor_count)
-
-        # Determine if the model is already trained
-        loaded = False
-        if model_path and os.path.exists(model_path):
-            loaded = model.load(model_path)
-        if loaded:
-            logger.info("Model is already trained and ready")
+        if background:
             with cls._lock:
-                cls._model_instance = model
-            return model
+                if cls._init_thread and cls._init_thread.is_alive():
+                    return cls._model_instance
 
-        # Model needs training
-        logger.info("Model needs training")
+                cls._init_event.clear()
 
-        # Generate synthetic data and train
-        logger.info("Generating synthetic training data...")
-        training_data = generate_synthetic_training_data(500)
-
-        if model_type == "lightgbm" and os.getenv("LIGHTGBM_TUNE") == "1":
-            n_iter = int(os.getenv("LIGHTGBM_TUNE_N_ITER", "10"))
-            cv = int(os.getenv("LIGHTGBM_TUNE_CV", "3"))
-            logger.info(
-                "Tuning LightGBM hyperparameters with n_iter=%s, cv=%s...",
-                n_iter,
-                cv,
-            )
-            metrics = tune_and_train(model, training_data, n_iter=n_iter, cv=cv)
-        else:
-            logger.info("Training model with synthetic data...")
-            metrics = model.train(training_data)
-
-        logger.info(
-            f"Model trained successfully with {metrics.get('samples')} samples"
-        )
-
-        # Save the model and metadata
-        if model_path:
-            model.save(model_path)
-            logger.info(f"Model saved to {model_path}")
-            meta_path = model_path + ".meta.json"
-            with open(meta_path, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "model_type": model_type,
-                        "metrics": metrics,
-                        "version": MODEL_VERSION,
-                    },
-                    f,
+                placeholder_cls = MODEL_CLASSES.get(
+                    model_type or os.environ.get("MODEL_TYPE", "lightgbm").lower(),
+                    LightGBMSelector,
                 )
-            logger.info(f"Metadata saved to {meta_path}")
 
-        with cls._lock:
-            cls._model_instance = model
-        return model
+                if neighbor_count is None:
+                    neighbor_count = get_neighbor_count_from_env(
+                        logger=logging.getLogger(__name__)
+                    )
+
+                cls._model_instance = placeholder_cls(neighbor_count=neighbor_count)
+
+                cls._init_thread = threading.Thread(
+                    target=cls._initialize_sync,
+                    args=(model_path, neighbor_count, model_type),
+                    daemon=True,
+                )
+                cls._init_thread.start()
+                return cls._model_instance
+
+        return cls._initialize_sync(model_path, neighbor_count, model_type)
 
     @classmethod
     def feed_feedback(cls, sample: dict, *, success: bool = True) -> bool:
@@ -219,3 +276,26 @@ class ModelManager:
                 except Exception:  # noqa: BLE001 - log failure
                     logging.getLogger(__name__).exception("Retraining failed")
         return retrained
+
+    @classmethod
+    def wait_until_ready(cls, timeout: float | None = None) -> bool:
+        """Block until model initialization completes.
+
+        Parameters
+        ----------
+        timeout:
+            Optional timeout in seconds.
+
+        Returns
+        -------
+        bool
+            ``True`` if the model became ready before the timeout.
+        """
+
+        return cls._init_event.wait(timeout)
+
+    @classmethod
+    def is_ready(cls) -> bool:
+        """Return ``True`` if initialization has finished."""
+
+        return cls._init_event.is_set()
