@@ -180,7 +180,7 @@ class ModelManager:
             if model_path:
                 model.save(model_path)
                 logger.info(f"Model saved to {model_path}")
-                meta_path = model_path + ".meta.json"
+                meta_path = f"{model_path}.meta.json"
                 with open(meta_path, "w", encoding="utf-8") as f:
                     json.dump(
                         {
