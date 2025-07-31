@@ -76,6 +76,8 @@ class ModelManager:
         model_path: str | None,
         neighbor_count: int | None,
         model_type: str | None,
+        previous_model=None,
+        previous_path: str | None = None,
     ):
         """Internal helper performing synchronous initialization."""
         logger = logging.getLogger(__name__)
@@ -120,6 +122,7 @@ class ModelManager:
                 logger.info("Model is already trained and ready")
                 with cls._lock:
                     cls._model_instance = model
+                    cls._last_good_model_path = model_path
                     cls._init_event.set()
                 return model
 
@@ -165,11 +168,15 @@ class ModelManager:
 
             with cls._lock:
                 cls._model_instance = model
+                cls._last_good_model_path = model_path
                 cls._init_event.set()
             return model
         except Exception:  # noqa: BLE001
             logger.exception("Model initialization failed")
-            cls._init_event.set()
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
             raise
 
     @classmethod
@@ -215,6 +222,14 @@ class ModelManager:
     ):
         """Initialize the ML model.
 
+        If ``background`` is ``True`` (default), the heavy initialization work is
+        executed in a background thread and a lightweight placeholder model is
+        returned immediately. When ``background`` is ``False`` the initialization
+        runs synchronously and the fully initialized model is returned.
+        """
+
+        logger = logging.getLogger(__name__)
+
         # Preserve the current model state in case initialization fails
         with cls._lock:
             previous_model = cls._model_instance
@@ -222,12 +237,6 @@ class ModelManager:
 
         if neighbor_count is None:
             neighbor_count = get_neighbor_count_from_env(logger=logger)
-        If ``background`` is ``True`` (default), the heavy initialization work is
-        executed in a background thread and a lightweight placeholder model is
-        returned immediately.  When ``background`` is ``False`` the
-        initialization runs synchronously and the fully initialized model is
-        returned.
-        """
 
         if background:
             with cls._lock:
@@ -250,13 +259,13 @@ class ModelManager:
 
                 cls._init_thread = threading.Thread(
                     target=cls._initialize_sync,
-                    args=(model_path, neighbor_count, model_type),
+                    args=(model_path, neighbor_count, model_type, previous_model, previous_path),
                     daemon=True,
                 )
                 cls._init_thread.start()
                 return cls._model_instance
 
-        return cls._initialize_sync(model_path, neighbor_count, model_type)
+        return cls._initialize_sync(model_path, neighbor_count, model_type, previous_model, previous_path)
 
     @classmethod
     def feed_feedback(cls, sample: dict, *, success: bool = True) -> bool:

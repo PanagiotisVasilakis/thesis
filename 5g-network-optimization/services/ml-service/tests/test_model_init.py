@@ -56,10 +56,13 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     # initialize_model should store the trained instance for reuse
     assert ModelManager.get_instance() is model
 
+    assert ModelManager._last_good_model_path == str(model_path)
+
     # Second call should load without retraining
     loaded = initialize_model(str(model_path))
     assert call_count["train"] == 1
     assert isinstance(loaded.model, DummyModel)
+    assert ModelManager._last_good_model_path == str(model_path)
 
 
 def test_get_model_returns_singleton(monkeypatch):
@@ -199,9 +202,10 @@ def test_initialize_restores_on_train_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(LightGBMSelector, "train", fail_train)
 
     with pytest.raises(RuntimeError):
-        ModelManager.initialize(str(model_path))
+        ModelManager.initialize(str(model_path), background=False)
 
     assert ModelManager.get_instance() is prev_model
+    assert ModelManager._last_good_model_path == "prev.joblib"
 
 
 def test_initialize_restores_on_load_failure(monkeypatch, tmp_path):
@@ -219,6 +223,7 @@ def test_initialize_restores_on_load_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(LightGBMSelector, "load", fail_load)
 
     with pytest.raises(RuntimeError):
-        ModelManager.initialize(str(model_path))
+        ModelManager.initialize(str(model_path), background=False)
 
     assert ModelManager.get_instance() is prev_model
+    assert ModelManager._last_good_model_path == "prev.joblib"
