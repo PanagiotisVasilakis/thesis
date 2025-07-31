@@ -54,6 +54,8 @@ async def test_collect_training_data(tmp_path, monkeypatch):
     data = await collector.collect_training_data(duration=1, interval=1)
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
+    assert "altitude" in data[0]
+    assert data[0]["altitude"] is None
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12, "rsrq": -10, "cell_load": 2}}
     assert data[0]["optimal_antenna"] == "A"
     assert data[0]["rsrp_stddev"] == 0.0
@@ -100,6 +102,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
     ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
     sample = collector._collect_sample("ue1", ue_data)
 
+    assert "altitude" in sample
+    assert sample["altitude"] is None
     assert sample["connected_to"] == "A"
     assert sample["optimal_antenna"] == "B"
     assert sample["rf_metrics"] == {
