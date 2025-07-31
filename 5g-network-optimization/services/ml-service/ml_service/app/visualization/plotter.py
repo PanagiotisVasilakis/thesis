@@ -97,98 +97,98 @@ def plot_antenna_coverage(model, output_dir="output"):
                 Z_numeric[i, j] = 2
             elif Z[i, j] == 'antenna_3':
                 Z_numeric[i, j] = 3
-    
+
     # Create the plot
     plt.figure(figsize=(12, 10))
-    
+
     # Plot the coverage areas
     plt.contourf(X, Y, Z_numeric, levels=3, alpha=0.6, cmap='viridis')
-    
+
     # Plot antenna locations
     for antenna_id, pos in antennas.items():
         plt.plot(pos[0], pos[1], 'ro', markersize=10)
         plt.text(pos[0] + 20, pos[1] + 20, antenna_id)
-    
+
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
-    
+
     if model_trained:
         plt.title('ML-based Antenna Selection Map')
     else:
         plt.title('Distance-based Antenna Selection Map (Model not trained)')
-        
+
     plt.colorbar(label='Antenna ID')
-    
+
     # Save the plot with absolute path
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'antenna_coverage_{timestamp}.png')
     plt.savefig(filename)
     plt.close()
-    
+
     # Log the file path for debugging
     logger.info(f"Saved coverage map to: {filename}")
-    
+
     return filename
 
 def plot_movement_trajectory(movement_data, output_dir='output'):
     """
     Visualize UE movement trajectory and antenna handovers.
-    
+
     Args:
         movement_data: List of UE position and antenna data over time
         output_dir: Directory to save the visualization
     """
     # Resolve output directory and ensure the "trajectory" subfolder exists
     output_dir = get_output_dir(os.path.join(output_dir, "trajectory"))
-    
+
     # Extract trajectory data
     positions = [(d['latitude'], d['longitude']) for d in movement_data]
     antennas = [d['connected_to'] for d in movement_data]
-    
+
     # Find unique antennas
     unique_antennas = list(set(antennas))
     color_map = {ant: plt.cm.tab10(i) for i, ant in enumerate(unique_antennas)}
-    
+
     # Create plot
     plt.figure(figsize=(12, 8))
-    
+
     # Plot trajectory segments by antenna
     current_antenna = antennas[0]
     segment_x, segment_y = [], []
-    
+
     for i, ((x, y), antenna) in enumerate(zip(positions, antennas)):
         segment_x.append(x)
         segment_y.append(y)
-        
+
         # If antenna changes or we're at the end, plot this segment
         if antenna != current_antenna or i == len(positions) - 1:
-            plt.plot(segment_x, segment_y, '-', color=color_map[current_antenna], 
+            plt.plot(segment_x, segment_y, '-', color=color_map[current_antenna],
                      linewidth=2, label=current_antenna if current_antenna not in plt.gca().get_legend_handles_labels()[1] else "")
             # Mark handover point
             if i < len(positions) - 1:
                 plt.plot(x, y, 'o', color='red', markersize=8)
-            
+
             # Start new segment
             segment_x, segment_y = [x], [y]
             current_antenna = antenna
-    
+
     # Mark start and end
     plt.plot(positions[0][0], positions[0][1], 'go', markersize=10, label='Start')
     plt.plot(positions[-1][0], positions[-1][1], 'ro', markersize=10, label='End')
-    
+
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
     plt.title('UE Movement Trajectory with Antenna Handovers')
     plt.legend()
     plt.grid(True)
-    
+
     # Save the plot with absolute path
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = os.path.join(output_dir, f'trajectory_{timestamp}.png')
     plt.savefig(filename)
     plt.close()
-    
+
     # Log the file path for debugging
     logger.info(f"Saved trajectory visualization to: {filename}")
-    
+
     return filename

@@ -79,32 +79,31 @@ MEMORY_USAGE = Gauge(
 
 class MetricsMiddleware:
     """Middleware to track metrics for API endpoints."""
-    
+
     def __init__(self, app):
         """Initialize the middleware."""
         self.app = app
-    
+
     def __call__(self, environ, start_response):
         """Track metrics for the request."""
         path = environ.get('PATH_INFO', '')
-        method = environ.get('REQUEST_METHOD', '')
-        
+
         # Only track metrics for API endpoints
         if path.startswith('/api/'):
             # Track start time
             start_time = time.time()
-            
+
             # Track response
             def custom_start_response(status, headers, exc_info=None):
                 status_code = int(status.split()[0])
                 endpoint = path.split('/')[-1]
-                
+
                 # Track request status
                 if status_code < 400:
                     PREDICTION_REQUESTS.labels(status='success').inc()
                 else:
                     PREDICTION_REQUESTS.labels(status='error').inc()
-                
+
                 # Track latency if it's a prediction request
                 if endpoint == 'predict':
                     PREDICTION_LATENCY.observe(time.time() - start_time)
@@ -220,4 +219,3 @@ class MetricsCollector:
             ERROR_RATE.set((error - self._last_error) / total)
         self._last_success = success
         self._last_error = error
-

@@ -15,7 +15,6 @@ from ..models import (
     LSTMSelector,
     EnsembleSelector,
     OnlineHandoverModel,
-    DEFAULT_TEST_FEATURES,
 )
 
 MODEL_CLASSES = {
@@ -220,5 +219,3 @@ class ModelManager:
                 except Exception:  # noqa: BLE001 - log failure
                     logging.getLogger(__name__).exception("Retraining failed")
         return retrained
-
-

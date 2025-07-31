@@ -14,4 +14,3 @@ __all__ = [
     "OnlineHandoverModel",
     "DEFAULT_TEST_FEATURES",
 ]
-

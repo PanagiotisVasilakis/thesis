@@ -54,4 +54,3 @@ class EnsembleSelector(AntennaSelector):
         probs = probs_accum / len(self.models)
         idx = int(np.argmax(probs))
         return {"antenna_id": classes[idx], "confidence": float(probs[idx])}
-

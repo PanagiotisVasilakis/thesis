@@ -1,5 +1,4 @@
 """Utilities for generating synthetic training data."""
-import math
 import numpy as np
 
 from .mobility_metrics import MobilityMetricTracker

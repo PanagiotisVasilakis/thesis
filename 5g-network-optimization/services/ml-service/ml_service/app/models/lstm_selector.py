@@ -130,4 +130,3 @@ class LSTMSelector(AntennaSelector):
                 self.classes_ = meta.get("classes")
             return True
         return False
-
