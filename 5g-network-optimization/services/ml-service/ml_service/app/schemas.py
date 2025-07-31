@@ -11,6 +11,7 @@ class PredictionRequest(BaseModel):
     ue_id: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    altitude: Optional[float] = None
     speed: Optional[float] = None
     velocity: Optional[float] = None
     acceleration: Optional[float] = None

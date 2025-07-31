@@ -33,6 +33,7 @@ async def test_collect_training_data():
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_client = MagicMock()
     mock_client.get_ue_movement_state.return_value = sample_state
+    mock_client.get_feature_vector.return_value = {}
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
          patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
@@ -40,6 +41,7 @@ async def test_collect_training_data():
         data = await collector.collect_training_data(duration=1, interval=1)
         assert len(data) == 1
         assert data[0]["ue_id"] == "ue1"
+        assert data[0]["altitude"] is None
         assert data[0]["time_since_handover"] == 0.0
 
 
@@ -49,6 +51,7 @@ async def test_collect_training_data_file(tmp_path):
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_client = MagicMock()
     mock_client.get_ue_movement_state.return_value = sample_state
+    mock_client.get_feature_vector.return_value = {}
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
          patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
@@ -61,3 +64,5 @@ async def test_collect_training_data_file(tmp_path):
         with open(files[0]) as f:
             saved = json.load(f)
         assert saved == data
+        assert "altitude" in saved[0]
+        assert saved[0]["altitude"] is None
