@@ -149,6 +149,11 @@ If the stored type differs from the configured one a `ModelError` is raised.
 A warning is logged when the version in the metadata does not match the
 internal model format version (`1.0`).
 
+During initialization the service keeps track of the last successfully loaded
+model. Should loading or training fail for any reason, this previous model is
+restored automatically and the error is logged. This ensures predictions can
+continue using the last working model even if a startup update fails.
+
 For example, create a `docker-compose.override.yml`:
 
 ```yaml

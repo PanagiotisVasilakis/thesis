@@ -172,3 +172,44 @@ def test_initialize_model_version_warning(monkeypatch, caplog, tmp_path):
 
     ModelManager.initialize(str(model_path), background=False)
     assert any("version" in record.getMessage() for record in caplog.records)
+
+
+def test_initialize_restores_on_train_failure(monkeypatch, tmp_path):
+    """Previous model should be restored if training fails."""
+    model_path = tmp_path / "new.joblib"
+
+    prev_model = LightGBMSelector()
+    ModelManager._model_instance = prev_model
+    ModelManager._last_good_model_path = "prev.joblib"
+
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+
+    def fail_train(self, data):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(LightGBMSelector, "train", fail_train)
+
+    with pytest.raises(RuntimeError):
+        ModelManager.initialize(str(model_path))
+
+    assert ModelManager.get_instance() is prev_model
+
+
+def test_initialize_restores_on_load_failure(monkeypatch, tmp_path):
+    """Previous model should be restored if loading fails."""
+    model_path = tmp_path / "new.joblib"
+    model_path.touch()
+
+    prev_model = LightGBMSelector()
+    ModelManager._model_instance = prev_model
+    ModelManager._last_good_model_path = "prev.joblib"
+
+    def fail_load(self, path=None):
+        raise RuntimeError("load fail")
+
+    monkeypatch.setattr(LightGBMSelector, "load", fail_load)
+
+    with pytest.raises(RuntimeError):
+        ModelManager.initialize(str(model_path))
+
+    assert ModelManager.get_instance() is prev_model

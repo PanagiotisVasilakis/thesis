@@ -57,6 +57,8 @@ class ModelManager:
     _lock = threading.Lock()
     # Bounded buffer holding recent feedback samples for potential retraining
     _feedback_data: deque[dict] = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
+    # Path of the last successfully initialized model
+    _last_good_model_path: str | None = None
     # Signal set when initialization completes
     _init_event = threading.Event()
     # Background initialization thread
@@ -206,6 +208,13 @@ class ModelManager:
     ):
         """Initialize the ML model.
 
+        # Preserve the current model state in case initialization fails
+        with cls._lock:
+            previous_model = cls._model_instance
+            previous_path = cls._last_good_model_path
+
+        if neighbor_count is None:
+            neighbor_count = get_neighbor_count_from_env(logger=logger)
         If ``background`` is ``True`` (default), the heavy initialization work is
         executed in a background thread and a lightweight placeholder model is
         returned immediately.  When ``background`` is ``False`` the
