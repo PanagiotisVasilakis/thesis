@@ -64,3 +64,5 @@ async def test_collect_training_data_file(tmp_path):
         with open(files[0]) as f:
             saved = json.load(f)
         assert saved == data
+        assert "altitude" in saved[0]
+        assert saved[0]["altitude"] is None

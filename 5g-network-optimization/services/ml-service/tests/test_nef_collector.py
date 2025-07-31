@@ -99,6 +99,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
     ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
     sample = collector._collect_sample("ue1", ue_data)
 
+    assert "altitude" in sample
+    assert sample["altitude"] is None
     assert sample["connected_to"] == "A"
     assert sample["optimal_antenna"] == "B"
     assert sample["altitude"] is None
