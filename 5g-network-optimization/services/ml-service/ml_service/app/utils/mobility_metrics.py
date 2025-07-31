@@ -3,9 +3,13 @@
 from collections.abc import Sequence
 import math
 
+from collections import defaultdict, deque
+from functools import partial
+
 __all__ = [
     "compute_heading_change_rate",
     "compute_path_curvature",
+    "MobilityMetricTracker",
 ]
 
 
@@ -29,7 +33,9 @@ def compute_heading_change_rate(positions: Sequence[tuple[float, float]]) -> flo
         return 0.0
 
     headings = []
-    for p1, p2 in zip(positions[:-1], positions[1:]):
+    for i in range(len(positions) - 1):
+        p1 = positions[i]
+        p2 = positions[i + 1]
         dx = p2[0] - p1[0]
         dy = p2[1] - p1[1]
         if dx == 0 and dy == 0:
@@ -95,3 +101,30 @@ def compute_path_curvature(positions: Sequence[tuple[float, float]]) -> float:
         total_angle += abs(angle)
 
     return 0.0 if path_length == 0 else total_angle / path_length
+
+
+class MobilityMetricTracker:
+    """Track recent UE positions and compute mobility metrics incrementally."""
+
+    def __init__(self, window_size: int = 5) -> None:
+        self.window_size = window_size
+        # mapping of UE id to deque of recent (lat, lon) samples
+        self._positions: dict[str, deque[tuple[float, float]]] = defaultdict(
+            partial(deque, maxlen=self.window_size)
+        )
+
+    def update_position(self, ue_id: str, lat: float, lon: float) -> tuple[float, float]:
+        """Add a new position and return updated heading change rate and curvature."""
+        if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+            buf = self._positions.get(ue_id)
+            if buf is None:
+                return 0.0, 0.0
+            return (
+                compute_heading_change_rate(buf),
+                compute_path_curvature(buf),
+            )
+
+        buf = self._positions[ue_id]
+        buf.append((float(lat), float(lon)))
+
+        return compute_heading_change_rate(buf), compute_path_curvature(buf)
