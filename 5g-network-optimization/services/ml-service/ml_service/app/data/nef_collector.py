@@ -127,12 +127,15 @@ class NEFDataCollector:
         rsrps = fv.get("neighbor_rsrp_dbm", {})
         sinrs = fv.get("neighbor_sinrs", {})
         rsrqs = fv.get("neighbor_rsrqs", {})
+        loads = fv.get("neighbor_cell_loads", {})
         if not isinstance(rsrps, dict):
             rsrps = {}
         if not isinstance(sinrs, dict):
             sinrs = {}
         if not isinstance(rsrqs, dict):
             rsrqs = {}
+        if not isinstance(loads, dict):
+            loads = {}
         cell_load = fv.get("cell_load")
         environment = fv.get("environment")
         velocity = fv.get("velocity")
@@ -159,11 +162,14 @@ class NEFDataCollector:
         for aid, rsrp in rsrps.items():
             sinr = sinrs.get(aid)
             rsrq = rsrqs.get(aid)
+            load = loads.get(aid)
             metrics = {"rsrp": rsrp}
             if sinr is not None:
                 metrics["sinr"] = sinr
             if rsrq is not None:
                 metrics["rsrq"] = rsrq
+            if load is not None:
+                metrics["cell_load"] = load
             rf_metrics[aid] = metrics
 
             sinr_val = sinr if sinr is not None else float("-inf")

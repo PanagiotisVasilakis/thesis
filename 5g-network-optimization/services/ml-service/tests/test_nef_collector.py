@@ -41,6 +41,7 @@ async def test_collect_training_data(tmp_path, monkeypatch):
         "neighbor_rsrp_dbm": {"A": -75},
         "neighbor_sinrs": {"A": 12},
         "neighbor_rsrqs": {"A": -10},
+        "neighbor_cell_loads": {"A": 2},
     }
     collector.client = mock_client
     async def fake_sleep(_):
@@ -53,7 +54,7 @@ async def test_collect_training_data(tmp_path, monkeypatch):
     data = await collector.collect_training_data(duration=1, interval=1)
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
-    assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12, "rsrq": -10}}
+    assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12, "rsrq": -10, "cell_load": 2}}
     assert data[0]["optimal_antenna"] == "A"
     assert data[0]["rsrp_stddev"] == 0.0
     assert data[0]["sinr_stddev"] == 0.0
@@ -89,6 +90,7 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
         "neighbor_rsrp_dbm": {"A": -80, "B": -75},
         "neighbor_sinrs": {"A": 10, "B": 5},
         "neighbor_rsrqs": {"A": -12, "B": -9},
+        "neighbor_cell_loads": {"A": 3, "B": 1},
     }
     mock_client = MagicMock(get_feature_vector=MagicMock(return_value=fv))
     collector.client = mock_client
@@ -99,8 +101,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
     assert sample["connected_to"] == "A"
     assert sample["optimal_antenna"] == "B"
     assert sample["rf_metrics"] == {
-        "A": {"rsrp": -80, "sinr": 10, "rsrq": -12},
-        "B": {"rsrp": -75, "sinr": 5, "rsrq": -9},
+        "A": {"rsrp": -80, "sinr": 10, "rsrq": -12, "cell_load": 3},
+        "B": {"rsrp": -75, "sinr": 5, "rsrq": -9, "cell_load": 1},
     }
     assert sample["rsrp_stddev"] == 0.0
     assert sample["sinr_stddev"] == 0.0

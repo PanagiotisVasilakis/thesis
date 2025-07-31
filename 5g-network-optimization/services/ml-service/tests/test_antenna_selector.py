@@ -90,6 +90,7 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     assert "rsrp_a1" in sample_features
     assert "best_rsrp_diff" in sample_features
     assert "rsrq_a1" in sample_features
+    assert "neighbor_cell_load_a1" in sample_features
     assert "best_rsrq_diff" in sample_features
 
     # Simulate untrained state
@@ -219,6 +220,9 @@ def test_extract_features_neighbor_padding():
             "rsrq_a1",
             "rsrq_a2",
             "rsrq_a3",
+            "neighbor_cell_load_a1",
+            "neighbor_cell_load_a2",
+            "neighbor_cell_load_a3",
         )
     } <= few_features.keys()
     assert few_features["rsrp_a1"] == -70
@@ -230,6 +234,9 @@ def test_extract_features_neighbor_padding():
     assert few_features["rsrp_a3"] == -120
     assert few_features["sinr_a3"] == 0
     assert few_features["rsrq_a3"] == -30
+    assert few_features["neighbor_cell_load_a1"] == 0
+    assert few_features["neighbor_cell_load_a2"] == 0
+    assert few_features["neighbor_cell_load_a3"] == 0
 
 
 def test_altitude_feature_in_training():
