@@ -1,5 +1,6 @@
 """Model initialization utilities."""
 import logging
+from collections import deque
 import os
 import json
 import threading
@@ -55,7 +56,8 @@ class ModelManager:
 
     _model_instance = None
     _lock = threading.Lock()
-    _feedback_data: list[dict] = []
+    # Bounded buffer holding recent feedback samples for potential retraining
+    _feedback_data: deque[dict] = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
 
     @classmethod
     def get_instance(
@@ -207,9 +209,6 @@ class ModelManager:
             if hasattr(model, "update"):
                 model.update(sample, success=success)
             cls._feedback_data.append(sample | {"success": success})
-            # Trim buffer to avoid unbounded memory growth
-            while len(cls._feedback_data) > FEEDBACK_BUFFER_LIMIT:
-                cls._feedback_data.pop(0)
             if hasattr(model, "drift_detected") and model.drift_detected():
                 logging.getLogger(__name__).info("Drift detected; retraining model")
                 try:

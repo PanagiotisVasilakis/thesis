@@ -1,12 +1,13 @@
 import types
 from unittest.mock import MagicMock
 
+from collections import deque
 from ml_service.app.initialization.model_init import ModelManager, FEEDBACK_BUFFER_LIMIT
 
 
 def test_feedback_buffer_limit(monkeypatch):
-    # Ensure a clean state
-    ModelManager._feedback_data = []
+    # Ensure a clean state with a bounded deque
+    ModelManager._feedback_data = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
 
     dummy_model = MagicMock()
     dummy_model.update = MagicMock()
