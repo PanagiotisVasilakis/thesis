@@ -94,6 +94,4 @@ def compute_path_curvature(positions: Sequence[tuple[float, float]]) -> float:
         angle = math.acos(cos_ang)
         total_angle += abs(angle)
 
-    if path_length == 0:
-        return 0.0
-    return total_angle / path_length
+    return 0.0 if path_length == 0 else total_angle / path_length
