@@ -2,11 +2,11 @@ from datetime import timedelta
 from feast import (
     Entity,
     FeatureView,
-    Field,
     FileSource,
     FeatureStore,
 )
-from feast.types import Float32, String
+
+from .constants import feast_fields
 
 ue = Entity(name="ue_id", join_keys=["ue_id"])
 
@@ -19,25 +19,7 @@ ue_metrics_view = FeatureView(
     name="ue_metrics_view",
     entities=[ue],
     ttl=timedelta(days=1),
-    schema=[
-        Field(name="speed", dtype=Float32),
-        Field(name="velocity", dtype=Float32),
-        Field(name="acceleration", dtype=Float32),
-        Field(name="cell_load", dtype=Float32),
-        Field(name="handover_count", dtype=Float32),
-        Field(name="time_since_handover", dtype=Float32),
-        Field(name="signal_trend", dtype=Float32),
-        Field(name="environment", dtype=Float32),
-        Field(name="heading_change_rate", dtype=Float32),
-        Field(name="path_curvature", dtype=Float32),
-        Field(name="rsrp_stddev", dtype=Float32),
-        Field(name="sinr_stddev", dtype=Float32),
-        Field(name="altitude", dtype=Float32),
-        Field(name="latitude", dtype=Float32),
-        Field(name="longitude", dtype=Float32),
-        Field(name="connected_to", dtype=String),
-        Field(name="optimal_antenna", dtype=String),
-    ],
+    schema=feast_fields(),
     online=True,
     source=source,
 )
