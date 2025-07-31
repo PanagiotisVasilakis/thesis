@@ -36,8 +36,8 @@ def create_app(config=None):
     from .initialization.model_init import ModelManager
 
     app.logger.info("Initializing ML model...")
-    ModelManager.initialize(app.config["MODEL_PATH"])
-    app.logger.info("ML model initialization complete")
+    ModelManager.initialize(app.config["MODEL_PATH"], background=True)
+    app.logger.info("ML model initialization started")
 
     # Register API blueprint
     from .api import api_bp

@@ -10,8 +10,12 @@ from .initialization.model_init import ModelManager
 def load_model(
     model_path: str | None = None,
     neighbor_count: int | None = None,
+    *,
+    wait: bool = True,
 ) -> Any:
     """Return a LightGBM model instance using ``ModelManager``."""
+    if wait:
+        ModelManager.wait_until_ready()
     return ModelManager.get_instance(model_path, neighbor_count=neighbor_count)
 
 

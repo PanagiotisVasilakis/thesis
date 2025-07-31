@@ -7,7 +7,9 @@ import numpy as np
 import pytest
 import logging
 
-initialize_model = ModelManager.initialize
+def initialize_model(*args, **kwargs):
+    kwargs.setdefault("background", False)
+    return ModelManager.initialize(*args, **kwargs)
 
 
 class DummyModel:
@@ -151,7 +153,7 @@ def test_initialize_model_type_mismatch(monkeypatch):
 
     monkeypatch.setattr(model_init, "_load_metadata", lambda p: {"model_type": "lstm", "version": model_init.MODEL_VERSION})
     with pytest.raises(model_init.ModelError):
-        ModelManager.initialize("foo", model_type="lightgbm")
+        ModelManager.initialize("foo", model_type="lightgbm", background=False)
 
 
 def test_initialize_model_version_warning(monkeypatch, caplog, tmp_path):
@@ -168,5 +170,5 @@ def test_initialize_model_version_warning(monkeypatch, caplog, tmp_path):
     monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
     caplog.set_level(logging.WARNING)
 
-    ModelManager.initialize(str(model_path))
+    ModelManager.initialize(str(model_path), background=False)
     assert any("version" in record.getMessage() for record in caplog.records)
