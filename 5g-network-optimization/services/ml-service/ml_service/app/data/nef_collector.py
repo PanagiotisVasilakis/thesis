@@ -34,6 +34,8 @@ class NEFDataCollector:
         self._prev_signal: dict[str, dict[str, float]] = {}
         # Rolling window of recent signal values per UE for variance calculation
         self._signal_buffer: dict[str, dict[str, deque]] = {}
+        # Timestamp of last handover event per UE for time_since_handover
+        self._last_handover_ts: dict[str, float] = {}
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -176,11 +178,16 @@ class NEFDataCollector:
             acceleration = speed - prev_speed
         self._prev_speed[ue_id] = speed if speed is not None else 0
 
+        now_ts = time.time()
         prev_cell = self._prev_cell.get(ue_id)
         if prev_cell is not None and prev_cell != connected_cell_id:
             self._handover_counts[ue_id] = self._handover_counts.get(ue_id, 0) + 1
+            self._last_handover_ts[ue_id] = now_ts
         self._prev_cell[ue_id] = connected_cell_id
+        if ue_id not in self._last_handover_ts:
+            self._last_handover_ts[ue_id] = now_ts
         handover_count = self._handover_counts.get(ue_id, 0)
+        time_since_handover = now_ts - self._last_handover_ts.get(ue_id, now_ts)
 
         prev_sig = self._prev_signal.get(ue_id)
         cur_rsrp = rsrps.get(connected_cell_id)
@@ -250,6 +257,7 @@ class NEFDataCollector:
             "acceleration": acceleration,
             "cell_load": cell_load,
             "handover_count": handover_count,
+            "time_since_handover": time_since_handover,
             "signal_trend": signal_trend,
             "environment": environment,
             "rsrp_stddev": rsrp_std,

@@ -40,6 +40,7 @@ def test_feature_extraction():
     expected_features = [
         'latitude', 'longitude', 'altitude', 'speed',
         'velocity', 'acceleration', 'cell_load', 'handover_count',
+        'time_since_handover',
         'signal_trend', 'environment',
         'rsrp_stddev', 'sinr_stddev',
         'direction_x', 'direction_y',

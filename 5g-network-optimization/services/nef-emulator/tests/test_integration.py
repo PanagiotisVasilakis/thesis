@@ -34,7 +34,7 @@ def test_collect_training_data(monkeypatch, tmp_path):
     collector = NEFDataCollector(nef_url="http://nef")
     collector.data_dir = str(tmp_path)
     monkeypatch.setattr(nef_collector.time, "sleep", lambda x: None)
-    times = iter([0, 0.1, 1.1])
+    times = iter([0, 0.1, 0.2, 1.1])
     monkeypatch.setattr(nef_collector.time, "time", lambda: next(times))
 
     import asyncio
@@ -42,6 +42,7 @@ def test_collect_training_data(monkeypatch, tmp_path):
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -70, "sinr": 8, "rsrq": -11}}
+    assert data[0]["time_since_handover"] == 0.0
     saved = list(tmp_path.iterdir())
     with open(saved[0]) as f:
         loaded = json.load(f)
