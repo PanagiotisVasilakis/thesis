@@ -94,7 +94,13 @@ def generate_synthetic_training_data(
             time_since_handover = float(i - last_handover_idx)
         prev_antenna = closest_antenna
 
-        stability = float(np.random.uniform(0, 1))
+        # Derive a basic stability score from mobility metrics. Straight,
+        # consistent movement yields a value near 1 while frequent direction
+        # changes reduce the score.  Both ``heading_change_rate`` and
+        # ``path_curvature`` increase as the UE trajectory becomes more erratic.
+        # We map the combined value into ``[0, 1]`` using a reciprocal form so
+        # extreme mobility quickly lowers stability.
+        stability = float(1.0 / (1.0 + heading_change_rate + path_curvature))
 
         sample = {
             "ue_id": f"synthetic_ue_{i}",
