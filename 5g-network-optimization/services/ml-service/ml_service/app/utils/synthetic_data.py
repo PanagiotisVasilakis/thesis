@@ -65,9 +65,13 @@ def generate_synthetic_training_data(
         for antenna_id, dist in distances.items():
             rsrp = -60 - 20 * np.log10(max(1, dist / 10))
             sinr = 20 * (1 - dist / 1500) + np.random.normal(0, 2)
+            # Approximate RSRQ based on distance with some noise. Values typically
+            # range between -3 dB (excellent) and -20 dB (poor).
+            rsrq = -3 - 15 * (dist / 1500) + np.random.normal(0, 1)
             rf_metrics[antenna_id] = {
                 "rsrp": float(rsrp),
                 "sinr": float(sinr),
+                "rsrq": float(np.clip(rsrq, -30, -3)),
             }
 
         sample = {
