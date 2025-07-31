@@ -141,6 +141,9 @@ class NEFDataCollector:
         velocity = fv.get("velocity")
         acceleration = fv.get("acceleration")
         signal_trend = fv.get("signal_trend")
+        altitude = ue_data.get("altitude")
+        if altitude is None:
+            altitude = fv.get("altitude")
 
         if not isinstance(cell_load, (int, float)):
             cell_load = None
@@ -152,6 +155,8 @@ class NEFDataCollector:
             acceleration = None
         if not isinstance(signal_trend, (int, float)):
             signal_trend = None
+        if altitude is not None and not isinstance(altitude, (int, float)):
+            altitude = None
 
         connected_cell_id = ue_data.get("Cell_id")
         rf_metrics: dict[str, dict] = {}
@@ -258,6 +263,7 @@ class NEFDataCollector:
             "ue_id": ue_id,
             "latitude": ue_data.get("latitude"),
             "longitude": ue_data.get("longitude"),
+            "altitude": altitude,
             "speed": speed,
             "velocity": velocity,
             "acceleration": acceleration,
