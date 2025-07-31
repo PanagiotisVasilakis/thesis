@@ -32,6 +32,7 @@ def test_get_feature_vector(nsm):
     assert 'latitude' in fv and 'neighbor_rsrp_dbm' in fv
     # Check that both antennas are present in neighbor_rsrp_dbm
     assert set(fv['neighbor_rsrp_dbm'].keys()) == {'antA', 'antB'}
+    assert fv['neighbor_cell_loads'] == {'antA': 1, 'antB': 0}
 
 
 def test_apply_handover_decision(nsm):
