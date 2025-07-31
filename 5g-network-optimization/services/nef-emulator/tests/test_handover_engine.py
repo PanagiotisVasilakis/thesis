@@ -180,6 +180,7 @@ def test_select_ml(monkeypatch):
         "connected_to": "A",
         "neighbor_rsrp_dbm": {"A": -80, "B": -70},
         "neighbor_sinrs": {"A": 10, "B": 15},
+        "neighbor_rsrqs": {"A": -5, "B": -8},
         "speed": 0.0,
     }
 
@@ -201,13 +202,23 @@ def test_select_ml(monkeypatch):
         def json(self):
             return {"predicted_antenna": "B"}
 
-    monkeypatch.setattr("requests.post", lambda *a, **k: DummyResp())
+    sent = {}
+
+    def fake_post(url, json=None, timeout=None):
+        sent["data"] = json
+        return DummyResp()
+
+    monkeypatch.setattr("requests.post", fake_post)
     monkeypatch.setenv("ML_SERVICE_URL", "http://ml")
 
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True)
     pred = eng._select_ml("u1")
     assert pred == {"antenna_id": "B", "confidence": None}
+    assert sent["data"]["rf_metrics"] == {
+        "A": {"rsrp": -80, "sinr": 10, "rsrq": -5},
+        "B": {"rsrp": -70, "sinr": 15, "rsrq": -8},
+    }
 
 
 def test_select_ml_local(monkeypatch):
@@ -219,6 +230,7 @@ def test_select_ml_local(monkeypatch):
         "connected_to": "A",
         "neighbor_rsrp_dbm": {"A": -80, "B": -70},
         "neighbor_sinrs": {"A": 10, "B": 15},
+        "neighbor_rsrqs": {"A": -5, "B": -8},
         "speed": 0.0,
     }
 
@@ -242,6 +254,10 @@ def test_select_ml_local(monkeypatch):
     class DummyModel:
         def extract_features(self, data, include_neighbors=True):
             calls["load_model"] += 1
+            assert data["rf_metrics"] == {
+                "A": {"rsrp": -80, "sinr": 10, "rsrq": -5},
+                "B": {"rsrp": -70, "sinr": 15, "rsrq": -8},
+            }
             return {"x": 1}
 
         def predict(self, features):
