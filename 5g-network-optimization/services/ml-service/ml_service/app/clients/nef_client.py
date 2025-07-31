@@ -139,9 +139,6 @@ class NEFClient:
             raise NEFClientError(
                 f"Mobility pattern request failed: {exc}"
             ) from exc
-        except Exception as e:
-            self.logger.error(f"Error in generate_mobility_pattern: {str(e)}")
-            raise
 
     def get_ue_movement_state(self) -> Dict[str, Any]:
         """Get current state of all UEs in movement."""
