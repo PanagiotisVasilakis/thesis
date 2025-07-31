@@ -60,6 +60,8 @@ async def test_collect_training_data(tmp_path, monkeypatch):
     assert data[0]["rsrp_stddev"] == 0.0
     assert data[0]["sinr_stddev"] == 0.0
     assert data[0]["time_since_handover"] == 0.0
+    assert data[0]["heading_change_rate"] == 0.0
+    assert data[0]["path_curvature"] == 0.0
 
     files = list(tmp_path.iterdir())
     assert len(files) == 1
@@ -111,6 +113,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
     assert sample["rsrp_stddev"] == 0.0
     assert sample["sinr_stddev"] == 0.0
     assert sample["time_since_handover"] == 0.0
+    assert sample["heading_change_rate"] == 0.0
+    assert sample["path_curvature"] == 0.0
     mock_client.get_feature_vector.assert_called_once_with("ue1")
 
 

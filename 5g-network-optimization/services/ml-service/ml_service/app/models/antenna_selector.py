@@ -20,6 +20,8 @@ DEFAULT_TEST_FEATURES = {
     "speed": 1.0,
     "direction_x": 0.7,
     "direction_y": 0.7,
+    "heading_change_rate": 0.0,
+    "path_curvature": 0.0,
     "velocity": 1.0,
     "acceleration": 0.0,
     "cell_load": 0.0,
@@ -68,6 +70,8 @@ class AntennaSelector:
             "speed",
             "direction_x",
             "direction_y",
+            "heading_change_rate",
+            "path_curvature",
             "velocity",
             "acceleration",
             "cell_load",
@@ -175,6 +179,9 @@ class AntennaSelector:
         if vel is None:
             vel = data.get("speed", 0)
         features["velocity"] = vel if vel is not None else 0
+
+        features["heading_change_rate"] = data.get("heading_change_rate", 0)
+        features["path_curvature"] = data.get("path_curvature", 0)
 
         # Simple acceleration estimate if previous speed is given
         features["acceleration"] = data.get("acceleration", 0)
