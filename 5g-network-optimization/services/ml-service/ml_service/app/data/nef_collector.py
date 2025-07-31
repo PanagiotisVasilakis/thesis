@@ -43,10 +43,8 @@ class NEFDataCollector:
         self._signal_buffer: dict[str, dict[str, deque]] = {}
         # Timestamp of last handover event per UE for time_since_handover
         self._last_handover_ts: dict[str, float] = {}
-        # Rolling window of recent position samples per UE
-        self._position_buffer: dict[str, deque] = {}
-        # Incremental mobility metric trackers per UE
-        self._metric_trackers: dict[str, MobilityMetricTracker] = {}
+        # Mobility metrics tracker per UE
+        self.mobility_tracker = MobilityMetricTracker(POSITION_WINDOW_SIZE)
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -222,18 +220,11 @@ class NEFDataCollector:
         if not isinstance(cur_rsrq, (int, float)):
             cur_rsrq = None
 
-        pos_buf = self._position_buffer.setdefault(
-            ue_id, deque(maxlen=POSITION_WINDOW_SIZE)
-        )
         lat = ue_data.get("latitude")
         lon = ue_data.get("longitude")
-        tracker = self._metric_trackers.setdefault(ue_id, MobilityMetricTracker())
-        if isinstance(lat, (int, float)) and isinstance(lon, (int, float)):
-            coord = (float(lat), float(lon))
-            pos_buf.append(coord)
-            tracker.update(coord)
-        heading_change_rate = tracker.heading_change_rate
-        path_curvature = tracker.path_curvature
+        heading_change_rate, path_curvature = self.mobility_tracker.update_position(
+            ue_id, lat, lon
+        )
 
         buf = self._signal_buffer.setdefault(
             ue_id,

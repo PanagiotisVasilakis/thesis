@@ -41,26 +41,27 @@ def test_path_curvature_turn():
     assert math.isclose(curv, expected, rel_tol=1e-6)
 
 
-def test_incremental_tracker_matches_full_computation():
-    pts = [
-        (0.0, 0.0),
-        (1.0, 0.0),
-        (1.0, 1.0),
-        (2.0, 1.0),
-        (2.0, 2.0),
-    ]
-    tracker = MobilityMetricTracker()
-    prefix: list[tuple[float, float]] = []
-    for p in pts:
-        prefix.append(p)
-        tracker.update(p)
-        assert math.isclose(
-            tracker.heading_change_rate,
-            compute_heading_change_rate(prefix),
-            rel_tol=1e-6,
-        )
-        assert math.isclose(
-            tracker.path_curvature,
-            compute_path_curvature(prefix),
-            rel_tol=1e-6,
-        )
+def test_mobility_metric_tracker_basic():
+    tracker = MobilityMetricTracker(window_size=3)
+    r, c = tracker.update_position("ue", 0, 0)
+    assert (r, c) == (0.0, 0.0)
+    r, c = tracker.update_position("ue", 1, 0)
+    assert (r, c) == (0.0, 0.0)
+    r, c = tracker.update_position("ue", 1, 1)
+    assert math.isclose(r, math.pi / 2, rel_tol=1e-6)
+    assert math.isclose(c, math.pi / 4, rel_tol=1e-6)
+
+
+def test_mobility_metric_tracker_window():
+    tracker = MobilityMetricTracker(window_size=2)
+    tracker.update_position("ue", 0, 0)
+    tracker.update_position("ue", 1, 0)
+    r, c = tracker.update_position("ue", 1, 1)
+    # only last two positions retained -> insufficient for metrics
+    assert (r, c) == (0.0, 0.0)
+
+
+def test_mobility_metric_tracker_invalid():
+    tracker = MobilityMetricTracker(window_size=3)
+    r, c = tracker.update_position("ue", "bad", None)
+    assert (r, c) == (0.0, 0.0)
