@@ -51,7 +51,8 @@ curl -X POST http://localhost:5050/api/login \
 ### `POST /api/predict`
 Submit UE information and receive the recommended antenna.
 The request body should contain fields such as `ue_id`, `latitude`, `longitude`,
-`connected_to` and an optional `rf_metrics` dictionary. Example:
+`connected_to` and an optional `rf_metrics` dictionary.  `rf_metrics` may include
+per‑antenna `rsrp`, `sinr` and `rsrq` values if available. Example:
 
 ```bash
 curl -X POST http://localhost:5050/api/predict \
@@ -62,9 +63,9 @@ curl -X POST http://localhost:5050/api/predict \
            "latitude": 100,
            "longitude": 50,
            "connected_to": "antenna_1",
-           "rf_metrics": {
-             "antenna_1": {"rsrp": -80, "sinr": 15}
-           }
+          "rf_metrics": {
+            "antenna_1": {"rsrp": -80, "sinr": 15, "rsrq": -10}
+          }
          }'
 ```
 
@@ -129,6 +130,7 @@ The service reads configuration from the Flask app settings. Important variables
 | `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
 | `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
 | `NEIGHBOR_COUNT` | Preallocate feature slots for this many neighbouring antennas | *(dynamic)* |
+| `RESOURCE_BLOCKS` | Number of resource blocks used when computing per-antenna RSRQ | `50` |
 | `AUTH_USERNAME` | Username for the `/api/login` endpoint | `admin` |
 | `AUTH_PASSWORD` | Password for the `/api/login` endpoint | `admin` |
 | `JWT_SECRET` | Secret key used to sign JWT tokens | `change-me` |
@@ -136,6 +138,7 @@ The service reads configuration from the Flask app settings. Important variables
 | `SSL_KEYFILE` | Path to TLS key for HTTPS | *(unset)* |
 
 The service always runs with a LightGBM model; no other model types are supported.
+`RESOURCE_BLOCKS` is used by `NetworkStateManager` when calculating RSRQ for each antenna.
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
 To retain the model between container runs you can mount a host directory and point `MODEL_PATH` at a file in that directory.
 
@@ -209,8 +212,8 @@ before collecting data.  Training data is gathered with
 Collected JSON files are stored under `app/data/collected_data` and can be sent
 to the `/api/train` endpoint to update the selected model. The trained model is
 persisted at the location specified by `MODEL_PATH`.
-Each sample now also contains an `rf_metrics` dictionary with per-antenna RSRP
-and SINR values.
+Each sample now also contains an `rf_metrics` dictionary with per-antenna RSRP,
+SINR and optionally RSRQ values.
 
 ```bash
 # Collect data for five minutes and train the model when done
