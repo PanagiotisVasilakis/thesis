@@ -213,8 +213,9 @@ Collected JSON files are stored under `app/data/collected_data` and can be sent
 to the `/api/train` endpoint to update the selected model. The trained model is
 persisted at the location specified by `MODEL_PATH`.
 Each sample now also contains an `rf_metrics` dictionary with per-antenna RSRP,
-SINR and optionally RSRQ values. Altitude is captured when available and
-included in the training sample under the `altitude` key.
+SINR and optionally RSRQ values.
+If the NEF provides altitude for a UE it is stored in the `altitude` field so
+that predictions can account for the device's height.
 
 ```bash
 # Collect data for five minutes and train the model when done

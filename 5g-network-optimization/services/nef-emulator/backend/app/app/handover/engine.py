@@ -105,6 +105,7 @@ class HandoverEngine:
             "ue_id": ue_id,
             "latitude": fv["latitude"],
             "longitude": fv["longitude"],
+            "altitude": fv.get("altitude"),
             "speed": fv.get("speed", 0.0),
             "direction": (0, 0, 0),
             "connected_to": fv["connected_to"],

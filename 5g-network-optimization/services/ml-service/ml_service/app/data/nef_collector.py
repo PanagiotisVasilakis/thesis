@@ -262,6 +262,9 @@ class NEFDataCollector:
             "timestamp": datetime.now().isoformat(),
             "ue_id": ue_id,
             "latitude": ue_data.get("latitude"),
+            "altitude": ue_data.get("altitude")
+            if ue_data.get("altitude") is not None
+            else fv.get("altitude"),
             "longitude": ue_data.get("longitude"),
             "altitude": altitude,
             "speed": speed,

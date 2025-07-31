@@ -41,7 +41,6 @@ def test_collect_training_data(monkeypatch, tmp_path):
     data = asyncio.run(collector.collect_training_data(duration=1, interval=1))
     assert len(data) == 1
     assert data[0]["ue_id"] == "ue1"
-    assert "altitude" in data[0]
     assert data[0]["altitude"] is None
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -70, "sinr": 8, "rsrq": -11}}
     assert data[0]["time_since_handover"] == 0.0
