@@ -44,6 +44,7 @@ def fetch_training_data(samples: Iterable[dict]) -> list[dict]:
         "ue_metrics:acceleration",
         "ue_metrics:cell_load",
         "ue_metrics:handover_count",
+        "ue_metrics:time_since_handover",
         "ue_metrics:signal_trend",
         "ue_metrics:environment",
         "ue_metrics:latitude",

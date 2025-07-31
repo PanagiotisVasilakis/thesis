@@ -22,6 +22,7 @@ def test_extract_features_defaults():
         "acceleration": 0,
         "cell_load": 0,
         "handover_count": 0,
+        "time_since_handover": 0,
         "signal_trend": 0,
         "environment": 0,
         "rsrp_stddev": 0,
@@ -147,6 +148,7 @@ def test_predict_with_mock_and_persistence(tmp_path):
         "acceleration": 0,
         "cell_load": 0,
         "handover_count": 0,
+        "time_since_handover": 0,
         "signal_trend": 0,
         "environment": 0,
         "rsrp_stddev": 0,
@@ -239,12 +241,14 @@ def test_altitude_feature_in_training():
     metrics = model.train(data)
 
     assert "altitude" in model.base_feature_names
+    assert "time_since_handover" in model.base_feature_names
     assert "rsrp_stddev" in model.base_feature_names
     assert "sinr_stddev" in model.base_feature_names
     assert "altitude" in model.feature_names
     assert metrics["samples"] == len(data)
     extracted = model.extract_features(data[0])
     assert extracted["altitude"] == 1.0
+    assert "time_since_handover" in extracted
     assert "rsrp_stddev" in extracted
     assert "sinr_stddev" in extracted
 

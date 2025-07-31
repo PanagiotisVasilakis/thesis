@@ -25,6 +25,7 @@ ue_metrics_view = FeatureView(
         Field(name="acceleration", dtype=Float32),
         Field(name="cell_load", dtype=Float32),
         Field(name="handover_count", dtype=Float32),
+        Field(name="time_since_handover", dtype=Float32),
         Field(name="signal_trend", dtype=Float32),
         Field(name="environment", dtype=Float32),
         Field(name="latitude", dtype=Float32),

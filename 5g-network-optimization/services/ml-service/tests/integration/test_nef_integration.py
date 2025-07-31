@@ -35,11 +35,12 @@ async def test_collect_training_data():
     mock_client.get_ue_movement_state.return_value = sample_state
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
-         patch("time.time", side_effect=[0, 0.1, 1.1]):
+         patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
         collector = NEFDataCollector(nef_url="http://nef")
         data = await collector.collect_training_data(duration=1, interval=1)
         assert len(data) == 1
         assert data[0]["ue_id"] == "ue1"
+        assert data[0]["time_since_handover"] == 0.0
 
 
 @pytest.mark.asyncio
@@ -50,7 +51,7 @@ async def test_collect_training_data_file(tmp_path):
     mock_client.get_ue_movement_state.return_value = sample_state
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
-         patch("time.time", side_effect=[0, 0.1, 1.1]):
+         patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
         collector = NEFDataCollector(nef_url="http://nef")
         collector.data_dir = str(tmp_path / "collected_data")
         data = await collector.collect_training_data(duration=1, interval=1)

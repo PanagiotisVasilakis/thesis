@@ -24,6 +24,7 @@ DEFAULT_TEST_FEATURES = {
     "acceleration": 0.0,
     "cell_load": 0.0,
     "handover_count": 0,
+    "time_since_handover": 0.0,
     "signal_trend": 0.0,
     "environment": 0.0,
     "rsrp_stddev": 0.0,
@@ -71,6 +72,7 @@ class AntennaSelector:
             "acceleration",
             "cell_load",
             "handover_count",
+            "time_since_handover",
             "signal_trend",
             "environment",
             "rsrp_stddev",
@@ -182,6 +184,7 @@ class AntennaSelector:
         else:
             hist = data.get("handover_history")
             features["handover_count"] = len(hist) if isinstance(hist, list) else 0
+        features["time_since_handover"] = data.get("time_since_handover", 0)
         features["signal_trend"] = data.get("signal_trend", 0)
         features["environment"] = data.get("environment", 0)
         features["rsrp_stddev"] = data.get("rsrp_stddev", 0)
