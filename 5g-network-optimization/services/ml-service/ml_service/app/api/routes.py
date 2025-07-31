@@ -14,7 +14,6 @@ from ..errors import (
     RequestValidationError,
     ModelError,
     NEFConnectionError,
-    ResourceNotFoundError,
 )
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample

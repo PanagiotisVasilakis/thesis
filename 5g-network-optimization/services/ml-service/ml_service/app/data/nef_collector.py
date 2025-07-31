@@ -17,7 +17,7 @@ from ..clients.nef_client import NEFClient, NEFClientError
 
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
-    
+
     def __init__(self, nef_url="http://localhost:8080", username=None, password=None):
         """Initialize the data collector."""
         self.client = NEFClient(nef_url, username=username, password=password)
@@ -41,7 +41,7 @@ class NEFDataCollector:
         self._last_handover_ts: dict[str, float] = {}
         # Mobility metrics tracker per UE
         self.mobility_tracker = MobilityMetricTracker(POSITION_WINDOW_SIZE)
-    
+
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
         try:
@@ -49,7 +49,7 @@ class NEFDataCollector:
         except NEFClientError as exc:
             self.logger.error(f"NEF authentication error: {exc}")
             return False
-    
+
     def get_ue_movement_state(self):
         """Get current state of all UEs in movement."""
         try:
@@ -64,17 +64,17 @@ class NEFDataCollector:
         except Exception as e:
             self.logger.error(f"Error getting UE movement state: {str(e)}")
             return {}
-    
+
     async def collect_training_data(
         self, duration: float = 60, interval: float = 1
     ) -> list[dict]:
         """
         Collect training data for the specified duration.
-        
+
         Args:
             duration: Collection duration in seconds
             interval: Sampling interval in seconds
-        
+
         Returns:
             List of collected data samples
         """
