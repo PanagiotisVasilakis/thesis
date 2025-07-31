@@ -41,6 +41,7 @@ This directory groups the code and configuration needed to run the system:
 - The NEF emulator exposes Prometheus metrics at `/metrics` which the monitoring stack scrapes.
 - `5g-network-optimization/docker-compose.yml` – orchestrates all services locally, including the monitoring stack.
 - `pytest.ini` – shared configuration for running the automated tests.
+- `docs/mobility_metric_tracker.md` – algorithm details for incremental mobility metrics.
 
 Run the stack locally from this directory with:
 
