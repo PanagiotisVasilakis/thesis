@@ -1,9 +1,8 @@
 """Utilities for computing mobility-related metrics."""
 
-from collections.abc import Sequence
 import math
-
 from collections import defaultdict, deque
+from collections.abc import Sequence
 from functools import partial
 
 __all__ = [
@@ -11,85 +10,6 @@ __all__ = [
     "compute_path_curvature",
     "MobilityMetricTracker",
 ]
-
-
-class MobilityMetricTracker:
-    """Incrementally compute mobility metrics for a stream of positions.
-
-    The tracker maintains running totals so that heading change rate and path
-    curvature can be queried in constant time after each new position is added.
-    The algorithms mirror :func:`compute_heading_change_rate` and
-    :func:`compute_path_curvature` but avoid repeatedly iterating over the full
-    history of coordinates.
-    """
-
-    def __init__(self) -> None:
-        self._prev_point: tuple[float, float] | None = None
-        self._prev_heading: float | None = None
-        self._prev_vector: tuple[float, float] | None = None
-        self._prev_seg_len: float | None = None
-
-        self._path_length = 0.0
-        self._total_angle = 0.0
-        self._total_heading_change = 0.0
-        self._heading_change_count = 0
-
-    def update(self, position: tuple[float, float]) -> None:
-        """Add a new position sample to the tracker."""
-
-        if self._prev_point is None:
-            self._prev_point = position
-            return
-
-        # Vector and length from previous to current point
-        vec = (position[0] - self._prev_point[0], position[1] - self._prev_point[1])
-        seg_len = math.hypot(*vec)
-        heading = None if seg_len == 0 else math.atan2(vec[1], vec[0])
-
-        self._path_length += seg_len
-
-        if self._prev_heading is not None and heading is not None:
-            diff = (heading - self._prev_heading + math.pi) % (2 * math.pi) - math.pi
-            self._total_heading_change += abs(diff)
-            self._heading_change_count += 1
-
-        if (
-            self._prev_vector is not None
-            and self._prev_seg_len is not None
-            and self._prev_seg_len > 0
-            and seg_len > 0
-        ):
-            dot = self._prev_vector[0] * vec[0] + self._prev_vector[1] * vec[1]
-            cos_ang = max(-1.0, min(1.0, dot / (self._prev_seg_len * seg_len)))
-            angle = math.acos(cos_ang)
-            self._total_angle += abs(angle)
-
-        if heading is not None:
-            self._prev_heading = heading
-            self._prev_vector = vec
-            self._prev_seg_len = seg_len
-        else:
-            # preserve previous heading when no movement occurred
-            self._prev_vector = None
-            self._prev_seg_len = None
-
-        self._prev_point = position
-
-    @property
-    def heading_change_rate(self) -> float:
-        """Return the average absolute heading change between segments."""
-
-        if self._heading_change_count == 0:
-            return 0.0
-        return self._total_heading_change / self._heading_change_count
-
-    @property
-    def path_curvature(self) -> float:
-        """Return the total turning angle divided by path length."""
-
-        if self._path_length == 0:
-            return 0.0
-        return self._total_angle / self._path_length
 
 
 def compute_heading_change_rate(positions: Sequence[tuple[float, float]]) -> float:
