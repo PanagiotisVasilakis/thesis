@@ -11,3 +11,11 @@ def test_rf_metrics_entries_per_antenna():
     for metrics in sample['rf_metrics'].values():
         assert 'rsrp' in metrics
         assert 'sinr' in metrics
+        assert 'rsrq' in metrics
+
+
+def test_rsrq_value_range():
+    data = generate_synthetic_training_data(5, num_antennas=2)
+    for sample in data:
+        for metrics in sample['rf_metrics'].values():
+            assert -30 <= metrics['rsrq'] <= -3
