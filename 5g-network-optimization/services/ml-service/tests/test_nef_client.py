@@ -69,8 +69,9 @@ def test_login_unexpected_error(monkeypatch):
         raise ValueError("boom")
 
     monkeypatch.setattr(nef_client.requests, "post", raise_exc)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc_info:
         client.login()
+    assert str(exc_info.value) == "boom"
 
 
 def test_generate_mobility_pattern_success(monkeypatch):
@@ -120,8 +121,9 @@ def test_generate_mobility_pattern_unexpected_error(monkeypatch):
         raise ValueError("boom")
 
     monkeypatch.setattr(nef_client.requests, "post", raise_exc)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as exc_info:
         client.generate_mobility_pattern("linear", "u1", {"speed": 1})
+    assert str(exc_info.value) == "boom"
 
 
 def test_get_ue_movement_state_success(monkeypatch):
@@ -171,8 +173,9 @@ def test_get_ue_movement_state_unexpected_error(monkeypatch):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(nef_client.requests, "get", raise_exc)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(RuntimeError) as exc_info:
         client.get_ue_movement_state()
+    assert str(exc_info.value) == "boom"
 
 
 def test_get_feature_vector_success(monkeypatch):
@@ -219,5 +222,6 @@ def test_get_feature_vector_unexpected_error(monkeypatch):
         raise ZeroDivisionError()
 
     monkeypatch.setattr(nef_client.requests, "get", raise_exc)
-    with pytest.raises(ZeroDivisionError):
+    with pytest.raises(ZeroDivisionError) as exc_info:
         client.get_feature_vector("ue1")
+    assert exc_info.value.args == ()
