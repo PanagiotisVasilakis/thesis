@@ -55,6 +55,8 @@ async def test_collect_training_data(tmp_path, monkeypatch):
     assert data[0]["ue_id"] == "ue1"
     assert data[0]["rf_metrics"] == {"A": {"rsrp": -75, "sinr": 12, "rsrq": -10}}
     assert data[0]["optimal_antenna"] == "A"
+    assert data[0]["rsrp_stddev"] == 0.0
+    assert data[0]["sinr_stddev"] == 0.0
 
     files = list(tmp_path.iterdir())
     assert len(files) == 1
@@ -99,6 +101,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
         "A": {"rsrp": -80, "sinr": 10, "rsrq": -12},
         "B": {"rsrp": -75, "sinr": 5, "rsrq": -9},
     }
+    assert sample["rsrp_stddev"] == 0.0
+    assert sample["sinr_stddev"] == 0.0
     mock_client.get_feature_vector.assert_called_once_with("ue1")
 
 
