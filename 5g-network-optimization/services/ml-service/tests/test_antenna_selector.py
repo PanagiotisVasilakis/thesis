@@ -24,6 +24,8 @@ def test_extract_features_defaults():
         "handover_count": 0,
         "signal_trend": 0,
         "environment": 0,
+        "rsrp_stddev": 0,
+        "sinr_stddev": 0,
         "direction_x": 0,
         "direction_y": 0,
         "rsrp_current": -120,
@@ -147,6 +149,8 @@ def test_predict_with_mock_and_persistence(tmp_path):
         "handover_count": 0,
         "signal_trend": 0,
         "environment": 0,
+        "rsrp_stddev": 0,
+        "sinr_stddev": 0,
         "direction_x": 0,
         "direction_y": 1,
         "rsrp_current": -80,
@@ -235,10 +239,14 @@ def test_altitude_feature_in_training():
     metrics = model.train(data)
 
     assert "altitude" in model.base_feature_names
+    assert "rsrp_stddev" in model.base_feature_names
+    assert "sinr_stddev" in model.base_feature_names
     assert "altitude" in model.feature_names
     assert metrics["samples"] == len(data)
     extracted = model.extract_features(data[0])
     assert extracted["altitude"] == 1.0
+    assert "rsrp_stddev" in extracted
+    assert "sinr_stddev" in extracted
 
 
 def test_default_prediction_unfitted_model(tmp_path, caplog):

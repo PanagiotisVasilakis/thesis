@@ -26,6 +26,8 @@ DEFAULT_TEST_FEATURES = {
     "handover_count": 0,
     "signal_trend": 0.0,
     "environment": 0.0,
+    "rsrp_stddev": 0.0,
+    "sinr_stddev": 0.0,
     "rsrp_current": -90,
     "sinr_current": 10,
     "rsrq_current": -10,
@@ -71,6 +73,8 @@ class AntennaSelector:
             "handover_count",
             "signal_trend",
             "environment",
+            "rsrp_stddev",
+            "sinr_stddev",
             "rsrp_current",
             "sinr_current",
             "rsrq_current",
@@ -180,6 +184,8 @@ class AntennaSelector:
             features["handover_count"] = len(hist) if isinstance(hist, list) else 0
         features["signal_trend"] = data.get("signal_trend", 0)
         features["environment"] = data.get("environment", 0)
+        features["rsrp_stddev"] = data.get("rsrp_stddev", 0)
+        features["sinr_stddev"] = data.get("sinr_stddev", 0)
 
         dx, dy = self._direction_to_unit(data.get("direction", (0, 0, 0)))
         features["direction_x"] = dx

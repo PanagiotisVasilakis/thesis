@@ -6,6 +6,9 @@ from datetime import datetime
 
 import asyncio
 import time
+from collections import deque
+
+SIGNAL_WINDOW_SIZE = int(os.getenv("SIGNAL_WINDOW_SIZE", "5"))
 
 from ..clients.nef_client import NEFClient, NEFClientError
 
@@ -29,6 +32,8 @@ class NEFDataCollector:
         self._prev_cell: dict[str, str] = {}
         self._handover_counts: dict[str, int] = {}
         self._prev_signal: dict[str, dict[str, float]] = {}
+        # Rolling window of recent signal values per UE for variance calculation
+        self._signal_buffer: dict[str, dict[str, deque]] = {}
     
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -120,6 +125,12 @@ class NEFDataCollector:
         rsrps = fv.get("neighbor_rsrp_dbm", {})
         sinrs = fv.get("neighbor_sinrs", {})
         rsrqs = fv.get("neighbor_rsrqs", {})
+        if not isinstance(rsrps, dict):
+            rsrps = {}
+        if not isinstance(sinrs, dict):
+            sinrs = {}
+        if not isinstance(rsrqs, dict):
+            rsrqs = {}
         cell_load = fv.get("cell_load")
         environment = fv.get("environment")
         velocity = fv.get("velocity")
@@ -174,7 +185,35 @@ class NEFDataCollector:
         prev_sig = self._prev_signal.get(ue_id)
         cur_rsrp = rsrps.get(connected_cell_id)
         cur_sinr = sinrs.get(connected_cell_id)
+        if not isinstance(cur_rsrp, (int, float)):
+            cur_rsrp = None
+        if not isinstance(cur_sinr, (int, float)):
+            cur_sinr = None
         cur_rsrq = rsrqs.get(connected_cell_id)
+        if not isinstance(cur_rsrq, (int, float)):
+            cur_rsrq = None
+        buf = self._signal_buffer.setdefault(
+            ue_id,
+            {
+                "rsrp": deque(maxlen=SIGNAL_WINDOW_SIZE),
+                "sinr": deque(maxlen=SIGNAL_WINDOW_SIZE),
+            },
+        )
+        if cur_rsrp is not None:
+            buf["rsrp"].append(cur_rsrp)
+        if cur_sinr is not None:
+            buf["sinr"].append(cur_sinr)
+
+        def _std(values: deque) -> float:
+            n = len(values)
+            if n == 0:
+                return 0.0
+            mean_v = sum(values) / n
+            var = sum((v - mean_v) ** 2 for v in values) / n
+            return var ** 0.5
+
+        rsrp_std = _std(buf["rsrp"])
+        sinr_std = _std(buf["sinr"])
         if signal_trend is None and prev_sig:
             diffs = []
             if cur_rsrp is not None:
@@ -213,6 +252,8 @@ class NEFDataCollector:
             "handover_count": handover_count,
             "signal_trend": signal_trend,
             "environment": environment,
+            "rsrp_stddev": rsrp_std,
+            "sinr_stddev": sinr_std,
             "connected_to": connected_cell_id,
             "optimal_antenna": best_antenna,
             "rf_metrics": rf_metrics,
