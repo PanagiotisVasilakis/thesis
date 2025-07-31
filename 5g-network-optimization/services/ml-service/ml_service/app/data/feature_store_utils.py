@@ -3,6 +3,7 @@ from __future__ import annotations
 """Utility helpers for interacting with the Feast feature store."""
 from pathlib import Path
 from typing import Iterable
+import os
 
 import pandas as pd
 from feast import FeatureStore
@@ -10,12 +11,16 @@ from feast import FeatureStore
 from mlops.feast_repo.constants import UE_METRIC_FEATURE_NAMES
 
 
-REPO_PATH = Path(__file__).resolve().parents[6] / "mlops" / "feast_repo"
+ENV_REPO_PATH = "FEAST_REPO_PATH"
+# Use the local Feast repository unless ``FEAST_REPO_PATH`` is explicitly set.
+DEFAULT_REPO_PATH = Path(__file__).resolve().parents[6] / "mlops" / "feast_repo"
+REPO_PATH = Path(os.getenv(ENV_REPO_PATH, DEFAULT_REPO_PATH))
 
 
 def _store() -> FeatureStore:
-    """Return a ``FeatureStore`` instance for the local repo."""
-    return FeatureStore(str(REPO_PATH))
+    """Return a ``FeatureStore`` instance for the configured repo."""
+    repo = Path(os.getenv(ENV_REPO_PATH, str(REPO_PATH)))
+    return FeatureStore(str(repo))
 
 
 def ingest_samples(samples: Iterable[dict]) -> None:
