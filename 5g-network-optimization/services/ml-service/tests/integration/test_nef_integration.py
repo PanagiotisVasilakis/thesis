@@ -40,6 +40,8 @@ async def test_collect_training_data():
         data = await collector.collect_training_data(duration=1, interval=1)
         assert len(data) == 1
         assert data[0]["ue_id"] == "ue1"
+        assert "altitude" in data[0]
+        assert data[0]["altitude"] is None
         assert data[0]["time_since_handover"] == 0.0
 
 
@@ -61,3 +63,5 @@ async def test_collect_training_data_file(tmp_path):
         with open(files[0]) as f:
             saved = json.load(f)
         assert saved == data
+        assert "altitude" in saved[0]
+        assert saved[0]["altitude"] is None
