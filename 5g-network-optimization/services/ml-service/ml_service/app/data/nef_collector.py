@@ -8,7 +8,11 @@ import asyncio
 import time
 from collections import deque
 
-from ..utils.mobility_metrics import MobilityMetricTracker
+from ..utils.mobility_metrics import (
+    compute_heading_change_rate,
+    compute_path_curvature,
+    MobilityMetricTracker,
+)
 
 SIGNAL_WINDOW_SIZE = int(os.getenv("SIGNAL_WINDOW_SIZE", "5"))
 POSITION_WINDOW_SIZE = int(os.getenv("POSITION_WINDOW_SIZE", "5"))
