@@ -69,6 +69,12 @@ def create_app(config=None):
     collector.start()
     app.metrics_collector = collector
 
+    @app.teardown_appcontext
+    def _shutdown_metrics_collector(exception=None):
+        """Stop background metric collection when the app context ends."""
+        if hasattr(app, "metrics_collector"):
+            app.metrics_collector.stop()
+
     register_error_handlers(app)
 
     @app.before_request
