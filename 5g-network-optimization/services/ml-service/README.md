@@ -143,7 +143,7 @@ The service always runs with a LightGBM model; no other model types are supporte
 To retain the model between container runs you can mount a host directory and point `MODEL_PATH` at a file in that directory.
 
 Each saved model is accompanied by a `*.meta.json` file containing the
-`model_type`, training metrics and a version string.  When the service
+`model_type`, training metrics, a `trained_at` timestamp and a version string.  When the service
 starts, this metadata is checked to ensure the correct model class is loaded.
 If the stored type differs from the configured one a `ModelError` is raised.
 A warning is logged when the version in the metadata does not match the

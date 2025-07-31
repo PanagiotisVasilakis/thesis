@@ -1,11 +1,15 @@
+import json
+import logging
+from datetime import datetime
+
+import numpy as np
+import pytest
 from ml_service.app.initialization import model_init
 from ml_service.app.initialization.model_init import ModelManager
 from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils import synthetic_data
-import numpy as np
-import pytest
-import logging
+
 
 def initialize_model(*args, **kwargs):
     kwargs.setdefault("background", False)
@@ -43,7 +47,12 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
     assert call_count["train"] == 1
     assert model_path.exists()
     assert isinstance(model.model, DummyModel)
-    assert (model_path.parent / "model.joblib.meta.json").exists()
+    meta_file = model_path.parent / "model.joblib.meta.json"
+    assert meta_file.exists()
+    with open(meta_file, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+    assert "trained_at" in meta
+    datetime.fromisoformat(meta["trained_at"])
     # initialize_model should store the trained instance for reuse
     assert ModelManager.get_instance() is model
 

@@ -1,21 +1,18 @@
 """Model initialization utilities."""
-import logging
-from collections import deque
-import os
 import json
+import logging
+import os
 import threading
+from collections import deque
+from datetime import datetime, timezone
 
 # Semantic version of the expected model format. Bump whenever the
 # persisted model or metadata structure changes in a backwards incompatible
 # way so older files can be detected gracefully.
 MODEL_VERSION = "1.0"
 from ..errors import ModelError
-from ..models import (
-    LightGBMSelector,
-    LSTMSelector,
-    EnsembleSelector,
-    OnlineHandoverModel,
-)
+from ..models import (EnsembleSelector, LightGBMSelector, LSTMSelector,
+                      OnlineHandoverModel)
 
 MODEL_CLASSES = {
     "lightgbm": LightGBMSelector,
@@ -29,9 +26,9 @@ MODEL_CLASSES = {
 # oldest entries will be discarded.
 FEEDBACK_BUFFER_LIMIT = 1000
 
+from ..utils.env_utils import get_neighbor_count_from_env
 from ..utils.synthetic_data import generate_synthetic_training_data
 from ..utils.tuning import tune_and_train
-from ..utils.env_utils import get_neighbor_count_from_env
 
 
 def _load_metadata(path: str) -> dict:
@@ -42,6 +39,15 @@ def _load_metadata(path: str) -> dict:
             with open(meta_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
+                    ts = data.get("trained_at")
+                    if ts is not None:
+                        try:
+                            data["trained_at"] = datetime.fromisoformat(ts)
+                        except ValueError:
+                            logging.getLogger(__name__).warning(
+                                "Invalid trained_at timestamp %s in %s", ts, meta_path
+                            )
+                            data["trained_at"] = None
                     return data
         except Exception as exc:  # noqa: BLE001 - log failure
             logging.getLogger(__name__).warning(
@@ -150,6 +156,7 @@ class ModelManager:
                         {
                             "model_type": model_type,
                             "metrics": metrics,
+                            "trained_at": datetime.now(timezone.utc).isoformat(),
                             "version": MODEL_VERSION,
                         },
                         f,
