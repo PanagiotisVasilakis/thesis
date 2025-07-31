@@ -65,10 +65,10 @@ def generate_synthetic_training_data(
         for antenna_id, dist in distances.items():
             rsrp = -60 - 20 * np.log10(max(1, dist / 10))
             sinr = 20 * (1 - dist / 1500) + np.random.normal(0, 2)
-        rf_metrics[antenna_id] = {
-            "rsrp": float(rsrp),
-            "sinr": float(sinr),
-        }
+            rf_metrics[antenna_id] = {
+                "rsrp": float(rsrp),
+                "sinr": float(sinr),
+            }
 
         sample = {
             "ue_id": f"synthetic_ue_{i}",
