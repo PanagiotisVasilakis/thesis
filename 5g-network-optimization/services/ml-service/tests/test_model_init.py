@@ -4,6 +4,8 @@ from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.utils import synthetic_data
 import numpy as np
+import pytest
+import logging
 
 initialize_model = ModelManager.initialize
 
@@ -142,3 +144,29 @@ def test_initialize_model_uses_neighbor_env(monkeypatch, tmp_path):
 
     assert model.neighbor_count == 3
     assert "rsrp_a3" in model.feature_names
+
+
+def test_initialize_model_type_mismatch(monkeypatch):
+    """Initializing with mismatched metadata should raise ModelError."""
+
+    monkeypatch.setattr(model_init, "_load_metadata", lambda p: {"model_type": "lstm", "version": model_init.MODEL_VERSION})
+    with pytest.raises(model_init.ModelError):
+        ModelManager.initialize("foo", model_type="lightgbm")
+
+
+def test_initialize_model_version_warning(monkeypatch, caplog, tmp_path):
+    """A warning is logged when metadata version differs."""
+
+    model_path = tmp_path / "model.joblib"
+    monkeypatch.setattr(model_init, "_load_metadata", lambda p: {"model_type": "lightgbm", "version": "0.0"})
+
+    def dummy_train(self, data):
+        self.model = DummyModel()
+        return {"samples": len(data)}
+
+    monkeypatch.setattr(model_init, "generate_synthetic_training_data", lambda n: [{}] * n)
+    monkeypatch.setattr(LightGBMSelector, "train", dummy_train)
+    caplog.set_level(logging.WARNING)
+
+    ModelManager.initialize(str(model_path))
+    assert any("version" in record.getMessage() for record in caplog.records)
