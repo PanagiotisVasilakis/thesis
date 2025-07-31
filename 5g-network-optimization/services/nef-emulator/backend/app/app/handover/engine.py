@@ -91,13 +91,16 @@ class HandoverEngine:
 
     def _select_ml(self, ue_id: str) -> Optional[dict]:
         fv = self.state_mgr.get_feature_vector(ue_id)
-        rf_metrics = {
-            aid: {
+        rf_metrics = {}
+        for aid in fv["neighbor_rsrp_dbm"]:
+            metrics_dict = {
                 "rsrp": fv["neighbor_rsrp_dbm"][aid],
                 "sinr": fv["neighbor_sinrs"][aid],
             }
-            for aid in fv["neighbor_rsrp_dbm"]
-        }
+            rsrq_map = fv.get("neighbor_rsrqs")
+            if rsrq_map and aid in rsrq_map:
+                metrics_dict["rsrq"] = rsrq_map[aid]
+            rf_metrics[aid] = metrics_dict
         ue_data = {
             "ue_id": ue_id,
             "latitude": fv["latitude"],
