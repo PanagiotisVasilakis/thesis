@@ -7,6 +7,8 @@ from typing import Iterable
 import pandas as pd
 from feast import FeatureStore
 
+from mlops.feast_repo.constants import UE_METRIC_FEATURE_NAMES
+
 
 REPO_PATH = Path(__file__).resolve().parents[6] / "mlops" / "feast_repo"
 
@@ -38,20 +40,7 @@ def fetch_training_data(samples: Iterable[dict]) -> list[dict]:
             "timestamp": pd.to_datetime([s["timestamp"] for s in data]),
         }
     )
-    feature_list = [
-        "ue_metrics:speed",
-        "ue_metrics:velocity",
-        "ue_metrics:acceleration",
-        "ue_metrics:cell_load",
-        "ue_metrics:handover_count",
-        "ue_metrics:time_since_handover",
-        "ue_metrics:signal_trend",
-        "ue_metrics:environment",
-        "ue_metrics:latitude",
-        "ue_metrics:longitude",
-        "ue_metrics:connected_to",
-        "ue_metrics:optimal_antenna",
-    ]
+    feature_list = [f"ue_metrics:{name}" for name in UE_METRIC_FEATURE_NAMES]
     df = fs.get_historical_features(entity_df=entity_df, features=feature_list).to_df()
     df = df.drop(columns=["event_timestamp"])
     return df.to_dict(orient="records")
