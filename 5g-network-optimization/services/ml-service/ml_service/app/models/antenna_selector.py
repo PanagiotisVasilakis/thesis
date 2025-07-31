@@ -98,6 +98,7 @@ class AntennaSelector:
                     f"rsrp_a{idx+1}",
                     f"sinr_a{idx+1}",
                     f"rsrq_a{idx+1}",
+                    f"neighbor_cell_load_a{idx+1}",
                 ])
 
         # Try to load existing model
@@ -152,6 +153,7 @@ class AntennaSelector:
                 vals.get("rsrp", -120),
                 vals.get("sinr") if vals.get("sinr") is not None else 0,
                 vals.get("rsrq") if vals.get("rsrq") is not None else -30,
+                vals.get("cell_load"),
             )
             for aid, vals in metrics.items()
             if aid != current
@@ -219,6 +221,7 @@ class AntennaSelector:
                             f"rsrp_a{idx+1}",
                             f"sinr_a{idx+1}",
                             f"rsrq_a{idx+1}",
+                            f"neighbor_cell_load_a{idx+1}",
                         ])
 
         for idx in range(self.neighbor_count):
@@ -226,10 +229,15 @@ class AntennaSelector:
                 features[f"rsrp_a{idx+1}"] = neighbors[idx][1]
                 features[f"sinr_a{idx+1}"] = neighbors[idx][2]
                 features[f"rsrq_a{idx+1}"] = neighbors[idx][3]
+                load_val = neighbors[idx][4]
+                features[f"neighbor_cell_load_a{idx+1}"] = (
+                    load_val if load_val is not None else 0
+                )
             else:
                 features[f"rsrp_a{idx+1}"] = -120
                 features[f"sinr_a{idx+1}"] = 0
                 features[f"rsrq_a{idx+1}"] = -30
+                features[f"neighbor_cell_load_a{idx+1}"] = 0
 
         features["best_rsrp_diff"] = best_rsrp - rsrp_curr
         features["best_sinr_diff"] = best_sinr - sinr_curr

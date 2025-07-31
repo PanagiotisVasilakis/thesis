@@ -113,6 +113,14 @@ class NetworkStateManager:
         neighbor_sinrs = {aid: neighbor_sinrs[aid] for aid, _ in ordered}
         neighbor_rsrqs = {aid: neighbor_rsrqs[aid] for aid, _ in ordered}
 
+        # Calculate current load per antenna as number of connected UEs
+        antenna_loads = {aid: 0 for aid in self.antenna_list}
+        for u_state in self.ue_states.values():
+            conn = u_state.get("connected_to")
+            if conn in antenna_loads:
+                antenna_loads[conn] += 1
+        antenna_loads = {aid: antenna_loads[aid] for aid, _ in ordered}
+
         features = {
             "ue_id": ue_id,
             "latitude": x,
@@ -123,6 +131,7 @@ class NetworkStateManager:
             "neighbor_rsrp_dbm": rsrp_dbm,
             "neighbor_sinrs": neighbor_sinrs,
             "neighbor_rsrqs": neighbor_rsrqs,
+            "neighbor_cell_loads": antenna_loads,
         }
         return features
 
