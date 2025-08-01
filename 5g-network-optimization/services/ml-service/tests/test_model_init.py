@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 from datetime import datetime
 
 import numpy as np
@@ -286,3 +287,72 @@ def test_switch_version_fallback(monkeypatch, tmp_path):
     ModelManager.switch_version(version2)
     assert ModelManager.get_instance() is prev_model
     assert ModelManager._last_good_model_path == str(path1)
+
+def test_initialize_background_returns_placeholder(monkeypatch, tmp_path):
+    """Initialization with background=True should return a placeholder immediately."""
+    model_path = tmp_path / "model.joblib"
+    model_path.touch()
+    with open(model_path.with_suffix(model_path.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
+
+    final_model = DummyModel()
+
+    def dummy_initialize_sync(*args, **kwargs):
+        time.sleep(0.05)
+        ModelManager._model_instance = final_model
+        ModelManager._last_good_model_path = str(model_path)
+        ModelManager._init_event.set()
+        return final_model
+
+    monkeypatch.setattr(ModelManager, "_initialize_sync", dummy_initialize_sync)
+    ModelManager._model_instance = None
+    ModelManager._init_thread = None
+    ModelManager._init_event.clear()
+
+    placeholder = ModelManager.initialize(str(model_path), background=True)
+
+    assert placeholder is ModelManager.get_instance()
+    assert placeholder is not final_model
+    thread = ModelManager._init_thread
+    assert thread is not None and thread.is_alive()
+    thread.join(timeout=1)
+    assert ModelManager.get_instance() is final_model
+
+
+@pytest.mark.parametrize("fail", [False, True])
+def test_switch_version(monkeypatch, tmp_path, fail):
+    """switch_version loads the requested version and falls back on failure."""
+    version1 = "1.0.0"
+    version2 = "2.0.0"
+    path1 = tmp_path / f"model_v{version1}.joblib"
+    path2 = tmp_path / f"model_v{version2}.joblib"
+    path1.touch()
+    path2.touch()
+    meta = {"model_type": "lightgbm", "version": model_init.MODEL_VERSION}
+    for p in (path1, path2):
+        with open(p.with_suffix(p.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+
+    load_calls = []
+
+    def dummy_load(self, path=None):
+        load_calls.append(path)
+        if path == str(path2) and fail:
+            raise RuntimeError("fail")
+        return True
+
+    monkeypatch.setattr(LightGBMSelector, "load", dummy_load)
+    ModelManager._model_paths = {}
+    ModelManager.initialize(str(path1), background=False)
+    prev_model = ModelManager.get_instance()
+
+    ModelManager._model_paths[version2] = str(path2)
+    ModelManager.switch_version(version2)
+
+    assert load_calls[-1] == str(path2)
+    if fail:
+        assert ModelManager.get_instance() is prev_model
+        assert ModelManager._last_good_model_path == str(path1)
+    else:
+        assert ModelManager.get_instance() is not prev_model
+        assert ModelManager._last_good_model_path == str(path2)
