@@ -2,6 +2,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from collections import deque
 
 import numpy as np
 import pytest
@@ -319,6 +320,45 @@ def test_initialize_background_returns_placeholder(monkeypatch, tmp_path):
     assert ModelManager.get_instance() is final_model
 
 
+def test_feed_feedback_updates_metadata(monkeypatch, tmp_path):
+    """Metadata timestamp should update after drift-triggered retraining."""
+
+    path = tmp_path / "model.joblib"
+    model = LightGBMSelector(str(path))
+    model.model = DummyModel()
+    model.save(str(path), metrics={"samples": 0}, model_type="lightgbm", version=model_init.MODEL_VERSION)
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        before = json.load(f)["trained_at"]
+
+    ModelManager._model_instance = model
+    ModelManager._last_good_model_path = str(path)
+    ModelManager._feedback_data = deque(maxlen=model_init.FEEDBACK_BUFFER_LIMIT)
+
+    model.update = lambda sample, success=True: None
+    model.drift_detected = lambda: True
+
+    def dummy_retrain(data):
+        return {"samples": len(data)}
+
+    model.retrain = dummy_retrain
+
+    monkeypatch.setattr(
+        ModelManager,
+        "save_active_model",
+        lambda metrics: model.save(str(path), metrics=metrics, model_type="lightgbm", version=model_init.MODEL_VERSION),
+    )
+
+    retrained = ModelManager.feed_feedback({"optimal_antenna": "a1"}, success=True)
+    assert retrained
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    assert meta["trained_at"] != before
+    assert meta["metrics"] == {"samples": 1}
+
+
 @pytest.mark.parametrize("fail", [False, True])
 def test_switch_version(monkeypatch, tmp_path, fail):
     """switch_version loads the requested version and falls back on failure."""
@@ -354,7 +394,7 @@ def test_switch_version(monkeypatch, tmp_path, fail):
     # Test switching to a non-existent version
     import pytest
     non_existent_version = "non-existent-version"
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         ModelManager.switch_version(non_existent_version)
     if fail:
         assert ModelManager.get_instance() is prev_model

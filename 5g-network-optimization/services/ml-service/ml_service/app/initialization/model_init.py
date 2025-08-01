@@ -171,20 +171,13 @@ class ModelManager:
             )
 
             if model_path:
-                model.save(model_path)
+                model.save(
+                    model_path,
+                    model_type=model_type,
+                    metrics=metrics,
+                    version=MODEL_VERSION,
+                )
                 logger.info(f"Model saved to {model_path}")
-                meta_path = model_path + ".meta.json"
-                with open(meta_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "model_type": model_type,
-                            "metrics": metrics,
-                            "trained_at": datetime.now(timezone.utc).isoformat(),
-                            "version": MODEL_VERSION,
-                        },
-                        f,
-                    )
-                logger.info(f"Metadata saved to {meta_path}")
 
             with cls._lock:
                 cls._model_instance = model
@@ -316,10 +309,9 @@ class ModelManager:
             if hasattr(model, "drift_detected") and model.drift_detected():
                 logging.getLogger(__name__).info("Drift detected; retraining model")
                 try:
-                    model.retrain(cls._feedback_data)
+                    metrics = model.retrain(cls._feedback_data)
                     cls._feedback_data.clear()
-                    if hasattr(model, "save"):
-                        model.save()
+                    cls.save_active_model(metrics)
                     retrained = True
                 except Exception:  # noqa: BLE001 - log failure
                     logging.getLogger(__name__).exception("Retraining failed")
@@ -383,3 +375,30 @@ class ModelManager:
         if isinstance(ts, datetime):
             meta["trained_at"] = ts.isoformat()
         return meta
+
+    @classmethod
+    def save_active_model(cls, metrics: dict | None = None) -> bool:
+        """Persist the current model alongside updated metadata."""
+        with cls._lock:
+            model = cls._model_instance
+            path = cls._last_good_model_path or os.environ.get("MODEL_PATH")
+            model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
+        if not model or not path or not hasattr(model, "save"):
+            return False
+
+        meta = _load_metadata(path)
+        m_type = meta.get("model_type")
+        if m_type:
+            model_type = m_type
+
+        try:
+            model.save(
+                path,
+                model_type=model_type,
+                metrics=metrics,
+                version=MODEL_VERSION,
+            )
+            return True
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("Failed to save model")
+            return False

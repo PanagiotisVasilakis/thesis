@@ -163,6 +163,9 @@ starts, this metadata is checked to ensure the correct model class is loaded.
 If the stored type differs from the configured one a `ModelError` is raised.
 A warning is logged when the version in the metadata does not match the
 internal model format version (`1.0`).
+The metadata file is automatically rewritten whenever the model is trained via
+the `/api/train` endpoint or retrained through drift detection in
+`ModelManager.feed_feedback`.
 
 During initialization the service keeps track of the last successfully loaded
 model **and** the path from which it was loaded. Should loading or training
