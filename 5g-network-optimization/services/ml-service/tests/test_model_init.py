@@ -350,6 +350,12 @@ def test_switch_version(monkeypatch, tmp_path, fail):
     ModelManager.switch_version(version2)
 
     assert load_calls[-1] == str(path2)
+
+    # Test switching to a non-existent version
+    import pytest
+    non_existent_version = "non-existent-version"
+    with pytest.raises(KeyError):
+        ModelManager.switch_version(non_existent_version)
     if fail:
         assert ModelManager.get_instance() is prev_model
         assert ModelManager._last_good_model_path == str(path1)
