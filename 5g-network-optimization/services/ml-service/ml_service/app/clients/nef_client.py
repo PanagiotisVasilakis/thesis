@@ -163,9 +163,10 @@ class NEFClient:
             raise NEFClientError(
                 f"Movement state request failed: {exc}"
             ) from exc
-        except Exception as e:
-            self.logger.error(f"Error in get_ue_movement_state: {str(e)}")
-            raise
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Handle JSON parsing and data extraction errors
+            self.logger.error(f"Error parsing movement state response: {str(e)}")
+            raise NEFClientError(f"Invalid response format: {e}") from e
 
     def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
         """Return the ML feature vector for the given UE."""
@@ -187,6 +188,7 @@ class NEFClient:
             raise NEFClientError(
                 f"Feature vector request failed: {exc}"
             ) from exc
-        except Exception as e:
-            self.logger.error(f"Error in get_feature_vector: {str(e)}")
-            raise
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # Handle JSON parsing and data extraction errors
+            self.logger.error(f"Error parsing feature vector response: {str(e)}")
+            raise NEFClientError(f"Invalid response format: {e}") from e
