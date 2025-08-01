@@ -114,6 +114,21 @@ curl -X POST http://localhost:5050/api/collect-data \
      -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
 ```
 
+### `GET /api/models`
+List discovered model versions.
+
+```bash
+curl http://localhost:5050/api/models
+```
+
+### `POST /api/models/<version>`
+Switch the active model to the specified version.
+
+```bash
+curl -X POST http://localhost:5050/api/models/1.1.0 \
+     -H 'Authorization: Bearer <TOKEN>'
+```
+
 ### `GET /metrics`
 Expose Prometheus metrics for monitoring.
 
@@ -157,12 +172,20 @@ The service always runs with a LightGBM model; no other model types are supporte
 `MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
 To retain the model between container runs you can mount a host directory and point `MODEL_PATH` at a file in that directory.
 
+On startup the service scans the directory of `MODEL_PATH` for files named
+`antenna_selector_v*.joblib`.  Each discovered version is registered so you can
+switch models at runtime using the management API without restarting the
+service.
+
 Each saved model is accompanied by a `*.meta.json` file containing the
 `model_type`, training metrics, a `trained_at` timestamp and a version string.  When the service
 starts, this metadata is checked to ensure the correct model class is loaded.
 If the stored type differs from the configured one a `ModelError` is raised.
 A warning is logged when the version in the metadata does not match the
 internal model format version (`1.0`).
+The metadata file is automatically rewritten whenever the model is trained via
+the `/api/train` endpoint or retrained through drift detection in
+`ModelManager.feed_feedback`.
 
 During initialization the service keeps track of the last successfully loaded
 model **and** the path from which it was loaded. Should loading or training

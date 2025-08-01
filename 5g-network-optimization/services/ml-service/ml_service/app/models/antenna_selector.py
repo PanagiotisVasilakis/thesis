@@ -5,6 +5,9 @@ import joblib
 import os
 import logging
 import threading
+import json
+from datetime import datetime, timezone
+from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 
 from ..utils.env_utils import get_neighbor_count_from_env
@@ -326,21 +329,55 @@ class AntennaSelector:
             ),
         }
 
-    def save(self, path=None):
-        """Save the model to disk."""
+    def save(
+        self,
+        path: str | None = None,
+        *,
+        model_type: str = "lightgbm",
+        metrics: dict | None = None,
+        version: str = MODEL_VERSION,
+    ) -> bool:
+        """Persist the model and accompanying metadata.
+
+        Parameters
+        ----------
+        path:
+            Optional path overriding ``self.model_path``.
+        model_type:
+            String describing the model implementation.
+        metrics:
+            Optional training metrics to store in the metadata file.
+        version:
+            Semantic version of the persisted format.
+        """
+
         save_path = path or self.model_path
-        if save_path:
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            joblib.dump(
-                {
-                    "model": self.model,
-                    "feature_names": self.feature_names,
-                    "neighbor_count": self.neighbor_count,
-                },
-                save_path,
-            )
-            return True
-        return False
+        if not save_path:
+            return False
+        save_path = str(save_path)
+
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        joblib.dump(
+            {
+                "model": self.model,
+                "feature_names": self.feature_names,
+                "neighbor_count": self.neighbor_count,
+            },
+            save_path,
+        )
+
+        meta = {
+            "model_type": model_type,
+            "trained_at": datetime.now(timezone.utc).isoformat(),
+            "version": version,
+        }
+        if metrics is not None:
+            meta["metrics"] = metrics
+        meta_path = f"{save_path}.meta.json"
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+
+        return True
 
     def load(self, path=None):
         """Load the model from disk."""

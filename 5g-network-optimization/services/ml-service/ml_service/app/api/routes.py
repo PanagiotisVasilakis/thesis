@@ -70,6 +70,13 @@ def model_health():
     return jsonify({"ready": ready, "metadata": meta})
 
 
+@api_bp.route("/models", methods=["GET"])
+def list_models():
+    """Return all discovered model versions."""
+    versions = ModelManager.list_versions()
+    return jsonify({"versions": versions})
+
+
 @api_bp.route("/login", methods=["POST"])
 def login():
     """Return a JWT token for valid credentials."""
@@ -156,7 +163,7 @@ def train():
     track_training(
         duration, metrics.get("samples", 0), metrics.get("val_accuracy")
     )
-    model.save()
+    ModelManager.save_active_model(metrics)
 
     return jsonify({"status": "success", "metrics": metrics})
 
@@ -256,3 +263,16 @@ def feedback():
         ) or retrained
 
     return jsonify({"status": "received", "samples": len(samples), "retrained": retrained})
+
+
+@api_bp.route("/models/<version>", methods=["POST", "PUT"])
+@require_auth
+def switch_model(version: str):
+    """Switch the active model to the specified version."""
+    try:
+        ModelManager.switch_version(version)
+        return jsonify({"status": "ok", "version": version})
+    except ValueError as err:
+        raise RequestValidationError(str(err)) from err
+    except Exception as err:  # noqa: BLE001
+        raise ModelError(f"Failed to switch model: {err}") from err
