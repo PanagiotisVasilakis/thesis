@@ -1,12 +1,13 @@
 """Ensemble model combining multiple selectors."""
 
 from .antenna_selector import AntennaSelector, FALLBACK_ANTENNA_ID, FALLBACK_CONFIDENCE
+from .base_model_mixin import BaseModelMixin
 from .lightgbm_selector import LightGBMSelector
 from .lstm_selector import LSTMSelector
 import numpy as np
 
 
-class EnsembleSelector(AntennaSelector):
+class EnsembleSelector(BaseModelMixin, AntennaSelector):
     """Aggregate predictions from several selector models."""
 
     def __init__(self, models: list[AntennaSelector] | None = None, *, neighbor_count: int | None = None) -> None:
@@ -25,32 +26,69 @@ class EnsembleSelector(AntennaSelector):
         return metrics
 
     def predict(self, features: dict) -> dict:
-        """Average probabilities from all models."""
+        """Average probabilities from all models using fallback mechanism."""
+        # Delegate to the internal ensemble method
+        return self._ensemble_predict(features)
+    
+    def _ensemble_predict(self, features: dict) -> dict:
+        """Internal prediction method that aggregates results from all models."""
         probs_accum = None
         classes = None
+        active_models = 0
+        
         for model in self.models:
-            if hasattr(model, "model") and model.model is not None:
+            if not hasattr(model, "model") or model.model is None:
+                continue
+                
+            try:
                 if isinstance(model, LSTMSelector):
                     if model.classes_ is None:
                         continue
-                    X = np.array([[features[name] for name in model.feature_names]], dtype=float)
-                    X = X.reshape((1, 1, len(model.feature_names)))
-                    prob = model.model.predict(X, verbose=0)[0]
+                    # Use the model's own predict method to avoid duplication
+                    result = model.predict(features)
+                    if result["antenna_id"] == FALLBACK_ANTENNA_ID:
+                        continue
+                    # Convert single prediction to probability array
                     model_classes = model.classes_
+                    prob = np.zeros(len(model_classes))
+                    if result["antenna_id"] in model_classes:
+                        idx = model_classes.index(result["antenna_id"])
+                        prob[idx] = result["confidence"]
                 else:
+                    # Use BaseModelMixin's validate_features if available
+                    if hasattr(model, 'validate_features'):
+                        model.validate_features(features)
+                    
                     X = np.array([[features[name] for name in model.feature_names]], dtype=float)
                     prob = model.model.predict_proba(X)[0]
                     model_classes = list(model.model.classes_)
+                
+                # Initialize accumulator with first valid model
                 if probs_accum is None:
                     probs_accum = np.zeros(len(model_classes))
                     classes = model_classes
+                
+                # Align probabilities across different class orders
                 aligned = np.zeros(len(classes))
                 for idx, cls in enumerate(model_classes):
                     if cls in classes:
                         aligned[classes.index(cls)] = prob[idx]
+                
                 probs_accum += aligned
-        if probs_accum is None:
-            return {"antenna_id": FALLBACK_ANTENNA_ID, "confidence": FALLBACK_CONFIDENCE}
-        probs = probs_accum / len(self.models)
+                active_models += 1
+                
+            except Exception as exc:
+                # Log but don't fail - ensemble should be robust
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Model %s failed in ensemble: %s", model.__class__.__name__, exc
+                )
+                continue
+        
+        if probs_accum is None or active_models == 0:
+            raise ValueError("No models produced valid predictions")
+        
+        # Average the probabilities
+        probs = probs_accum / active_models
         idx = int(np.argmax(probs))
         return {"antenna_id": classes[idx], "confidence": float(probs[idx])}

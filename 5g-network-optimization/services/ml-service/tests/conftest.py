@@ -35,9 +35,14 @@ def client(app):
 
 @pytest.fixture
 def auth_header(client):
+    import os
+    # Use environment variables for test credentials with secure defaults
+    test_username = os.getenv("TEST_AUTH_USERNAME", "test_user")
+    test_password = os.getenv("TEST_AUTH_PASSWORD", "test_secure_password_123!")
+    
     resp = client.post(
         "/api/login",
-        json={"username": "admin", "password": "admin"},
+        json={"username": test_username, "password": test_password},
     )
     assert resp.status_code == 200
     token = resp.get_json()["access_token"]

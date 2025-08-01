@@ -19,6 +19,16 @@ from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
 from ..initialization.model_init import ModelManager
 from ..auth import create_access_token, verify_token
+from ..validation import (
+    validate_json_input,
+    validate_path_params,
+    validate_request_size,
+    validate_content_type,
+    LoginRequest,
+    CollectDataRequest,
+    model_version_validator,
+    bounded_int,
+)
 
 
 def require_auth(func):
@@ -78,32 +88,29 @@ def list_models():
 
 
 @api_bp.route("/login", methods=["POST"])
+@validate_content_type("application/json")
+@validate_request_size(1)  # 1MB max for login
+@validate_json_input(LoginRequest)
 def login():
     """Return a JWT token for valid credentials."""
-    data = request.get_json(silent=True) or {}
-    username = data.get("username")
-    password = data.get("password")
+    data = request.validated_data
     if (
-        username == current_app.config["AUTH_USERNAME"]
-        and password == current_app.config["AUTH_PASSWORD"]
+        data.username == current_app.config["AUTH_USERNAME"]
+        and data.password == current_app.config["AUTH_PASSWORD"]
     ):
-        token = create_access_token(username)
+        token = create_access_token(data.username)
         return jsonify({"access_token": token})
     return jsonify({"error": "Invalid credentials"}), 401
 
 
 @api_bp.route("/predict", methods=["POST"])
 @require_auth
+@validate_content_type("application/json")
+@validate_request_size(5)  # 5MB max for prediction requests
+@validate_json_input(PredictionRequest)
 def predict():
     """Make antenna selection prediction based on UE data."""
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise RequestValidationError("Invalid JSON")
-
-    try:
-        req = PredictionRequest.parse_obj(payload)
-    except ValidationError as err:
-        raise RequestValidationError(err)
+    req = request.validated_data
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
@@ -131,20 +138,13 @@ def predict():
 
 @api_bp.route("/train", methods=["POST"])
 @require_auth
+@validate_content_type("application/json")
+@validate_request_size(50)  # 50MB max for training data
+@validate_json_input(TrainingSample, allow_list=True)
 def train():
     """Train the model with provided data."""
-    payload = request.get_json(silent=True)
-    if not isinstance(payload, list):
-        raise RequestValidationError("Training data must be a list")
-
-    samples = []
-    try:
-        for item in payload:
-            samples.append(
-                TrainingSample.parse_obj(item).dict(exclude_none=True)
-            )
-    except ValidationError as err:
-        raise RequestValidationError(err)
+    validated_samples = request.validated_data
+    samples = [sample.dict(exclude_none=True) for sample in validated_samples]
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
@@ -199,14 +199,17 @@ def nef_status():
 
 @api_bp.route("/collect-data", methods=["POST"])
 @require_auth
+@validate_content_type("application/json")
+@validate_request_size(1)  # 1MB max for data collection params
+@validate_json_input(CollectDataRequest, required=False)
 async def collect_data():
     """Collect training data from the NEF emulator."""
-    params = request.json or {}
-
-    duration = int(params.get("duration", 60))
-    interval = int(params.get("interval", 1))
-    username = params.get("username")
-    password = params.get("password")
+    params = request.validated_data or CollectDataRequest()
+    
+    duration = params.duration
+    interval = params.interval
+    username = params.username
+    password = params.password
 
     nef_url = current_app.config["NEF_API_URL"]
     collector = NEFDataCollector(
@@ -241,19 +244,14 @@ async def collect_data():
 
 @api_bp.route("/feedback", methods=["POST"])
 @require_auth
+@validate_content_type("application/json")
+@validate_request_size(10)  # 10MB max for feedback data
+@validate_json_input(FeedbackSample, allow_list=True)
 def feedback():
     """Receive handover outcome feedback from the NEF emulator."""
-    payload = request.get_json(silent=True)
-    if payload is None:
-        raise RequestValidationError("Invalid JSON")
-
-    data_list = payload if isinstance(payload, list) else [payload]
-    samples = []
-    try:
-        for item in data_list:
-            samples.append(FeedbackSample.parse_obj(item))
-    except ValidationError as err:
-        raise RequestValidationError(err)
+    samples = request.validated_data
+    if not isinstance(samples, list):
+        samples = [samples]
 
     retrained = False
     for sample in samples:
@@ -267,6 +265,7 @@ def feedback():
 
 @api_bp.route("/models/<version>", methods=["POST", "PUT"])
 @require_auth
+@validate_path_params(version=model_version_validator)
 def switch_model(version: str):
     """Switch the active model to the specified version."""
     try:
@@ -274,5 +273,9 @@ def switch_model(version: str):
         return jsonify({"status": "ok", "version": version})
     except ValueError as err:
         raise RequestValidationError(str(err)) from err
-    except Exception as err:  # noqa: BLE001
-        raise ModelError(f"Failed to switch model: {err}") from err
+    except FileNotFoundError as err:
+        raise ModelError(f"Model version '{version}' not found: {err}") from err
+    except PermissionError as err:
+        raise ModelError(f"Permission denied accessing model '{version}': {err}") from err
+    except OSError as err:
+        raise ModelError(f"System error switching to model '{version}': {err}") from err
