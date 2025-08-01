@@ -126,3 +126,48 @@ def generate_synthetic_training_data(
         data.append(sample)
 
     return data
+
+
+def generate_synthetic_training_data_batch(
+    num_samples: int = 500, 
+    num_antennas: int = 3,
+    batch_size: int = 100
+) -> List[Dict]:
+    """Generate synthetic training data in batches for memory efficiency.
+    
+    For very large datasets, this function generates data in batches
+    to avoid memory issues while maintaining performance optimizations.
+    
+    Args:
+        num_samples: Total number of samples to generate
+        num_antennas: Number of antennas in the simulation
+        batch_size: Number of samples to generate per batch
+        
+    Returns:
+        List of synthetic training samples
+    """
+    if batch_size <= 0 or batch_size > num_samples:
+        batch_size = num_samples
+    
+    all_data = []
+    remaining_samples = num_samples
+    batch_start = 0
+    
+    while remaining_samples > 0:
+        current_batch_size = min(batch_size, remaining_samples)
+        
+        # Generate a batch of data
+        batch_data = generate_synthetic_training_data(
+            num_samples=current_batch_size,
+            num_antennas=num_antennas
+        )
+        
+        # Update UE IDs to be globally unique
+        for i, sample in enumerate(batch_data):
+            sample["ue_id"] = f"synthetic_ue_{batch_start + i}"
+        
+        all_data.extend(batch_data)
+        remaining_samples -= current_batch_size
+        batch_start += current_batch_size
+    
+    return all_data

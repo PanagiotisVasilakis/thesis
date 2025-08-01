@@ -24,7 +24,7 @@ class PredictionRequest(BaseModel):
     rf_metrics: Optional[Dict[str, Dict[str, float]]] = None
 
     class Config:
-        extra = "ignore"
+        extra = "forbid"
 
 
 class TrainingSample(PredictionRequest):
@@ -35,7 +35,7 @@ class TrainingSample(PredictionRequest):
     optimal_antenna: str
 
     class Config:
-        extra = "ignore"
+        extra = "forbid"
 
 
 class FeedbackSample(TrainingSample):
@@ -44,4 +44,4 @@ class FeedbackSample(TrainingSample):
     success: bool = True
 
     class Config:
-        extra = "ignore"
+        extra = "forbid"

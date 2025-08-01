@@ -9,6 +9,7 @@ import time
 from collections import deque
 
 from ..utils.mobility_metrics import MobilityMetricTracker
+from ..utils.memory_managed_dict import UETrackingDict, LRUDict
 
 SIGNAL_WINDOW_SIZE = int(os.getenv("SIGNAL_WINDOW_SIZE", "5"))
 POSITION_WINDOW_SIZE = int(os.getenv("POSITION_WINDOW_SIZE", "5"))
@@ -19,8 +20,16 @@ class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
 
     def __init__(self, nef_url="http://localhost:8080", username=None, password=None):
-        """Initialize the data collector."""
-        self.client = NEFClient(nef_url, username=username, password=password)
+        """Initialize the data collector with optimized NEF client."""
+        # Use connection pooling for better performance
+        self.client = NEFClient(
+            nef_url, 
+            username=username, 
+            password=password,
+            pool_connections=5,  # Smaller pool for data collector
+            pool_maxsize=10,     # Fewer connections needed
+            max_retries=2        # Faster failure for data collection
+        )
         self.nef_url = nef_url
         self.username = username
         self.password = password
@@ -30,17 +39,36 @@ class NEFDataCollector:
         # Set up logger for this collector
         self.logger = logging.getLogger('NEFDataCollector')
 
-        # Tracking previous metrics to compute derived features
-        self._prev_speed: dict[str, float] = {}
-        self._prev_cell: dict[str, str] = {}
-        self._handover_counts: dict[str, int] = {}
-        self._prev_signal: dict[str, dict[str, float]] = {}
+        # Memory-managed tracking dictionaries to prevent memory leaks
+        # UE tracking with 24-hour TTL and max 10,000 UEs
+        self._prev_speed: UETrackingDict[float] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
+        self._prev_cell: UETrackingDict[str] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
+        self._handover_counts: UETrackingDict[int] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
+        self._prev_signal: UETrackingDict[dict[str, float]] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
         # Rolling window of recent signal values per UE for variance calculation
-        self._signal_buffer: dict[str, dict[str, deque]] = {}
+        self._signal_buffer: UETrackingDict[dict[str, deque]] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
         # Timestamp of last handover event per UE for time_since_handover
-        self._last_handover_ts: dict[str, float] = {}
+        self._last_handover_ts: UETrackingDict[float] = UETrackingDict(max_ues=10000, ue_ttl_hours=24.0)
         # Mobility metrics tracker per UE
         self.mobility_tracker = MobilityMetricTracker(POSITION_WINDOW_SIZE)
+        
+        # Track last statistics logging time
+        self._last_stats_log = time.time()
+        self._stats_log_interval = 3600.0  # Log stats every hour
+
+    def _log_memory_stats(self):
+        """Log memory usage statistics for tracking dictionaries."""
+        now = time.time()
+        if now - self._last_stats_log >= self._stats_log_interval:
+            self.logger.info("=== NEF Collector Memory Statistics ===")
+            self._prev_speed.log_stats()
+            self._prev_cell.log_stats()
+            self._handover_counts.log_stats()
+            self._prev_signal.log_stats()
+            self._signal_buffer.log_stats()
+            self._last_handover_ts.log_stats()
+            self.logger.info("=== End Memory Statistics ===")
+            self._last_stats_log = now
 
     def login(self):
         """Authenticate with the NEF emulator via the underlying client."""
@@ -97,6 +125,9 @@ class NEFDataCollector:
 
         while time.time() < end_time:
             try:
+                # Log memory statistics periodically
+                self._log_memory_stats()
+                
                 ue_state = self.get_ue_movement_state()
 
                 for ue_id, ue_data in ue_state.items():

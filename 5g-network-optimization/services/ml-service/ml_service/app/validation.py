@@ -8,6 +8,103 @@ import re
 from .errors import RequestValidationError
 
 
+def _format_validation_errors(validation_error: ValidationError, context: str = "") -> str:
+    """Format Pydantic validation errors into user-friendly messages.
+    
+    Args:
+        validation_error: The Pydantic ValidationError
+        context: Context string for error location
+        
+    Returns:
+        Formatted error message string
+    """
+    error_details = []
+    
+    for error in validation_error.errors():
+        location = " -> ".join(str(loc) for loc in error["loc"]) if error["loc"] else "root"
+        if context:
+            full_location = f"{context}.{location}" if location != "root" else context
+        else:
+            full_location = location
+            
+        error_type = error["type"]
+        message = error["msg"]
+        
+        # Add more context for common error types
+        if error_type == "value_error.missing":
+            formatted_error = f"[{full_location}] Required field is missing"
+        elif error_type == "type_error":
+            formatted_error = f"[{full_location}] {message}"
+        elif error_type == "value_error":
+            formatted_error = f"[{full_location}] {message}"
+        elif "too_short" in error_type:
+            min_length = error.get("ctx", {}).get("limit_value", "unknown")
+            formatted_error = f"[{full_location}] Value too short (minimum: {min_length})"
+        elif "too_long" in error_type:
+            max_length = error.get("ctx", {}).get("limit_value", "unknown")
+            formatted_error = f"[{full_location}] Value too long (maximum: {max_length})"
+        elif "greater_than" in error_type:
+            limit = error.get("ctx", {}).get("limit_value", "unknown")
+            formatted_error = f"[{full_location}] Value must be greater than {limit}"
+        elif "less_than" in error_type:
+            limit = error.get("ctx", {}).get("limit_value", "unknown")
+            formatted_error = f"[{full_location}] Value must be less than {limit}"
+        elif "enum" in error_type:
+            allowed_values = error.get("ctx", {}).get("enum_values", [])
+            formatted_error = f"[{full_location}] Invalid value. Allowed: {list(allowed_values)}"
+        else:
+            formatted_error = f"[{full_location}] {message}"
+        
+        error_details.append(formatted_error)
+    
+    return "; ".join(error_details)
+
+
+def _generate_validation_suggestions(validation_error: ValidationError, payload: dict) -> str:
+    """Generate helpful suggestions for fixing validation errors.
+    
+    Args:
+        validation_error: The Pydantic ValidationError
+        payload: The original payload that failed validation
+        
+    Returns:
+        Formatted suggestions string
+    """
+    suggestions = []
+    
+    for error in validation_error.errors():
+        error_type = error["type"]
+        location = error.get("loc", [])
+        
+        if error_type == "value_error.missing":
+            field_name = location[-1] if location else "unknown"
+            suggestions.append(f"Add required field '{field_name}'")
+        elif error_type == "type_error.integer":
+            field_name = location[-1] if location else "unknown"
+            suggestions.append(f"Convert '{field_name}' to integer")
+        elif error_type == "type_error.float":
+            field_name = location[-1] if location else "unknown"
+            suggestions.append(f"Convert '{field_name}' to number")
+        elif error_type == "type_error.bool":
+            field_name = location[-1] if location else "unknown"
+            suggestions.append(f"Use true/false for '{field_name}'")
+        elif "too_short" in error_type:
+            field_name = location[-1] if location else "unknown"
+            min_length = error.get("ctx", {}).get("limit_value", "required")
+            suggestions.append(f"Ensure '{field_name}' has at least {min_length} characters")
+        elif "too_long" in error_type:
+            field_name = location[-1] if location else "unknown"
+            max_length = error.get("ctx", {}).get("limit_value", "allowed")
+            suggestions.append(f"Reduce '{field_name}' to {max_length} characters or less")
+        elif "enum" in error_type:
+            field_name = location[-1] if location else "unknown"
+            allowed_values = error.get("ctx", {}).get("enum_values", [])
+            if allowed_values:
+                suggestions.append(f"Use one of these values for '{field_name}': {list(allowed_values)}")
+    
+    return "; ".join(suggestions)
+
+
 class LoginRequest(BaseModel):
     """Validation schema for login requests."""
     username: str = Field(..., min_length=1, max_length=100)
@@ -43,7 +140,8 @@ class ModelVersionRequest(BaseModel):
 
 def validate_json_input(schema_class: Optional[BaseModel] = None, 
                        allow_list: bool = False,
-                       required: bool = True):
+                       required: bool = True,
+                       partial_validation: bool = False):
     """
     Decorator to validate JSON input against a Pydantic schema.
     
@@ -51,6 +149,7 @@ def validate_json_input(schema_class: Optional[BaseModel] = None,
         schema_class: Pydantic model class to validate against
         allow_list: Whether to allow list inputs
         required: Whether JSON input is required
+        partial_validation: Whether to allow partial validation (ignore extra fields)
     """
     def decorator(func):
         @wraps(func)
@@ -69,22 +168,54 @@ def validate_json_input(schema_class: Optional[BaseModel] = None,
             # Handle list inputs
             if allow_list and isinstance(payload, list):
                 validated_items = []
+                validation_errors = []
+                
                 for i, item in enumerate(payload):
                     try:
-                        validated_items.append(schema_class.parse_obj(item))
+                        if partial_validation:
+                            # Parse with extra fields ignored
+                            validated_item = schema_class.parse_obj(item)
+                        else:
+                            validated_item = schema_class.parse_obj(item)
+                        validated_items.append(validated_item)
                     except ValidationError as err:
-                        raise RequestValidationError(
-                            f"Validation error in item {i}: {err}"
-                        ) from err
-                # Replace request data with validated data
+                        detailed_errors = _format_validation_errors(err, f"item[{i}]")
+                        validation_errors.append(f"Item {i}: {detailed_errors}")
+                
+                # If we have validation errors, raise them all
+                if validation_errors:
+                    raise RequestValidationError(
+                        f"Validation failed for {len(validation_errors)} items: " +
+                        "; ".join(validation_errors)
+                    )
+                
+                # Set validated data and include validation metadata
                 request.validated_data = validated_items
+                request.validation_metadata = {
+                    "total_items": len(payload),
+                    "validated_items": len(validated_items),
+                    "schema": schema_class.__name__
+                }
             else:
                 # Validate single object
                 try:
-                    validated_data = schema_class.parse_obj(payload)
+                    if partial_validation:
+                        validated_data = schema_class.parse_obj(payload)
+                    else:
+                        validated_data = schema_class.parse_obj(payload)
                     request.validated_data = validated_data
+                    request.validation_metadata = {
+                        "schema": schema_class.__name__,
+                        "fields_validated": len(validated_data.__fields__)
+                    }
                 except ValidationError as err:
-                    raise RequestValidationError(f"Validation error: {err}") from err
+                    detailed_errors = _format_validation_errors(err, "root")
+                    # Add suggestions for common fixes
+                    suggestions = _generate_validation_suggestions(err, payload)
+                    error_message = f"Validation errors: {detailed_errors}"
+                    if suggestions:
+                        error_message += f". Suggestions: {suggestions}"
+                    raise RequestValidationError(error_message) from err
             
             return func(*args, **kwargs)
         return wrapper

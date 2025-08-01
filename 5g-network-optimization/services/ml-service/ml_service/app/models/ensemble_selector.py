@@ -19,16 +19,34 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
         self.model = None
 
     def train(self, training_data: list, **kwargs) -> dict:
-        """Train all models in the ensemble."""
+        """Train all models in the ensemble.
+        
+        This method is thread-safe as individual models handle their own locking.
+        """
+        if not training_data:
+            raise ValueError("Training data cannot be empty")
+        
         metrics = {}
         for model in self.models:
-            metrics[model.__class__.__name__] = model.train(training_data, **kwargs)
+            try:
+                metrics[model.__class__.__name__] = model.train(training_data, **kwargs)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(
+                    "Failed to train model %s in ensemble: %s", 
+                    model.__class__.__name__, e
+                )
+                metrics[model.__class__.__name__] = {"error": str(e)}
         return metrics
 
     def predict(self, features: dict) -> dict:
-        """Average probabilities from all models using fallback mechanism."""
-        # Delegate to the internal ensemble method
-        return self._ensemble_predict(features)
+        """Average probabilities from all models using fallback mechanism.
+        
+        This method is thread-safe as individual models handle their own locking.
+        """
+        # Thread-safe prediction - each model handles its own locking
+        with self._model_lock:
+            return self._ensemble_predict(features)
     
     def _ensemble_predict(self, features: dict) -> dict:
         """Internal prediction method that aggregates results from all models."""

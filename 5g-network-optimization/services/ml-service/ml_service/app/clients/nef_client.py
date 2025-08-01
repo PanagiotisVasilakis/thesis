@@ -7,6 +7,7 @@ and :class:`NEFClientError` which is raised whenever an HTTP request fails
 because of a :class:`requests.exceptions.RequestException`.
 """
 
+import json
 import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
@@ -145,7 +146,7 @@ class NEFClient:
         try:
             url = urljoin(self.base_url, "/api/v1/ue-movement/state-ues")
 
-            response = requests.get(
+            response = self.session.get(
                 url, headers=self.get_headers(), timeout=10
             )
 
@@ -172,7 +173,7 @@ class NEFClient:
         """Return the ML feature vector for the given UE."""
         try:
             url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
-            response = requests.get(
+            response = self.session.get(
                 url, headers=self.get_headers(), timeout=10
             )
             if response.status_code == 200:

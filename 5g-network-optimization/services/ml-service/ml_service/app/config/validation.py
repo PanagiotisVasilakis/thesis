@@ -21,6 +21,9 @@ class DatabaseConfig(BaseModel):
     password: str = Field(..., min_length=1, description="Database password")
     ssl_mode: str = Field(default="prefer", description="SSL mode for database connection")
     
+    class Config:
+        extra = "forbid"
+    
     @validator('ssl_mode')
     def validate_ssl_mode(cls, v):
         valid_modes = ['disable', 'allow', 'prefer', 'require', 'verify-ca', 'verify-full']
@@ -37,6 +40,9 @@ class ModelConfig(BaseModel):
     auto_retrain: bool = Field(default=True, description="Enable automatic retraining")
     retrain_threshold: float = Field(default=0.1, ge=0.0, le=1.0, description="Drift threshold for retraining")
     backup_count: int = Field(default=5, ge=1, le=20, description="Number of model backups to keep")
+    
+    class Config:
+        extra = "forbid"
     
     @validator('type')
     def validate_model_type(cls, v):
@@ -63,6 +69,9 @@ class NEFConfig(BaseModel):
     max_retries: int = Field(default=3, ge=1, le=10, description="Maximum retry attempts")
     retry_delay: float = Field(default=1.0, ge=0.1, le=10.0, description="Delay between retries")
     
+    class Config:
+        extra = "forbid"
+    
     @validator('api_url')
     def validate_api_url(cls, v):
         try:
@@ -84,6 +93,9 @@ class SecurityConfig(BaseModel):
     auth_password: str = Field(..., min_length=8, description="Authentication password")
     jwt_expiry_hours: int = Field(default=24, ge=1, le=168, description="JWT token expiry in hours")
     rate_limit_per_minute: int = Field(default=100, ge=1, le=10000, description="Rate limit per minute")
+    
+    class Config:
+        extra = "forbid"
     
     @validator('secret_key', 'jwt_secret')
     def validate_secrets(cls, v):
@@ -119,6 +131,9 @@ class LoggingConfig(BaseModel):
     max_file_size: int = Field(default=10*1024*1024, ge=1024, description="Max log file size in bytes")
     backup_count: int = Field(default=5, ge=1, le=50, description="Number of log file backups")
     
+    class Config:
+        extra = "forbid"
+    
     @validator('level')
     def validate_log_level(cls, v):
         valid_levels = ['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG']
@@ -136,6 +151,9 @@ class PerformanceConfig(BaseModel):
     connection_pool_size: int = Field(default=50, ge=1, le=1000, description="HTTP connection pool size")
     enable_metrics: bool = Field(default=True, description="Enable Prometheus metrics")
     metrics_port: int = Field(default=9090, ge=1024, le=65535, description="Metrics server port")
+    
+    class Config:
+        extra = "forbid"
 
 
 class MLServiceConfig(BaseModel):
@@ -156,6 +174,9 @@ class MLServiceConfig(BaseModel):
     
     # Environment-specific overrides
     environment: str = Field(default="development", description="Deployment environment")
+    
+    class Config:
+        extra = "forbid"
     
     @validator('environment')
     def validate_environment(cls, v):
@@ -227,11 +248,21 @@ class ConfigValidator:
         # Generate secure defaults if not provided (with warnings)
         if not secret_key:
             secret_key = self._generate_secure_key()
-            self.logger.warning("SECRET_KEY not set, generated random key (will not persist across restarts)")
+            key_hint = f"{secret_key[:4]}{'*' * (len(secret_key) - 8)}{secret_key[-4:]}"
+            self.logger.warning(
+                "SECRET_KEY not set, generated random key (hint: %s). "
+                "Key will not persist across restarts - set SECRET_KEY environment variable.",
+                key_hint
+            )
         
         if not jwt_secret:
             jwt_secret = self._generate_secure_key()
-            self.logger.warning("JWT_SECRET not set, generated random key (will not persist across restarts)")
+            jwt_hint = f"{jwt_secret[:4]}{'*' * (len(jwt_secret) - 8)}{jwt_secret[-4:]}"
+            self.logger.warning(
+                "JWT_SECRET not set, generated random key (hint: %s). "
+                "Key will not persist across restarts - set JWT_SECRET environment variable.",
+                jwt_hint
+            )
         
         if not auth_username:
             auth_username = "admin"
@@ -239,7 +270,19 @@ class ConfigValidator:
         
         if not auth_password:
             auth_password = self._generate_secure_key(16)
-            self.logger.warning("AUTH_PASSWORD not set, generated random password: %s", auth_password)
+            # Log password existence without revealing the actual password
+            password_hint = f"{auth_password[:2]}{'*' * (len(auth_password) - 4)}{auth_password[-2:]}"
+            self.logger.warning(
+                "AUTH_PASSWORD not set, generated random password (hint: %s). "
+                "For security, set AUTH_PASSWORD environment variable.",
+                password_hint
+            )
+            # Also provide secure storage recommendation
+            self.logger.info(
+                "Consider storing the generated password securely. "
+                "Password length: %d characters, complexity: high",
+                len(auth_password)
+            )
         
         config_data["security"] = {
             "secret_key": secret_key,
@@ -312,6 +355,47 @@ class ConfigValidator:
         """Get list of validation errors from the last validation attempt."""
         return self._validation_errors.copy()
     
+    def get_sanitized_config_for_logging(self) -> Dict[str, Any]:
+        """Get configuration with sensitive values masked for safe logging."""
+        if self._config is None:
+            raise RuntimeError("Configuration not validated. Call validate_config() first.")
+        
+        config_dict = self._config.dict()
+        
+        # Mask sensitive values
+        if "security" in config_dict:
+            security = config_dict["security"]
+            for field in ["secret_key", "jwt_secret", "auth_password"]:
+                if field in security and security[field]:
+                    value = security[field]
+                    if len(value) > 8:
+                        security[field] = f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
+                    else:
+                        security[field] = "*" * len(value)
+        
+        # Mask database password if present
+        if "database" in config_dict and config_dict["database"]:
+            db_config = config_dict["database"]
+            if "password" in db_config and db_config["password"]:
+                password = db_config["password"]
+                if len(password) > 4:
+                    db_config["password"] = f"{password[:2]}{'*' * (len(password) - 4)}{password[-2:]}"
+                else:
+                    db_config["password"] = "*" * len(password)
+        
+        # Mask NEF credentials if present
+        if "nef" in config_dict:
+            nef_config = config_dict["nef"]
+            for field in ["username", "password"]:
+                if field in nef_config and nef_config[field]:
+                    value = nef_config[field]
+                    if len(value) > 4:
+                        nef_config[field] = f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
+                    else:
+                        nef_config[field] = "*" * len(value)
+        
+        return config_dict
+
     def check_production_readiness(self) -> List[str]:
         """Check if configuration is ready for production deployment."""
         if self._config is None:

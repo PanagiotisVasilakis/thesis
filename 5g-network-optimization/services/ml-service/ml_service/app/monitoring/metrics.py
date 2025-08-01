@@ -183,33 +183,143 @@ class MetricsCollector:
     """Background thread updating operational metrics."""
 
     def __init__(self, interval: float = 10.0, drift_monitor: DataDriftMonitor | None = None) -> None:
+        if interval <= 0:
+            raise ValueError(f"Interval must be positive, got {interval}")
+        if interval < 1.0:
+            logger.warning("Very short monitoring interval (%.2fs) may impact performance", interval)
+        
         self.interval = interval
         self.drift_monitor = drift_monitor or DataDriftMonitor()
         self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread = threading.Thread(target=self._run, daemon=True, name="MetricsCollector")
         self._last_success = 0.0
         self._last_error = 0.0
-        self._process = psutil.Process(os.getpid())
+        
+        # Initialize process monitor with error handling
+        try:
+            self._process = psutil.Process(os.getpid())
+            logger.info("Metrics collector initialized for PID %d", os.getpid())
+        except psutil.NoSuchProcess:
+            logger.critical("Cannot initialize process monitor - current process doesn't exist")
+            raise
+        except Exception as e:
+            logger.error("Error initializing process monitor: %s", e)
+            raise
 
     def start(self) -> None:
         self._last_success = PREDICTION_REQUESTS.labels(status='success')._value.get()
         self._last_error = PREDICTION_REQUESTS.labels(status='error')._value.get()
         self._thread.start()
 
-    def stop(self) -> None:
+    def stop(self, timeout: float = 5.0) -> None:
+        """Stop the metrics collection thread.
+        
+        Args:
+            timeout: Maximum time to wait for thread to stop
+        """
+        if not self._thread.is_alive():
+            logger.info("Metrics collector already stopped")
+            return
+        
+        logger.info("Stopping metrics collector...")
         self._stop.set()
-        self._thread.join()
+        
+        try:
+            self._thread.join(timeout=timeout)
+            if self._thread.is_alive():
+                logger.warning(
+                    "Metrics collector thread did not stop within %.1fs timeout",
+                    timeout
+                )
+            else:
+                logger.info("Metrics collector stopped successfully")
+        except Exception as e:
+            logger.error("Error stopping metrics collector: %s", e)
 
     def _run(self) -> None:
+        """Main monitoring loop with comprehensive error handling."""
+        consecutive_errors = 0
+        max_consecutive_errors = 5
+        
         while not self._stop.is_set():
-            self._update_resource_usage()
-            self._update_error_rate()
-            DATA_DRIFT_SCORE.set(self.drift_monitor.compute_drift())
+            try:
+                self._update_resource_usage()
+                
+                try:
+                    self._update_error_rate()
+                except Exception as e:
+                    logger.warning("Error updating error rate metrics: %s", e)
+                
+                try:
+                    drift_score = self.drift_monitor.compute_drift()
+                    if 0 <= drift_score <= 1:  # Validate drift score
+                        DATA_DRIFT_SCORE.set(drift_score)
+                    else:
+                        logger.warning("Invalid drift score: %s", drift_score)
+                except Exception as e:
+                    logger.warning("Error computing drift score: %s", e)
+                
+                # Reset error counter on successful iteration
+                consecutive_errors = 0
+                
+            except Exception as e:
+                consecutive_errors += 1
+                logger.error(
+                    "Error in monitoring loop (attempt %d/%d): %s",
+                    consecutive_errors, max_consecutive_errors, e
+                )
+                
+                # If too many consecutive errors, add delay to prevent tight error loop
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.critical(
+                        "Too many consecutive monitoring errors (%d), "
+                        "adding extended delay to prevent resource exhaustion",
+                        consecutive_errors
+                    )
+                    self._stop.wait(self.interval * 5)  # Extended delay
+                    consecutive_errors = 0  # Reset counter
+            
+            # Wait for next iteration
             self._stop.wait(self.interval)
 
     def _update_resource_usage(self) -> None:
-        CPU_USAGE.set(self._process.cpu_percent(interval=None))
-        MEMORY_USAGE.set(self._process.memory_info().rss)
+        """Update resource usage metrics with error handling."""
+        try:
+            # Check if process is still valid
+            if not self._process.is_running():
+                logger.warning("Process is no longer running, recreating process monitor")
+                self._process = psutil.Process(os.getpid())
+            
+            # Get CPU usage with timeout protection
+            cpu_percent = self._process.cpu_percent(interval=None)
+            if cpu_percent is not None and 0 <= cpu_percent <= 100:
+                CPU_USAGE.set(cpu_percent)
+            else:
+                logger.warning("Invalid CPU percentage: %s", cpu_percent)
+            
+            # Get memory info with error handling
+            memory_info = self._process.memory_info()
+            if memory_info and memory_info.rss > 0:
+                MEMORY_USAGE.set(memory_info.rss)
+            else:
+                logger.warning("Invalid memory info: %s", memory_info)
+                
+        except psutil.NoSuchProcess:
+            logger.error("Process no longer exists, recreating monitor")
+            try:
+                self._process = psutil.Process(os.getpid())
+            except psutil.NoSuchProcess:
+                logger.critical("Cannot recreate process monitor - current process doesn't exist")
+        except psutil.ZombieProcess:
+            logger.error("Process is a zombie, attempting to recreate monitor")
+            try:
+                self._process = psutil.Process(os.getpid())
+            except (psutil.NoSuchProcess, psutil.ZombieProcess):
+                logger.critical("Cannot recreate process monitor - process is zombie or gone")
+        except psutil.AccessDenied:
+            logger.error("Access denied to process information")
+        except Exception as e:
+            logger.error("Unexpected error updating resource usage: %s", e)
 
     def _update_error_rate(self) -> None:
         success = PREDICTION_REQUESTS.labels(status='success')._value.get()
