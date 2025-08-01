@@ -387,8 +387,7 @@ class ModelManager:
             return False
 
         meta = _load_metadata(path)
-        m_type = meta.get("model_type")
-        if m_type:
+        if m_type := meta.get("model_type"):
             model_type = m_type
 
         try:
