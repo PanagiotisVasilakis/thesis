@@ -39,6 +39,13 @@ Simple health probe.
 curl http://localhost:5050/api/health
 ```
 
+### `GET /api/model-health`
+Report whether the model is ready and return training metadata.
+
+```bash
+curl http://localhost:5050/api/model-health
+```
+
 ### `POST /api/login`
 Obtain a JWT token. Use the configured username and password.
 
