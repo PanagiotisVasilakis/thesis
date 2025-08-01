@@ -12,9 +12,10 @@ following tasks:
 1. Loads default configuration such as `NEF_API_URL` and the `MODEL_PATH` for
    the persisted model.
 2. Creates the model directory and initializes the ML model via
-   `app.initialization.model_init.initialize_model`. The service always uses a
+   `ModelManager.initialize(background=True)`. The service always uses a
    LightGBM model. If no model exists a lightweight synthetic one is trained and
-   stored automatically.
+   stored automatically. The initialization runs in a background thread so the
+   Flask app can start up quickly.
 3. Registers the REST API blueprint from `app/api` and visualization routes
    from `app/api/visualization`.
 
@@ -24,6 +25,13 @@ app = create_app()
 ```
 
 Running `python app.py` simply invokes this factory and serves the app.
+
+`create_app` triggers model loading asynchronously. It calls
+`ModelManager.initialize(background=True)` so the heavy initialization runs in
+the background. Each API handler obtains the model via `api_lib.load_model()`
+which in turn calls `ModelManager.wait_until_ready()` before returning. This
+ensures that incoming requests block until initialization has completed and a
+fully trained model is available.
 
 ## API Endpoints
 
