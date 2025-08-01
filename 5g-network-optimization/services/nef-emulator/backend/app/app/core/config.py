@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     # ----- MongoDB -----
     MONGO_CLIENT: str
 
+    # ----- Rate Limiter -----
+    REDIS_URL: str = "redis://localhost:6379"
+
     # ----- CAPIF -----
     CAPIF_HOST: str
     CAPIF_HTTP_PORT: str

@@ -113,4 +113,5 @@ def test_handover_applied(client: TestClient) -> None:
 def test_handover_not_triggered(client: TestClient) -> None:
     resp = client.post("/api/v1/ml/handover?ue_id=ue_no")
     assert resp.status_code == 400
-    assert resp.json()["detail"] == "No handover triggered"
+    data = resp.json()
+    assert (data.get("message") or data.get("detail")) == "No handover triggered"

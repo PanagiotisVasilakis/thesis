@@ -54,3 +54,6 @@ pandas==1.5.3
 dask==2023.5.0
 pyarrow==14.0.1
 Flask-Limiter==3.3.1
+fastapi-limiter==0.1.6
+redis==6.2.0
+fakeredis==2.30.3

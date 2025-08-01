@@ -153,7 +153,8 @@ def test_login_access_token_bad_credentials(monkeypatch):
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "wrong"})
     assert response.status_code == 400
-    assert response.json()["detail"] == "Incorrect email or password"
+    data = response.json()
+    assert (data.get("message") or data.get("detail")) == "Incorrect email or password"
 
 
 def test_login_access_token_inactive_user(monkeypatch):
@@ -166,7 +167,8 @@ def test_login_access_token_inactive_user(monkeypatch):
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "secret"})
     assert response.status_code == 400
-    assert response.json()["detail"] == "Inactive user"
+    data = response.json()
+    assert (data.get("message") or data.get("detail")) == "Inactive user"
 
 
 def test_recover_password(monkeypatch):
@@ -189,8 +191,11 @@ def test_recover_password_user_not_found(monkeypatch):
     client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/password-recovery/none@example.com")
     assert response.status_code == 404
-    assert response.json()[
-        "detail"] == "The user with this username does not exist in the system."
+    data = response.json()
+    assert (
+        data.get("message")
+        or data.get("detail")
+    ) == "The user with this username does not exist in the system."
 
 
 def test_reset_password(monkeypatch):
@@ -218,7 +223,8 @@ def test_reset_password_invalid_token(monkeypatch):
     response = client.post("/api/v1/reset-password/",
                            json={"token": "bad", "new_password": "x"})
     assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid token"
+    data = response.json()
+    assert (data.get("message") or data.get("detail")) == "Invalid token"
 
 
 def test_reset_password_user_not_found(monkeypatch):
@@ -230,8 +236,11 @@ def test_reset_password_user_not_found(monkeypatch):
     response = client.post("/api/v1/reset-password/",
                            json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 404
-    assert response.json()[
-        "detail"] == "The user with this username does not exist in the system."
+    data = response.json()
+    assert (
+        data.get("message")
+        or data.get("detail")
+    ) == "The user with this username does not exist in the system."
 
 
 def test_reset_password_inactive_user(monkeypatch):
@@ -245,7 +254,8 @@ def test_reset_password_inactive_user(monkeypatch):
     response = client.post("/api/v1/reset-password/",
                            json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 400
-    assert response.json()["detail"] == "Inactive user"
+    data = response.json()
+    assert (data.get("message") or data.get("detail")) == "Inactive user"
 
 
 def teardown_module(module):
