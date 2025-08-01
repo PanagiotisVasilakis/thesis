@@ -260,6 +260,38 @@ def test_switch_version_loads_registered_model(monkeypatch, tmp_path):
     assert ModelManager._last_good_model_path == str(path2)
 
 
+def test_discovered_versions_switchable(monkeypatch, tmp_path):
+    """Versions found on disk should be loadable immediately."""
+    version1 = "1.0.0"
+    version2 = "2.0.0"
+    path1 = tmp_path / f"model_v{version1}.joblib"
+    path2 = tmp_path / f"model_v{version2}.joblib"
+    for p in (path1, path2):
+        p.touch()
+        with open(p.with_suffix(f"{p.suffix}.meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
+
+    loads = []
+
+    def dummy_load(self, path=None):
+        loads.append(path)
+        return True
+
+    monkeypatch.setattr(LightGBMSelector, "load", dummy_load)
+
+    ModelManager._model_instance = None
+    ModelManager._model_paths = {}
+
+    ModelManager.initialize(str(path1), background=False)
+
+    assert ModelManager._model_paths[version1] == str(path1)
+    assert ModelManager._model_paths[version2] == str(path2)
+
+    ModelManager.switch_version(version2)
+    assert loads[-1] == str(path2)
+    assert ModelManager._last_good_model_path == str(path2)
+
+
 def test_switch_version_fallback(monkeypatch, tmp_path):
     version1 = "1.0.0"
     version2 = "2.0.0"
@@ -354,7 +386,7 @@ def test_switch_version(monkeypatch, tmp_path, fail):
     # Test switching to a non-existent version
     import pytest
     non_existent_version = "non-existent-version"
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError):
         ModelManager.switch_version(non_existent_version)
     if fail:
         assert ModelManager.get_instance() is prev_model
