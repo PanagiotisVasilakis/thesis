@@ -90,7 +90,7 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 `LOG_LEVEL` sets the verbosity of both services (`DEBUG`, `INFO`, etc.) while
 `LOG_FILE` enables file-based logging with automatic rotation when specified.
 
-The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector.joblib`).
+The ML service writes its trained model to the path given by `MODEL_PATH` (default `app/models/antenna_selector_v1.0.0.joblib`).
 Override this variable and mount a host directory in a `docker-compose.override.yml` file if you want the model to persist across container runs.
 
 When `ML_HANDOVER_ENABLED` is *unset*, `HandoverEngine` toggles ML based on the

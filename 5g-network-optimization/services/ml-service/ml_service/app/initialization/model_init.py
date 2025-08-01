@@ -57,6 +57,16 @@ def _load_metadata(path: str) -> dict:
     return {}
 
 
+def _parse_version_from_path(path: str) -> str | None:
+    """Extract semantic version from the model filename if present."""
+    base = os.path.basename(path)
+    if "_v" in base:
+        ver = base.rsplit("_v", 1)[-1].split(".joblib", 1)[0]
+        if ver:
+            return ver
+    return None
+
+
 class ModelManager:
     """Thread-safe manager for a singleton ML model instance."""
 
@@ -66,6 +76,8 @@ class ModelManager:
     _feedback_data: deque[dict] = deque(maxlen=FEEDBACK_BUFFER_LIMIT)
     # Path of the last successfully initialized model
     _last_good_model_path: str | None = None
+    # Mapping of discovered model paths keyed by semantic version
+    _model_paths: dict[str, str] = {}
     # Signal set when initialization completes
     _init_event = threading.Event()
     # Background initialization thread
@@ -128,6 +140,9 @@ class ModelManager:
                 with cls._lock:
                     cls._model_instance = model
                     cls._last_good_model_path = model_path
+                    ver = _parse_version_from_path(model_path)
+                    if ver:
+                        cls._model_paths[ver] = model_path
                     cls._init_event.set()
                 return model
 
@@ -174,6 +189,9 @@ class ModelManager:
             with cls._lock:
                 cls._model_instance = model
                 cls._last_good_model_path = model_path
+                ver = _parse_version_from_path(model_path) if model_path else None
+                if ver:
+                    cls._model_paths[ver] = model_path
                 cls._init_event.set()
             return model
         except Exception:  # noqa: BLE001
@@ -306,6 +324,28 @@ class ModelManager:
                 except Exception:  # noqa: BLE001 - log failure
                     logging.getLogger(__name__).exception("Retraining failed")
         return retrained
+
+    @classmethod
+    def switch_version(cls, version: str):
+        """Load a previously registered model version.
+
+        If loading fails the current model remains active.
+        """
+        with cls._lock:
+            path = cls._model_paths.get(version)
+            if not path:
+                raise ValueError(f"Unknown model version {version}")
+            previous_model = cls._model_instance
+            previous_path = cls._last_good_model_path
+
+        try:
+            return cls._initialize_sync(path, None, None, previous_model, previous_path)
+        except Exception:
+            # _initialize_sync already restored the previous model
+            logging.getLogger(__name__).warning(
+                "Failed to switch to version %s, using last good model", version
+            )
+            return cls.get_instance()
 
     @classmethod
     def wait_until_ready(cls, timeout: float | None = None) -> bool:

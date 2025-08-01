@@ -228,3 +228,61 @@ def test_initialize_restores_on_load_failure(monkeypatch, tmp_path):
 
     assert ModelManager.get_instance() is prev_model
     assert ModelManager._last_good_model_path == "prev.joblib"
+
+
+def test_switch_version_loads_registered_model(monkeypatch, tmp_path):
+    version1 = "1.0.0"
+    version2 = "2.0.0"
+    path1 = tmp_path / f"model_v{version1}.joblib"
+    path2 = tmp_path / f"model_v{version2}.joblib"
+    path1.touch()
+    path2.touch()
+    meta = {"model_type": "lightgbm", "version": model_init.MODEL_VERSION}
+    for p in (path1, path2):
+        with open(p.with_suffix(p.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+            json.dump(meta, f)
+
+    loads = []
+
+    def dummy_load(self, path=None):
+        loads.append(path)
+        return True
+
+    monkeypatch.setattr(LightGBMSelector, "load", dummy_load)
+
+    ModelManager._model_paths = {}
+    ModelManager.initialize(str(path1), background=False)
+    ModelManager._model_paths[version2] = str(path2)
+
+    ModelManager.switch_version(version2)
+    assert loads[-1] == str(path2)
+    assert ModelManager._last_good_model_path == str(path2)
+
+
+def test_switch_version_fallback(monkeypatch, tmp_path):
+    version1 = "1.0.0"
+    version2 = "2.0.0"
+    path1 = tmp_path / f"model_v{version1}.joblib"
+    path1.touch()
+    with open(path1.with_suffix(path1.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
+
+    monkeypatch.setattr(LightGBMSelector, "load", lambda self, path=None: True)
+    ModelManager._model_paths = {}
+    ModelManager.initialize(str(path1), background=False)
+    prev_model = ModelManager.get_instance()
+
+    path2 = tmp_path / f"model_v{version2}.joblib"
+    path2.touch()
+    with open(path2.with_suffix(path2.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+        json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
+
+    def fail_load(self, path=None):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(LightGBMSelector, "load", fail_load)
+    ModelManager._model_paths[version2] = str(path2)
+
+    ModelManager.switch_version(version2)
+    assert ModelManager.get_instance() is prev_model
+    assert ModelManager._last_good_model_path == str(path1)
