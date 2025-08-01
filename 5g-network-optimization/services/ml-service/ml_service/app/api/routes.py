@@ -156,7 +156,7 @@ def train():
     track_training(
         duration, metrics.get("samples", 0), metrics.get("val_accuracy")
     )
-    model.save()
+    ModelManager.save_active_model(metrics)
 
     return jsonify({"status": "success", "metrics": metrics})
 
