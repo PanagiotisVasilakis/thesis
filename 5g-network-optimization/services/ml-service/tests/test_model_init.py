@@ -53,6 +53,7 @@ def test_initialize_model_trains_and_loads(tmp_path, monkeypatch):
         meta = json.load(f)
     assert "trained_at" in meta
     datetime.fromisoformat(meta["trained_at"])
+    assert meta["version"] == "1.0.0"
     # initialize_model should store the trained instance for reuse
     assert ModelManager.get_instance() is model
 

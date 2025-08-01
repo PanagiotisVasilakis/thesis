@@ -5,11 +5,12 @@ import os
 import threading
 from collections import deque
 from datetime import datetime, timezone
+from packaging.version import Version, InvalidVersion
 
 # Semantic version of the expected model format. Bump whenever the
 # persisted model or metadata structure changes in a backwards incompatible
 # way so older files can be detected gracefully.
-MODEL_VERSION = "1.0"
+MODEL_VERSION = "1.0.0"
 from ..errors import ModelError
 from ..models import (EnsembleSelector, LightGBMSelector, LSTMSelector,
                       OnlineHandoverModel)
@@ -100,12 +101,16 @@ class ModelManager:
             if meta_type:
                 model_type = meta_type
             meta_version = meta.get("version")
-            if meta_version and meta_version != MODEL_VERSION:
-                logger.warning(
-                    "Model version %s differs from expected %s",
-                    meta_version,
-                    MODEL_VERSION,
-                )
+            if meta_version:
+                try:
+                    if Version(str(meta_version)) != Version(MODEL_VERSION):
+                        logger.warning(
+                            "Model version %s differs from expected %s",
+                            meta_version,
+                            MODEL_VERSION,
+                        )
+                except InvalidVersion:
+                    logger.warning("Invalid model version %s in metadata", meta_version)
 
             model_cls = MODEL_CLASSES.get(model_type, LightGBMSelector)
             if neighbor_count is None:
