@@ -16,7 +16,7 @@ router = APIRouter()
 db_collection= 'MonitoringEvent'
 
 @router.get("/{scsAsId}/subscriptions", response_model=List[schemas.MonitoringEventSubscription], responses={204: {"model" : None}})
-def read_active_subscriptions(
+async def read_active_subscriptions(
     *,
     scsAsId: str = Path(
         ...,
@@ -46,14 +46,14 @@ def read_active_subscriptions(
 
     if retrieved_docs:
         http_response = JSONResponse(content=retrieved_docs, status_code=200)
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
         #CAPIF Core Function Logging Service
         try:
             response = http_response.body.decode("utf-8")
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -75,7 +75,7 @@ monitoring_callback_router = APIRouter()
     status_code=200,
     response_class=Response,
 )
-def monitoring_notification(
+async def monitoring_notification(
     body: schemas.MonitoringNotification, *, http_request: Request
 ) -> Any:
     """Receive and store monitoring notifications."""
@@ -88,11 +88,11 @@ def monitoring_notification(
         raise HTTPException(status_code=400, detail=str(ex))
 
     http_response = JSONResponse(content={"ok": True}, status_code=200)
-    add_notifications(http_request, http_response, True)
+    await add_notifications(http_request, http_response, True)
     return http_response
 
 @router.post("/{scsAsId}/subscriptions", response_model=schemas.MonitoringEventReport, responses={201: {"model" : schemas.MonitoringEventSubscription}}, callbacks=monitoring_callback_router.routes)
-def create_subscription(
+async def create_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -118,7 +118,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : "UE with this external identifier doesn't exist"})
             json_response.update({"status_code" : "409"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -147,7 +147,7 @@ def create_subscription(
                 json_compatible_item_data["locationInfo"] = {'cellId' : None, 'gNBId' : None}
 
         http_response = JSONResponse(content=json_compatible_item_data, status_code=200)
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
         
         #CAPIF Core Function Logging Service
         try:
@@ -155,7 +155,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -172,7 +172,7 @@ def create_subscription(
                 json_response = {}
                 json_response.update({"response" : f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"})
                 json_response.update({"status_code" : "409"})
-                ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+                await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
             except TypeError as error:
                 logging.critical(f"Error: {error}")
             except AttributeError as error:
@@ -197,7 +197,7 @@ def create_subscription(
 
 
         http_response = JSONResponse(content=updated_doc, status_code=201, headers=response_header)
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
         
         #CAPIF Core Function Logging Service
         try:
@@ -205,7 +205,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -219,7 +219,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : "\"maximumNumberOfReports\" should be greater than 1 in case of LOSS_OF_CONNECTIVITY event"})
             json_response.update({"status_code" : "403"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -241,7 +241,7 @@ def create_subscription(
                 json_response = {}
                 json_response.update({"response" : f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"})
                 json_response.update({"status_code" : "409"})
-                ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+                await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
             except TypeError as error:
                 logging.critical(f"Error: {error}")
             except AttributeError as error:
@@ -266,7 +266,7 @@ def create_subscription(
 
 
         http_response = JSONResponse(content=updated_doc, status_code=201, headers=response_header)
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
         
         #CAPIF Core Function Logging Service
         try:
@@ -274,7 +274,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -284,7 +284,7 @@ def create_subscription(
 
 
 @router.put("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
-def update_subscription(
+async def update_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -311,7 +311,7 @@ def update_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -325,7 +325,7 @@ def update_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -347,7 +347,7 @@ def update_subscription(
         updated_doc.pop("owner_id")
 
         http_response = JSONResponse(content=updated_doc, status_code=200)
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
 
         #CAPIF Core Function Logging Service
         try:
@@ -355,7 +355,7 @@ def update_subscription(
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -368,7 +368,7 @@ def update_subscription(
     
 
 @router.get("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
-def read_subscription(
+async def read_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -393,7 +393,7 @@ def read_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -407,7 +407,7 @@ def read_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -423,7 +423,7 @@ def read_subscription(
         retrieved_doc.pop("owner_id")
         http_response = JSONResponse(content=retrieved_doc, status_code=200)
 
-        add_notifications(http_request, http_response, False)
+        await add_notifications(http_request, http_response, False)
         
         #CAPIF Core Function Logging Service
         try:
@@ -431,7 +431,7 @@ def read_subscription(
             json_response = {}
             json_response.update({"response" : response})
             json_response.update({"status_code" : str(http_response.status_code)})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -443,7 +443,7 @@ def read_subscription(
         raise HTTPException(status_code=403, detail="Subscription has expired")
 
 @router.delete("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.MonitoringEventSubscription)
-def delete_subscription(
+async def delete_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -468,7 +468,7 @@ def delete_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -482,7 +482,7 @@ def delete_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
         except TypeError as error:
             logging.critical(f"Error: {error}")
         except AttributeError as error:
@@ -496,7 +496,7 @@ def delete_subscription(
     retrieved_doc.pop("owner_id")
 
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
 
     #CAPIF Core Function Logging Service
     try:
@@ -504,7 +504,7 @@ def delete_subscription(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+        await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
     except TypeError as error:
         logging.error(f"Error: {error}")
     except AttributeError as error:

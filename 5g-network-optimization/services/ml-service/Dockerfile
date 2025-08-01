@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends     build-essen
 
 # Create virtual environment and install dependencies
 RUN python -m venv /venv
-ENV PATH="/venv/bin:/home/appuser/.vscode-server/bin/17baf841131aa23349f217ca7c570c76ee87b957/bin/remote-cli:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/appuser/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+ENV PATH="/venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 RUN pip install --no-cache-dir -U pip setuptools wheel
 
 # Production stage
@@ -19,7 +19,7 @@ RUN useradd -m appuser
 
 # Copy virtual environment from builder
 COPY --from=builder /venv /venv
-ENV PATH="/venv/bin:/home/appuser/.vscode-server/bin/17baf841131aa23349f217ca7c570c76ee87b957/bin/remote-cli:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/appuser/.vscode-server/data/User/globalStorage/github.copilot-chat/debugCommand"
+ENV PATH="/venv/bin:/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Set working directory
 WORKDIR /app
