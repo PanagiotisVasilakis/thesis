@@ -99,8 +99,7 @@ class ModelManager:
                 if not name.endswith(".joblib"):
                     continue
                 path = os.path.join(base_path, name)
-                ver = _parse_version_from_path(path)
-                if ver:
+                if ver := _parse_version_from_path(path):
                     cls._model_paths[ver] = path
 
     @classmethod
