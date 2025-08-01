@@ -363,7 +363,7 @@ class AntennaSelector:
         }
         if metrics is not None:
             meta["metrics"] = metrics
-        meta_path = save_path + ".meta.json"
+        meta_path = f"{save_path}.meta.json"
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(meta, f)
 
