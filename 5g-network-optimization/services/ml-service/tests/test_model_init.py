@@ -268,7 +268,7 @@ def test_discovered_versions_switchable(monkeypatch, tmp_path):
     path2 = tmp_path / f"model_v{version2}.joblib"
     for p in (path1, path2):
         p.touch()
-        with open(p.with_suffix(p.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+        with open(p.with_suffix(f"{p.suffix}.meta.json"), "w", encoding="utf-8") as f:
             json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
 
     loads = []
