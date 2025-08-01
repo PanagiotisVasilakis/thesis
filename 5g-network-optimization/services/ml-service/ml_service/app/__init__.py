@@ -6,6 +6,7 @@ from prometheus_client import generate_latest
 from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
 from ml_service.app.rate_limiter import init_app as init_limiter
 from ml_service.app.error_handlers import register_error_handlers
+from .initialization.model_init import MODEL_VERSION
 
 
 def create_app(config=None):
@@ -17,7 +18,8 @@ def create_app(config=None):
         SECRET_KEY="dev",
         NEF_API_URL="http://localhost:8080",
         MODEL_PATH=os.path.join(
-            os.path.dirname(__file__), "models/antenna_selector.joblib"
+            os.path.dirname(__file__),
+            f"models/antenna_selector_v{MODEL_VERSION}.joblib",
         ),
         AUTH_USERNAME=os.getenv("AUTH_USERNAME", "admin"),
         AUTH_PASSWORD=os.getenv("AUTH_PASSWORD", "admin"),

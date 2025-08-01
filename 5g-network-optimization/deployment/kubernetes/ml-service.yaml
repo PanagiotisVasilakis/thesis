@@ -49,7 +49,7 @@ spec:
         - name: NEF_API_URL
           value: "http://nef-emulator:8080"
         - name: MODEL_PATH
-          value: "/app/models/antenna_selector.joblib"
+          value: "/app/models/antenna_selector_v1.0.0.joblib"
         volumeMounts:
         - name: model-storage
           mountPath: /app/models
