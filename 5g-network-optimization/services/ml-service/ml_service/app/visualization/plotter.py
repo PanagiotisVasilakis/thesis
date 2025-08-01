@@ -13,9 +13,21 @@ logger = logging.getLogger(__name__)
 
 
 def _get_distance_based_assignment(position, antennas):
-    """Assign antenna based on the closest distance."""
+    """Assign antenna based on the closest distance.
+
+    Raises
+    ------
+    ValueError
+        If *antennas* is empty. This prevents ``min()`` from raising its own
+        cryptic ``ValueError: min() arg is an empty sequence`` later in the
+        pipeline.
+    """
+    if not antennas:
+        raise ValueError("No antenna definitions supplied for distance-based assignment")
+
+    # Euclidean distance to each antenna centre
     distances = {
-        ant_id: np.sqrt((position[0] - pos[0]) ** 2 + (position[1] - pos[1]) ** 2)
+        ant_id: np.hypot(position[0] - pos[0], position[1] - pos[1])
         for ant_id, pos in antennas.items()
     }
     return min(distances, key=distances.get)
@@ -117,7 +129,10 @@ def plot_antenna_coverage(model, output_dir="output"):
     else:
         plt.title('Distance-based Antenna Selection Map (Model not trained)')
 
-    plt.colorbar(label='Antenna ID')
+    # Better colour-bar labelling: map numeric levels back to antenna names
+    cbar = plt.colorbar(ticks=[1, 2, 3])
+    cbar.ax.set_yticklabels(['antenna_1', 'antenna_2', 'antenna_3'])
+    cbar.set_label('Selected antenna')
 
     # Save the plot with absolute path
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
