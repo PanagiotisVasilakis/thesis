@@ -50,9 +50,15 @@ def _load_metadata(path: str) -> dict:
                             )
                             data["trained_at"] = None
                     return data
-        except Exception as exc:  # noqa: BLE001 - log failure
+        except (json.JSONDecodeError, ValueError) as exc:
+            # Handle JSON parsing and value conversion errors
             logging.getLogger(__name__).warning(
-                "Failed to load metadata from %s: %s", meta_path, exc
+                "Failed to parse metadata from %s: %s", meta_path, exc
+            )
+        except (IOError, OSError) as exc:
+            # Handle file system errors
+            logging.getLogger(__name__).warning(
+                "Failed to read metadata file %s: %s", meta_path, exc
             )
     return {}
 

@@ -1,13 +1,14 @@
 """LightGBM-based antenna selection model."""
 
 from .antenna_selector import AntennaSelector
+from .base_model_mixin import BaseModelMixin
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 
 
-class LightGBMSelector(AntennaSelector):
+class LightGBMSelector(BaseModelMixin, AntennaSelector):
     """Antenna selector using a LightGBM classifier."""
 
     def __init__(
@@ -51,7 +52,8 @@ class LightGBMSelector(AntennaSelector):
         early_stopping_rounds: int | None = 20,
     ) -> dict:
         """Train the model with optional validation and early stopping."""
-        X_arr, y_arr = self._build_dataset(training_data)
+        # Use the mixin's build_dataset method
+        X_arr, y_arr = self.build_dataset(training_data)
         X_train, X_val, y_train, y_val = self._split_dataset(
             X_arr, y_arr, validation_split
         )
@@ -85,14 +87,7 @@ class LightGBMSelector(AntennaSelector):
 
         return metrics
 
-    def _build_dataset(self, training_data: list) -> tuple[np.ndarray, np.ndarray]:
-        """Convert list of samples into feature and label arrays."""
-        X, y = [], []
-        for sample in training_data:
-            features = self.extract_features(sample)
-            X.append([features[name] for name in self.feature_names])
-            y.append(sample.get("optimal_antenna"))
-        return np.array(X), np.array(y)
+
 
     def _split_dataset(
         self, X: np.ndarray, y: np.ndarray, validation_split: float

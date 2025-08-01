@@ -12,5 +12,8 @@ def test_metrics_collector_stops_on_teardown(monkeypatch):
 
     app = create_app({"TESTING": True})
     with app.app_context():
-        pass
+        # Verify the collector is attached to the app
+        assert hasattr(app, "metrics_collector")
+        assert app.metrics_collector == collector
+    # Verify stop is called when context ends
     collector.stop.assert_called_once()

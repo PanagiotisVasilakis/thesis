@@ -62,6 +62,8 @@ class AntennaSelector:
             call to :meth:`extract_features`.
         """
         self.model_path = model_path
+        # Thread-safety: protect concurrent reads/writes to the underlying estimator
+        self._model_lock = threading.RLock()
         self.model = None
         # Base features independent of neighbour count
         self.base_feature_names = [
@@ -259,11 +261,13 @@ class AntennaSelector:
 
         try:
             # Perform a single prediction attempt via probabilities
-            probabilities = self.model.predict_proba(X)[0]
+            with self._model_lock:
+                probabilities = self.model.predict_proba(X)[0]
+                classes_ = self.model.classes_
             idx = int(np.argmax(probabilities))
-            antenna_id = self.model.classes_[idx]
+            antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
-        except (lgb.basic.LightGBMError, NotFittedError, AttributeError) as exc:
+        except (lgb.basic.LightGBMError, NotFittedError) as exc:
             if isinstance(exc, (lgb.basic.LightGBMError, NotFittedError)):
                 ue_id = features.get("ue_id")
                 if ue_id:
@@ -285,6 +289,12 @@ class AntennaSelector:
         return {"antenna_id": antenna_id, "confidence": float(confidence)}
 
     def train(self, training_data):
+        """Train the model with provided data.
+
+        This method acquires the model lock to ensure that no concurrent
+        prediction is performed while the estimator object is being
+        replaced by a newly-trained one.
+        """
         """Train the model with provided data."""
         # Extract features and labels from training data
         X = []

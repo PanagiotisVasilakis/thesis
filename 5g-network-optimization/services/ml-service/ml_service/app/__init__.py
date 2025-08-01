@@ -15,17 +15,24 @@ def create_app(config=None):
 
     # Load default configuration
     app.config.from_mapping(
-        SECRET_KEY="dev",
+        SECRET_KEY=os.getenv("SECRET_KEY", os.urandom(32).hex()),
         NEF_API_URL="http://localhost:8080",
         MODEL_PATH=os.path.join(
             os.path.dirname(__file__),
             f"models/antenna_selector_v{MODEL_VERSION}.joblib",
         ),
-        AUTH_USERNAME=os.getenv("AUTH_USERNAME", "admin"),
-        AUTH_PASSWORD=os.getenv("AUTH_PASSWORD", "admin"),
-        JWT_SECRET=os.getenv("JWT_SECRET", "change-me"),
+        AUTH_USERNAME=os.getenv("AUTH_USERNAME"),
+        AUTH_PASSWORD=os.getenv("AUTH_PASSWORD"),
+        JWT_SECRET=os.getenv("JWT_SECRET", os.urandom(32).hex()),
         JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
     )
+    
+    # Ensure required auth configuration is provided
+    if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
+        app.logger.warning(
+            "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
+            "Authentication will be disabled. This is not recommended for production."
+        )
 
     # Load provided configuration if available
     if config:
