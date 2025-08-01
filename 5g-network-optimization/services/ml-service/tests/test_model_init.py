@@ -330,7 +330,7 @@ def test_switch_version(monkeypatch, tmp_path, fail):
     path2.touch()
     meta = {"model_type": "lightgbm", "version": model_init.MODEL_VERSION}
     for p in (path1, path2):
-        with open(p.with_suffix(p.suffix + ".meta.json"), "w", encoding="utf-8") as f:
+        with open(p.with_suffix(f"{p.suffix}.meta.json"), "w", encoding="utf-8") as f:
             json.dump(meta, f)
 
     load_calls = []
