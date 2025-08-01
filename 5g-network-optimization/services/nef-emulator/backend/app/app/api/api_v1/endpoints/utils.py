@@ -1,7 +1,6 @@
 from datetime import datetime
-import logging
-import requests
-import json
+import logging, requests, json
+from app.core.constants import DEFAULT_TIMEOUT
 
 logger = logging.getLogger(__name__)
 from typing import Any, Dict
@@ -309,7 +308,13 @@ def get_test(
     }
 
     try:
-        response = requests.request("POST", callbackurl, headers=headers, data=payload)
+        response = requests.request(
+            "POST",
+            callbackurl,
+            headers=headers,
+            data=payload,
+            timeout=DEFAULT_TIMEOUT,
+        )
         return response.json()
     except requests.exceptions.ConnectionError as ex:
         logging.warning(ex)
