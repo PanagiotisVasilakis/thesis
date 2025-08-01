@@ -7,6 +7,13 @@ from collections import deque
 from datetime import datetime, timezone
 from packaging.version import Version, InvalidVersion
 
+from .thread_monitor import (
+    get_thread_monitor, 
+    safe_thread_execution, 
+    ThreadFailureLevel,
+    monitor_thread_execution
+)
+
 # Semantic version of the expected model format. Bump whenever the
 # persisted model or metadata structure changes in a backwards incompatible
 # way so older files can be detected gracefully.
@@ -218,12 +225,58 @@ class ModelManager:
                     cls._model_paths[ver] = model_path
                 cls._init_event.set()
             return model
-        except Exception:  # noqa: BLE001
-            logger.exception("Model initialization failed")
+        except (OSError, IOError) as e:
+            logger.error("File system error during model initialization: %s", e)
             with cls._lock:
                 cls._model_instance = previous_model
                 cls._last_good_model_path = previous_path
                 cls._init_event.set()
+            # Report as critical since model initialization is essential
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except (ValueError, TypeError) as e:
+            logger.error("Configuration error during model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.ERROR,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except ImportError as e:
+            logger.error("Missing dependency for model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except Exception as e:
+            logger.critical("Unexpected error during model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type, "unexpected": True}
+            )
             raise
 
     @classmethod
@@ -310,12 +363,23 @@ class ModelManager:
 
                 cls._model_instance = placeholder_cls(neighbor_count=neighbor_count)
 
-                cls._init_thread = threading.Thread(
-                    target=cls._initialize_sync,
+                # Use safe thread execution with monitoring
+                cls._init_thread = safe_thread_execution(
+                    target_func=cls._initialize_sync,
+                    thread_name="model_background_init",
                     args=(model_path, neighbor_count, model_type, previous_model, previous_path),
-                    daemon=True,
+                    failure_level=ThreadFailureLevel.CRITICAL,
+                    context={
+                        "model_path": model_path,
+                        "model_type": model_type,
+                        "neighbor_count": neighbor_count
+                    },
+                    max_retries=1  # One retry for critical model initialization
                 )
                 cls._init_thread.start()
+                
+                # Start thread monitoring if not already running
+                get_thread_monitor().start_monitoring()
                 return cls._model_instance
 
         return cls._initialize_sync(model_path, neighbor_count, model_type, previous_model, previous_path)
@@ -350,8 +414,30 @@ class ModelManager:
                     cls._feedback_data.clear()
                     cls.save_active_model(metrics)
                     retrained = True
-                except Exception:  # noqa: BLE001 - log failure
-                    logging.getLogger(__name__).exception("Retraining failed")
+                except (ValueError, TypeError) as e:
+                    logging.getLogger(__name__).error("Model retraining failed due to data issues: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.ERROR,
+                        {"feedback_samples": len(cls._feedback_data)}
+                    )
+                except (MemoryError, OSError) as e:
+                    logging.getLogger(__name__).error("Model retraining failed due to resource issues: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.CRITICAL,
+                        {"feedback_samples": len(cls._feedback_data)}
+                    )
+                except Exception as e:
+                    logging.getLogger(__name__).critical("Unexpected model retraining failure: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.CRITICAL,
+                        {"feedback_samples": len(cls._feedback_data), "unexpected": True}
+                    )
         return retrained
 
     @classmethod

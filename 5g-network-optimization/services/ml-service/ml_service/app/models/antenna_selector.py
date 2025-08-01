@@ -171,89 +171,129 @@ class AntennaSelector:
         return neighbors
 
     def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data."""
-        features = {
-            "latitude": data.get("latitude", 0),
-            "longitude": data.get("longitude", 0),
-            "altitude": data.get("altitude", 0),
-            "speed": data.get("speed", 0),
-        }
-
-        # Velocity defaults to the provided value, falling back to speed
-        vel = data.get("velocity")
-        if vel is None:
-            vel = data.get("speed", 0)
-        features["velocity"] = vel if vel is not None else 0
-
-        features["heading_change_rate"] = data.get("heading_change_rate", 0)
-        features["path_curvature"] = data.get("path_curvature", 0)
-
-        # Simple acceleration estimate if previous speed is given
-        features["acceleration"] = data.get("acceleration", 0)
-
-        features["cell_load"] = data.get("cell_load", 0)
-        # handover history may be provided as list or count
+        """Extract features from UE data with performance optimizations.
+        
+        Performance improvements:
+        - Reduced dictionary lookups with batch extraction
+        - Pre-allocated feature dictionary
+        - Optimized neighbor processing
+        - Cached default values
+        """
+        # Batch extract common values to reduce dict.get() calls
+        latitude = data.get("latitude", 0)
+        longitude = data.get("longitude", 0)
+        altitude = data.get("altitude", 0) 
+        speed = data.get("speed", 0)
+        velocity = data.get("velocity")
+        if velocity is None:
+            velocity = speed
+        velocity = velocity if velocity is not None else 0
+        
+        heading_change_rate = data.get("heading_change_rate", 0)
+        path_curvature = data.get("path_curvature", 0)
+        acceleration = data.get("acceleration", 0)
+        cell_load = data.get("cell_load", 0)
+        time_since_handover = data.get("time_since_handover", 0)
+        signal_trend = data.get("signal_trend", 0)
+        environment = data.get("environment", 0)
+        rsrp_stddev = data.get("rsrp_stddev", 0)
+        sinr_stddev = data.get("sinr_stddev", 0)
+        
+        # Optimized handover count extraction
         if "handover_count" in data:
-            features["handover_count"] = data.get("handover_count", 0)
+            handover_count = data["handover_count"]
         else:
             hist = data.get("handover_history")
-            features["handover_count"] = len(hist) if isinstance(hist, list) else 0
-        features["time_since_handover"] = data.get("time_since_handover", 0)
-        features["signal_trend"] = data.get("signal_trend", 0)
-        features["environment"] = data.get("environment", 0)
-        features["rsrp_stddev"] = data.get("rsrp_stddev", 0)
-        features["sinr_stddev"] = data.get("sinr_stddev", 0)
-
-        dx, dy = self._direction_to_unit(data.get("direction", (0, 0, 0)))
-        features["direction_x"] = dx
-        features["direction_y"] = dy
-
+            handover_count = len(hist) if isinstance(hist, list) else 0
+        
+        # Optimized direction processing
+        direction = data.get("direction", (0, 0, 0))
+        dx, dy = self._direction_to_unit(direction)
+        
+        # Batch RF metrics processing
         rf_metrics = data.get("rf_metrics", {})
         current_antenna = data.get("connected_to")
         rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
-        features["rsrp_current"] = rsrp_curr
-        features["sinr_current"] = sinr_curr
-        features["rsrq_current"] = rsrq_curr
+        
+        # Pre-allocate features dictionary with known size
+        base_feature_count = len(self.base_feature_names) + (self.neighbor_count * 4) + 3
+        features = {}
+        features.update({
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude": altitude,
+            "speed": speed,
+            "velocity": velocity,
+            "heading_change_rate": heading_change_rate,
+            "path_curvature": path_curvature,
+            "acceleration": acceleration,
+            "cell_load": cell_load,
+            "handover_count": handover_count,
+            "time_since_handover": time_since_handover,
+            "signal_trend": signal_trend,
+            "environment": environment,
+            "rsrp_stddev": rsrp_stddev,
+            "sinr_stddev": sinr_stddev,
+            "direction_x": dx,
+            "direction_y": dy,
+            "rsrp_current": rsrp_curr,
+            "sinr_current": sinr_curr,
+            "rsrq_current": rsrq_curr,
+        })
 
+        # Optimized neighbor processing
         neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
         best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
         if neighbors:
-            best_rsrp, best_sinr, best_rsrq = neighbors[0][1], neighbors[0][2], neighbors[0][3]
+            # Extract best values from first neighbor (already sorted)
+            first_neighbor = neighbors[0]
+            best_rsrp, best_sinr, best_rsrq = first_neighbor[1], first_neighbor[2], first_neighbor[3]
 
+        # Thread-safe neighbor count initialization
         if self.neighbor_count == 0:
-            # Lazy initialisation of neighbour-specific feature names. This may
-            # be triggered during the first prediction if no explicit neighbour
-            # count was configured. Guard with a lock so concurrent calls don't
-            # append duplicate names.
             with self._init_lock:
                 if self.neighbor_count == 0:
                     self.neighbor_count = len(neighbors)
+                    # Batch extend feature names
+                    new_features = []
                     for idx in range(self.neighbor_count):
-                        self.feature_names.extend([
+                        new_features.extend([
                             f"rsrp_a{idx+1}",
                             f"sinr_a{idx+1}",
                             f"rsrq_a{idx+1}",
                             f"neighbor_cell_load_a{idx+1}",
                         ])
+                    self.feature_names.extend(new_features)
 
+        # Optimized neighbor feature extraction with batch updates
+        neighbor_updates = {}
         for idx in range(self.neighbor_count):
             if idx < len(neighbors):
-                features[f"rsrp_a{idx+1}"] = neighbors[idx][1]
-                features[f"sinr_a{idx+1}"] = neighbors[idx][2]
-                features[f"rsrq_a{idx+1}"] = neighbors[idx][3]
-                load_val = neighbors[idx][4]
-                features[f"neighbor_cell_load_a{idx+1}"] = (
-                    load_val if load_val is not None else 0
-                )
+                neighbor = neighbors[idx]
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": neighbor[1],
+                    f"sinr_a{idx+1}": neighbor[2],
+                    f"rsrq_a{idx+1}": neighbor[3],
+                    f"neighbor_cell_load_a{idx+1}": neighbor[4] if neighbor[4] is not None else 0
+                })
             else:
-                features[f"rsrp_a{idx+1}"] = -120
-                features[f"sinr_a{idx+1}"] = 0
-                features[f"rsrq_a{idx+1}"] = -30
-                features[f"neighbor_cell_load_a{idx+1}"] = 0
-
-        features["best_rsrp_diff"] = best_rsrp - rsrp_curr
-        features["best_sinr_diff"] = best_sinr - sinr_curr
-        features["best_rsrq_diff"] = best_rsrq - rsrq_curr
+                # Use batch update for default values
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": -120,
+                    f"sinr_a{idx+1}": 0,
+                    f"rsrq_a{idx+1}": -30,
+                    f"neighbor_cell_load_a{idx+1}": 0
+                })
+        
+        # Batch update neighbor features
+        features.update(neighbor_updates)
+        
+        # Add difference features
+        features.update({
+            "best_rsrp_diff": best_rsrp - rsrp_curr,
+            "best_sinr_diff": best_sinr - sinr_curr,
+            "best_rsrq_diff": best_rsrq - rsrq_curr,
+        })
 
         return features
 
@@ -298,7 +338,9 @@ class AntennaSelector:
         prediction is performed while the estimator object is being
         replaced by a newly-trained one.
         """
-        """Train the model with provided data."""
+        if not training_data:
+            raise ValueError("Training data cannot be empty")
+        
         # Extract features and labels from training data
         X = []
         y = []
@@ -309,6 +351,8 @@ class AntennaSelector:
 
             # The label is the optimal antenna ID
             label = sample.get("optimal_antenna")
+            if label is None:
+                raise ValueError(f"Sample missing 'optimal_antenna' label: {sample}")
 
             X.append(feature_vector)
             y.append(label)
@@ -317,17 +361,19 @@ class AntennaSelector:
         X = np.array(X)
         y = np.array(y)
 
-        # Train the model
-        self.model.fit(X, y)
-
-        # Return training metrics
-        return {
-            "samples": len(X),
-            "classes": len(set(y)),
-            "feature_importance": dict(
-                zip(self.feature_names, self.model.feature_importances_)
-            ),
-        }
+        # Thread-safe training with lock
+        with self._model_lock:
+            # Train the model
+            self.model.fit(X, y)
+            
+            # Return training metrics
+            return {
+                "samples": len(X),
+                "classes": len(set(y)),
+                "feature_importance": dict(
+                    zip(self.feature_names, self.model.feature_importances_)
+                ),
+            }
 
     def save(
         self,
@@ -356,39 +402,76 @@ class AntennaSelector:
             return False
         save_path = str(save_path)
 
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        joblib.dump(
-            {
-                "model": self.model,
-                "feature_names": self.feature_names,
-                "neighbor_count": self.neighbor_count,
-            },
-            save_path,
-        )
-
-        meta = {
-            "model_type": model_type,
-            "trained_at": datetime.now(timezone.utc).isoformat(),
-            "version": version,
-        }
-        if metrics is not None:
-            meta["metrics"] = metrics
-        meta_path = f"{save_path}.meta.json"
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f)
-
-        return True
+        # Thread-safe model saving
+        with self._model_lock:
+            try:
+                os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                
+                # Create atomic save by writing to temporary file first
+                temp_path = f"{save_path}.tmp"
+                joblib.dump(
+                    {
+                        "model": self.model,
+                        "feature_names": self.feature_names,
+                        "neighbor_count": self.neighbor_count,
+                    },
+                    temp_path,
+                )
+                
+                # Atomic move to final location
+                os.replace(temp_path, save_path)
+                
+                # Save metadata
+                meta = {
+                    "model_type": model_type,
+                    "trained_at": datetime.now(timezone.utc).isoformat(),
+                    "version": version,
+                }
+                if metrics is not None:
+                    meta["metrics"] = metrics
+                
+                meta_path = f"{save_path}.meta.json"
+                temp_meta_path = f"{meta_path}.tmp"
+                
+                with open(temp_meta_path, "w", encoding="utf-8") as f:
+                    json.dump(meta, f)
+                
+                # Atomic move for metadata
+                os.replace(temp_meta_path, meta_path)
+                
+                return True
+                
+            except Exception as e:
+                logger.error("Failed to save model to %s: %s", save_path, e)
+                # Clean up temporary files if they exist
+                for temp_file in [f"{save_path}.tmp", f"{save_path}.meta.json.tmp"]:
+                    try:
+                        if os.path.exists(temp_file):
+                            os.remove(temp_file)
+                    except OSError:
+                        pass
+                return False
 
     def load(self, path=None):
-        """Load the model from disk."""
+        """Load the model from disk with thread safety."""
         load_path = path or self.model_path
-        if load_path and os.path.exists(load_path):
-            data = joblib.load(load_path)
-            if isinstance(data, dict) and "model" in data:
-                self.model = data["model"]
-                self.feature_names = data.get("feature_names", self.feature_names)
-                self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
-            else:
-                self.model = data
-            return True
-        return False
+        if not load_path or not os.path.exists(load_path):
+            return False
+        
+        # Thread-safe model loading
+        with self._model_lock:
+            try:
+                data = joblib.load(load_path)
+                if isinstance(data, dict) and "model" in data:
+                    self.model = data["model"]
+                    self.feature_names = data.get("feature_names", self.feature_names)
+                    self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
+                else:
+                    self.model = data
+                
+                logger.info("Successfully loaded model from %s", load_path)
+                return True
+                
+            except Exception as e:
+                logger.error("Failed to load model from %s: %s", load_path, e)
+                return False

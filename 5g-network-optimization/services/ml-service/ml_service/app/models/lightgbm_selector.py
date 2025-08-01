@@ -51,7 +51,13 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         validation_split: float = 0.2,
         early_stopping_rounds: int | None = 20,
     ) -> dict:
-        """Train the model with optional validation and early stopping."""
+        """Train the model with optional validation and early stopping.
+        
+        This method is thread-safe and acquires the model lock during training.
+        """
+        if not training_data:
+            raise ValueError("Training data cannot be empty")
+        
         # Use the mixin's build_dataset method
         X_arr, y_arr = self.build_dataset(training_data)
         X_train, X_val, y_train, y_val = self._split_dataset(
@@ -65,27 +71,29 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
             if early_stopping_rounds:
                 fit_params["callbacks"] = [lgb.early_stopping(early_stopping_rounds)]
 
-        self.model.fit(X_train, y_train, **fit_params)
+        # Thread-safe training with lock
+        with self._model_lock:
+            self.model.fit(X_train, y_train, **fit_params)
+            
+            metrics = {
+                "samples": len(X_arr),
+                "classes": len(set(y_arr)),
+                "feature_importance": {
+                    name: float(val)
+                    for name, val in zip(
+                        self.feature_names, self.model.feature_importances_
+                    )
+                },
+            }
 
-        metrics = {
-            "samples": len(X_arr),
-            "classes": len(set(y_arr)),
-            "feature_importance": {
-                name: float(val)
-                for name, val in zip(
-                    self.feature_names, self.model.feature_importances_
+            if eval_set:
+                y_pred = self.model.predict(X_val)
+                metrics["val_accuracy"] = float(accuracy_score(y_val, y_pred))
+                metrics["val_f1"] = float(
+                    f1_score(y_val, y_pred, average="weighted", zero_division=0)
                 )
-            },
-        }
 
-        if eval_set:
-            y_pred = self.model.predict(X_val)
-            metrics["val_accuracy"] = float(accuracy_score(y_val, y_pred))
-            metrics["val_f1"] = float(
-                f1_score(y_val, y_pred, average="weighted", zero_division=0)
-            )
-
-        return metrics
+            return metrics
 
 
 
