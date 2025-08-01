@@ -1,5 +1,5 @@
 from unittest.mock import MagicMock, patch
-import requests
+from datetime import datetime, timezone
 from ml_service.app.clients.nef_client import NEFClientError
 
 
@@ -8,8 +8,11 @@ def test_predict_route(client, auth_header):
     mock_model.extract_features.return_value = {"f": 1}
     mock_model.predict.return_value = {"antenna_id": "antenna_1", "confidence": 0.9}
 
-    with patch("ml_service.app.api.routes.load_model", return_value=mock_model) as mock_get, \
-         patch("ml_service.app.api.routes.track_prediction") as mock_track:
+    with patch(
+        "ml_service.app.api.routes.load_model", return_value=mock_model
+    ) as mock_get, patch(
+        "ml_service.app.api.routes.track_prediction"
+    ) as mock_track:
         resp = client.post("/api/predict", json={"ue_id": "u1"}, headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
@@ -34,8 +37,11 @@ def test_train_route(client, auth_header):
     mock_model.train.return_value = {"samples": 1, "classes": 1}
     mock_model.save.return_value = True
 
-    with patch("ml_service.app.api.routes.load_model", return_value=mock_model) as mock_get, \
-         patch("ml_service.app.api.routes.track_training") as mock_track:
+    with patch(
+        "ml_service.app.api.routes.load_model", return_value=mock_model
+    ) as mock_get, patch(
+        "ml_service.app.api.routes.track_training"
+    ) as mock_track:
         resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}], headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
@@ -108,6 +114,7 @@ def test_collect_data_oserror(client, auth_header, monkeypatch):
     collector.collect_training_data = AsyncMock(return_value=[])
     collector.data_dir = "path"
     monkeypatch.setattr("ml_service.app.api.routes.NEFDataCollector", lambda **kw: collector)
+
     def raise_oserror(*a, **k):
         raise OSError("err")
     monkeypatch.setattr("ml_service.app.api.routes.Path.glob", raise_oserror)
@@ -123,9 +130,9 @@ def test_collect_data_oserror(client, auth_header, monkeypatch):
     collector.collect_training_data.assert_awaited_once()
 
 
-
 def test_feedback_route(client, auth_header, monkeypatch):
     called = {}
+
     def fake_feed(sample, success=True):
         called.setdefault('count', 0)
         called['count'] += 1
@@ -137,3 +144,20 @@ def test_feedback_route(client, auth_header, monkeypatch):
     data = resp.get_json()
     assert data["samples"] == 1
     assert called['count'] == 1
+
+
+def test_model_health(client, monkeypatch):
+    ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr("ml_service.app.api.routes.ModelManager.is_ready", lambda: True)
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.get_metadata",
+        lambda: {"trained_at": ts.isoformat(), "metrics": {"samples": 5}, "version": "1.0"},
+    )
+
+    resp = client.get("/api/model-health")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ready"] is True
+    assert data["metadata"]["version"] == "1.0"
+    assert data["metadata"]["metrics"] == {"samples": 5}
+    assert data["metadata"]["trained_at"] == ts.isoformat()

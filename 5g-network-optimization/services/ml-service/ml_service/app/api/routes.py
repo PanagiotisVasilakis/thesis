@@ -61,6 +61,15 @@ def health_check():
     return jsonify({"status": "ok", "service": "ml-service"})
 
 
+@api_bp.route("/model-health", methods=["GET"])
+def model_health():
+    """Return model readiness and metadata."""
+
+    ready = ModelManager.is_ready()
+    meta = ModelManager.get_metadata()
+    return jsonify({"ready": ready, "metadata": meta})
+
+
 @api_bp.route("/login", methods=["POST"])
 def login():
     """Return a JWT token for valid credentials."""

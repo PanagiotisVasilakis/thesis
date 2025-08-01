@@ -329,3 +329,17 @@ class ModelManager:
         """Return ``True`` if initialization has finished."""
 
         return cls._init_event.is_set()
+
+    @classmethod
+    def get_metadata(cls) -> dict:
+        """Return metadata for the active model if available."""
+
+        with cls._lock:
+            path = cls._last_good_model_path or os.environ.get("MODEL_PATH")
+        if not path:
+            return {}
+        meta = _load_metadata(path)
+        ts = meta.get("trained_at")
+        if isinstance(ts, datetime):
+            meta["trained_at"] = ts.isoformat()
+        return meta
