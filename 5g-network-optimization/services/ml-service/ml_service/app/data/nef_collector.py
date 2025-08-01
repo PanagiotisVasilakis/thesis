@@ -340,3 +340,38 @@ class NEFDataCollector:
             self.logger.info(
                 f"Collected {len(collected_data)} samples, saved to {filename}"
             )
+
+    def get_collection_stats(self) -> Dict[str, Any]:
+        """Get comprehensive statistics about the data collection system.
+        
+        Returns:
+            Dictionary containing collection statistics
+        """
+        return {
+            "nef_client": {
+                "url": self.nef_url,
+                "circuit_breaker_stats": self.client.get_circuit_breaker_stats()
+            },
+            "components": {
+                "handover_tracker": self.handover_tracker.get_stats(),
+                "signal_processor": self.signal_processor.get_stats(),
+                "mobility_processor": self.mobility_processor.get_stats(),
+                "storage": self.persistence.get_storage_stats()
+            }
+        }
+    
+    def cleanup_resources(self) -> None:
+        """Clean up resources used by the collector."""
+        try:
+            self.client.close()
+            self.logger.info("NEF data collector resources cleaned up")
+        except Exception as e:
+            self.logger.error(f"Error cleaning up collector resources: {e}")
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - clean up resources."""
+        self.cleanup_resources()

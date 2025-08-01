@@ -13,6 +13,10 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+from ..utils.circuit_breaker import CircuitBreaker, CircuitBreakerError, circuit_registry
 
 
 class NEFClientError(Exception):
@@ -23,26 +27,97 @@ class NEFClient:
     """Client for the NEF emulator API."""
 
     def __init__(
-        self, base_url: str, username: str = None, password: str = None
+        self, 
+        base_url: str, 
+        username: str = None, 
+        password: str = None,
+        pool_connections: int = 10,
+        pool_maxsize: int = 20,
+        max_retries: int = 3,
+        backoff_factor: float = 0.5
     ):
-        """Initialize the NEF client."""
+        """Initialize the NEF client with connection pooling and circuit breaker protection.
+        
+        Args:
+            base_url: Base URL for the NEF emulator
+            username: Authentication username
+            password: Authentication password
+            pool_connections: Number of connection pools to cache
+            pool_maxsize: Maximum number of connections in each pool
+            max_retries: Maximum number of retry attempts
+            backoff_factor: Backoff factor for retries
+        """
         self.base_url = base_url
         self.username = username
         self.password = password
         self.token = None
         self.logger = logging.getLogger(__name__)
+        
+        # Create session with connection pooling
+        self.session = requests.Session()
+        
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=max_retries,
+            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=backoff_factor,
+            raise_on_status=False
+        )
+        
+        # Configure HTTP adapter with connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+            max_retries=retry_strategy
+        )
+        
+        # Mount adapter for both HTTP and HTTPS
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+        
+        # Set default headers
+        self.session.headers.update({
+            "User-Agent": "NEFClient/1.0",
+            "Connection": "keep-alive"
+        })
+        
+        # Initialize circuit breakers for different endpoint types
+        self._login_breaker = CircuitBreaker(
+            failure_threshold=3,
+            recovery_timeout=30.0,
+            expected_exception=requests.exceptions.RequestException,
+            name=f"NEF-Login-{base_url}"
+        )
+        
+        self._api_breaker = CircuitBreaker(
+            failure_threshold=5,
+            recovery_timeout=60.0,
+            expected_exception=requests.exceptions.RequestException,
+            name=f"NEF-API-{base_url}"
+        )
+        
+        # Register circuit breakers
+        circuit_registry.register(self._login_breaker)
+        circuit_registry.register(self._api_breaker)
+        
+        self.logger.info(
+            "NEF client initialized with connection pooling "
+            "(pool_connections=%d, pool_maxsize=%d, max_retries=%d) "
+            "and circuit breaker protection",
+            pool_connections, pool_maxsize, max_retries
+        )
 
     def login(self) -> bool:
-        """Authenticate with the NEF emulator."""
+        """Authenticate with the NEF emulator using circuit breaker protection."""
         if not self.username or not self.password:
             self.logger.warning(
                 "No credentials provided, skipping authentication"
             )
             return False
 
-        try:
+        def _do_login():
             login_url = urljoin(self.base_url, "/api/v1/login/access-token")
-            response = requests.post(
+            response = self.session.post(
                 login_url,
                 data={"username": self.username, "password": self.password},
                 timeout=10,
@@ -50,6 +125,10 @@ class NEFClient:
 
             if response.status_code == 200:
                 self.token = response.json().get("access_token")
+                # Update session headers with authentication token
+                self.session.headers.update({
+                    "Authorization": f"Bearer {self.token}"
+                })
                 self.logger.info(
                     "Successfully authenticated with NEF emulator"
                 )
@@ -60,12 +139,19 @@ class NEFClient:
                     response.status_code,
                     response.text,
                 )
-                return False
+                # Raise exception to trigger circuit breaker on auth failures
+                raise requests.exceptions.HTTPError(
+                    f"Authentication failed with status {response.status_code}"
+                )
+
+        try:
+            return self._login_breaker.call(_do_login)
+        except CircuitBreakerError as e:
+            self.logger.error("Login circuit breaker is open: %s", e)
+            raise NEFClientError(f"NEF login service unavailable: {e}") from e
         except requests.exceptions.RequestException as exc:
-            self.logger.error("Request to %s failed: %s", login_url, exc)
-            raise NEFClientError(
-                f"Authentication request failed: {exc}"
-            ) from exc
+            self.logger.error("Login request failed: %s", exc)
+            raise NEFClientError(f"Authentication request failed: {exc}") from exc
 
     def get_headers(self) -> Dict[str, str]:
         """Get request headers with authentication token if available."""
@@ -193,3 +279,30 @@ class NEFClient:
             # Handle JSON parsing and data extraction errors
             self.logger.error(f"Error parsing feature vector response: {str(e)}")
             raise NEFClientError(f"Invalid response format: {e}") from e
+
+    def get_circuit_breaker_stats(self) -> Dict[str, Any]:
+        """Get statistics for all circuit breakers in this client."""
+        return {
+            "login_breaker": self._login_breaker.get_stats(),
+            "api_breaker": self._api_breaker.get_stats()
+        }
+    
+    def reset_circuit_breakers(self) -> None:
+        """Reset all circuit breakers to closed state."""
+        self._login_breaker.reset()
+        self._api_breaker.reset()
+        self.logger.info("All NEF client circuit breakers reset")
+    
+    def close(self) -> None:
+        """Close the session and clean up connection pools."""
+        if hasattr(self, 'session'):
+            self.session.close()
+            self.logger.info("NEF client session closed and connection pools cleaned up")
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - clean up resources."""
+        self.close()
