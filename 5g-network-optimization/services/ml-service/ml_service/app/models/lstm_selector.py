@@ -5,6 +5,7 @@ from .antenna_selector import (
     FALLBACK_ANTENNA_ID,
     FALLBACK_CONFIDENCE,
 )
+from .base_model_mixin import BaseModelMixin
 import numpy as np
 import tensorflow as tf
 import os
@@ -13,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
 
-class LSTMSelector(AntennaSelector):
+class LSTMSelector(BaseModelMixin, AntennaSelector):
     """Antenna selector using a simple LSTM network."""
 
     def __init__(self, model_path: str | None = None, *, neighbor_count: int | None = None, epochs: int = 5, units: int = 16) -> None:
@@ -26,14 +27,7 @@ class LSTMSelector(AntennaSelector):
         """Initialize an uncompiled Keras model."""
         self.model = None
 
-    def _build_dataset(self, training_data: list) -> tuple[np.ndarray, np.ndarray]:
-        """Convert samples to arrays for training."""
-        X, y = [], []
-        for sample in training_data:
-            features = self.extract_features(sample)
-            X.append([features[name] for name in self.feature_names])
-            y.append(sample.get("optimal_antenna"))
-        return np.array(X, dtype=float), np.array(y)
+
 
     def _compile(self, num_classes: int):
         """Create and compile the underlying Keras model."""
@@ -53,7 +47,8 @@ class LSTMSelector(AntennaSelector):
 
     def train(self, training_data: list, *, validation_split: float = 0.2) -> dict:
         """Train the LSTM model."""
-        X, y = self._build_dataset(training_data)
+        # Use the mixin's build_dataset method
+        X, y = self.build_dataset(training_data)
         classes, y_idx = np.unique(y, return_inverse=True)
         self.classes_ = list(classes)
         self._compile(len(classes))
