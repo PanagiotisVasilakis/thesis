@@ -114,6 +114,21 @@ curl -X POST http://localhost:5050/api/collect-data \
      -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
 ```
 
+### `GET /api/models`
+List discovered model versions.
+
+```bash
+curl http://localhost:5050/api/models
+```
+
+### `POST /api/models/<version>`
+Switch the active model to the specified version.
+
+```bash
+curl -X POST http://localhost:5050/api/models/1.1.0 \
+     -H 'Authorization: Bearer <TOKEN>'
+```
+
 ### `GET /metrics`
 Expose Prometheus metrics for monitoring.
 

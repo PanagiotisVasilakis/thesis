@@ -208,3 +208,44 @@ def test_model_health(client, monkeypatch):
     assert data["metadata"]["version"] == "1.0"
     assert data["metadata"]["metrics"] == {"samples": 5}
     assert data["metadata"]["trained_at"] == ts.isoformat()
+
+
+def test_list_models_route(client, monkeypatch):
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.list_versions",
+        lambda: ["1.0.0", "2.0.0"],
+    )
+    resp = client.get("/api/models")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"versions": ["1.0.0", "2.0.0"]}
+
+
+def test_switch_model_route(client, auth_header, monkeypatch):
+    called = {}
+
+    def dummy_switch(version):
+        called["version"] = version
+        return True
+
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.switch_version", dummy_switch
+    )
+
+    resp = client.post("/api/models/2.0.0", headers=auth_header)
+    assert resp.status_code == 200
+    assert resp.get_json() == {"status": "ok", "version": "2.0.0"}
+    assert called["version"] == "2.0.0"
+
+
+def test_switch_model_invalid(client, auth_header, monkeypatch):
+    def raise_error(version):
+        raise ValueError("unknown")
+
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.switch_version", raise_error
+    )
+
+    resp = client.post("/api/models/9.9.9", headers=auth_header)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["type"] == "RequestValidationError"

@@ -109,6 +109,12 @@ class ModelManager:
                     cls._model_paths[ver] = path
 
     @classmethod
+    def list_versions(cls) -> list[str]:
+        """Return all discovered model versions."""
+        with cls._lock:
+            return sorted(cls._model_paths.keys())
+
+    @classmethod
     def _initialize_sync(
         cls,
         model_path: str | None,
