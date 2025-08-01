@@ -50,9 +50,15 @@ def _load_metadata(path: str) -> dict:
                             )
                             data["trained_at"] = None
                     return data
-        except Exception as exc:  # noqa: BLE001 - log failure
+        except (json.JSONDecodeError, ValueError) as exc:
+            # Handle JSON parsing and value conversion errors
             logging.getLogger(__name__).warning(
-                "Failed to load metadata from %s: %s", meta_path, exc
+                "Failed to parse metadata from %s: %s", meta_path, exc
+            )
+        except (IOError, OSError) as exc:
+            # Handle file system errors
+            logging.getLogger(__name__).warning(
+                "Failed to read metadata file %s: %s", meta_path, exc
             )
     return {}
 
@@ -82,6 +88,25 @@ class ModelManager:
     _init_event = threading.Event()
     # Background initialization thread
     _init_thread: threading.Thread | None = None
+
+    @classmethod
+    def discover_versions(cls, base_path: str) -> None:
+        """Discover available model versions under ``base_path``.
+
+        Any files matching ``antenna_selector_v*.joblib`` are registered so that
+        :meth:`switch_version` can load them later.
+        """
+        if not os.path.isdir(base_path):
+            return
+
+        with cls._lock:
+            cls._model_paths.clear()
+            for name in os.listdir(base_path):
+                if not name.endswith(".joblib"):
+                    continue
+                path = os.path.join(base_path, name)
+                if ver := _parse_version_from_path(path):
+                    cls._model_paths[ver] = path
 
     @classmethod
     def _initialize_sync(
@@ -250,6 +275,12 @@ class ModelManager:
         with cls._lock:
             previous_model = cls._model_instance
             previous_path = cls._last_good_model_path
+
+        # Discover any existing model versions before loading
+        if model_path:
+            cls.discover_versions(os.path.dirname(model_path))
+        elif os.environ.get("MODEL_PATH"):
+            cls.discover_versions(os.path.dirname(os.environ["MODEL_PATH"]))
 
         if neighbor_count is None:
             neighbor_count = get_neighbor_count_from_env(logger=logger)

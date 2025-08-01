@@ -5,6 +5,7 @@ from .lightgbm_selector import LightGBMSelector
 from .lstm_selector import LSTMSelector
 from .ensemble_selector import EnsembleSelector
 from .online_handover_model import OnlineHandoverModel
+from .base_model_mixin import BaseModelMixin
 
 __all__ = [
     "AntennaSelector",
@@ -13,4 +14,5 @@ __all__ = [
     "EnsembleSelector",
     "OnlineHandoverModel",
     "DEFAULT_TEST_FEATURES",
+    "BaseModelMixin",
 ]

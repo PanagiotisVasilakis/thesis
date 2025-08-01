@@ -101,8 +101,12 @@ def predict():
     try:
         model = load_model(current_app.config["MODEL_PATH"])
         result, features = predict_ue(req.dict(exclude_none=True), model=model)
-    except Exception as exc:
-        raise ModelError(exc)
+    except (ValueError, TypeError, KeyError) as exc:
+        # Handle specific model-related errors
+        raise ModelError(f"Prediction failed: {exc}") from exc
+    except FileNotFoundError as exc:
+        # Handle missing model file
+        raise ModelError(f"Model file not found: {exc}") from exc
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
@@ -140,8 +144,15 @@ def train():
         start = time.time()
         metrics = train_model(samples, model=model)
         duration = time.time() - start
-    except Exception as exc:
-        raise ModelError(exc)
+    except (ValueError, TypeError, KeyError) as exc:
+        # Handle specific training errors
+        raise ModelError(f"Training failed: {exc}") from exc
+    except FileNotFoundError as exc:
+        # Handle missing model file
+        raise ModelError(f"Model file not found: {exc}") from exc
+    except MemoryError as exc:
+        # Handle out of memory errors during training
+        raise ModelError(f"Insufficient memory for training: {exc}") from exc
     track_training(
         duration, metrics.get("samples", 0), metrics.get("val_accuracy")
     )
