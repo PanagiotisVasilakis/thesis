@@ -83,8 +83,10 @@ def _setup_module(monkeypatch, user=None):
     api_v1_pkg = types.ModuleType("app.api.api_v1")
     endpoints_pkg = types.ModuleType("app.api.api_v1.endpoints")
     utils_mod = types.ModuleType("app.api.api_v1.endpoints.utils")
-    utils_mod.add_notifications = lambda *a, **k: None
-    utils_mod.ccf_logs = lambda *a, **k: None
+    async def _noop(*a, **k):
+        return None
+    utils_mod.add_notifications = _noop
+    utils_mod.ccf_logs = _noop
     ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
     ue_move_mod.retrieve_ue_state = lambda *a, **k: False
     ue_move_mod.retrieve_ue = lambda *a, **k: {}
@@ -114,7 +116,12 @@ def _setup_module(monkeypatch, user=None):
         "app.tools": tools_mod,
         "app.db": db_pkg,
         "app.db.session": session_mod,
+        "sqlalchemy": types.ModuleType("sqlalchemy"),
+        "sqlalchemy.orm": types.ModuleType("sqlalchemy.orm"),
+        "sqlalchemy.orm.session": types.ModuleType("sqlalchemy.orm.session"),
     })
+    sys.modules["sqlalchemy.orm"].Session = object
+    sys.modules["sqlalchemy.orm.session"].Session = object
 
     endpoints_dir = Path(__file__).resolve(
     ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints"
@@ -126,14 +133,18 @@ def _setup_module(monkeypatch, user=None):
     return monitoring_mod, crud_mod, utils_mod
 
 
-def _make_request():
-    scope = {"type": "http", "method": "POST", "path": "/cb", "headers": []}
-    req = Request(scope)
-    req._body = b"{}"
-    return req
+def _make_request(body: bytes = b"{}"):
+    scope = {"type": "http", "method": "POST", "path": "/cb", "headers": [(b"content-type", b"application/json"), (b"host", b"testserver")]}
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+    return Request(scope, receive)
 
 
-def test_monitoring_notification_success(monkeypatch):
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_monitoring_notification_success(monkeypatch):
     mod, crud, utils = _setup_module(monkeypatch)
     stored = {}
     crud.crud_mongo.create = lambda db, coll, data: stored.update(data)
@@ -141,7 +152,7 @@ def test_monitoring_notification_success(monkeypatch):
 
     body = mod.schemas.MonitoringNotification(
         subscription="sub", monitoringType="LOCATION_REPORTING")
-    resp: JSONResponse = mod.monitoring_notification(
+    resp: JSONResponse = await mod.monitoring_notification(
         body, http_request=_make_request())
     assert resp.status_code == 200
     assert resp.body == b'{"ok":true}'
@@ -149,7 +160,8 @@ def test_monitoring_notification_success(monkeypatch):
                       "monitoringType": "LOCATION_REPORTING"}
 
 
-def test_monitoring_notification_error(monkeypatch):
+@pytest.mark.asyncio
+async def test_monitoring_notification_error(monkeypatch):
     mod, crud, utils = _setup_module(monkeypatch)
 
     def raise_error(db, coll, data):
@@ -161,5 +173,5 @@ def test_monitoring_notification_error(monkeypatch):
     body = mod.schemas.MonitoringNotification(
         subscription="sub", monitoringType="LOCATION_REPORTING")
     with pytest.raises(mod.HTTPException) as exc:
-        mod.monitoring_notification(body, http_request=_make_request())
+        await mod.monitoring_notification(body, http_request=_make_request())
     assert exc.value.status_code == 400
