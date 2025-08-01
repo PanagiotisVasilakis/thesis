@@ -125,7 +125,7 @@ The service reads configuration from the Flask app settings. Important variables
 | Variable | Description | Default |
 |---------------|-----------------------------------------------------------|-------------------------------|
 | `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080` |
-| `MODEL_PATH` | Location of the persisted model file | `app/models/antenna_selector.joblib` |
+| `MODEL_PATH` | Location of the persisted model file | `app/models/antenna_selector_v1.0.0.joblib` |
 | `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
 | `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
 | `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
@@ -164,7 +164,7 @@ services:
     volumes:
       - ./model-data:/persisted-model
     environment:
-      - MODEL_PATH=/persisted-model/antenna_selector.joblib
+      - MODEL_PATH=/persisted-model/antenna_selector_v1.0.0.joblib
 ```
 
 This service is called by the NEF emulator using the `ML_SERVICE_URL` variable.
