@@ -59,11 +59,46 @@ class BaseModelMixin:
         """
         try:
             return self.predict(features)
-        except Exception as exc:
-            logger.warning(
-                "Prediction failed for features %s: %s. Using fallback.",
+        except ValueError as exc:
+            # Data validation errors
+            logger.error(
+                "Prediction failed due to invalid data for UE %s: %s. Using fallback.",
                 features.get("ue_id", "unknown"),
                 exc
+            )
+            return {
+                "antenna_id": fallback_antenna,
+                "confidence": fallback_confidence
+            }
+        except (TypeError, KeyError) as exc:
+            # Feature processing errors
+            logger.error(
+                "Prediction failed due to feature error for UE %s: %s. Using fallback.",
+                features.get("ue_id", "unknown"),
+                exc
+            )
+            return {
+                "antenna_id": fallback_antenna,
+                "confidence": fallback_confidence
+            }
+        except MemoryError as exc:
+            # Memory allocation errors
+            logger.critical(
+                "Prediction failed due to memory error for UE %s: %s. Using fallback.",
+                features.get("ue_id", "unknown"),
+                exc
+            )
+            return {
+                "antenna_id": fallback_antenna,
+                "confidence": fallback_confidence
+            }
+        except Exception as exc:
+            # Catch-all for unexpected errors - log as critical for investigation
+            logger.critical(
+                "Unexpected prediction error for UE %s: %s (%s). Using fallback.",
+                features.get("ue_id", "unknown"),
+                exc,
+                type(exc).__name__
             )
             return {
                 "antenna_id": fallback_antenna,

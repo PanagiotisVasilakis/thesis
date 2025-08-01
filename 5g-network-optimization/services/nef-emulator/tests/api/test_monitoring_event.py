@@ -96,8 +96,10 @@ def _setup_client(monkeypatch, user=None):
     api_v1_pkg = types.ModuleType("app.api.api_v1")
     endpoints_pkg = types.ModuleType("app.api.api_v1.endpoints")
     utils_mod = types.ModuleType("app.api.api_v1.endpoints.utils")
-    utils_mod.add_notifications = lambda *a, **k: None
-    utils_mod.ccf_logs = lambda *a, **k: None
+    async def _noop(*a, **k):
+        return None
+    utils_mod.add_notifications = _noop
+    utils_mod.ccf_logs = _noop
     ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
     ue_move_mod.retrieve_ue_state = lambda *a, **k: False
     ue_move_mod.retrieve_ue = lambda *a, **k: {}

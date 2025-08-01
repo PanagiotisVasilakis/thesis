@@ -16,7 +16,7 @@ router = APIRouter()
 db_collection= 'QoSMonitoring'
 
 @router.get("/{scsAsId}/subscriptions", response_model=List[schemas.AsSessionWithQoSSubscription])
-def read_active_subscriptions(
+async def read_active_subscriptions(
     *,
     scsAsId: str = Path(
         ...,
@@ -41,7 +41,7 @@ def read_active_subscriptions(
             json_response = {}
             json_response.update({"response" : "There are no active subscriptions"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -49,7 +49,7 @@ def read_active_subscriptions(
         raise HTTPException(status_code=404, detail="There are no active subscriptions")
     
     http_response = JSONResponse(content=retrieved_docs, status_code=200)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
 
     #CAPIF Core Function Logging Service
     try:
@@ -57,7 +57,7 @@ def read_active_subscriptions(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
     except TypeError as error:
         logging.error(f"Error: {error}")
     except AttributeError as error:
@@ -72,7 +72,7 @@ qos_callback_router = APIRouter()
 @qos_callback_router.post(
     "{$request.body.notificationDestination}", response_class=Response
 )
-def as_session_with_qos_notification(
+async def as_session_with_qos_notification(
     body: schemas.UserPlaneNotificationData, *, http_request: Request
 ) -> Any:
     """Receive and store QoS monitoring notifications."""
@@ -86,11 +86,11 @@ def as_session_with_qos_notification(
         raise HTTPException(status_code=400, detail=str(ex))
 
     http_response = JSONResponse(content={"ok": True}, status_code=200)
-    add_notifications(http_request, http_response, True)
+    await add_notifications(http_request, http_response, True)
     return http_response
 
 @router.post("/{scsAsId}/subscriptions", responses={201: {"model" : schemas.AsSessionWithQoSSubscription}}, callbacks=qos_callback_router.routes)
-def create_subscription(
+async def create_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -118,7 +118,7 @@ def create_subscription(
                 json_response = {}
                 json_response.update({"response" : "Please enter a value in repFreqs field"})
                 json_response.update({"status_code" : "400"})
-                ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+                await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
             except TypeError as error:
                 logging.error(f"Error: {error}")
             except AttributeError as error:
@@ -155,7 +155,7 @@ def create_subscription(
             json_response = {}
             json_response.update({"response" : f"Subscription for UE with {selected_id} ({error_var}) already exists"})
             json_response.update({"status_code" : "409"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -194,7 +194,7 @@ def create_subscription(
     updated_doc.pop("owner_id") #Remove owner_id from the response
     
     http_response = JSONResponse(content=updated_doc, status_code=201, headers=response_header)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
     
     #CAPIF Core Function Logging Service
     try:
@@ -202,7 +202,7 @@ def create_subscription(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
     except TypeError as error:
         logging.error(f"Error: {error}")
     except AttributeError as error:
@@ -211,7 +211,7 @@ def create_subscription(
     return http_response
 
 @router.get("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.AsSessionWithQoSSubscription)
-def read_subscription(
+async def read_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -237,7 +237,7 @@ def read_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -251,7 +251,7 @@ def read_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -263,7 +263,7 @@ def read_subscription(
 
     retrieved_doc.pop("owner_id")
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
     
     #CAPIF Core Function Logging Service
     try:
@@ -271,7 +271,7 @@ def read_subscription(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
     except TypeError as error:
             logging.error(f"Error: {error}")
     except AttributeError as error:
@@ -280,7 +280,7 @@ def read_subscription(
     return http_response
 
 @router.put("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.AsSessionWithQoSSubscription)
-def update_subscription(
+async def update_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -307,7 +307,7 @@ def update_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -321,7 +321,7 @@ def update_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -339,7 +339,7 @@ def update_subscription(
     updated_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     updated_doc.pop("owner_id")
     http_response = JSONResponse(content=updated_doc, status_code=200)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
 
     #CAPIF Core Function Logging Service
     try:
@@ -347,7 +347,7 @@ def update_subscription(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
     except TypeError as error:
         logging.error(f"Error: {error}")
     except AttributeError as error:
@@ -356,7 +356,7 @@ def update_subscription(
     return http_response
 
 @router.delete("/{scsAsId}/subscriptions/{subscriptionId}", response_model=schemas.AsSessionWithQoSSubscription)
-def delete_subscription(
+async def delete_subscription(
     *,
     scsAsId: str = Path(
         ...,
@@ -382,7 +382,7 @@ def delete_subscription(
             json_response = {}
             json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
             json_response.update({"status_code" : "400"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -397,7 +397,7 @@ def delete_subscription(
             json_response = {}
             json_response.update({"response" : "Subscription not found"})
             json_response.update({"status_code" : "404"})
-            ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
         except TypeError as error:
             logging.error(f"Error: {error}")
         except AttributeError as error:
@@ -409,7 +409,7 @@ def delete_subscription(
 
     crud_mongo.delete_by_uuid(db_mongo, db_collection, subscriptionId)
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
-    add_notifications(http_request, http_response, False)
+    await add_notifications(http_request, http_response, False)
 
     #CAPIF Core Function Logging Service
     try:
@@ -417,7 +417,7 @@ def delete_subscription(
         json_response = {}
         json_response.update({"response" : response})
         json_response.update({"status_code" : str(http_response.status_code)})
-        ccf_logs(http_request, http_response, "service_as_session_with_qos.json", token_payload.get("sub"))
+        await ccf_logs(http_request, http_response, "service_as_session_with_qos.json", token_payload.get("sub"))
     except TypeError as error:
         logging.error(f"Error: {error}")
     except AttributeError as error:
