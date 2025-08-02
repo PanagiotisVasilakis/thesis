@@ -52,10 +52,7 @@ def extract_environment_features(feature_vector: Dict[str, Any]) -> Dict[str, Op
     features: Dict[str, Optional[float]] = {}
     for key in ["cell_load", "environment", "velocity", "acceleration", "signal_trend"]:
         value = feature_vector.get(key)
-        if isinstance(value, (int, float)):
-            features[key] = float(value)
-        else:
-            features[key] = None
+        features[key] = float(value) if isinstance(value, (int, float)) else None
     return features
 
 
