@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timezone
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
+from ..features import pipeline
 
 from ..utils.env_utils import get_neighbor_count_from_env
 
@@ -171,130 +172,17 @@ class AntennaSelector:
         return neighbors
 
     def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data with performance optimizations.
-        
-        Performance improvements:
-        - Reduced dictionary lookups with batch extraction
-        - Pre-allocated feature dictionary
-        - Optimized neighbor processing
-        - Cached default values
-        """
-        # Batch extract common values to reduce dict.get() calls
-        latitude = data.get("latitude", 0)
-        longitude = data.get("longitude", 0)
-        altitude = data.get("altitude", 0) 
-        speed = data.get("speed", 0)
-        velocity = data.get("velocity")
-        if velocity is None:
-            velocity = speed
-        velocity = velocity if velocity is not None else 0
-        
-        heading_change_rate = data.get("heading_change_rate", 0)
-        path_curvature = data.get("path_curvature", 0)
-        acceleration = data.get("acceleration", 0)
-        cell_load = data.get("cell_load", 0)
-        time_since_handover = data.get("time_since_handover", 0)
-        signal_trend = data.get("signal_trend", 0)
-        environment = data.get("environment", 0)
-        rsrp_stddev = data.get("rsrp_stddev", 0)
-        sinr_stddev = data.get("sinr_stddev", 0)
-        
-        # Optimized handover count extraction
-        if "handover_count" in data:
-            handover_count = data["handover_count"]
-        else:
-            hist = data.get("handover_history")
-            handover_count = len(hist) if isinstance(hist, list) else 0
-        
-        # Optimized direction processing
-        direction = data.get("direction", (0, 0, 0))
-        dx, dy = self._direction_to_unit(direction)
-        
-        # Batch RF metrics processing
-        rf_metrics = data.get("rf_metrics", {})
-        current_antenna = data.get("connected_to")
-        rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
-        
-        # Pre-allocate features dictionary with known size
-        base_feature_count = len(self.base_feature_names) + (self.neighbor_count * 4) + 3
-        features = {}
-        features.update({
-            "latitude": latitude,
-            "longitude": longitude,
-            "altitude": altitude,
-            "speed": speed,
-            "velocity": velocity,
-            "heading_change_rate": heading_change_rate,
-            "path_curvature": path_curvature,
-            "acceleration": acceleration,
-            "cell_load": cell_load,
-            "handover_count": handover_count,
-            "time_since_handover": time_since_handover,
-            "signal_trend": signal_trend,
-            "environment": environment,
-            "rsrp_stddev": rsrp_stddev,
-            "sinr_stddev": sinr_stddev,
-            "direction_x": dx,
-            "direction_y": dy,
-            "rsrp_current": rsrp_curr,
-            "sinr_current": sinr_curr,
-            "rsrq_current": rsrq_curr,
-        })
-
-        # Optimized neighbor processing
-        neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
-        best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
-        if neighbors:
-            # Extract best values from first neighbor (already sorted)
-            first_neighbor = neighbors[0]
-            best_rsrp, best_sinr, best_rsrq = first_neighbor[1], first_neighbor[2], first_neighbor[3]
-
-        # Thread-safe neighbor count initialization
-        if self.neighbor_count == 0:
-            with self._init_lock:
-                if self.neighbor_count == 0:
-                    self.neighbor_count = len(neighbors)
-                    # Batch extend feature names
-                    new_features = []
-                    for idx in range(self.neighbor_count):
-                        new_features.extend([
-                            f"rsrp_a{idx+1}",
-                            f"sinr_a{idx+1}",
-                            f"rsrq_a{idx+1}",
-                            f"neighbor_cell_load_a{idx+1}",
-                        ])
-                    self.feature_names.extend(new_features)
-
-        # Optimized neighbor feature extraction with batch updates
-        neighbor_updates = {}
-        for idx in range(self.neighbor_count):
-            if idx < len(neighbors):
-                neighbor = neighbors[idx]
-                neighbor_updates.update({
-                    f"rsrp_a{idx+1}": neighbor[1],
-                    f"sinr_a{idx+1}": neighbor[2],
-                    f"rsrq_a{idx+1}": neighbor[3],
-                    f"neighbor_cell_load_a{idx+1}": neighbor[4] if neighbor[4] is not None else 0
-                })
-            else:
-                # Use batch update for default values
-                neighbor_updates.update({
-                    f"rsrp_a{idx+1}": -120,
-                    f"sinr_a{idx+1}": 0,
-                    f"rsrq_a{idx+1}": -30,
-                    f"neighbor_cell_load_a{idx+1}": 0
-                })
-        
-        # Batch update neighbor features
-        features.update(neighbor_updates)
-        
-        # Add difference features
-        features.update({
-            "best_rsrp_diff": best_rsrp - rsrp_curr,
-            "best_sinr_diff": best_sinr - sinr_curr,
-            "best_rsrq_diff": best_rsrq - rsrq_curr,
-        })
-
+        """Extract features from UE data using the shared pipeline."""
+        features, n_count, names = pipeline.build_model_features(
+            data,
+            base_feature_names=self.base_feature_names,
+            neighbor_count=self.neighbor_count,
+            include_neighbors=include_neighbors,
+            init_lock=self._init_lock,
+            feature_names=self.feature_names,
+        )
+        self.neighbor_count = n_count
+        self.feature_names = names
         return features
 
     def predict(self, features):

@@ -7,11 +7,18 @@ from ml_service.app.models.antenna_selector import (
     FALLBACK_ANTENNA_ID,
     FALLBACK_CONFIDENCE,
 )
+from ml_service.app.features import pipeline
 
 
 def test_extract_features_defaults():
     model = LightGBMSelector()
-    features = model.extract_features({})
+    features, n_count, names = pipeline.build_model_features(
+        {},
+        base_feature_names=model.base_feature_names,
+        neighbor_count=0,
+    )
+    assert n_count == 0
+    assert names == model.base_feature_names
 
     assert features == {
         "latitude": 0,

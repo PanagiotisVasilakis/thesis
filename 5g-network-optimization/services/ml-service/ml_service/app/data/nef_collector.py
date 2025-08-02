@@ -8,6 +8,8 @@ import asyncio
 import time
 from collections import deque
 
+from typing import Dict, Any
+
 from ..utils.mobility_metrics import MobilityMetricTracker
 from ..utils.memory_managed_dict import UETrackingDict, LRUDict
 
