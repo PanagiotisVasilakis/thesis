@@ -6,6 +6,7 @@ from collections import deque
 
 from ..utils.mobility_metrics import MobilityMetricTracker
 from ..utils.memory_managed_dict import UETrackingDict
+from ..features import pipeline
 
 
 class FeatureExtractor:
@@ -23,39 +24,7 @@ class FeatureExtractor:
         Returns:
             Dictionary of RF metrics per antenna
         """
-        rsrps = feature_vector.get("neighbor_rsrp_dbm", {})
-        sinrs = feature_vector.get("neighbor_sinrs", {})
-        rsrqs = feature_vector.get("neighbor_rsrqs", {})
-        loads = feature_vector.get("neighbor_cell_loads", {})
-        
-        # Validate and sanitize RF metrics
-        if not isinstance(rsrps, dict):
-            rsrps = {}
-        if not isinstance(sinrs, dict):
-            sinrs = {}
-        if not isinstance(rsrqs, dict):
-            rsrqs = {}
-        if not isinstance(loads, dict):
-            loads = {}
-        
-        rf_metrics = {}
-        for antenna_id in rsrps.keys():
-            rsrp = rsrps.get(antenna_id)
-            sinr = sinrs.get(antenna_id)
-            rsrq = rsrqs.get(antenna_id)
-            load = loads.get(antenna_id)
-            
-            metrics = {"rsrp": rsrp}
-            if sinr is not None:
-                metrics["sinr"] = sinr
-            if rsrq is not None:
-                metrics["rsrq"] = rsrq
-            if load is not None:
-                metrics["cell_load"] = load
-                
-            rf_metrics[antenna_id] = metrics
-            
-        return rf_metrics
+        return pipeline.extract_rf_features(feature_vector)
     
     def extract_environment_features(self, feature_vector: Dict[str, Any]) -> Dict[str, Optional[float]]:
         """Extract and validate environment-related features.
@@ -66,17 +35,7 @@ class FeatureExtractor:
         Returns:
             Dictionary of environment features
         """
-        features = {}
-        
-        # Extract and validate numeric features
-        for key in ["cell_load", "environment", "velocity", "acceleration", "signal_trend"]:
-            value = feature_vector.get(key)
-            if isinstance(value, (int, float)):
-                features[key] = float(value)
-            else:
-                features[key] = None
-                
-        return features
+        return pipeline.extract_environment_features(feature_vector)
     
     def determine_optimal_antenna(self, rf_metrics: Dict[str, Dict[str, float]]) -> str:
         """Determine the optimal antenna based on RF metrics.
@@ -89,23 +48,7 @@ class FeatureExtractor:
         Returns:
             ID of the optimal antenna
         """
-        if not rf_metrics:
-            return "antenna_1"  # Default fallback
-            
-        best_antenna = None
-        best_rsrp = float("-inf")
-        best_sinr = float("-inf")
-        
-        for antenna_id, metrics in rf_metrics.items():
-            rsrp = metrics.get("rsrp", float("-inf"))
-            sinr = metrics.get("sinr", float("-inf"))
-            
-            if rsrp > best_rsrp or (rsrp == best_rsrp and sinr > best_sinr):
-                best_rsrp = rsrp
-                best_sinr = sinr
-                best_antenna = antenna_id
-                
-        return best_antenna or "antenna_1"
+        return pipeline.determine_optimal_antenna(rf_metrics)
 
 
 class HandoverTracker:
