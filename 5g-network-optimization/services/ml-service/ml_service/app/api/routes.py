@@ -205,10 +205,10 @@ def nef_status():
 @validate_content_type("application/json")
 @validate_request_size(1)  # 1MB max for data collection params
 @validate_json_input(CollectDataRequest, required=False)
-async def collect_data():
+def collect_data():
     """Collect training data from the NEF emulator."""
     params = request.validated_data or CollectDataRequest()
-    
+
     duration = params.duration
     interval = params.interval
     username = params.username
@@ -226,8 +226,8 @@ async def collect_data():
         raise RequestValidationError("No UEs found in movement state")
 
     try:
-        samples = await collector.collect_training_data(
-            duration=duration, interval=interval
+        samples = asyncio.run(
+            collector.collect_training_data(duration=duration, interval=interval)
         )
     except NEFClientError as exc:
         raise NEFConnectionError(exc) from exc
