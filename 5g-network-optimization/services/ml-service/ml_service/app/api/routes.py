@@ -161,7 +161,10 @@ def train():
         # Handle out of memory errors during training
         raise ModelError(f"Insufficient memory for training: {exc}") from exc
     track_training(
-        duration, metrics.get("samples", 0), metrics.get("val_accuracy")
+        duration,
+        metrics.get("samples", 0),
+        metrics.get("val_accuracy"),
+        metrics.get("feature_importance"),
     )
     ModelManager.save_active_model(metrics)
 
