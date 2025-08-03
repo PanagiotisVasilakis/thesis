@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timezone
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
+from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
 
 from ..utils.env_utils import get_neighbor_count_from_env
@@ -69,6 +70,7 @@ class AntennaSelector:
         # Thread-safety: protect concurrent reads/writes to the underlying estimator
         self._model_lock = threading.RLock()
         self.model = None
+        self.scaler = StandardScaler()
         # Base features independent of neighbour count
         self.base_feature_names = [
             "latitude",
@@ -187,8 +189,10 @@ class AntennaSelector:
 
     def predict(self, features):
         """Predict the optimal antenna for the UE."""
-        # Convert features to the format expected by the model
-        X = np.array([[features[name] for name in self.feature_names]])
+        # Convert features to the format expected by the model and scale
+        X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+        if self.scaler:
+            X = self.scaler.transform(X)
 
         try:
             # Perform a single prediction attempt via probabilities
@@ -245,9 +249,11 @@ class AntennaSelector:
             X.append(feature_vector)
             y.append(label)
 
-        # Convert to numpy arrays
-        X = np.array(X)
+        # Convert to numpy arrays and scale
+        X = np.array(X, dtype=float)
         y = np.array(y)
+        self.scaler.fit(X)
+        X = self.scaler.transform(X)
 
         # Thread-safe training with lock
         with self._model_lock:
@@ -302,6 +308,7 @@ class AntennaSelector:
                         "model": self.model,
                         "feature_names": self.feature_names,
                         "neighbor_count": self.neighbor_count,
+                        "scaler": self.scaler,
                     },
                     temp_path,
                 )
@@ -354,6 +361,7 @@ class AntennaSelector:
                     self.model = data["model"]
                     self.feature_names = data.get("feature_names", self.feature_names)
                     self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
+                    self.scaler = data.get("scaler", StandardScaler())
                 else:
                     self.model = data
                 

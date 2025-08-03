@@ -58,8 +58,10 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         if not training_data:
             raise ValueError("Training data cannot be empty")
         
-        # Use the mixin's build_dataset method
+        # Use the mixin's build_dataset method and scale features
         X_arr, y_arr = self.build_dataset(training_data)
+        self.scaler.fit(X_arr)
+        X_arr = self.scaler.transform(X_arr)
         X_train, X_val, y_train, y_val = self._split_dataset(
             X_arr, y_arr, validation_split
         )

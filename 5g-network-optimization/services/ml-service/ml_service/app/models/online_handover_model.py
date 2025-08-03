@@ -2,6 +2,7 @@
 
 from collections import deque
 from sklearn.linear_model import SGDClassifier
+from sklearn.preprocessing import StandardScaler
 import numpy as np
 
 from .antenna_selector import AntennaSelector
@@ -39,6 +40,8 @@ class OnlineHandoverModel(AntennaSelector):
             raise ValueError("Training data cannot be empty")
         
         X, y = self._build_dataset(training_data)
+        self.scaler.fit(X)
+        X = self.scaler.transform(X)
         classes = np.unique(y)
         
         # Thread-safe training with lock
@@ -58,6 +61,8 @@ class OnlineHandoverModel(AntennaSelector):
             return
         
         X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+        if self.scaler:
+            X = self.scaler.transform(X)
         
         # Thread-safe model update with lock
         with self._model_lock:
