@@ -1,11 +1,15 @@
 """Prometheus metrics for ML service."""
 from prometheus_client import Counter, Histogram, Gauge
+import json
+import logging
 import time
 import os
 import threading
 from typing import Dict, List
 
 import psutil
+
+logger = logging.getLogger(__name__)
 
 # Track prediction requests
 PREDICTION_REQUESTS = Counter(
@@ -50,6 +54,13 @@ MODEL_TRAINING_SAMPLES = Gauge(
 MODEL_TRAINING_ACCURACY = Gauge(
     'ml_model_training_accuracy',
     'Accuracy of trained model'
+)
+
+# Track latest feature importance values
+FEATURE_IMPORTANCE = Gauge(
+    'ml_feature_importance',
+    'Latest feature importance score',
+    ['feature']
 )
 
 # --- Operational and Drift Metrics ---
@@ -119,12 +130,42 @@ def track_prediction(antenna_id, confidence):
     ANTENNA_PREDICTIONS.labels(antenna_id=antenna_id).inc()
     PREDICTION_CONFIDENCE.labels(antenna_id=antenna_id).set(confidence)
 
-def track_training(duration, num_samples, accuracy=None):
-    """Track model training."""
+def store_feature_importance(feature_importance: Dict[str, float], path: str | None = None) -> None:
+    """Persist feature importance values to a JSON file.
+
+    Parameters
+    ----------
+    feature_importance:
+        Mapping of feature name to importance score.
+    path:
+        Optional override for the output path. Defaults to the
+        ``FEATURE_IMPORTANCE_PATH`` environment variable or
+        ``/tmp/feature_importance.json``.
+    """
+    file_path = path or os.environ.get("FEATURE_IMPORTANCE_PATH", "/tmp/feature_importance.json")
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(feature_importance, f)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to store feature importance: %s", exc)
+
+
+def track_training(
+    duration: float,
+    num_samples: int,
+    accuracy: float | None = None,
+    feature_importance: Dict[str, float] | None = None,
+    store_path: str | None = None,
+) -> None:
+    """Track model training and feature importance."""
     MODEL_TRAINING_DURATION.observe(duration)
     MODEL_TRAINING_SAMPLES.set(num_samples)
     if accuracy is not None:
         MODEL_TRAINING_ACCURACY.set(accuracy)
+    if feature_importance:
+        for name, value in feature_importance.items():
+            FEATURE_IMPORTANCE.labels(feature=name).set(value)
+        store_feature_importance(feature_importance, path=store_path)
 
 
 class DataDriftMonitor:
