@@ -54,3 +54,4 @@ pandas==1.5.3
 dask==2023.5.0
 pyarrow==14.0.1
 Flask-Limiter==3.3.1
+pyyaml>=6.0

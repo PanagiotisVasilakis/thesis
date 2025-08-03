@@ -17,11 +17,23 @@ from sklearn.metrics import accuracy_score
 class LSTMSelector(BaseModelMixin, AntennaSelector):
     """Antenna selector using a simple LSTM network."""
 
-    def __init__(self, model_path: str | None = None, *, neighbor_count: int | None = None, epochs: int = 5, units: int = 16) -> None:
+    def __init__(
+        self,
+        model_path: str | None = None,
+        *,
+        neighbor_count: int | None = None,
+        config_path: str | None = None,
+        epochs: int = 5,
+        units: int = 16,
+    ) -> None:
         self.epochs = epochs
         self.units = units
         self.classes_: list[str] | None = None
-        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
+        super().__init__(
+            model_path=model_path,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Initialize an uncompiled Keras model."""
