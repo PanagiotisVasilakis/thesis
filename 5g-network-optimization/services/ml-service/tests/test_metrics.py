@@ -74,10 +74,29 @@ def test_drift_monitor_detects_change():
     monitor = DataDriftMonitor(window_size=2)
     monitor.update({"f1": 1.0})
     monitor.update({"f1": 1.0})
-    assert monitor.compute_drift() == 0.0
+    assert monitor.compute_drift() == 0.0  # establishes baseline
     monitor.update({"f1": 2.0})
     monitor.update({"f1": 2.0})
-    assert monitor.compute_drift() > 0.0
+    drift = monitor.compute_drift()
+    assert drift == 1.0
+
+
+def test_drift_monitor_triggers_alert(monkeypatch):
+    monitor = DataDriftMonitor(window_size=2, threshold=0.5, alert_email="test@example.com")
+    triggered = {}
+
+    def fake_alert(value: float) -> None:
+        triggered["drift"] = value
+
+    monkeypatch.setattr(monitor, "_send_email_alert", fake_alert)
+
+    monitor.update({"f1": 1.0})
+    monitor.update({"f1": 1.0})
+    monitor.compute_drift()  # baseline
+    monitor.update({"f1": 3.0})
+    monitor.update({"f1": 3.0})
+    monitor.compute_drift()
+    assert "drift" in triggered
 
 
 def test_metrics_collector_updates_error_rate(monkeypatch):

@@ -5,6 +5,8 @@ import logging
 import time
 import os
 import threading
+import smtplib
+from email.message import EmailMessage
 from typing import Dict, List
 
 import psutil
@@ -169,12 +171,29 @@ def track_training(
 
 
 class DataDriftMonitor:
-    """Compute feature distribution changes over rolling windows."""
+    """Compute feature distribution changes against a baseline."""
 
-    def __init__(self, window_size: int = 100) -> None:
+    def __init__(
+        self,
+        window_size: int = 100,
+        *,
+        threshold: float | None = None,
+        alert_email: str | None = None,
+        smtp_server: str | None = None,
+        smtp_port: int | None = None,
+        smtp_username: str | None = None,
+        smtp_password: str | None = None,
+    ) -> None:
         self.window_size = window_size
+        self.threshold = threshold or float(os.getenv("DRIFT_THRESHOLD", "0.1"))
+        self.alert_email = alert_email or os.getenv("DRIFT_ALERT_EMAIL")
+        self.smtp_server = smtp_server or os.getenv("SMTP_SERVER", "localhost")
+        self.smtp_port = int(smtp_port or os.getenv("SMTP_PORT", "25"))
+        self.smtp_username = smtp_username or os.getenv("SMTP_USERNAME")
+        self.smtp_password = smtp_password or os.getenv("SMTP_PASSWORD")
+
         self._current: List[Dict[str, float]] = []
-        self._previous: List[Dict[str, float]] = []
+        self._baseline: Dict[str, float] | None = None
         self._lock = threading.Lock()
 
     def update(self, features: Dict[str, float]) -> None:
@@ -197,27 +216,61 @@ class DataDriftMonitor:
         return {k: totals[k] / counts[k] for k in totals}
 
     def compute_drift(self) -> float:
-        """Return average absolute change between the latest windows."""
+        """Return average absolute change between current window and baseline.
+
+        The first full window establishes the baseline distribution. Subsequent
+        windows are compared against this baseline. When the computed drift
+        exceeds ``threshold`` an email alert is sent (if configured).
+        """
         with self._lock:
             if len(self._current) < self.window_size:
                 return 0.0
-            if not self._previous:
-                self._previous = list(self._current)
-                self._current.clear()
-                return 0.0
 
-            prev_means = self._mean(self._previous)
             curr_means = self._mean(self._current)
-            keys = set(prev_means).intersection(curr_means)
-            if not keys:
-                self._previous = list(self._current)
+            if self._baseline is None:
+                # Establish baseline from the first complete window
+                self._baseline = curr_means
                 self._current.clear()
                 return 0.0
 
-            diff = sum(abs(curr_means[k] - prev_means[k]) for k in keys) / len(keys)
-            self._previous = list(self._current)
+            keys = set(self._baseline).intersection(curr_means)
+            if not keys:
+                self._current.clear()
+                return 0.0
+
+            diff = sum(abs(curr_means[k] - self._baseline[k]) for k in keys) / len(keys)
             self._current.clear()
+
+            if diff > self.threshold:
+                self._send_email_alert(diff)
             return diff
+
+    def _send_email_alert(self, drift: float) -> None:
+        """Send an email alert if drift exceeds the configured threshold."""
+        if not self.alert_email:
+            logger.warning("Data drift %.4f detected but no alert email configured", drift)
+            return
+
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = "ML Service Data Drift Alert"
+            msg["From"] = self.smtp_username or self.alert_email
+            msg["To"] = self.alert_email
+            msg.set_content(
+                f"Data drift detected: {drift:.4f} exceeds threshold {self.threshold:.4f}"
+            )
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                if self.smtp_username and self.smtp_password:
+                    try:
+                        server.starttls()
+                    except Exception:
+                        pass
+                    server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg)
+            logger.info("Drift alert email sent to %s", self.alert_email)
+        except Exception as exc:
+            logger.error("Failed to send drift alert email: %s", exc)
 
 
 class MetricsCollector:
