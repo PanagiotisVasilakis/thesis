@@ -62,13 +62,36 @@ def create_app(config=None):
     if not app.testing:
         init_limiter(app)
 
+    # Import metrics authentication
+    from .auth.metrics_auth import require_metrics_auth, get_metrics_authenticator
+    
     @app.route("/metrics")
+    @require_metrics_auth
     def metrics():
-        """Expose Prometheus metrics."""
+        """Expose Prometheus metrics with authentication."""
         return Response(
             generate_latest(),
             mimetype="text/plain; version=0.0.4",
         )
+    
+    @app.route("/metrics/auth/token", methods=["POST"])
+    @require_metrics_auth
+    def create_metrics_token():
+        """Create a JWT token for metrics access."""
+        from .auth.metrics_auth import create_metrics_auth_token
+        try:
+            token = create_metrics_auth_token()
+            return {"token": token, "expires_in": app.config.get("METRICS_JWT_EXPIRY_SECONDS", 3600)}
+        except Exception as e:
+            app.logger.error("Failed to create metrics token: %s", e)
+            return {"error": "Failed to create token"}, 500
+    
+    @app.route("/metrics/auth/stats")
+    @require_metrics_auth
+    def metrics_auth_stats():
+        """Get metrics authentication statistics."""
+        auth = get_metrics_authenticator()
+        return auth.get_auth_stats()
 
     # Wrap the application with metrics middleware
     app.wsgi_app = MetricsMiddleware(app.wsgi_app)

@@ -136,6 +136,46 @@ def predict():
     )
 
 
+@api_bp.route("/predict-async", methods=["POST"])
+@require_auth
+@validate_content_type("application/json")
+@validate_request_size(5)  # 5MB max for prediction requests
+@validate_json_input(PredictionRequest)
+async def predict_async():
+    """Make async antenna selection prediction based on UE data."""
+    req = request.validated_data
+
+    try:
+        model = load_model(current_app.config["MODEL_PATH"])
+        
+        # Extract features for async prediction
+        features = model.extract_features(req.dict(exclude_none=True))
+        
+        # Use async prediction
+        result = await model.predict_async(features)
+        
+    except (ValueError, TypeError, KeyError) as exc:
+        # Handle specific model-related errors
+        raise ModelError(f"Async prediction failed: {exc}") from exc
+    except FileNotFoundError as exc:
+        # Handle missing model file
+        raise ModelError(f"Model file not found: {exc}") from exc
+
+    track_prediction(result["antenna_id"], result["confidence"])
+    if hasattr(current_app, "metrics_collector"):
+        current_app.metrics_collector.drift_monitor.update(features)
+
+    return jsonify(
+        {
+            "ue_id": req.ue_id,
+            "predicted_antenna": result["antenna_id"],
+            "confidence": result["confidence"],
+            "features_used": list(features.keys()),
+            "async": True,
+        }
+    )
+
+
 @api_bp.route("/train", methods=["POST"])
 @require_auth
 @validate_content_type("application/json")
@@ -169,6 +209,42 @@ def train():
     ModelManager.save_active_model(metrics)
 
     return jsonify({"status": "success", "metrics": metrics})
+
+
+@api_bp.route("/train-async", methods=["POST"])
+@require_auth
+@validate_content_type("application/json")
+@validate_request_size(50)  # 50MB max for training data
+@validate_json_input(TrainingSample, allow_list=True)
+async def train_async():
+    """Train the model asynchronously with provided data."""
+    validated_samples = request.validated_data
+    samples = [sample.dict(exclude_none=True) for sample in validated_samples]
+
+    try:
+        model = load_model(current_app.config["MODEL_PATH"])
+        start = time.time()
+        
+        # Use async training
+        metrics = await model.train_async(samples)
+        duration = time.time() - start
+        
+    except (ValueError, TypeError, KeyError) as exc:
+        # Handle specific training errors
+        raise ModelError(f"Async training failed: {exc}") from exc
+    except FileNotFoundError as exc:
+        # Handle missing model file
+        raise ModelError(f"Model file not found: {exc}") from exc
+    except MemoryError as exc:
+        # Handle out of memory errors during training
+        raise ModelError(f"Insufficient memory for async training: {exc}") from exc
+        
+    track_training(
+        duration, metrics.get("samples", 0), metrics.get("val_accuracy")
+    )
+    ModelManager.save_active_model(metrics)
+
+    return jsonify({"status": "success", "metrics": metrics, "async": True})
 
 
 @api_bp.route("/nef-status", methods=["GET"])

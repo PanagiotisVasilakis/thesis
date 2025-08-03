@@ -13,6 +13,28 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
+from ..config.constants import (
+    PREDICTION_LATENCY_BUCKETS,
+    TRAINING_DURATION_BUCKETS,
+    DEFAULT_DATA_DRIFT_WINDOW_SIZE,
+    DEFAULT_DATA_DRIFT_MAX_SAMPLES,
+    DEFAULT_SAMPLE_CHECK_INTERVAL,
+    DEFAULT_METRICS_INTERVAL,
+    DEFAULT_METRICS_STOP_TIMEOUT,
+    env_constants
+)
+from ..utils.exception_handler import (
+    ExceptionHandler,
+    ResourceError,
+    exception_context,
+    safe_execute,
+    ErrorSeverity
+)
+from ..utils.resource_manager import (
+    global_resource_manager,
+    ResourceType
+)
+
 # Track prediction requests
 PREDICTION_REQUESTS = Counter(
     'ml_prediction_requests_total',
@@ -24,7 +46,7 @@ PREDICTION_REQUESTS = Counter(
 PREDICTION_LATENCY = Histogram(
     'ml_prediction_latency_seconds',
     'Latency of antenna selection predictions',
-    buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]
+    buckets=PREDICTION_LATENCY_BUCKETS
 )
 
 # Track prediction outcomes
@@ -45,7 +67,7 @@ PREDICTION_CONFIDENCE = Gauge(
 MODEL_TRAINING_DURATION = Histogram(
     'ml_model_training_duration_seconds',
     'Duration of model training',
-    buckets=[0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0]
+    buckets=TRAINING_DURATION_BUCKETS
 )
 
 MODEL_TRAINING_SAMPLES = Gauge(
@@ -171,40 +193,56 @@ def track_training(
 
 
 class DataDriftMonitor:
-    """Compute feature distribution changes against a baseline."""
+    """Compute feature distribution changes over rolling windows."""
 
-    def __init__(
-        self,
-        window_size: int = 100,
-        *,
-        threshold: float | None = None,
-        alert_email: str | None = None,
-        smtp_server: str | None = None,
-        smtp_port: int | None = None,
-        smtp_username: str | None = None,
-        smtp_password: str | None = None,
-    ) -> None:
+    def __init__(self, window_size: int = DEFAULT_DATA_DRIFT_WINDOW_SIZE, max_samples: int = DEFAULT_DATA_DRIFT_MAX_SAMPLES) -> None:
+        if window_size <= 0:
+            raise ValueError("Window size must be positive")
+        if max_samples < window_size * 2:
+            raise ValueError("Max samples must be at least 2x window size")
+            
         self.window_size = window_size
-        self.threshold = threshold or float(os.getenv("DRIFT_THRESHOLD", "0.1"))
-        self.alert_email = alert_email or os.getenv("DRIFT_ALERT_EMAIL")
-        self.smtp_server = smtp_server or os.getenv("SMTP_SERVER", "localhost")
-        self.smtp_port = int(smtp_port or os.getenv("SMTP_PORT", "25"))
-        self.smtp_username = smtp_username or os.getenv("SMTP_USERNAME")
-        self.smtp_password = smtp_password or os.getenv("SMTP_PASSWORD")
-
+        self.max_samples = max_samples
         self._current: List[Dict[str, float]] = []
         self._baseline: Dict[str, float] | None = None
         self._lock = threading.Lock()
+        self._sample_count = 0
+        
+        import logging
+        self.logger = logging.getLogger(__name__)
 
     def update(self, features: Dict[str, float]) -> None:
-        """Add feature vector from a prediction request."""
+        """Add feature vector from a prediction request with memory bounds."""
         numeric = {k: v for k, v in features.items() if isinstance(v, (int, float))}
         if not numeric:
             return
+            
         with self._lock:
+            self._sample_count += 1
             self._current.append(numeric)
+            
+            # Enforce window size limit
             if len(self._current) > self.window_size:
                 self._current.pop(0)
+            
+            # Enforce global memory limit - emergency cleanup
+            if self._sample_count % DEFAULT_SAMPLE_CHECK_INTERVAL == 0:  # Check periodically
+                total_samples = len(self._current) + len(self._previous)
+                if total_samples > self.max_samples:
+                    self.logger.warning(
+                        "DataDriftMonitor approaching memory limit (%d/%d samples). "
+                        "Performing emergency cleanup.", 
+                        total_samples, self.max_samples
+                    )
+                    # Keep only most recent samples
+                    excess = total_samples - self.max_samples // 2
+                    if len(self._previous) > excess:
+                        self._previous = self._previous[excess:]
+                    else:
+                        self._previous.clear()
+                        remaining_excess = excess - len(self._previous)
+                        if len(self._current) > remaining_excess:
+                            self._current = self._current[remaining_excess:]
 
     def _mean(self, samples: List[Dict[str, float]]) -> Dict[str, float]:
         totals: Dict[str, float] = {}
@@ -244,6 +282,27 @@ class DataDriftMonitor:
             if diff > self.threshold:
                 self._send_email_alert(diff)
             return diff
+    
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get memory usage statistics for monitoring."""
+        with self._lock:
+            return {
+                "current_samples": len(self._current),
+                "previous_samples": len(self._previous),
+                "total_samples": len(self._current) + len(self._previous),
+                "max_samples": self.max_samples,
+                "window_size": self.window_size,
+                "sample_count": self._sample_count,
+                "memory_utilization": (len(self._current) + len(self._previous)) / self.max_samples
+            }
+    
+    def reset(self) -> None:
+        """Reset all stored data and counters."""
+        with self._lock:
+            self._current.clear()
+            self._previous.clear()
+            self._sample_count = 0
+            self.logger.info("DataDriftMonitor reset - all data cleared")
 
     def _send_email_alert(self, drift: float) -> None:
         """Send an email alert if drift exceeds the configured threshold."""
@@ -276,7 +335,7 @@ class DataDriftMonitor:
 class MetricsCollector:
     """Background thread updating operational metrics."""
 
-    def __init__(self, interval: float = 10.0, drift_monitor: DataDriftMonitor | None = None) -> None:
+    def __init__(self, interval: float = DEFAULT_METRICS_INTERVAL, drift_monitor: DataDriftMonitor | None = None) -> None:
         if interval <= 0:
             raise ValueError(f"Interval must be positive, got {interval}")
         if interval < 1.0:
@@ -299,13 +358,25 @@ class MetricsCollector:
         except Exception as e:
             logger.error("Error initializing process monitor: %s", e)
             raise
+        
+        # Register with resource manager
+        self._resource_id = global_resource_manager.register_resource(
+            self,
+            ResourceType.OTHER,
+            cleanup_method=self._cleanup_resources,
+            metadata={
+                "component": "MetricsCollector",
+                "interval": self.interval,
+                "pid": os.getpid()
+            }
+        )
 
     def start(self) -> None:
         self._last_success = PREDICTION_REQUESTS.labels(status='success')._value.get()
         self._last_error = PREDICTION_REQUESTS.labels(status='error')._value.get()
         self._thread.start()
 
-    def stop(self, timeout: float = 5.0) -> None:
+    def stop(self, timeout: float = DEFAULT_METRICS_STOP_TIMEOUT) -> None:
         """Stop the metrics collection thread.
         
         Args:
@@ -329,43 +400,84 @@ class MetricsCollector:
                 logger.info("Metrics collector stopped successfully")
         except Exception as e:
             logger.error("Error stopping metrics collector: %s", e)
+    
+    def _cleanup_resources(self) -> None:
+        """Clean up metrics collector resources."""
+        try:
+            # Stop background thread
+            self.stop()
+            
+            # Reset drift monitor
+            if hasattr(self, 'drift_monitor') and self.drift_monitor:
+                self.drift_monitor.reset()
+            
+            # Unregister from resource manager
+            if hasattr(self, '_resource_id') and self._resource_id:
+                global_resource_manager.unregister_resource(self._resource_id, force_cleanup=False)
+                self._resource_id = None
+            
+            logger.info("Metrics collector resources cleaned up")
+        except Exception as e:
+            logger.error("Error cleaning up metrics collector resources: %s", e)
 
     def _run(self) -> None:
         """Main monitoring loop with comprehensive error handling."""
         consecutive_errors = 0
         max_consecutive_errors = 5
+        handler = ExceptionHandler("MetricsCollector")
         
         while not self._stop.is_set():
             try:
-                self._update_resource_usage()
+                # Update resource usage with error handling
+                safe_execute(
+                    self._update_resource_usage,
+                    context="Resource usage update",
+                    severity=ErrorSeverity.MEDIUM,
+                    logger_name="MetricsCollector"
+                )
                 
-                try:
-                    self._update_error_rate()
-                except Exception as e:
-                    logger.warning("Error updating error rate metrics: %s", e)
+                # Update error rate with error handling
+                safe_execute(
+                    self._update_error_rate,
+                    context="Error rate update",
+                    severity=ErrorSeverity.LOW,
+                    logger_name="MetricsCollector"
+                )
                 
-                try:
-                    drift_score = self.drift_monitor.compute_drift()
-                    if 0 <= drift_score <= 1:  # Validate drift score
-                        DATA_DRIFT_SCORE.set(drift_score)
-                    else:
-                        logger.warning("Invalid drift score: %s", drift_score)
-                except Exception as e:
-                    logger.warning("Error computing drift score: %s", e)
+                # Compute drift score with validation
+                drift_score = safe_execute(
+                    self.drift_monitor.compute_drift,
+                    context="Drift score computation",
+                    default_return=0.0,
+                    severity=ErrorSeverity.LOW,
+                    logger_name="MetricsCollector"
+                )
+                
+                if drift_score is not None and 0 <= drift_score <= 1:
+                    DATA_DRIFT_SCORE.set(drift_score)
+                elif drift_score is not None:
+                    handler.log_error(
+                        ValueError(f"Invalid drift score: {drift_score}"),
+                        "Drift score validation",
+                        ErrorSeverity.LOW
+                    )
                 
                 # Reset error counter on successful iteration
                 consecutive_errors = 0
                 
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(
-                    "Error in monitoring loop (attempt %d/%d): %s",
-                    consecutive_errors, max_consecutive_errors, e
+                severity = ErrorSeverity.CRITICAL if consecutive_errors >= max_consecutive_errors else ErrorSeverity.HIGH
+                
+                handler.log_error(
+                    e,
+                    f"Monitoring loop (attempt {consecutive_errors}/{max_consecutive_errors})",
+                    severity
                 )
                 
                 # If too many consecutive errors, add delay to prevent tight error loop
                 if consecutive_errors >= max_consecutive_errors:
-                    logger.critical(
+                    handler.logger.critical(
                         "Too many consecutive monitoring errors (%d), "
                         "adding extended delay to prevent resource exhaustion",
                         consecutive_errors

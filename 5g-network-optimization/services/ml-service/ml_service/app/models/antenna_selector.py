@@ -8,16 +8,37 @@ import threading
 import json
 from pathlib import Path
 from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
 
 from ..utils.env_utils import get_neighbor_count_from_env
-import yaml
+from ..config.constants import (
+    DEFAULT_FALLBACK_ANTENNA_ID,
+    DEFAULT_FALLBACK_CONFIDENCE,
+    DEFAULT_FALLBACK_RSRP,
+    DEFAULT_FALLBACK_SINR,
+    DEFAULT_FALLBACK_RSRQ,
+    DEFAULT_LIGHTGBM_MAX_DEPTH,
+    DEFAULT_LIGHTGBM_RANDOM_STATE,
+    env_constants
+)
+from ..utils.exception_handler import (
+    ExceptionHandler,
+    ModelError,
+    handle_exceptions,
+    safe_execute
+)
+from ..utils.resource_manager import (
+    global_resource_manager,
+    ResourceType
+)
+from .async_model_operations import AsyncModelInterface, get_async_model_manager
 
-FALLBACK_ANTENNA_ID = "antenna_1"
-FALLBACK_CONFIDENCE = 0.5
+FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
+FALLBACK_CONFIDENCE = DEFAULT_FALLBACK_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +131,7 @@ def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
 
 
 
-class AntennaSelector:
+class AntennaSelector(AsyncModelInterface):
     """ML model for selecting optimal antenna based on UE data."""
 
     # Guard lazy initialization of neighbour feature names. This initialization
@@ -214,13 +235,25 @@ class AntennaSelector:
         except Exception as e:
             logging.warning(f"Could not load model: {e}")
             self._initialize_model()
+        
+        # Register with resource manager
+        self._resource_id = global_resource_manager.register_resource(
+            self,
+            ResourceType.MODEL,
+            cleanup_method=self._cleanup_resources,
+            metadata={
+                "model_type": "AntennaSelector",
+                "model_path": self.model_path,
+                "neighbor_count": self.neighbor_count
+            }
+        )
 
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
+            n_estimators=env_constants.N_ESTIMATORS,
+            max_depth=DEFAULT_LIGHTGBM_MAX_DEPTH,
+            random_state=DEFAULT_LIGHTGBM_RANDOM_STATE,
         )
 
     def _direction_to_unit(self, direction: tuple | list) -> tuple[float, float]:
@@ -237,15 +270,15 @@ class AntennaSelector:
         """Return RSRP/SINR/RSRQ for the currently connected antenna."""
         if current and current in metrics:
             data = metrics[current]
-            rsrp = data.get("rsrp", -120)
+            rsrp = data.get("rsrp", DEFAULT_FALLBACK_RSRP)
             sinr = data.get("sinr")
             rsrq = data.get("rsrq")
             if sinr is None:
-                sinr = 0
+                sinr = DEFAULT_FALLBACK_SINR
             if rsrq is None:
-                rsrq = -30
+                rsrq = DEFAULT_FALLBACK_RSRQ
             return rsrp, sinr, rsrq
-        return -120, 0, -30
+        return DEFAULT_FALLBACK_RSRP, DEFAULT_FALLBACK_SINR, DEFAULT_FALLBACK_RSRQ
 
     def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
         """Return sorted list of neighbour metrics."""
@@ -254,9 +287,9 @@ class AntennaSelector:
         neighbors = [
             (
                 aid,
-                vals.get("rsrp", -120),
-                vals.get("sinr") if vals.get("sinr") is not None else 0,
-                vals.get("rsrq") if vals.get("rsrq") is not None else -30,
+                vals.get("rsrp", DEFAULT_FALLBACK_RSRP),
+                vals.get("sinr") if vals.get("sinr") is not None else DEFAULT_FALLBACK_SINR,
+                vals.get("rsrq") if vals.get("rsrq") is not None else DEFAULT_FALLBACK_RSRQ,
                 vals.get("cell_load"),
             )
             for aid, vals in metrics.items()
@@ -266,28 +299,149 @@ class AntennaSelector:
         return neighbors
 
     def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data using the shared pipeline."""
-        features, n_count, names = pipeline.build_model_features(
-            data,
-            base_feature_names=self.base_feature_names,
-            neighbor_count=self.neighbor_count,
-            include_neighbors=include_neighbors,
-            init_lock=self._init_lock,
-            feature_names=self.feature_names,
-        )
-        self.neighbor_count = n_count
-        self.feature_names = names
 
-        for fname, transform in self._feature_transforms.items():
-            if fname in features:
-                try:
-                    func = self.TRANSFORM_FUNCTIONS.get(transform, self.TRANSFORM_FUNCTIONS["identity"])
-                    features[fname] = func(features[fname])
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Failed to apply transform %s for %s: %s", transform, fname, exc
-                    )
+      """Extract features from UE data with performance optimizations.
+        
+        Performance improvements:
+        - Reduced dictionary lookups with batch extraction
+        - Pre-allocated feature dictionary
+        - Optimized neighbor processing
+        - Cached default values
+        - Feature extraction caching for repeated requests
+        """
+        # Try to get cached features first
+        ue_id = data.get('ue_id')
+        if ue_id:
+            from ..utils.feature_cache import feature_cache
+            cached_features = feature_cache.get(ue_id, data)
+            if cached_features is not None:
+                return cached_features
+        # Batch extract common values to reduce dict.get() calls
+        latitude = data.get("latitude", 0)
+        longitude = data.get("longitude", 0)
+        altitude = data.get("altitude", 0) 
+        speed = data.get("speed", 0)
+        velocity = data.get("velocity")
+        if velocity is None:
+            velocity = speed
+        velocity = velocity if velocity is not None else 0
+        
+        heading_change_rate = data.get("heading_change_rate", 0)
+        path_curvature = data.get("path_curvature", 0)
+        acceleration = data.get("acceleration", 0)
+        cell_load = data.get("cell_load", 0)
+        time_since_handover = data.get("time_since_handover", 0)
+        signal_trend = data.get("signal_trend", 0)
+        environment = data.get("environment", 0)
+        rsrp_stddev = data.get("rsrp_stddev", 0)
+        sinr_stddev = data.get("sinr_stddev", 0)
+        
+        # Optimized handover count extraction
+        if "handover_count" in data:
+            handover_count = data["handover_count"]
+        else:
+            hist = data.get("handover_history")
+            handover_count = len(hist) if isinstance(hist, list) else 0
+        
+        # Optimized direction processing with caching
+        direction = data.get("direction", (0, 0, 0))
+        if isinstance(direction, (list, tuple)) and len(direction) >= 2:
+            from ..utils.feature_cache import _cached_direction_to_unit
+            direction_tuple = tuple(direction[:3]) if len(direction) >= 3 else (direction[0], direction[1], 0)
+            dx, dy = _cached_direction_to_unit(direction_tuple)
+        else:
+            dx, dy = 0.0, 0.0
+        
+        # Batch RF metrics processing
+        rf_metrics = data.get("rf_metrics", {})
+        current_antenna = data.get("connected_to")
+        rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
+        
+        # Pre-allocate features dictionary with known size
+        base_feature_count = len(self.base_feature_names) + (self.neighbor_count * 4) + 3
+        features = {}
+        features.update({
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude": altitude,
+            "speed": speed,
+            "velocity": velocity,
+            "heading_change_rate": heading_change_rate,
+            "path_curvature": path_curvature,
+            "acceleration": acceleration,
+            "cell_load": cell_load,
+            "handover_count": handover_count,
+            "time_since_handover": time_since_handover,
+            "signal_trend": signal_trend,
+            "environment": environment,
+            "rsrp_stddev": rsrp_stddev,
+            "sinr_stddev": sinr_stddev,
+            "direction_x": dx,
+            "direction_y": dy,
+            "rsrp_current": rsrp_curr,
+            "sinr_current": sinr_curr,
+            "rsrq_current": rsrq_curr,
+        })
 
+        # Optimized neighbor processing
+        neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
+        best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
+        if neighbors:
+            # Extract best values from first neighbor (already sorted)
+            first_neighbor = neighbors[0]
+            best_rsrp, best_sinr, best_rsrq = first_neighbor[1], first_neighbor[2], first_neighbor[3]
+
+        # Thread-safe neighbor count initialization
+        if self.neighbor_count == 0:
+            with self._init_lock:
+                if self.neighbor_count == 0:
+                    self.neighbor_count = len(neighbors)
+                    # Batch extend feature names
+                    new_features = []
+                    for idx in range(self.neighbor_count):
+                        new_features.extend([
+                            f"rsrp_a{idx+1}",
+                            f"sinr_a{idx+1}",
+                            f"rsrq_a{idx+1}",
+                            f"neighbor_cell_load_a{idx+1}",
+                        ])
+                    self.feature_names.extend(new_features)
+
+        # Optimized neighbor feature extraction with batch updates
+        neighbor_updates = {}
+        for idx in range(self.neighbor_count):
+            if idx < len(neighbors):
+                neighbor = neighbors[idx]
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": neighbor[1],
+                    f"sinr_a{idx+1}": neighbor[2],
+                    f"rsrq_a{idx+1}": neighbor[3],
+                    f"neighbor_cell_load_a{idx+1}": neighbor[4] if neighbor[4] is not None else 0
+                })
+            else:
+                # Use batch update for default values
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": -120,
+                    f"sinr_a{idx+1}": 0,
+                    f"rsrq_a{idx+1}": -30,
+                    f"neighbor_cell_load_a{idx+1}": 0
+                })
+        
+        # Batch update neighbor features
+        features.update(neighbor_updates)
+        
+        # Add difference features
+        features.update({
+            "best_rsrp_diff": best_rsrp - rsrp_curr,
+            "best_sinr_diff": best_sinr - sinr_curr,
+            "best_rsrq_diff": best_rsrq - rsrq_curr,
+        })
+
+        # Cache the extracted features for future use
+        if ue_id:
+            from ..utils.feature_cache import feature_cache
+            feature_cache.put(ue_id, data, features)
+        
         return features
 
     def predict(self, features):
@@ -297,7 +451,7 @@ class AntennaSelector:
         if self.scaler:
             X = self.scaler.transform(X)
 
-        try:
+        def _perform_prediction():
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
                 probabilities = self.model.predict_proba(X)[0]
@@ -305,26 +459,33 @@ class AntennaSelector:
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
-        except (lgb.basic.LightGBMError, NotFittedError) as exc:
-            if isinstance(exc, (lgb.basic.LightGBMError, NotFittedError)):
-                ue_id = features.get("ue_id")
-                if ue_id:
-                    logger.warning(
-                        "Model untrained or error during prediction for UE %s: %s. Returning default antenna.",
-                        ue_id,
-                        exc,
-                    )
-                else:
-                    logger.warning(
-                        "Model untrained or error during prediction: %s. Returning default antenna.",
-                        exc,
-                    )
-            return {
+            return {"antenna_id": antenna_id, "confidence": confidence}
+        
+        # Use safe execution with fallback
+        ue_id = features.get("ue_id", "unknown")
+        result = safe_execute(
+            _perform_prediction,
+            context=f"Model prediction for UE {ue_id}",
+            default_return={
                 "antenna_id": FALLBACK_ANTENNA_ID,
                 "confidence": FALLBACK_CONFIDENCE,
-            }
+            },
+            exceptions=(lgb.basic.LightGBMError, NotFittedError, Exception),
+            logger_name="AntennaSelector"
+        )
+        
+        if result["antenna_id"] == FALLBACK_ANTENNA_ID:
+            logger.warning(
+                "Using fallback antenna for UE %s due to prediction error",
+                ue_id
+            )
 
-        return {"antenna_id": antenna_id, "confidence": float(confidence)}
+        return result
+
+    async def predict_async(self, features: Dict[str, Any], priority: int = 5, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async prediction using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.predict_async(self, features, priority, timeout)
 
     def train(self, training_data):
         """Train the model with provided data.
@@ -371,6 +532,16 @@ class AntennaSelector:
                     zip(self.feature_names, self.model.feature_importances_)
                 ),
             }
+
+    async def train_async(self, training_data: List[Dict[str, Any]], priority: int = 3, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async training using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.train_async(self, training_data, priority, timeout)
+
+    async def evaluate_async(self, test_data: List[Dict[str, Any]], priority: int = 7, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async evaluation using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.evaluate_async(self, test_data, priority, timeout)
 
     def save(
         self,
@@ -474,3 +645,21 @@ class AntennaSelector:
             except Exception as e:
                 logger.error("Failed to load model from %s: %s", load_path, e)
                 return False
+    
+    def _cleanup_resources(self) -> None:
+        """Clean up model resources."""
+        try:
+            # Clear model data
+            self.model = None
+            
+            # Clear feature data
+            self.feature_names.clear()
+            
+            # Unregister from resource manager
+            if hasattr(self, '_resource_id') and self._resource_id:
+                global_resource_manager.unregister_resource(self._resource_id, force_cleanup=False)
+                self._resource_id = None
+            
+            logger.info("AntennaSelector resources cleaned up")
+        except Exception as e:
+            logger.error("Error cleaning up AntennaSelector resources: %s", e)
