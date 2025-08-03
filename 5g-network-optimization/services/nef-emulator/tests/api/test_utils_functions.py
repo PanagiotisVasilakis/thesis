@@ -103,6 +103,10 @@ core_pkg = types.ModuleType("app.core")
 config_mod = types.ModuleType("app.core.config")
 config_mod.settings = types.SimpleNamespace(CAPIF_HOST="", CAPIF_HTTPS_PORT=0)
 core_pkg.config = config_mod
+# Provide constants expected by utils module
+constants_mod = types.ModuleType("app.core.constants")
+constants_mod.DEFAULT_TIMEOUT = 5
+core_pkg.constants = constants_mod
 app_pkg.core = core_pkg
 app_pkg.models = models_mod
 app_pkg.schemas = schemas_mod
@@ -120,6 +124,7 @@ for name, mod in {
     "app.api.api_v1.state_manager": state_manager_mod,
     "app.core": core_pkg,
     "app.core.config": config_mod,
+    "app.core.constants": constants_mod,
 }.items():
     sys.modules[name] = mod
 # Stub optional SQLAlchemy dependency

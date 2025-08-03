@@ -34,7 +34,15 @@ def test_collect_training_data(monkeypatch, tmp_path):
     collector = NEFDataCollector(nef_url="http://nef")
     collector.data_dir = str(tmp_path)
     monkeypatch.setattr(nef_collector.time, "sleep", lambda x: None)
-    times = iter([0, 0.1, 0.2, 1.1])
+    # Provide a deterministic but sufficiently long sequence of timestamps for
+    # all internal time.time() calls executed during collection. Most calls use
+    # the same value (0.2) so that derived metrics like time_since_handover
+    # evaluate to zero. The final value (>1.0) ensures the loop terminates.
+    import itertools
+    # Yield 0 and 0.1 for start/end calculation, a small number of 0.2 values
+    # during the first collection iteration, then 1.1 for all subsequent calls to
+    # terminate the loop.
+    times = itertools.chain([0, 0.1], [0.2] * 5, [1.1], itertools.repeat(1.1))
     monkeypatch.setattr(nef_collector.time, "time", lambda: next(times))
 
     import asyncio
