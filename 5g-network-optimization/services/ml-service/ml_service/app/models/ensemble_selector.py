@@ -91,6 +91,8 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
                         model.validate_features(features)
                     
                     X = np.array([[features[name] for name in model.feature_names]], dtype=float)
+                    if hasattr(model, "scaler") and model.scaler is not None:
+                        X = model.scaler.transform(X)
                     prob = model.model.predict_proba(X)[0]
                     model_classes = list(model.model.classes_)
                 

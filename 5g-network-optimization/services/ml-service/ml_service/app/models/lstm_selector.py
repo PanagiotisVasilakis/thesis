@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 import os
 import joblib
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
@@ -29,11 +30,8 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
         self.epochs = epochs
         self.units = units
         self.classes_: list[str] | None = None
-        super().__init__(
-            model_path=model_path,
-            neighbor_count=neighbor_count,
-            config_path=config_path,
-        )
+        self.scaler = StandardScaler()
+        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
 
     def _initialize_model(self):
         """Initialize an uncompiled Keras model."""
@@ -65,8 +63,10 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
         if not training_data:
             raise ValueError("Training data cannot be empty")
         
-        # Use the mixin's build_dataset method
+        # Use the mixin's build_dataset method and scale features
         X, y = self.build_dataset(training_data)
+        self.scaler.fit(X)
+        X = self.scaler.transform(X)
         classes, y_idx = np.unique(y, return_inverse=True)
         
         # Thread-safe training with lock
@@ -110,6 +110,8 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
                     "confidence": FALLBACK_CONFIDENCE,
                 }
             X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+            if self.scaler:
+                X = self.scaler.transform(X)
             X = X.reshape((1, 1, len(self.feature_names)))
             probs = self.model.predict(X, verbose=0)[0]
             idx = int(np.argmax(probs))
@@ -145,6 +147,7 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
                         "feature_names": self.feature_names,
                         "neighbor_count": self.neighbor_count,
                         "classes": self.classes_,
+                        "scaler": self.scaler,
                     },
                     temp_meta_path,
                 )
@@ -189,6 +192,7 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
                     self.feature_names = meta.get("feature_names", self.feature_names)
                     self.neighbor_count = meta.get("neighbor_count", self.neighbor_count)
                     self.classes_ = meta.get("classes")
+                    self.scaler = meta.get("scaler", StandardScaler())
                 
                 import logging
                 logging.getLogger(__name__).info("Successfully loaded LSTM model from %s", load_path)
