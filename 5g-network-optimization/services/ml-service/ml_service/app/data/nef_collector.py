@@ -9,6 +9,8 @@ import time
 from collections import deque
 from typing import Any, Dict, List
 
+from typing import Dict, Any
+
 from ..utils.mobility_metrics import MobilityMetricTracker
 from ..utils.memory_managed_dict import UETrackingDict, LRUDict
 from ..utils.optimized_memory_dict import (

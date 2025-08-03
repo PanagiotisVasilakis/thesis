@@ -312,6 +312,13 @@ class TestMLPipelineIntegration:
         # Test with BaseModelMixin's validate_features
         with pytest.raises(ValueError, match="Missing required features"):
             model.validate_features({"latitude": 100})  # Missing most features
+
+        # Test range validation
+        sample = generate_synthetic_training_data(1)[0]
+        feats = model.extract_features(sample)
+        feats["speed"] = 200.0  # beyond configured max
+        with pytest.raises(ValueError, match="speed"):
+            model.validate_features(feats)
         
         # Test fallback prediction mechanism
         incomplete_features = {"latitude": 100, "longitude": 200}

@@ -16,6 +16,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         model_path: str | None = None,
         *,
         neighbor_count: int | None = None,
+        config_path: str | None = None,
         n_estimators: int = 100,
         max_depth: int = 10,
         num_leaves: int = 31,
@@ -29,7 +30,11 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         self.learning_rate = learning_rate
         self.feature_fraction = feature_fraction
         self.extra_params = kwargs
-        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
+        super().__init__(
+            model_path=model_path,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Initialize a new LightGBM model."""
@@ -58,8 +63,10 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         if not training_data:
             raise ValueError("Training data cannot be empty")
         
-        # Use the mixin's build_dataset method
+        # Use the mixin's build_dataset method and scale features
         X_arr, y_arr = self.build_dataset(training_data)
+        self.scaler.fit(X_arr)
+        X_arr = self.scaler.transform(X_arr)
         X_train, X_val, y_train, y_val = self._split_dataset(
             X_arr, y_arr, validation_split
         )

@@ -135,6 +135,13 @@ Example test data demonstrating altitude usage can be found in
 [`test_antenna_selector.py`](5g-network-optimization/services/ml-service/tests/test_antenna_selector.py),
 where altitude is assigned before training【F:5g-network-optimization/services/ml-service/tests/test_antenna_selector.py†L188-L200】.
 
+## Feature Configuration
+
+`AntennaSelector` no longer hardcodes its feature list. During initialization it
+loads `app/config/features.yaml` which specifies feature names and optional
+transforms. The path can be overridden using the `FEATURE_CONFIG_PATH`
+environment variable.
+
 ## Running the System
 Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
 

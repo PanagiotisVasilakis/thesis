@@ -3,6 +3,8 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 import logging
 
+from ml_service.app.config.feature_specs import validate_feature_ranges
+
 logger = logging.getLogger(__name__)
 
 class BaseModelMixin:
@@ -23,6 +25,7 @@ class BaseModelMixin:
         X, y = [], []
         for sample in training_data:
             features = self.extract_features(sample)
+            validate_feature_ranges(features)
             X.append([features[name] for name in self.feature_names])
             y.append(sample.get("optimal_antenna"))
             
@@ -40,6 +43,9 @@ class BaseModelMixin:
         missing_features = set(self.feature_names) - set(features.keys())
         if missing_features:
             raise ValueError(f"Missing required features: {missing_features}")
+
+        # Ensure feature values fall within configured bounds
+        validate_feature_ranges(features)
     
     def get_prediction_with_fallback(
         self, 

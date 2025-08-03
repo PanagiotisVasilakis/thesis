@@ -6,10 +6,13 @@ import os
 import logging
 import threading
 import json
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
+from sklearn.preprocessing import StandardScaler
+from ..features import pipeline
 
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
@@ -65,6 +68,68 @@ DEFAULT_TEST_FEATURES = {
     "altitude": 0.0,
 }
 
+# Default feature configuration path relative to this file
+DEFAULT_FEATURE_CONFIG = (
+    Path(__file__).resolve().parent.parent / "config" / "features.yaml"
+)
+
+# Fallback features used when the configuration file cannot be loaded
+_FALLBACK_FEATURES = [
+    "latitude",
+    "longitude",
+    "speed",
+    "direction_x",
+    "direction_y",
+    "heading_change_rate",
+    "path_curvature",
+    "velocity",
+    "acceleration",
+    "cell_load",
+    "handover_count",
+    "time_since_handover",
+    "signal_trend",
+    "environment",
+    "rsrp_stddev",
+    "sinr_stddev",
+    "rsrp_current",
+    "sinr_current",
+    "rsrq_current",
+    "best_rsrp_diff",
+    "best_sinr_diff",
+    "best_rsrq_diff",
+    "altitude",
+]
+
+
+def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
+    """Load feature names and transforms from YAML/JSON configuration."""
+    cfg_path = Path(path)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Feature config not found: {cfg_path}")
+
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        if cfg_path.suffix.lower() in {".yaml", ".yml"}:
+            data = yaml.safe_load(f) or {}
+        else:
+            data = json.load(f) or {}
+
+    feats = data.get("base_features", [])
+    names: list[str] = []
+    transforms: dict[str, str] = {}
+    for item in feats:
+        if isinstance(item, dict):
+            name = item.get("name")
+            transform = item.get("transform", "identity")
+        else:
+            name = str(item)
+            transform = "identity"
+        if name:
+            names.append(str(name))
+            transforms[str(name)] = str(transform)
+    return names, transforms
+
+
+
 
 class AntennaSelector(AsyncModelInterface):
     """ML model for selecting optimal antenna based on UE data."""
@@ -74,7 +139,19 @@ class AntennaSelector(AsyncModelInterface):
     # invoked concurrently, so a lock ensures feature names are added only once.
     _init_lock = threading.Lock()
 
-    def __init__(self, model_path=None, neighbor_count: int | None = None):
+    TRANSFORM_FUNCTIONS = {
+        "identity": lambda x: x,
+        "float": lambda x: float(x) if x is not None else 0.0,
+        "int": lambda x: int(x) if x is not None else 0,
+    }
+
+    def __init__(
+        self,
+        model_path: str | None = None,
+        neighbor_count: int | None = None,
+        *,
+        config_path: str | None = None,
+    ):
         """Initialize the model.
 
         Parameters
@@ -85,11 +162,16 @@ class AntennaSelector(AsyncModelInterface):
             If given, preallocate feature names for this many neighbouring
             antennas instead of determining the number dynamically on the first
             call to :meth:`extract_features`.
+        config_path:
+            Optional path to a YAML/JSON file specifying feature names and
+            their transforms. Defaults to ``FEATURE_CONFIG_PATH`` environment
+            variable or ``config/features.yaml``.
         """
         self.model_path = model_path
         # Thread-safety: protect concurrent reads/writes to the underlying estimator
         self._model_lock = threading.RLock()
         self.model = None
+        self.scaler = StandardScaler()
         # Base features independent of neighbour count
         self.base_feature_names = [
             "latitude",
@@ -116,6 +198,18 @@ class AntennaSelector(AsyncModelInterface):
             "best_rsrq_diff",
             "altitude",
         ]
+
+        if config_path is None:
+            config_path = os.environ.get("FEATURE_CONFIG_PATH", str(DEFAULT_FEATURE_CONFIG))
+        try:
+            names, transforms = _load_feature_config(config_path)
+            self._feature_transforms = transforms
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).warning(
+                "Failed to load feature config %s: %s; using defaults", config_path, exc
+            )
+            self._feature_transforms = {n: "identity" for n in self.base_feature_names}
+
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
 
@@ -205,7 +299,8 @@ class AntennaSelector(AsyncModelInterface):
         return neighbors
 
     def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data with performance optimizations.
+
+      """Extract features from UE data with performance optimizations.
         
         Performance improvements:
         - Reduced dictionary lookups with batch extraction
@@ -351,8 +446,10 @@ class AntennaSelector(AsyncModelInterface):
 
     def predict(self, features):
         """Predict the optimal antenna for the UE."""
-        # Convert features to the format expected by the model
-        X = np.array([[features[name] for name in self.feature_names]])
+        # Convert features to the format expected by the model and scale
+        X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+        if self.scaler:
+            X = self.scaler.transform(X)
 
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
@@ -416,9 +513,11 @@ class AntennaSelector(AsyncModelInterface):
             X.append(feature_vector)
             y.append(label)
 
-        # Convert to numpy arrays
-        X = np.array(X)
+        # Convert to numpy arrays and scale
+        X = np.array(X, dtype=float)
         y = np.array(y)
+        self.scaler.fit(X)
+        X = self.scaler.transform(X)
 
         # Thread-safe training with lock
         with self._model_lock:
@@ -483,6 +582,7 @@ class AntennaSelector(AsyncModelInterface):
                         "model": self.model,
                         "feature_names": self.feature_names,
                         "neighbor_count": self.neighbor_count,
+                        "scaler": self.scaler,
                     },
                     temp_path,
                 )
@@ -535,6 +635,7 @@ class AntennaSelector(AsyncModelInterface):
                     self.model = data["model"]
                     self.feature_names = data.get("feature_names", self.feature_names)
                     self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
+                    self.scaler = data.get("scaler", StandardScaler())
                 else:
                     self.model = data
                 

@@ -1,9 +1,13 @@
 """Prometheus metrics for ML service."""
 from prometheus_client import Counter, Histogram, Gauge
+import json
+import logging
 import time
 import os
 import threading
-from typing import Any, Dict, List
+import smtplib
+from email.message import EmailMessage
+from typing import Dict, List
 
 import psutil
 
@@ -76,6 +80,13 @@ MODEL_TRAINING_ACCURACY = Gauge(
     'Accuracy of trained model'
 )
 
+# Track latest feature importance values
+FEATURE_IMPORTANCE = Gauge(
+    'ml_feature_importance',
+    'Latest feature importance score',
+    ['feature']
+)
+
 # --- Operational and Drift Metrics ---
 
 # Data drift indicator updated by ``MetricsCollector``
@@ -143,12 +154,42 @@ def track_prediction(antenna_id, confidence):
     ANTENNA_PREDICTIONS.labels(antenna_id=antenna_id).inc()
     PREDICTION_CONFIDENCE.labels(antenna_id=antenna_id).set(confidence)
 
-def track_training(duration, num_samples, accuracy=None):
-    """Track model training."""
+def store_feature_importance(feature_importance: Dict[str, float], path: str | None = None) -> None:
+    """Persist feature importance values to a JSON file.
+
+    Parameters
+    ----------
+    feature_importance:
+        Mapping of feature name to importance score.
+    path:
+        Optional override for the output path. Defaults to the
+        ``FEATURE_IMPORTANCE_PATH`` environment variable or
+        ``/tmp/feature_importance.json``.
+    """
+    file_path = path or os.environ.get("FEATURE_IMPORTANCE_PATH", "/tmp/feature_importance.json")
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(feature_importance, f)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to store feature importance: %s", exc)
+
+
+def track_training(
+    duration: float,
+    num_samples: int,
+    accuracy: float | None = None,
+    feature_importance: Dict[str, float] | None = None,
+    store_path: str | None = None,
+) -> None:
+    """Track model training and feature importance."""
     MODEL_TRAINING_DURATION.observe(duration)
     MODEL_TRAINING_SAMPLES.set(num_samples)
     if accuracy is not None:
         MODEL_TRAINING_ACCURACY.set(accuracy)
+    if feature_importance:
+        for name, value in feature_importance.items():
+            FEATURE_IMPORTANCE.labels(feature=name).set(value)
+        store_feature_importance(feature_importance, path=store_path)
 
 
 class DataDriftMonitor:
@@ -163,7 +204,7 @@ class DataDriftMonitor:
         self.window_size = window_size
         self.max_samples = max_samples
         self._current: List[Dict[str, float]] = []
-        self._previous: List[Dict[str, float]] = []
+        self._baseline: Dict[str, float] | None = None
         self._lock = threading.Lock()
         self._sample_count = 0
         
@@ -213,26 +254,33 @@ class DataDriftMonitor:
         return {k: totals[k] / counts[k] for k in totals}
 
     def compute_drift(self) -> float:
-        """Return average absolute change between the latest windows."""
+        """Return average absolute change between current window and baseline.
+
+        The first full window establishes the baseline distribution. Subsequent
+        windows are compared against this baseline. When the computed drift
+        exceeds ``threshold`` an email alert is sent (if configured).
+        """
         with self._lock:
             if len(self._current) < self.window_size:
                 return 0.0
-            if not self._previous:
-                self._previous = list(self._current)
-                self._current.clear()
-                return 0.0
 
-            prev_means = self._mean(self._previous)
             curr_means = self._mean(self._current)
-            keys = set(prev_means).intersection(curr_means)
-            if not keys:
-                self._previous = list(self._current)
+            if self._baseline is None:
+                # Establish baseline from the first complete window
+                self._baseline = curr_means
                 self._current.clear()
                 return 0.0
 
-            diff = sum(abs(curr_means[k] - prev_means[k]) for k in keys) / len(keys)
-            self._previous = list(self._current)
+            keys = set(self._baseline).intersection(curr_means)
+            if not keys:
+                self._current.clear()
+                return 0.0
+
+            diff = sum(abs(curr_means[k] - self._baseline[k]) for k in keys) / len(keys)
             self._current.clear()
+
+            if diff > self.threshold:
+                self._send_email_alert(diff)
             return diff
     
     def get_memory_stats(self) -> Dict[str, Any]:
@@ -255,6 +303,33 @@ class DataDriftMonitor:
             self._previous.clear()
             self._sample_count = 0
             self.logger.info("DataDriftMonitor reset - all data cleared")
+
+    def _send_email_alert(self, drift: float) -> None:
+        """Send an email alert if drift exceeds the configured threshold."""
+        if not self.alert_email:
+            logger.warning("Data drift %.4f detected but no alert email configured", drift)
+            return
+
+        try:
+            msg = EmailMessage()
+            msg["Subject"] = "ML Service Data Drift Alert"
+            msg["From"] = self.smtp_username or self.alert_email
+            msg["To"] = self.alert_email
+            msg.set_content(
+                f"Data drift detected: {drift:.4f} exceeds threshold {self.threshold:.4f}"
+            )
+
+            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                if self.smtp_username and self.smtp_password:
+                    try:
+                        server.starttls()
+                    except Exception:
+                        pass
+                    server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg)
+            logger.info("Drift alert email sent to %s", self.alert_email)
+        except Exception as exc:
+            logger.error("Failed to send drift alert email: %s", exc)
 
 
 class MetricsCollector:
