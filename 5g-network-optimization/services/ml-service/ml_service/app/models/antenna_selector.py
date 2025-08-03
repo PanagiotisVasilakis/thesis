@@ -7,13 +7,35 @@ import logging
 import threading
 import json
 from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 
 from ..utils.env_utils import get_neighbor_count_from_env
+from ..config.constants import (
+    DEFAULT_FALLBACK_ANTENNA_ID,
+    DEFAULT_FALLBACK_CONFIDENCE,
+    DEFAULT_FALLBACK_RSRP,
+    DEFAULT_FALLBACK_SINR,
+    DEFAULT_FALLBACK_RSRQ,
+    DEFAULT_LIGHTGBM_MAX_DEPTH,
+    DEFAULT_LIGHTGBM_RANDOM_STATE,
+    env_constants
+)
+from ..utils.exception_handler import (
+    ExceptionHandler,
+    ModelError,
+    handle_exceptions,
+    safe_execute
+)
+from ..utils.resource_manager import (
+    global_resource_manager,
+    ResourceType
+)
+from .async_model_operations import AsyncModelInterface, get_async_model_manager
 
-FALLBACK_ANTENNA_ID = "antenna_1"
-FALLBACK_CONFIDENCE = 0.5
+FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
+FALLBACK_CONFIDENCE = DEFAULT_FALLBACK_CONFIDENCE
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +66,7 @@ DEFAULT_TEST_FEATURES = {
 }
 
 
-class AntennaSelector:
+class AntennaSelector(AsyncModelInterface):
     """ML model for selecting optimal antenna based on UE data."""
 
     # Guard lazy initialization of neighbour feature names. This initialization
@@ -119,13 +141,25 @@ class AntennaSelector:
         except Exception as e:
             logging.warning(f"Could not load model: {e}")
             self._initialize_model()
+        
+        # Register with resource manager
+        self._resource_id = global_resource_manager.register_resource(
+            self,
+            ResourceType.MODEL,
+            cleanup_method=self._cleanup_resources,
+            metadata={
+                "model_type": "AntennaSelector",
+                "model_path": self.model_path,
+                "neighbor_count": self.neighbor_count
+            }
+        )
 
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
-            n_estimators=100,
-            max_depth=10,
-            random_state=42,
+            n_estimators=env_constants.N_ESTIMATORS,
+            max_depth=DEFAULT_LIGHTGBM_MAX_DEPTH,
+            random_state=DEFAULT_LIGHTGBM_RANDOM_STATE,
         )
 
     def _direction_to_unit(self, direction: tuple | list) -> tuple[float, float]:
@@ -142,15 +176,15 @@ class AntennaSelector:
         """Return RSRP/SINR/RSRQ for the currently connected antenna."""
         if current and current in metrics:
             data = metrics[current]
-            rsrp = data.get("rsrp", -120)
+            rsrp = data.get("rsrp", DEFAULT_FALLBACK_RSRP)
             sinr = data.get("sinr")
             rsrq = data.get("rsrq")
             if sinr is None:
-                sinr = 0
+                sinr = DEFAULT_FALLBACK_SINR
             if rsrq is None:
-                rsrq = -30
+                rsrq = DEFAULT_FALLBACK_RSRQ
             return rsrp, sinr, rsrq
-        return -120, 0, -30
+        return DEFAULT_FALLBACK_RSRP, DEFAULT_FALLBACK_SINR, DEFAULT_FALLBACK_RSRQ
 
     def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
         """Return sorted list of neighbour metrics."""
@@ -159,9 +193,9 @@ class AntennaSelector:
         neighbors = [
             (
                 aid,
-                vals.get("rsrp", -120),
-                vals.get("sinr") if vals.get("sinr") is not None else 0,
-                vals.get("rsrq") if vals.get("rsrq") is not None else -30,
+                vals.get("rsrp", DEFAULT_FALLBACK_RSRP),
+                vals.get("sinr") if vals.get("sinr") is not None else DEFAULT_FALLBACK_SINR,
+                vals.get("rsrq") if vals.get("rsrq") is not None else DEFAULT_FALLBACK_RSRQ,
                 vals.get("cell_load"),
             )
             for aid, vals in metrics.items()
@@ -178,7 +212,15 @@ class AntennaSelector:
         - Pre-allocated feature dictionary
         - Optimized neighbor processing
         - Cached default values
+        - Feature extraction caching for repeated requests
         """
+        # Try to get cached features first
+        ue_id = data.get('ue_id')
+        if ue_id:
+            from ..utils.feature_cache import feature_cache
+            cached_features = feature_cache.get(ue_id, data)
+            if cached_features is not None:
+                return cached_features
         # Batch extract common values to reduce dict.get() calls
         latitude = data.get("latitude", 0)
         longitude = data.get("longitude", 0)
@@ -206,9 +248,14 @@ class AntennaSelector:
             hist = data.get("handover_history")
             handover_count = len(hist) if isinstance(hist, list) else 0
         
-        # Optimized direction processing
+        # Optimized direction processing with caching
         direction = data.get("direction", (0, 0, 0))
-        dx, dy = self._direction_to_unit(direction)
+        if isinstance(direction, (list, tuple)) and len(direction) >= 2:
+            from ..utils.feature_cache import _cached_direction_to_unit
+            direction_tuple = tuple(direction[:3]) if len(direction) >= 3 else (direction[0], direction[1], 0)
+            dx, dy = _cached_direction_to_unit(direction_tuple)
+        else:
+            dx, dy = 0.0, 0.0
         
         # Batch RF metrics processing
         rf_metrics = data.get("rf_metrics", {})
@@ -295,6 +342,11 @@ class AntennaSelector:
             "best_rsrq_diff": best_rsrq - rsrq_curr,
         })
 
+        # Cache the extracted features for future use
+        if ue_id:
+            from ..utils.feature_cache import feature_cache
+            feature_cache.put(ue_id, data, features)
+        
         return features
 
     def predict(self, features):
@@ -302,7 +354,7 @@ class AntennaSelector:
         # Convert features to the format expected by the model
         X = np.array([[features[name] for name in self.feature_names]])
 
-        try:
+        def _perform_prediction():
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
                 probabilities = self.model.predict_proba(X)[0]
@@ -310,26 +362,33 @@ class AntennaSelector:
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
-        except (lgb.basic.LightGBMError, NotFittedError) as exc:
-            if isinstance(exc, (lgb.basic.LightGBMError, NotFittedError)):
-                ue_id = features.get("ue_id")
-                if ue_id:
-                    logger.warning(
-                        "Model untrained or error during prediction for UE %s: %s. Returning default antenna.",
-                        ue_id,
-                        exc,
-                    )
-                else:
-                    logger.warning(
-                        "Model untrained or error during prediction: %s. Returning default antenna.",
-                        exc,
-                    )
-            return {
+            return {"antenna_id": antenna_id, "confidence": confidence}
+        
+        # Use safe execution with fallback
+        ue_id = features.get("ue_id", "unknown")
+        result = safe_execute(
+            _perform_prediction,
+            context=f"Model prediction for UE {ue_id}",
+            default_return={
                 "antenna_id": FALLBACK_ANTENNA_ID,
                 "confidence": FALLBACK_CONFIDENCE,
-            }
+            },
+            exceptions=(lgb.basic.LightGBMError, NotFittedError, Exception),
+            logger_name="AntennaSelector"
+        )
+        
+        if result["antenna_id"] == FALLBACK_ANTENNA_ID:
+            logger.warning(
+                "Using fallback antenna for UE %s due to prediction error",
+                ue_id
+            )
 
-        return {"antenna_id": antenna_id, "confidence": float(confidence)}
+        return result
+
+    async def predict_async(self, features: Dict[str, Any], priority: int = 5, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async prediction using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.predict_async(self, features, priority, timeout)
 
     def train(self, training_data):
         """Train the model with provided data.
@@ -374,6 +433,16 @@ class AntennaSelector:
                     zip(self.feature_names, self.model.feature_importances_)
                 ),
             }
+
+    async def train_async(self, training_data: List[Dict[str, Any]], priority: int = 3, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async training using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.train_async(self, training_data, priority, timeout)
+
+    async def evaluate_async(self, test_data: List[Dict[str, Any]], priority: int = 7, timeout: Optional[float] = None) -> Dict[str, Any]:
+        """Async evaluation using the async model manager."""
+        async_manager = get_async_model_manager()
+        return await async_manager.evaluate_async(self, test_data, priority, timeout)
 
     def save(
         self,
@@ -475,3 +544,21 @@ class AntennaSelector:
             except Exception as e:
                 logger.error("Failed to load model from %s: %s", load_path, e)
                 return False
+    
+    def _cleanup_resources(self) -> None:
+        """Clean up model resources."""
+        try:
+            # Clear model data
+            self.model = None
+            
+            # Clear feature data
+            self.feature_names.clear()
+            
+            # Unregister from resource manager
+            if hasattr(self, '_resource_id') and self._resource_id:
+                global_resource_manager.unregister_resource(self._resource_id, force_cleanup=False)
+                self._resource_id = None
+            
+            logger.info("AntennaSelector resources cleaned up")
+        except Exception as e:
+            logger.error("Error cleaning up AntennaSelector resources: %s", e)

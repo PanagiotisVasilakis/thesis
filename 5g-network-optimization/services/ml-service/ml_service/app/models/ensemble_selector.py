@@ -44,9 +44,9 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
         
         This method is thread-safe as individual models handle their own locking.
         """
-        # Thread-safe prediction - each model handles its own locking
-        with self._model_lock:
-            return self._ensemble_predict(features)
+        # Each individual model handles its own thread safety
+        # No additional locking needed at ensemble level
+        return self._ensemble_predict(features)
     
     def _ensemble_predict(self, features: dict) -> dict:
         """Internal prediction method that aggregates results from all models."""
