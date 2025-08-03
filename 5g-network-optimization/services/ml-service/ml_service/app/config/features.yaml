@@ -1,0 +1,47 @@
+base_features:
+  - name: latitude
+    transform: float
+  - name: longitude
+    transform: float
+  - name: speed
+    transform: float
+  - name: direction_x
+    transform: float
+  - name: direction_y
+    transform: float
+  - name: heading_change_rate
+    transform: float
+  - name: path_curvature
+    transform: float
+  - name: velocity
+    transform: float
+  - name: acceleration
+    transform: float
+  - name: cell_load
+    transform: float
+  - name: handover_count
+    transform: int
+  - name: time_since_handover
+    transform: float
+  - name: signal_trend
+    transform: float
+  - name: environment
+    transform: float
+  - name: rsrp_stddev
+    transform: float
+  - name: sinr_stddev
+    transform: float
+  - name: rsrp_current
+    transform: float
+  - name: sinr_current
+    transform: float
+  - name: rsrq_current
+    transform: float
+  - name: best_rsrp_diff
+    transform: float
+  - name: best_sinr_diff
+    transform: float
+  - name: best_rsrq_diff
+    transform: float
+  - name: altitude
+    transform: float

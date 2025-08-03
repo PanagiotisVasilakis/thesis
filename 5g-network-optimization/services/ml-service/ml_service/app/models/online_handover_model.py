@@ -10,13 +10,24 @@ from .antenna_selector import AntennaSelector
 class OnlineHandoverModel(AntennaSelector):
     """Antenna selector that learns incrementally from feedback."""
 
-    def __init__(self, model_path: str | None = None, *, neighbor_count: int | None = None,
-                 drift_window: int = 50, drift_threshold: float = 0.2) -> None:
+    def __init__(
+        self,
+        model_path: str | None = None,
+        *,
+        neighbor_count: int | None = None,
+        config_path: str | None = None,
+        drift_window: int = 50,
+        drift_threshold: float = 0.2,
+    ) -> None:
         self.drift_window = drift_window
         self.drift_threshold = drift_threshold
         self.feedback_window: deque[int] = deque(maxlen=drift_window)
         self._classes: np.ndarray | None = None
-        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
+        super().__init__(
+            model_path=model_path,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Initialise an SGDClassifier for online updates."""
