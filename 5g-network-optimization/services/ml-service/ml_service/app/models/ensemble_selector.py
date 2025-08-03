@@ -10,9 +10,22 @@ import numpy as np
 class EnsembleSelector(BaseModelMixin, AntennaSelector):
     """Aggregate predictions from several selector models."""
 
-    def __init__(self, models: list[AntennaSelector] | None = None, *, neighbor_count: int | None = None) -> None:
-        self.models = models or [LightGBMSelector(neighbor_count=neighbor_count), LSTMSelector(neighbor_count=neighbor_count)]
-        super().__init__(model_path=None, neighbor_count=neighbor_count)
+    def __init__(
+        self,
+        models: list[AntennaSelector] | None = None,
+        *,
+        neighbor_count: int | None = None,
+        config_path: str | None = None,
+    ) -> None:
+        self.models = models or [
+            LightGBMSelector(neighbor_count=neighbor_count, config_path=config_path),
+            LSTMSelector(neighbor_count=neighbor_count, config_path=config_path),
+        ]
+        super().__init__(
+            model_path=None,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Ensemble does not use a single underlying model."""

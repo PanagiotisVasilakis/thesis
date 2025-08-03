@@ -16,6 +16,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         model_path: str | None = None,
         *,
         neighbor_count: int | None = None,
+        config_path: str | None = None,
         n_estimators: int = 100,
         max_depth: int = 10,
         num_leaves: int = 31,
@@ -29,7 +30,11 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         self.learning_rate = learning_rate
         self.feature_fraction = feature_fraction
         self.extra_params = kwargs
-        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
+        super().__init__(
+            model_path=model_path,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Initialize a new LightGBM model."""

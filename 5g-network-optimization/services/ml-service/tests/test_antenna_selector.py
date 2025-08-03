@@ -327,3 +327,20 @@ def test_extract_features_thread_safe():
 
     assert model.neighbor_count == 2
     assert len(model.feature_names) == len(set(model.feature_names))
+
+
+def test_custom_feature_config(tmp_path):
+    import yaml
+
+    cfg = {
+        "base_features": [
+            {"name": "latitude", "transform": "float"},
+            {"name": "longitude", "transform": "float"},
+        ]
+    }
+    path = tmp_path / "features.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+
+    model = LightGBMSelector(config_path=str(path))
+
+    assert model.base_feature_names == ["latitude", "longitude"]
