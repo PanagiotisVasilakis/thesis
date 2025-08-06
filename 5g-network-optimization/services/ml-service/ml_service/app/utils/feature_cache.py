@@ -2,6 +2,7 @@
 
 import time
 import threading
+import json
 from typing import Dict, Any, Optional, Tuple
 from functools import lru_cache
 from dataclasses import dataclass
@@ -55,11 +56,13 @@ class FeatureExtractionCache:
         hash_data = []
         for field in relevant_fields:
             value = data.get(field)
-            if isinstance(value, dict):
-                # Sort dict items for consistent hashing
-                hash_data.append(tuple(sorted(value.items())))
-            elif isinstance(value, list):
-                hash_data.append(tuple(value))
+            if isinstance(value, (dict, list)):
+                # Use JSON serialization for stable hashing of nested structures
+                try:
+                    hash_data.append(json.dumps(value, sort_keys=True))
+                except TypeError:
+                    # Fallback to string representation if non-serializable
+                    hash_data.append(str(value))
             else:
                 hash_data.append(value)
         

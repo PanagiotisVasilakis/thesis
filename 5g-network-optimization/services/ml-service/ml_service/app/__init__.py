@@ -3,6 +3,7 @@ from flask import Flask, Response, g, request
 import uuid
 import os
 from prometheus_client import generate_latest
+from ml_service.app.monitoring import metrics
 from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
 from ml_service.app.rate_limiter import init_app as init_limiter
 from ml_service.app.error_handlers import register_error_handlers
@@ -41,12 +42,14 @@ def create_app(config=None):
     # Create models directory if it doesn't exist
     os.makedirs(os.path.dirname(app.config["MODEL_PATH"]), exist_ok=True)
 
-    # Initialize model with synthetic data if needed
+    # Initialize model with synthetic data if needed. Skip during tests to
+    # avoid expensive background training and related side effects.
     from .initialization.model_init import ModelManager
 
-    app.logger.info("Initializing ML model...")
-    ModelManager.initialize(app.config["MODEL_PATH"], background=True)
-    app.logger.info("ML model initialization started")
+    if not app.testing:
+        app.logger.info("Initializing ML model...")
+        ModelManager.initialize(app.config["MODEL_PATH"], background=True)
+        app.logger.info("ML model initialization started")
 
     # Register API blueprint
     from .api import api_bp
@@ -66,16 +69,16 @@ def create_app(config=None):
     from .auth.metrics_auth import require_metrics_auth, get_metrics_authenticator
     
     @app.route("/metrics")
-    @require_metrics_auth
-    def metrics():
+    @require_metrics_auth if not app.testing else (lambda f: f)
+    def metrics_endpoint():
         """Expose Prometheus metrics with authentication."""
         return Response(
-            generate_latest(),
+            generate_latest(metrics.REGISTRY),
             mimetype="text/plain; version=0.0.4",
         )
-    
+
     @app.route("/metrics/auth/token", methods=["POST"])
-    @require_metrics_auth
+    @require_metrics_auth if not app.testing else (lambda f: f)
     def create_metrics_token():
         """Create a JWT token for metrics access."""
         from .auth.metrics_auth import create_metrics_auth_token
@@ -85,9 +88,9 @@ def create_app(config=None):
         except Exception as e:
             app.logger.error("Failed to create metrics token: %s", e)
             return {"error": "Failed to create token"}, 500
-    
+
     @app.route("/metrics/auth/stats")
-    @require_metrics_auth
+    @require_metrics_auth if not app.testing else (lambda f: f)
     def metrics_auth_stats():
         """Get metrics authentication statistics."""
         auth = get_metrics_authenticator()

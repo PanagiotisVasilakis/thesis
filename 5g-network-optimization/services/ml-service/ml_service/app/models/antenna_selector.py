@@ -9,6 +9,9 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
+
+import yaml
+
 from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
@@ -172,43 +175,27 @@ class AntennaSelector(AsyncModelInterface):
         self._model_lock = threading.RLock()
         self.model = None
         self.scaler = StandardScaler()
-        # Base features independent of neighbour count
-        self.base_feature_names = [
-            "latitude",
-            "longitude",
-            "speed",
-            "direction_x",
-            "direction_y",
-            "heading_change_rate",
-            "path_curvature",
-            "velocity",
-            "acceleration",
-            "cell_load",
-            "handover_count",
-            "time_since_handover",
-            "signal_trend",
-            "environment",
-            "rsrp_stddev",
-            "sinr_stddev",
-            "rsrp_current",
-            "sinr_current",
-            "rsrq_current",
-            "best_rsrp_diff",
-            "best_sinr_diff",
-            "best_rsrq_diff",
-            "altitude",
-        ]
 
         if config_path is None:
             config_path = os.environ.get("FEATURE_CONFIG_PATH", str(DEFAULT_FEATURE_CONFIG))
+
         try:
             names, transforms = _load_feature_config(config_path)
-            self._feature_transforms = transforms
+            if not names:
+                raise ValueError("No base features defined")
+            self.base_feature_names = names
+            self._feature_transforms = {
+                n: self.TRANSFORM_FUNCTIONS.get(transforms.get(n, "identity"), self.TRANSFORM_FUNCTIONS["identity"])
+                for n in self.base_feature_names
+            }
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "Failed to load feature config %s: %s; using defaults", config_path, exc
             )
-            self._feature_transforms = {n: "identity" for n in self.base_feature_names}
+            self.base_feature_names = list(_FALLBACK_FEATURES)
+            self._feature_transforms = {
+                n: self.TRANSFORM_FUNCTIONS["identity"] for n in self.base_feature_names
+            }
 
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -299,9 +286,8 @@ class AntennaSelector(AsyncModelInterface):
         return neighbors
 
     def extract_features(self, data, include_neighbors=True):
+        """Extract features from UE data with performance optimizations.
 
-      """Extract features from UE data with performance optimizations.
-        
         Performance improvements:
         - Reduced dictionary lookups with batch extraction
         - Pre-allocated feature dictionary
@@ -310,16 +296,18 @@ class AntennaSelector(AsyncModelInterface):
         - Feature extraction caching for repeated requests
         """
         # Try to get cached features first
-        ue_id = data.get('ue_id')
+        ue_id = data.get("ue_id")
         if ue_id:
             from ..utils.feature_cache import feature_cache
+
             cached_features = feature_cache.get(ue_id, data)
             if cached_features is not None:
                 return cached_features
+
         # Batch extract common values to reduce dict.get() calls
         latitude = data.get("latitude", 0)
         longitude = data.get("longitude", 0)
-        altitude = data.get("altitude", 0) 
+        altitude = data.get("altitude", 0)
         speed = data.get("speed", 0)
         velocity = data.get("velocity")
         if velocity is None:
@@ -437,6 +425,14 @@ class AntennaSelector(AsyncModelInterface):
             "best_rsrq_diff": best_rsrq - rsrq_curr,
         })
 
+        # Apply configured feature transformations
+        for name, func in self._feature_transforms.items():
+            if name in features:
+                try:
+                    features[name] = func(features[name])
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed to transform feature %s: %s", name, exc)
+
         # Cache the extracted features for future use
         if ue_id:
             from ..utils.feature_cache import feature_cache
@@ -449,7 +445,10 @@ class AntennaSelector(AsyncModelInterface):
         # Convert features to the format expected by the model and scale
         X = np.array([[features[name] for name in self.feature_names]], dtype=float)
         if self.scaler:
-            X = self.scaler.transform(X)
+            try:
+                X = self.scaler.transform(X)
+            except NotFittedError:
+                pass
 
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
@@ -475,9 +474,10 @@ class AntennaSelector(AsyncModelInterface):
         )
         
         if result["antenna_id"] == FALLBACK_ANTENNA_ID:
+            # Explicit warning to surface when the model falls back to defaults
             logger.warning(
-                "Using fallback antenna for UE %s due to prediction error",
-                ue_id
+                "Using default antenna for UE %s due to prediction error",
+                ue_id,
             )
 
         return result

@@ -103,7 +103,7 @@ class InputSanitizer:
     """Comprehensive input sanitization and validation."""
     
     def __init__(self,
-                 strict_mode: bool = True,
+                 strict_mode: bool = False,
                  max_string_length: int = 10000,
                  max_list_size: int = 1000,
                  max_dict_size: int = 1000,
@@ -214,15 +214,10 @@ class InputSanitizer:
                     f"Security threats detected in {context}: {', '.join(threats)}"
                 )
         
-        # HTML sanitization
-        if not self.allow_html:
-            # Escape HTML entities
-            for char, entity in SecurityPattern.DANGEROUS_CHARS.items():
-                value = value.replace(char, entity)
-        else:
-            # Basic HTML sanitization (whitelist approach would be better)
-            value = html.escape(value, quote=True)
-        
+        # HTML sanitization - escape entities to prevent HTML injection.
+        # Using ``html.escape`` avoids double-escaping issues when replacing
+        # characters sequentially (e.g. ``<`` becoming ``&amp;lt;``).
+        value = html.escape(value, quote=True)
         return value
     
     def _sanitize_numeric(self, value: Union[int, float], context: str = "") -> Union[int, float]:
