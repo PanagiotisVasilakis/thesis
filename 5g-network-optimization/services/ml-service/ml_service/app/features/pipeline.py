@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, List
+from typing import Any, Dict, Optional, Tuple, List, Callable
 import threading
 
 __all__ = [
@@ -116,6 +116,7 @@ def build_model_features(
     include_neighbors: bool = True,
     init_lock: Optional[threading.Lock] = None,
     feature_names: Optional[List[str]] = None,
+    feature_transforms: Optional[Dict[str, Callable[[Any], Any]]] = None,
 ) -> Tuple[Dict[str, Any], int, List[str]]:
     """Build the feature dictionary used by ML models.
 
@@ -255,6 +256,15 @@ def build_model_features(
                 ]
             )
         feature_names = feature_names + new_names
+
+    if feature_transforms:
+        for name, func in feature_transforms.items():
+            if name in features:
+                try:
+                    features[name] = func(features[name])
+                except Exception:  # noqa: BLE001
+                    pass
+
     return features, current_count, feature_names
 
 

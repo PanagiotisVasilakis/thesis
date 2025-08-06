@@ -1,5 +1,5 @@
 """Prometheus metrics for ML service."""
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import CollectorRegistry, Counter, Histogram, Gauge
 import json
 import logging
 import time
@@ -7,11 +7,16 @@ import os
 import threading
 import smtplib
 from email.message import EmailMessage
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import psutil
 
 logger = logging.getLogger(__name__)
+
+# Use a dedicated registry so tests can reload this module without
+# "Duplicated timeseries" errors from the default global registry. Each
+# metric is explicitly registered against this registry.
+REGISTRY = CollectorRegistry()
 
 from ..config.constants import (
     PREDICTION_LATENCY_BUCKETS,
@@ -39,52 +44,60 @@ from ..utils.resource_manager import (
 PREDICTION_REQUESTS = Counter(
     'ml_prediction_requests_total',
     'Total number of prediction requests',
-    ['status']
+    ['status'],
+    registry=REGISTRY,
 )
 
 # Track prediction latency
 PREDICTION_LATENCY = Histogram(
     'ml_prediction_latency_seconds',
     'Latency of antenna selection predictions',
-    buckets=PREDICTION_LATENCY_BUCKETS
+    buckets=PREDICTION_LATENCY_BUCKETS,
+    registry=REGISTRY,
 )
 
 # Track prediction outcomes
 ANTENNA_PREDICTIONS = Counter(
     'ml_antenna_predictions_total',
     'Antenna selection predictions',
-    ['antenna_id']
+    ['antenna_id'],
+    registry=REGISTRY,
 )
 
 # Track prediction confidence
 PREDICTION_CONFIDENCE = Gauge(
     'ml_prediction_confidence_avg',
     'Average confidence of antenna predictions',
-    ['antenna_id']
+    ['antenna_id'],
+    registry=REGISTRY,
 )
 
 # Track model training
 MODEL_TRAINING_DURATION = Histogram(
     'ml_model_training_duration_seconds',
     'Duration of model training',
-    buckets=TRAINING_DURATION_BUCKETS
+    buckets=TRAINING_DURATION_BUCKETS,
+    registry=REGISTRY,
 )
 
 MODEL_TRAINING_SAMPLES = Gauge(
     'ml_model_training_samples',
-    'Number of samples used for model training'
+    'Number of samples used for model training',
+    registry=REGISTRY,
 )
 
 MODEL_TRAINING_ACCURACY = Gauge(
     'ml_model_training_accuracy',
-    'Accuracy of trained model'
+    'Accuracy of trained model',
+    registry=REGISTRY,
 )
 
 # Track latest feature importance values
 FEATURE_IMPORTANCE = Gauge(
     'ml_feature_importance',
     'Latest feature importance score',
-    ['feature']
+    ['feature'],
+    registry=REGISTRY,
 )
 
 # --- Operational and Drift Metrics ---
@@ -92,24 +105,28 @@ FEATURE_IMPORTANCE = Gauge(
 # Data drift indicator updated by ``MetricsCollector``
 DATA_DRIFT_SCORE = Gauge(
     'ml_data_drift_score',
-    'Average change between consecutive feature distributions'
+    'Average change between consecutive feature distributions',
+    registry=REGISTRY,
 )
 
 # Rate of failed prediction requests over the last collection interval
 ERROR_RATE = Gauge(
     'ml_prediction_error_rate',
-    'Fraction of prediction requests resulting in an error'
+    'Fraction of prediction requests resulting in an error',
+    registry=REGISTRY,
 )
 
 # Resource usage of the ML service process
 CPU_USAGE = Gauge(
     'ml_cpu_usage_percent',
-    'CPU utilisation of the ML service process'
+    'CPU utilisation of the ML service process',
+    registry=REGISTRY,
 )
 
 MEMORY_USAGE = Gauge(
     'ml_memory_usage_bytes',
-    'Resident memory usage of the ML service process in bytes'
+    'Resident memory usage of the ML service process in bytes',
+    registry=REGISTRY,
 )
 
 class MetricsMiddleware:
@@ -195,19 +212,38 @@ def track_training(
 class DataDriftMonitor:
     """Compute feature distribution changes over rolling windows."""
 
-    def __init__(self, window_size: int = DEFAULT_DATA_DRIFT_WINDOW_SIZE, max_samples: int = DEFAULT_DATA_DRIFT_MAX_SAMPLES) -> None:
+    def __init__(
+        self,
+        window_size: int = DEFAULT_DATA_DRIFT_WINDOW_SIZE,
+        max_samples: int = DEFAULT_DATA_DRIFT_MAX_SAMPLES,
+        *,
+        threshold: float = 1.0,
+        alert_email: str | None = None,
+        smtp_server: str = "localhost",
+        smtp_port: int = 25,
+        smtp_username: str | None = None,
+        smtp_password: str | None = None,
+    ) -> None:
         if window_size <= 0:
             raise ValueError("Window size must be positive")
         if max_samples < window_size * 2:
             raise ValueError("Max samples must be at least 2x window size")
-            
+
         self.window_size = window_size
         self.max_samples = max_samples
+        self.threshold = threshold
+        self.alert_email = alert_email
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.smtp_username = smtp_username
+        self.smtp_password = smtp_password
+
         self._current: List[Dict[str, float]] = []
+        self._previous: List[Dict[str, float]] = []
         self._baseline: Dict[str, float] | None = None
         self._lock = threading.Lock()
         self._sample_count = 0
-        
+
         import logging
         self.logger = logging.getLogger(__name__)
 
