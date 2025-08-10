@@ -87,10 +87,7 @@ def register_feature_transform(
     :func:`resolve_transform`.
     """
 
-    if callable(transform):
-        func = transform
-    else:
-        func = resolve_transform(transform)
+    func = transform if callable(transform) else resolve_transform(transform)
     _FEATURE_TRANSFORMS[feature_name] = func
 
 
