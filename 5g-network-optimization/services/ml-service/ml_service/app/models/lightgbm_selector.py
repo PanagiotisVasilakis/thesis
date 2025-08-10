@@ -1,13 +1,14 @@
 """LightGBM-based antenna selection model."""
 
 from .antenna_selector import AntennaSelector
+from .base_model_mixin import BaseModelMixin
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 
 
-class LightGBMSelector(AntennaSelector):
+class LightGBMSelector(BaseModelMixin, AntennaSelector):
     """Antenna selector using a LightGBM classifier."""
 
     def __init__(
@@ -15,6 +16,7 @@ class LightGBMSelector(AntennaSelector):
         model_path: str | None = None,
         *,
         neighbor_count: int | None = None,
+        config_path: str | None = None,
         n_estimators: int = 100,
         max_depth: int = 10,
         num_leaves: int = 31,
@@ -28,7 +30,11 @@ class LightGBMSelector(AntennaSelector):
         self.learning_rate = learning_rate
         self.feature_fraction = feature_fraction
         self.extra_params = kwargs
-        super().__init__(model_path=model_path, neighbor_count=neighbor_count)
+        super().__init__(
+            model_path=model_path,
+            neighbor_count=neighbor_count,
+            config_path=config_path,
+        )
 
     def _initialize_model(self):
         """Initialize a new LightGBM model."""
@@ -50,8 +56,17 @@ class LightGBMSelector(AntennaSelector):
         validation_split: float = 0.2,
         early_stopping_rounds: int | None = 20,
     ) -> dict:
-        """Train the model with optional validation and early stopping."""
-        X_arr, y_arr = self._build_dataset(training_data)
+        """Train the model with optional validation and early stopping.
+        
+        This method is thread-safe and acquires the model lock during training.
+        """
+        if not training_data:
+            raise ValueError("Training data cannot be empty")
+        
+        # Use the mixin's build_dataset method and scale features
+        X_arr, y_arr = self.build_dataset(training_data)
+        self.scaler.fit(X_arr)
+        X_arr = self.scaler.transform(X_arr)
         X_train, X_val, y_train, y_val = self._split_dataset(
             X_arr, y_arr, validation_split
         )
@@ -63,36 +78,31 @@ class LightGBMSelector(AntennaSelector):
             if early_stopping_rounds:
                 fit_params["callbacks"] = [lgb.early_stopping(early_stopping_rounds)]
 
-        self.model.fit(X_train, y_train, **fit_params)
+        # Thread-safe training with lock
+        with self._model_lock:
+            self.model.fit(X_train, y_train, **fit_params)
+            
+            metrics = {
+                "samples": len(X_arr),
+                "classes": len(set(y_arr)),
+                "feature_importance": {
+                    name: float(val)
+                    for name, val in zip(
+                        self.feature_names, self.model.feature_importances_
+                    )
+                },
+            }
 
-        metrics = {
-            "samples": len(X_arr),
-            "classes": len(set(y_arr)),
-            "feature_importance": {
-                name: float(val)
-                for name, val in zip(
-                    self.feature_names, self.model.feature_importances_
+            if eval_set:
+                y_pred = self.model.predict(X_val)
+                metrics["val_accuracy"] = float(accuracy_score(y_val, y_pred))
+                metrics["val_f1"] = float(
+                    f1_score(y_val, y_pred, average="weighted", zero_division=0)
                 )
-            },
-        }
 
-        if eval_set:
-            y_pred = self.model.predict(X_val)
-            metrics["val_accuracy"] = float(accuracy_score(y_val, y_pred))
-            metrics["val_f1"] = float(
-                f1_score(y_val, y_pred, average="weighted", zero_division=0)
-            )
+            return metrics
 
-        return metrics
 
-    def _build_dataset(self, training_data: list) -> tuple[np.ndarray, np.ndarray]:
-        """Convert list of samples into feature and label arrays."""
-        X, y = [], []
-        for sample in training_data:
-            features = self.extract_features(sample)
-            X.append([features[name] for name in self.feature_names])
-            y.append(sample.get("optimal_antenna"))
-        return np.array(X), np.array(y)
 
     def _split_dataset(
         self, X: np.ndarray, y: np.ndarray, validation_split: float

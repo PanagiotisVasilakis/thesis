@@ -3,6 +3,7 @@ from flask import Flask, Response, g, request
 import uuid
 import os
 from prometheus_client import generate_latest
+from ml_service.app.monitoring import metrics
 from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
 from ml_service.app.rate_limiter import init_app as init_limiter
 from ml_service.app.error_handlers import register_error_handlers
@@ -15,17 +16,24 @@ def create_app(config=None):
 
     # Load default configuration
     app.config.from_mapping(
-        SECRET_KEY="dev",
+        SECRET_KEY=os.getenv("SECRET_KEY", os.urandom(32).hex()),
         NEF_API_URL="http://localhost:8080",
         MODEL_PATH=os.path.join(
             os.path.dirname(__file__),
             f"models/antenna_selector_v{MODEL_VERSION}.joblib",
         ),
-        AUTH_USERNAME=os.getenv("AUTH_USERNAME", "admin"),
-        AUTH_PASSWORD=os.getenv("AUTH_PASSWORD", "admin"),
-        JWT_SECRET=os.getenv("JWT_SECRET", "change-me"),
+        AUTH_USERNAME=os.getenv("AUTH_USERNAME"),
+        AUTH_PASSWORD=os.getenv("AUTH_PASSWORD"),
+        JWT_SECRET=os.getenv("JWT_SECRET", os.urandom(32).hex()),
         JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
     )
+    
+    # Ensure required auth configuration is provided
+    if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
+        app.logger.warning(
+            "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
+            "Authentication will be disabled. This is not recommended for production."
+        )
 
     # Load provided configuration if available
     if config:
@@ -34,12 +42,14 @@ def create_app(config=None):
     # Create models directory if it doesn't exist
     os.makedirs(os.path.dirname(app.config["MODEL_PATH"]), exist_ok=True)
 
-    # Initialize model with synthetic data if needed
+    # Initialize model with synthetic data if needed. Skip during tests to
+    # avoid expensive background training and related side effects.
     from .initialization.model_init import ModelManager
 
-    app.logger.info("Initializing ML model...")
-    ModelManager.initialize(app.config["MODEL_PATH"], background=True)
-    app.logger.info("ML model initialization started")
+    if not app.testing:
+        app.logger.info("Initializing ML model...")
+        ModelManager.initialize(app.config["MODEL_PATH"], background=True)
+        app.logger.info("ML model initialization started")
 
     # Register API blueprint
     from .api import api_bp
@@ -55,13 +65,36 @@ def create_app(config=None):
     if not app.testing:
         init_limiter(app)
 
+    # Import metrics authentication
+    from .auth.metrics_auth import require_metrics_auth, get_metrics_authenticator
+    
     @app.route("/metrics")
-    def metrics():
-        """Expose Prometheus metrics."""
+    @require_metrics_auth if not app.testing else (lambda f: f)
+    def metrics_endpoint():
+        """Expose Prometheus metrics with authentication."""
         return Response(
-            generate_latest(),
+            generate_latest(metrics.REGISTRY),
             mimetype="text/plain; version=0.0.4",
         )
+
+    @app.route("/metrics/auth/token", methods=["POST"])
+    @require_metrics_auth if not app.testing else (lambda f: f)
+    def create_metrics_token():
+        """Create a JWT token for metrics access."""
+        from .auth.metrics_auth import create_metrics_auth_token
+        try:
+            token = create_metrics_auth_token()
+            return {"token": token, "expires_in": app.config.get("METRICS_JWT_EXPIRY_SECONDS", 3600)}
+        except Exception as e:
+            app.logger.error("Failed to create metrics token: %s", e)
+            return {"error": "Failed to create token"}, 500
+
+    @app.route("/metrics/auth/stats")
+    @require_metrics_auth if not app.testing else (lambda f: f)
+    def metrics_auth_stats():
+        """Get metrics authentication statistics."""
+        auth = get_metrics_authenticator()
+        return auth.get_auth_stats()
 
     # Wrap the application with metrics middleware
     app.wsgi_app = MetricsMiddleware(app.wsgi_app)

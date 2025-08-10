@@ -1,4 +1,5 @@
 from flask import Flask
+import json
 
 from ml_service.app.monitoring import metrics
 from ml_service.app.monitoring.metrics import (
@@ -36,15 +37,30 @@ def test_track_prediction_updates_metrics():
     assert confidence == 0.5
 
 
-def test_track_training_updates_metrics():
+def test_track_training_updates_metrics(tmp_path):
     sum_before = metrics.MODEL_TRAINING_DURATION._sum.get()
-    track_training(1.2, 10, accuracy=0.9)
+    feature_importance = {"f1": 0.25, "f2": 0.75}
+    out_file = tmp_path / "fi.json"
+    track_training(
+        1.2,
+        10,
+        accuracy=0.9,
+        feature_importance=feature_importance,
+        store_path=str(out_file),
+    )
     sum_after = metrics.MODEL_TRAINING_DURATION._sum.get()
     samples = metrics.MODEL_TRAINING_SAMPLES._value.get()
     accuracy = metrics.MODEL_TRAINING_ACCURACY._value.get()
     assert sum_after == sum_before + 1.2
     assert samples == 10
     assert accuracy == 0.9
+    assert (
+        metrics.FEATURE_IMPORTANCE.labels(feature="f1")._value.get() == 0.25
+    )
+    assert (
+        metrics.FEATURE_IMPORTANCE.labels(feature="f2")._value.get() == 0.75
+    )
+    assert json.loads(out_file.read_text()) == feature_importance
 
 
 def test_metrics_endpoint_exposes_counters(app):
@@ -58,10 +74,29 @@ def test_drift_monitor_detects_change():
     monitor = DataDriftMonitor(window_size=2)
     monitor.update({"f1": 1.0})
     monitor.update({"f1": 1.0})
-    assert monitor.compute_drift() == 0.0
+    assert monitor.compute_drift() == 0.0  # establishes baseline
     monitor.update({"f1": 2.0})
     monitor.update({"f1": 2.0})
-    assert monitor.compute_drift() > 0.0
+    drift = monitor.compute_drift()
+    assert drift == 1.0
+
+
+def test_drift_monitor_triggers_alert(monkeypatch):
+    monitor = DataDriftMonitor(window_size=2, threshold=0.5, alert_email="test@example.com")
+    triggered = {}
+
+    def fake_alert(value: float) -> None:
+        triggered["drift"] = value
+
+    monkeypatch.setattr(monitor, "_send_email_alert", fake_alert)
+
+    monitor.update({"f1": 1.0})
+    monitor.update({"f1": 1.0})
+    monitor.compute_drift()  # baseline
+    monitor.update({"f1": 3.0})
+    monitor.update({"f1": 3.0})
+    monitor.compute_drift()
+    assert "drift" in triggered
 
 
 def test_metrics_collector_updates_error_rate(monkeypatch):

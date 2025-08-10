@@ -1,5 +1,8 @@
 from pydantic import BaseModel
 from types import SimpleNamespace
+import json
+import pytest
+from fastapi import Request
 from pathlib import Path
 from fastapi.responses import JSONResponse
 import importlib.util
@@ -100,6 +103,10 @@ core_pkg = types.ModuleType("app.core")
 config_mod = types.ModuleType("app.core.config")
 config_mod.settings = types.SimpleNamespace(CAPIF_HOST="", CAPIF_HTTPS_PORT=0)
 core_pkg.config = config_mod
+# Provide constants expected by utils module
+constants_mod = types.ModuleType("app.core.constants")
+constants_mod.DEFAULT_TIMEOUT = 5
+core_pkg.constants = constants_mod
 app_pkg.core = core_pkg
 app_pkg.models = models_mod
 app_pkg.schemas = schemas_mod
@@ -117,6 +124,7 @@ for name, mod in {
     "app.api.api_v1.state_manager": state_manager_mod,
     "app.core": core_pkg,
     "app.core.config": config_mod,
+    "app.core.constants": constants_mod,
 }.items():
     sys.modules[name] = mod
 # Stub optional SQLAlchemy dependency
@@ -132,7 +140,15 @@ utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(utils)
 
 
-def test_ccf_logs(monkeypatch):
+def _make_request(data: bytes, path: str = "/cb"):
+    scope = {"type": "http", "method": "POST", "path": path, "headers": [(b"content-type", b"application/json"), (b"host", b"testserver")]} 
+    async def receive():
+        return {"type": "http.request", "body": data, "more_body": False}
+    return Request(scope, receive)
+
+
+@pytest.mark.asyncio
+async def test_ccf_logs(monkeypatch):
     class DummyLogger:
         class LogEntry:
             def __init__(self, **kwargs):
@@ -152,13 +168,10 @@ def test_ccf_logs(monkeypatch):
 
     monkeypatch.setattr(utils, "CAPIFLogger", DummyLogger)
 
-    req = SimpleNamespace(method="POST",
-                          url=SimpleNamespace(
-                              path="/monitoring/event", hostname="localhost"),
-                          _body=b"{}")
+    req = _make_request(b"{}", path="/monitoring/event")
 
-    utils.ccf_logs(req, {"status_code": 200, "response": {}},
-                   "service.json", "invoker")
+    await utils.ccf_logs(req, {"status_code": 200, "response": {}},
+                         "service.json", "invoker")
 
     logger = DummyLogger.instances[0]
     assert logger.desc_path.endswith("service.json")
@@ -166,23 +179,51 @@ def test_ccf_logs(monkeypatch):
     assert len(logger.saved[0][1]) == 1
 
 
-def test_add_notifications(monkeypatch):
+@pytest.mark.asyncio
+async def test_ccf_logs_invalid(monkeypatch):
+    class DummyLogger:
+        class LogEntry:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+        def __init__(self, *a, **k):
+            pass
+        def get_capif_service_description(self, capif_service_api_description_json_full_path):
+            return {"apiId": "abc"}
+        def save_log(self, api_invoker_id, log_entries):
+            pass
+
+    monkeypatch.setattr(utils, "CAPIFLogger", DummyLogger)
+    req = _make_request(b"{bad", path="/monitoring/event")
+    with pytest.raises(utils.HTTPException):
+        await utils.ccf_logs(req, {"status_code": 200, "response": {}}, "service.json", "inv")
+
+
+@pytest.mark.asyncio
+async def test_add_notifications(monkeypatch):
     monkeypatch.setattr(utils.state_manager,
                         "_event_notifications", [], raising=False)
     monkeypatch.setattr(utils.state_manager, "_counter", 0, raising=False)
 
-    req = SimpleNamespace(method="POST",
-                          url=SimpleNamespace(
-                              path="/monitoring", hostname="localhost"),
-                          _body=b"{\"foo\": 1}")
+    req = _make_request(b"{\"foo\": 1}", path="/monitoring")
     resp = JSONResponse(content={"ack": "ok"}, status_code=201)
 
-    data = utils.add_notifications(req, resp, False)
+    data = await utils.add_notifications(req, resp, False)
 
     assert utils.state_manager.all_notifications()[0] == data
     assert data["isNotification"] is False
     assert data["endpoint"] == "/monitoring"
     assert data["status_code"] == 201
+
+
+@pytest.mark.asyncio
+async def test_add_notifications_invalid(monkeypatch):
+    monkeypatch.setattr(utils.state_manager, "_event_notifications", [], raising=False)
+    monkeypatch.setattr(utils.state_manager, "_counter", 0, raising=False)
+
+    req = _make_request(b"{invalid", path="/monitoring")
+    resp = JSONResponse(content={}, status_code=200)
+    with pytest.raises(utils.HTTPException):
+        await utils.add_notifications(req, resp, False)
 
 
 def test_get_scenario(monkeypatch):
