@@ -358,7 +358,7 @@ def test_feature_transforms_applied(tmp_path):
 
     cfg = {
         "base_features": [
-            {"name": "latitude", "transform": "float"},
+            {"name": "latitude", "transform": "math.sqrt"},
             {"name": "handover_count", "transform": "int"},
         ]
     }
@@ -368,7 +368,7 @@ def test_feature_transforms_applied(tmp_path):
     model = LightGBMSelector(config_path=str(path))
 
     data = {
-        "latitude": "10.5",
+        "latitude": 25,
         "longitude": 0,
         "handover_count": "7",
         "connected_to": "a1",
@@ -376,5 +376,25 @@ def test_feature_transforms_applied(tmp_path):
     }
 
     feats = model.extract_features(data, include_neighbors=False)
-    assert feats["latitude"] == 10.5
+    assert feats["latitude"] == 5.0
     assert feats["handover_count"] == 7
+
+
+def test_register_transform_via_code():
+    from ml_service.app.features.transform_registry import (
+        register_feature_transform,
+        clear_feature_transforms,
+    )
+
+    try:
+        register_feature_transform("latitude", lambda v: float(v) * 10)
+        feats, n_count, names = pipeline.build_model_features(
+            {"latitude": "1"},
+            base_feature_names=["latitude"],
+            neighbor_count=0,
+        )
+        assert feats["latitude"] == 10.0
+        assert n_count == 0
+        assert names == ["latitude"]
+    finally:
+        clear_feature_transforms()

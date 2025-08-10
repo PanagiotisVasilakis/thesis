@@ -16,6 +16,10 @@ from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
+from ..features.transform_registry import (
+    register_feature_transform,
+    apply_feature_transforms,
+)
 
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
@@ -101,8 +105,15 @@ _FALLBACK_FEATURES = [
 ]
 
 
-def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
-    """Load feature names and transforms from YAML/JSON configuration."""
+def _load_feature_config(path: str | Path) -> list[str]:
+    """Load feature names and register transforms from configuration.
+
+    The configuration file is expected to contain a ``base_features`` list where
+    each entry may specify a ``name`` and an optional ``transform``.  Supported
+    ``transform`` values are either keys of the transform registry or fully
+    qualified Python import paths.  When provided, the transform is registered
+    for the given feature name via :func:`register_feature_transform`.
+    """
     cfg_path = Path(path)
     if not cfg_path.exists():
         raise FileNotFoundError(f"Feature config not found: {cfg_path}")
@@ -115,18 +126,20 @@ def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
 
     feats = data.get("base_features", [])
     names: list[str] = []
-    transforms: dict[str, str] = {}
     for item in feats:
         if isinstance(item, dict):
             name = item.get("name")
-            transform = item.get("transform", "identity")
+            transform = item.get("transform")
+            if name and transform:
+                try:
+                    register_feature_transform(str(name), str(transform))
+                except Exception:  # noqa: BLE001 - ignore invalid transforms
+                    pass
         else:
             name = str(item)
-            transform = "identity"
         if name:
             names.append(str(name))
-            transforms[str(name)] = str(transform)
-    return names, transforms
+    return names
 
 
 
@@ -138,12 +151,6 @@ class AntennaSelector(AsyncModelInterface):
     # may run during the first prediction call when ``extract_features`` is
     # invoked concurrently, so a lock ensures feature names are added only once.
     _init_lock = threading.Lock()
-
-    TRANSFORM_FUNCTIONS = {
-        "identity": lambda x: x,
-        "float": lambda x: float(x) if x is not None else 0.0,
-        "int": lambda x: int(x) if x is not None else 0,
-    }
 
     def __init__(
         self,
@@ -177,22 +184,15 @@ class AntennaSelector(AsyncModelInterface):
             config_path = os.environ.get("FEATURE_CONFIG_PATH", str(DEFAULT_FEATURE_CONFIG))
 
         try:
-            names, transforms = _load_feature_config(config_path)
+            names = _load_feature_config(config_path)
             if not names:
                 raise ValueError("No base features defined")
             self.base_feature_names = names
-            self._feature_transforms = {
-                n: self.TRANSFORM_FUNCTIONS.get(transforms.get(n, "identity"), self.TRANSFORM_FUNCTIONS["identity"])
-                for n in self.base_feature_names
-            }
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "Failed to load feature config %s: %s; using defaults", config_path, exc
             )
             self.base_feature_names = list(_FALLBACK_FEATURES)
-            self._feature_transforms = {
-                n: self.TRANSFORM_FUNCTIONS["identity"] for n in self.base_feature_names
-            }
 
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -253,19 +253,129 @@ class AntennaSelector(AsyncModelInterface):
             if cached_features is not None:
                 return cached_features
 
-        features, n_count, names = pipeline.build_model_features(
-            data,
-            base_feature_names=self.base_feature_names,
-            neighbor_count=self.neighbor_count,
-            include_neighbors=include_neighbors,
-            init_lock=self._init_lock,
-            feature_names=self.feature_names,
-            feature_transforms=self._feature_transforms,
-        )
+        # Batch extract common values to reduce dict.get() calls
+        latitude = data.get("latitude", 0)
+        longitude = data.get("longitude", 0)
+        altitude = data.get("altitude", 0)
+        speed = data.get("speed", 0)
+        velocity = data.get("velocity")
+        if velocity is None:
+            velocity = speed
+        velocity = velocity if velocity is not None else 0
+        
+        heading_change_rate = data.get("heading_change_rate", 0)
+        path_curvature = data.get("path_curvature", 0)
+        acceleration = data.get("acceleration", 0)
+        cell_load = data.get("cell_load", 0)
+        time_since_handover = data.get("time_since_handover", 0)
+        signal_trend = data.get("signal_trend", 0)
+        environment = data.get("environment", 0)
+        rsrp_stddev = data.get("rsrp_stddev", 0)
+        sinr_stddev = data.get("sinr_stddev", 0)
+        
+        # Optimized handover count extraction
+        if "handover_count" in data:
+            handover_count = data["handover_count"]
+        else:
+            hist = data.get("handover_history")
+            handover_count = len(hist) if isinstance(hist, list) else 0
+        
+        # Optimized direction processing with caching
+        direction = data.get("direction", (0, 0, 0))
+        if isinstance(direction, (list, tuple)) and len(direction) >= 2:
+            from ..utils.feature_cache import _cached_direction_to_unit
+            direction_tuple = tuple(direction[:3]) if len(direction) >= 3 else (direction[0], direction[1], 0)
+            dx, dy = _cached_direction_to_unit(direction_tuple)
+        else:
+            dx, dy = 0.0, 0.0
+        
+        # Batch RF metrics processing
+        rf_metrics = data.get("rf_metrics", {})
+        current_antenna = data.get("connected_to")
+        rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
+        
+        # Pre-allocate features dictionary with known size
+        base_feature_count = len(self.base_feature_names) + (self.neighbor_count * 4) + 3
+        features = {}
+        features.update({
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude": altitude,
+            "speed": speed,
+            "velocity": velocity,
+            "heading_change_rate": heading_change_rate,
+            "path_curvature": path_curvature,
+            "acceleration": acceleration,
+            "cell_load": cell_load,
+            "handover_count": handover_count,
+            "time_since_handover": time_since_handover,
+            "signal_trend": signal_trend,
+            "environment": environment,
+            "rsrp_stddev": rsrp_stddev,
+            "sinr_stddev": sinr_stddev,
+            "direction_x": dx,
+            "direction_y": dy,
+            "rsrp_current": rsrp_curr,
+            "sinr_current": sinr_curr,
+            "rsrq_current": rsrq_curr,
+        })
 
-        # Update model state with neighbor information
-        self.neighbor_count = n_count
-        self.feature_names = names
+        # Optimized neighbor processing
+        neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
+        best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
+        if neighbors:
+            # Extract best values from first neighbor (already sorted)
+            first_neighbor = neighbors[0]
+            best_rsrp, best_sinr, best_rsrq = first_neighbor[1], first_neighbor[2], first_neighbor[3]
+
+        # Thread-safe neighbor count initialization
+        if self.neighbor_count == 0:
+            with self._init_lock:
+                if self.neighbor_count == 0:
+                    self.neighbor_count = len(neighbors)
+                    # Batch extend feature names
+                    new_features = []
+                    for idx in range(self.neighbor_count):
+                        new_features.extend([
+                            f"rsrp_a{idx+1}",
+                            f"sinr_a{idx+1}",
+                            f"rsrq_a{idx+1}",
+                            f"neighbor_cell_load_a{idx+1}",
+                        ])
+                    self.feature_names.extend(new_features)
+
+        # Optimized neighbor feature extraction with batch updates
+        neighbor_updates = {}
+        for idx in range(self.neighbor_count):
+            if idx < len(neighbors):
+                neighbor = neighbors[idx]
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": neighbor[1],
+                    f"sinr_a{idx+1}": neighbor[2],
+                    f"rsrq_a{idx+1}": neighbor[3],
+                    f"neighbor_cell_load_a{idx+1}": neighbor[4] if neighbor[4] is not None else 0
+                })
+            else:
+                # Use batch update for default values
+                neighbor_updates.update({
+                    f"rsrp_a{idx+1}": -120,
+                    f"sinr_a{idx+1}": 0,
+                    f"rsrq_a{idx+1}": -30,
+                    f"neighbor_cell_load_a{idx+1}": 0
+                })
+        
+        # Batch update neighbor features
+        features.update(neighbor_updates)
+        
+        # Add difference features
+        features.update({
+            "best_rsrp_diff": best_rsrp - rsrp_curr,
+            "best_sinr_diff": best_sinr - sinr_curr,
+            "best_rsrq_diff": best_rsrq - rsrq_curr,
+        })
+
+        # Apply configured feature transformations via registry
+        apply_feature_transforms(features)
 
         # Cache the extracted features for future use
         if ue_id:
