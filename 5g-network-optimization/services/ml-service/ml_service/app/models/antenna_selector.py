@@ -29,6 +29,7 @@ from ..config.constants import (
     DEFAULT_LIGHTGBM_RANDOM_STATE,
     env_constants,
 )
+from ..config.feature_specs import validate_feature_ranges
 from ..utils.exception_handler import (
     ExceptionHandler,
     ModelError,
@@ -232,6 +233,10 @@ class AntennaSelector(AsyncModelInterface):
             }
         )
 
+    def _current_signal(self, current: str | None, metrics: dict) -> tuple[float, float, float]:
+        """Wrapper around pipeline._current_signal for instance access."""
+        return pipeline._current_signal(current, metrics)
+
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
@@ -386,6 +391,12 @@ class AntennaSelector(AsyncModelInterface):
 
     def predict(self, features):
         """Predict the optimal antenna for the UE."""
+        # Validate required features and their configured ranges
+        missing = set(self.feature_names) - set(features)
+        if missing:
+            raise ValueError(f"Missing required features: {missing}")
+        validate_feature_ranges(features)
+
         # Convert features to the format expected by the model and scale
         X = np.array([[features[name] for name in self.feature_names]], dtype=float)
         if self.scaler:

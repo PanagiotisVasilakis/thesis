@@ -5,8 +5,7 @@ import logging
 import time
 import os
 import threading
-import smtplib
-from email.message import EmailMessage
+from pathlib import Path
 from typing import Any, Dict, List
 
 import psutil
@@ -218,11 +217,9 @@ class DataDriftMonitor:
         max_samples: int = DEFAULT_DATA_DRIFT_MAX_SAMPLES,
         *,
         threshold: float = 1.0,
-        alert_email: str | None = None,
-        smtp_server: str = "localhost",
-        smtp_port: int = 25,
-        smtp_username: str | None = None,
-        smtp_password: str | None = None,
+        thresholds: Dict[str, float] | None = None,
+        baseline: Dict[str, float] | None = None,
+        baseline_path: str | None = None,
     ) -> None:
         if window_size <= 0:
             raise ValueError("Window size must be positive")
@@ -232,20 +229,38 @@ class DataDriftMonitor:
         self.window_size = window_size
         self.max_samples = max_samples
         self.threshold = threshold
-        self.alert_email = alert_email
-        self.smtp_server = smtp_server
-        self.smtp_port = smtp_port
-        self.smtp_username = smtp_username
-        self.smtp_password = smtp_password
+        self.thresholds = thresholds or {}
+        self._baseline: Dict[str, float] | None = baseline or (
+            self._load_baseline(baseline_path) if baseline_path else None
+        )
 
         self._current: List[Dict[str, float]] = []
         self._previous: List[Dict[str, float]] = []
-        self._baseline: Dict[str, float] | None = None
         self._lock = threading.Lock()
         self._sample_count = 0
 
         import logging
         self.logger = logging.getLogger(__name__)
+
+    def _load_baseline(self, path: str) -> Dict[str, float] | None:
+        """Load baseline distribution from a JSON or YAML file."""
+        if not path:
+            return None
+        try:
+            p = Path(path)
+            if not p.exists():
+                self.logger.warning("Baseline file %s does not exist", path)
+                return None
+            text = p.read_text(encoding="utf-8")
+            if p.suffix.lower() in {".yaml", ".yml"}:
+                import yaml
+                data = yaml.safe_load(text) or {}
+            else:
+                data = json.loads(text)
+            return {str(k): float(v) for k, v in data.items()}
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("Failed to load baseline from %s: %s", path, exc)
+            return None
 
     def update(self, features: Dict[str, float]) -> None:
         """Add feature vector from a prediction request with memory bounds."""
@@ -292,9 +307,10 @@ class DataDriftMonitor:
     def compute_drift(self) -> float:
         """Return average absolute change between current window and baseline.
 
-        The first full window establishes the baseline distribution. Subsequent
-        windows are compared against this baseline. When the computed drift
-        exceeds ``threshold`` an email alert is sent (if configured).
+        The first full window establishes the baseline distribution unless one
+        is provided explicitly. Subsequent windows are compared against this
+        baseline. When drift for any feature exceeds its configured threshold, a
+        warning is logged.
         """
         with self._lock:
             if len(self._current) < self.window_size:
@@ -302,7 +318,6 @@ class DataDriftMonitor:
 
             curr_means = self._mean(self._current)
             if self._baseline is None:
-                # Establish baseline from the first complete window
                 self._baseline = curr_means
                 self._current.clear()
                 return 0.0
@@ -312,12 +327,14 @@ class DataDriftMonitor:
                 self._current.clear()
                 return 0.0
 
-            diff = sum(abs(curr_means[k] - self._baseline[k]) for k in keys) / len(keys)
+            diffs = {k: abs(curr_means[k] - self._baseline[k]) for k in keys}
             self._current.clear()
 
-            if diff > self.threshold:
-                self._send_email_alert(diff)
-            return diff
+            alerts = {k: v for k, v in diffs.items() if v > self.thresholds.get(k, self.threshold)}
+            for feat, val in alerts.items():
+                self._log_alert(feat, val, self.thresholds.get(feat, self.threshold))
+
+            return sum(diffs.values()) / len(diffs)
     
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get memory usage statistics for monitoring."""
@@ -340,32 +357,14 @@ class DataDriftMonitor:
             self._sample_count = 0
             self.logger.info("DataDriftMonitor reset - all data cleared")
 
-    def _send_email_alert(self, drift: float) -> None:
-        """Send an email alert if drift exceeds the configured threshold."""
-        if not self.alert_email:
-            logger.warning("Data drift %.4f detected but no alert email configured", drift)
-            return
-
-        try:
-            msg = EmailMessage()
-            msg["Subject"] = "ML Service Data Drift Alert"
-            msg["From"] = self.smtp_username or self.alert_email
-            msg["To"] = self.alert_email
-            msg.set_content(
-                f"Data drift detected: {drift:.4f} exceeds threshold {self.threshold:.4f}"
-            )
-
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                if self.smtp_username and self.smtp_password:
-                    try:
-                        server.starttls()
-                    except Exception:
-                        pass
-                    server.login(self.smtp_username, self.smtp_password)
-                server.send_message(msg)
-            logger.info("Drift alert email sent to %s", self.alert_email)
-        except Exception as exc:
-            logger.error("Failed to send drift alert email: %s", exc)
+    def _log_alert(self, feature: str, drift: float, threshold: float) -> None:
+        """Log a warning when drift exceeds the configured threshold."""
+        self.logger.warning(
+            "Data drift detected for %s: %.4f exceeds threshold %.4f",
+            feature,
+            drift,
+            threshold,
+        )
 
 
 class MetricsCollector:
