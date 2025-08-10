@@ -5,9 +5,17 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple, List, Callable
 import threading
 
+from ..config.constants import (
+    DEFAULT_FALLBACK_RSRP,
+    DEFAULT_FALLBACK_SINR,
+    DEFAULT_FALLBACK_RSRQ,
+)
+from ..utils.feature_cache import _cached_direction_to_unit, _cached_signal_extraction
+
 __all__ = [
     "extract_rf_features",
     "extract_environment_features",
+    "extract_mobility_features",
     "determine_optimal_antenna",
     "build_model_features",
 ]
@@ -50,10 +58,43 @@ def extract_rf_features(feature_vector: Dict[str, Any]) -> Dict[str, Dict[str, f
 def extract_environment_features(feature_vector: Dict[str, Any]) -> Dict[str, Optional[float]]:
     """Extract environment related features from the raw vector."""
     features: Dict[str, Optional[float]] = {}
-    for key in ["cell_load", "environment", "velocity", "acceleration", "signal_trend"]:
+    for key in ["cell_load", "environment", "signal_trend"]:
         value = feature_vector.get(key)
         features[key] = float(value) if isinstance(value, (int, float)) else None
     return features
+
+
+def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float]:
+    """Extract mobility related features including direction components."""
+    speed_val = feature_vector.get("speed", 0)
+    speed = float(speed_val) if isinstance(speed_val, (int, float)) else 0.0
+
+    velocity_val = feature_vector.get("velocity")
+    if velocity_val is None:
+        velocity_val = speed
+    velocity = float(velocity_val) if isinstance(velocity_val, (int, float)) else speed
+
+    accel_val = feature_vector.get("acceleration", 0)
+    acceleration = float(accel_val) if isinstance(accel_val, (int, float)) else 0.0
+
+    hcr_val = feature_vector.get("heading_change_rate", 0)
+    heading_change_rate = float(hcr_val) if isinstance(hcr_val, (int, float)) else 0.0
+
+    pc_val = feature_vector.get("path_curvature", 0)
+    path_curvature = float(pc_val) if isinstance(pc_val, (int, float)) else 0.0
+
+    direction = feature_vector.get("direction", (0, 0, 0))
+    dx, dy = _direction_to_unit(direction)
+
+    return {
+        "speed": speed,
+        "velocity": velocity,
+        "acceleration": acceleration,
+        "heading_change_rate": heading_change_rate,
+        "path_curvature": path_curvature,
+        "direction_x": dx,
+        "direction_y": dy,
+    }
 
 
 def determine_optimal_antenna(rf_metrics: Dict[str, Dict[str, float]]) -> str:
@@ -74,36 +115,37 @@ def determine_optimal_antenna(rf_metrics: Dict[str, Dict[str, float]]) -> str:
 
 def _direction_to_unit(direction: tuple | list) -> Tuple[float, float]:
     if isinstance(direction, (list, tuple)) and len(direction) >= 2:
-        magnitude = (direction[0] ** 2 + direction[1] ** 2) ** 0.5
-        if magnitude > 0:
-            return direction[0] / magnitude, direction[1] / magnitude
+        direction_tuple = (
+            direction[0],
+            direction[1],
+            direction[2] if len(direction) >= 3 else 0,
+        )
+        return _cached_direction_to_unit(direction_tuple)
     return 0.0, 0.0
 
 
 def _current_signal(current: str | None, metrics: dict) -> Tuple[float, float, float]:
     if current and current in metrics:
         data = metrics[current]
-        rsrp = data.get("rsrp", -120)
-        sinr = data.get("sinr") if data.get("sinr") is not None else 0
-        rsrq = data.get("rsrq") if data.get("rsrq") is not None else -30
-        return rsrp, sinr, rsrq
-    return -120, 0, -30
+        return _cached_signal_extraction(
+            data.get("rsrp"), data.get("sinr"), data.get("rsrq")
+        )
+    return _cached_signal_extraction(None, None, None)
 
 
-def _neighbor_list(metrics: dict, current: str | None, include: bool) -> List[Tuple[str, float, float, float, Optional[float]]]:
+def _neighbor_list(
+    metrics: dict, current: str | None, include: bool
+) -> List[Tuple[str, float, float, float, Optional[float]]]:
     if not include or not metrics:
         return []
-    neighbors = [
-        (
-            aid,
-            vals.get("rsrp", -120),
-            vals.get("sinr") if vals.get("sinr") is not None else 0,
-            vals.get("rsrq") if vals.get("rsrq") is not None else -30,
-            vals.get("cell_load"),
+    neighbors: List[Tuple[str, float, float, float, Optional[float]]] = []
+    for aid, vals in metrics.items():
+        if aid == current:
+            continue
+        rsrp, sinr, rsrq = _cached_signal_extraction(
+            vals.get("rsrp"), vals.get("sinr"), vals.get("rsrq")
         )
-        for aid, vals in metrics.items()
-        if aid != current
-    ]
+        neighbors.append((aid, rsrp, sinr, rsrq, vals.get("cell_load")))
     neighbors.sort(key=lambda x: x[1], reverse=True)
     return neighbors
 
@@ -146,19 +188,11 @@ def build_model_features(
     latitude = data.get("latitude", 0)
     longitude = data.get("longitude", 0)
     altitude = data.get("altitude", 0)
-    speed = data.get("speed", 0)
-    velocity = data.get("velocity")
-    if velocity is None:
-        velocity = speed
-    velocity = velocity if velocity is not None else 0
 
-    heading_change_rate = data.get("heading_change_rate", 0)
-    path_curvature = data.get("path_curvature", 0)
-    acceleration = data.get("acceleration", 0)
-    cell_load = data.get("cell_load", 0)
+    mobility = extract_mobility_features(data)
+    env = extract_environment_features(data)
+
     time_since_handover = data.get("time_since_handover", 0)
-    signal_trend = data.get("signal_trend", 0)
-    environment = data.get("environment", 0)
     rsrp_stddev = data.get("rsrp_stddev", 0)
     sinr_stddev = data.get("sinr_stddev", 0)
 
@@ -168,9 +202,6 @@ def build_model_features(
         hist = data.get("handover_history")
         handover_count = len(hist) if isinstance(hist, list) else 0
 
-    direction = data.get("direction", (0, 0, 0))
-    dx, dy = _direction_to_unit(direction)
-
     rf_metrics = data.get("rf_metrics", {})
     current_antenna = data.get("connected_to")
     rsrp_curr, sinr_curr, rsrq_curr = _current_signal(current_antenna, rf_metrics)
@@ -179,20 +210,14 @@ def build_model_features(
         "latitude": latitude,
         "longitude": longitude,
         "altitude": altitude,
-        "speed": speed,
-        "velocity": velocity,
-        "heading_change_rate": heading_change_rate,
-        "path_curvature": path_curvature,
-        "acceleration": acceleration,
-        "cell_load": cell_load,
+        **mobility,
+        "cell_load": env.get("cell_load", 0) or 0,
         "handover_count": handover_count,
         "time_since_handover": time_since_handover,
-        "signal_trend": signal_trend,
-        "environment": environment,
+        "signal_trend": env.get("signal_trend", 0) or 0,
+        "environment": env.get("environment", 0) or 0,
         "rsrp_stddev": rsrp_stddev,
         "sinr_stddev": sinr_stddev,
-        "direction_x": dx,
-        "direction_y": dy,
         "rsrp_current": rsrp_curr,
         "sinr_current": sinr_curr,
         "rsrq_current": rsrq_curr,
@@ -226,9 +251,9 @@ def build_model_features(
         else:
             neighbor_features.update(
                 {
-                    f"rsrp_a{idx+1}": -120,
-                    f"sinr_a{idx+1}": 0,
-                    f"rsrq_a{idx+1}": -30,
+                    f"rsrp_a{idx+1}": DEFAULT_FALLBACK_RSRP,
+                    f"sinr_a{idx+1}": DEFAULT_FALLBACK_SINR,
+                    f"rsrq_a{idx+1}": DEFAULT_FALLBACK_RSRQ,
                     f"neighbor_cell_load_a{idx+1}": 0,
                 }
             )
