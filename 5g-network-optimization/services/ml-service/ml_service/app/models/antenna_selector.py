@@ -16,6 +16,10 @@ from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
+from ..features.transform_registry import (
+    register_feature_transform,
+    apply_feature_transforms,
+)
 
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
@@ -104,8 +108,15 @@ _FALLBACK_FEATURES = [
 ]
 
 
-def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
-    """Load feature names and transforms from YAML/JSON configuration."""
+def _load_feature_config(path: str | Path) -> list[str]:
+    """Load feature names and register transforms from configuration.
+
+    The configuration file is expected to contain a ``base_features`` list where
+    each entry may specify a ``name`` and an optional ``transform``.  Supported
+    ``transform`` values are either keys of the transform registry or fully
+    qualified Python import paths.  When provided, the transform is registered
+    for the given feature name via :func:`register_feature_transform`.
+    """
     cfg_path = Path(path)
     if not cfg_path.exists():
         raise FileNotFoundError(f"Feature config not found: {cfg_path}")
@@ -118,18 +129,20 @@ def _load_feature_config(path: str | Path) -> tuple[list[str], dict[str, str]]:
 
     feats = data.get("base_features", [])
     names: list[str] = []
-    transforms: dict[str, str] = {}
     for item in feats:
         if isinstance(item, dict):
             name = item.get("name")
-            transform = item.get("transform", "identity")
+            transform = item.get("transform")
+            if name and transform:
+                try:
+                    register_feature_transform(str(name), str(transform))
+                except Exception:  # noqa: BLE001 - ignore invalid transforms
+                    pass
         else:
             name = str(item)
-            transform = "identity"
         if name:
             names.append(str(name))
-            transforms[str(name)] = str(transform)
-    return names, transforms
+    return names
 
 
 
@@ -141,12 +154,6 @@ class AntennaSelector(AsyncModelInterface):
     # may run during the first prediction call when ``extract_features`` is
     # invoked concurrently, so a lock ensures feature names are added only once.
     _init_lock = threading.Lock()
-
-    TRANSFORM_FUNCTIONS = {
-        "identity": lambda x: x,
-        "float": lambda x: float(x) if x is not None else 0.0,
-        "int": lambda x: int(x) if x is not None else 0,
-    }
 
     def __init__(
         self,
@@ -180,22 +187,15 @@ class AntennaSelector(AsyncModelInterface):
             config_path = os.environ.get("FEATURE_CONFIG_PATH", str(DEFAULT_FEATURE_CONFIG))
 
         try:
-            names, transforms = _load_feature_config(config_path)
+            names = _load_feature_config(config_path)
             if not names:
                 raise ValueError("No base features defined")
             self.base_feature_names = names
-            self._feature_transforms = {
-                n: self.TRANSFORM_FUNCTIONS.get(transforms.get(n, "identity"), self.TRANSFORM_FUNCTIONS["identity"])
-                for n in self.base_feature_names
-            }
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).warning(
                 "Failed to load feature config %s: %s; using defaults", config_path, exc
             )
             self.base_feature_names = list(_FALLBACK_FEATURES)
-            self._feature_transforms = {
-                n: self.TRANSFORM_FUNCTIONS["identity"] for n in self.base_feature_names
-            }
 
         self.neighbor_count = 0
         self.feature_names = list(self.base_feature_names)
@@ -425,13 +425,8 @@ class AntennaSelector(AsyncModelInterface):
             "best_rsrq_diff": best_rsrq - rsrq_curr,
         })
 
-        # Apply configured feature transformations
-        for name, func in self._feature_transforms.items():
-            if name in features:
-                try:
-                    features[name] = func(features[name])
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Failed to transform feature %s: %s", name, exc)
+        # Apply configured feature transformations via registry
+        apply_feature_transforms(features)
 
         # Cache the extracted features for future use
         if ue_id:

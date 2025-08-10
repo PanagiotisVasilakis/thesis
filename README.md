@@ -139,8 +139,13 @@ where altitude is assigned before training【F:5g-network-optimization/services/
 
 `AntennaSelector` no longer hardcodes its feature list. During initialization it
 loads `app/config/features.yaml` which specifies feature names and optional
-transforms. The path can be overridden using the `FEATURE_CONFIG_PATH`
-environment variable.
+transforms. These transforms are resolved through a central registry that maps
+feature names to callables.  Configuration entries may reference built-in
+transform names (e.g. `float`, `int`) or fully qualified Python paths such as
+`math.sqrt`.  The registry is also accessible programmatically for custom
+registrations. The path to the configuration file can be overridden using the
+`FEATURE_CONFIG_PATH` environment variable. See
+[`docs/feature_transforms.md`](docs/feature_transforms.md) for details.
 
 ## Running the System
 Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
