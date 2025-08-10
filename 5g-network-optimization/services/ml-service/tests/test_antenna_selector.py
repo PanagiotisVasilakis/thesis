@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import threading
+import pytest
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.models.antenna_selector import (
@@ -193,6 +194,16 @@ def test_predict_with_mock_and_persistence(tmp_path):
     assert loaded.load(path)
     assert isinstance(loaded.model, DummyModel)
     assert loaded.predict(features) == result
+
+
+def test_predict_rejects_out_of_range():
+    model = LightGBMSelector()
+    model.model = DummyModel()
+    features = antenna_selector.DEFAULT_TEST_FEATURES.copy()
+    features["latitude"] = -5  # below configured min
+
+    with pytest.raises(ValueError):
+        model.predict(features)
 
 
 def test_extract_features_neighbor_padding():
