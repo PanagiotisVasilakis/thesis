@@ -7,6 +7,13 @@ from collections import deque
 from datetime import datetime, timezone
 from packaging.version import Version, InvalidVersion
 
+from .thread_monitor import (
+    get_thread_monitor, 
+    safe_thread_execution, 
+    ThreadFailureLevel,
+    monitor_thread_execution
+)
+
 # Semantic version of the expected model format. Bump whenever the
 # persisted model or metadata structure changes in a backwards incompatible
 # way so older files can be detected gracefully.
@@ -50,9 +57,15 @@ def _load_metadata(path: str) -> dict:
                             )
                             data["trained_at"] = None
                     return data
-        except Exception as exc:  # noqa: BLE001 - log failure
+        except (json.JSONDecodeError, ValueError) as exc:
+            # Handle JSON parsing and value conversion errors
             logging.getLogger(__name__).warning(
-                "Failed to load metadata from %s: %s", meta_path, exc
+                "Failed to parse metadata from %s: %s", meta_path, exc
+            )
+        except (IOError, OSError) as exc:
+            # Handle file system errors
+            logging.getLogger(__name__).warning(
+                "Failed to read metadata file %s: %s", meta_path, exc
             )
     return {}
 
@@ -82,6 +95,31 @@ class ModelManager:
     _init_event = threading.Event()
     # Background initialization thread
     _init_thread: threading.Thread | None = None
+
+    @classmethod
+    def discover_versions(cls, base_path: str) -> None:
+        """Discover available model versions under ``base_path``.
+
+        Any files matching ``antenna_selector_v*.joblib`` are registered so that
+        :meth:`switch_version` can load them later.
+        """
+        if not os.path.isdir(base_path):
+            return
+
+        with cls._lock:
+            cls._model_paths.clear()
+            for name in os.listdir(base_path):
+                if not name.endswith(".joblib"):
+                    continue
+                path = os.path.join(base_path, name)
+                if ver := _parse_version_from_path(path):
+                    cls._model_paths[ver] = path
+
+    @classmethod
+    def list_versions(cls) -> list[str]:
+        """Return all discovered model versions."""
+        with cls._lock:
+            return sorted(cls._model_paths.keys())
 
     @classmethod
     def _initialize_sync(
@@ -171,20 +209,13 @@ class ModelManager:
             )
 
             if model_path:
-                model.save(model_path)
+                model.save(
+                    model_path,
+                    model_type=model_type,
+                    metrics=metrics,
+                    version=MODEL_VERSION,
+                )
                 logger.info(f"Model saved to {model_path}")
-                meta_path = model_path + ".meta.json"
-                with open(meta_path, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {
-                            "model_type": model_type,
-                            "metrics": metrics,
-                            "trained_at": datetime.now(timezone.utc).isoformat(),
-                            "version": MODEL_VERSION,
-                        },
-                        f,
-                    )
-                logger.info(f"Metadata saved to {meta_path}")
 
             with cls._lock:
                 cls._model_instance = model
@@ -194,12 +225,58 @@ class ModelManager:
                     cls._model_paths[ver] = model_path
                 cls._init_event.set()
             return model
-        except Exception:  # noqa: BLE001
-            logger.exception("Model initialization failed")
+        except (OSError, IOError) as e:
+            logger.error("File system error during model initialization: %s", e)
             with cls._lock:
                 cls._model_instance = previous_model
                 cls._last_good_model_path = previous_path
                 cls._init_event.set()
+            # Report as critical since model initialization is essential
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except (ValueError, TypeError) as e:
+            logger.error("Configuration error during model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.ERROR,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except ImportError as e:
+            logger.error("Missing dependency for model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type}
+            )
+            raise
+        except Exception as e:
+            logger.critical("Unexpected error during model initialization: %s", e)
+            with cls._lock:
+                cls._model_instance = previous_model
+                cls._last_good_model_path = previous_path
+                cls._init_event.set()
+            get_thread_monitor().report_failure(
+                "model_initialization",
+                e,
+                ThreadFailureLevel.CRITICAL,
+                {"model_path": model_path, "model_type": model_type, "unexpected": True}
+            )
             raise
 
     @classmethod
@@ -258,6 +335,12 @@ class ModelManager:
             previous_model = cls._model_instance
             previous_path = cls._last_good_model_path
 
+        # Discover any existing model versions before loading
+        if model_path:
+            cls.discover_versions(os.path.dirname(model_path))
+        elif os.environ.get("MODEL_PATH"):
+            cls.discover_versions(os.path.dirname(os.environ["MODEL_PATH"]))
+
         if neighbor_count is None:
             neighbor_count = get_neighbor_count_from_env(logger=logger)
 
@@ -280,12 +363,23 @@ class ModelManager:
 
                 cls._model_instance = placeholder_cls(neighbor_count=neighbor_count)
 
-                cls._init_thread = threading.Thread(
-                    target=cls._initialize_sync,
+                # Use safe thread execution with monitoring
+                cls._init_thread = safe_thread_execution(
+                    target_func=cls._initialize_sync,
+                    thread_name="model_background_init",
                     args=(model_path, neighbor_count, model_type, previous_model, previous_path),
-                    daemon=True,
+                    failure_level=ThreadFailureLevel.CRITICAL,
+                    context={
+                        "model_path": model_path,
+                        "model_type": model_type,
+                        "neighbor_count": neighbor_count
+                    },
+                    max_retries=1  # One retry for critical model initialization
                 )
                 cls._init_thread.start()
+                
+                # Start thread monitoring if not already running
+                get_thread_monitor().start_monitoring()
                 return cls._model_instance
 
         return cls._initialize_sync(model_path, neighbor_count, model_type, previous_model, previous_path)
@@ -316,13 +410,34 @@ class ModelManager:
             if hasattr(model, "drift_detected") and model.drift_detected():
                 logging.getLogger(__name__).info("Drift detected; retraining model")
                 try:
-                    model.retrain(cls._feedback_data)
+                    metrics = model.retrain(cls._feedback_data)
                     cls._feedback_data.clear()
-                    if hasattr(model, "save"):
-                        model.save()
+                    cls.save_active_model(metrics)
                     retrained = True
-                except Exception:  # noqa: BLE001 - log failure
-                    logging.getLogger(__name__).exception("Retraining failed")
+                except (ValueError, TypeError) as e:
+                    logging.getLogger(__name__).error("Model retraining failed due to data issues: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.ERROR,
+                        {"feedback_samples": len(cls._feedback_data)}
+                    )
+                except (MemoryError, OSError) as e:
+                    logging.getLogger(__name__).error("Model retraining failed due to resource issues: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.CRITICAL,
+                        {"feedback_samples": len(cls._feedback_data)}
+                    )
+                except Exception as e:
+                    logging.getLogger(__name__).critical("Unexpected model retraining failure: %s", e)
+                    get_thread_monitor().report_failure(
+                        "model_retraining",
+                        e,
+                        ThreadFailureLevel.CRITICAL,
+                        {"feedback_samples": len(cls._feedback_data), "unexpected": True}
+                    )
         return retrained
 
     @classmethod
@@ -383,3 +498,29 @@ class ModelManager:
         if isinstance(ts, datetime):
             meta["trained_at"] = ts.isoformat()
         return meta
+
+    @classmethod
+    def save_active_model(cls, metrics: dict | None = None) -> bool:
+        """Persist the current model alongside updated metadata."""
+        with cls._lock:
+            model = cls._model_instance
+            path = cls._last_good_model_path or os.environ.get("MODEL_PATH")
+            model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
+        if not model or not path or not hasattr(model, "save"):
+            return False
+
+        meta = _load_metadata(path)
+        if m_type := meta.get("model_type"):
+            model_type = m_type
+
+        try:
+            model.save(
+                path,
+                model_type=model_type,
+                metrics=metrics,
+                version=MODEL_VERSION,
+            )
+            return True
+        except Exception:  # noqa: BLE001
+            logging.getLogger(__name__).exception("Failed to save model")
+            return False

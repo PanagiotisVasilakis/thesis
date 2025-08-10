@@ -42,6 +42,7 @@ scikit-learn==1.5.2
 seaborn==0.13.2
 sqlalchemy>=1.4,<2.0
 sqlalchemy-stubs==0.3
+aiohttp==3.9.5
 tenacity==7.0.0
 typing-extensions>=4.2.0
 uvicorn==0.17.6
@@ -54,3 +55,5 @@ pandas==1.5.3
 dask==2023.5.0
 pyarrow==14.0.1
 Flask-Limiter==3.3.1
+pyyaml>=6.0
+pyjwt==2.10.1

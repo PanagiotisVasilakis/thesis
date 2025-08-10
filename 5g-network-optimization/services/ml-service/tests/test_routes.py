@@ -1,6 +1,17 @@
 from unittest.mock import MagicMock, patch
 from datetime import datetime, timezone
+import json
 from ml_service.app.clients.nef_client import NEFClientError
+from ml_service.app.models.lightgbm_selector import LightGBMSelector
+from ml_service.app.initialization import model_init
+
+
+class DummyM:
+    def predict(self, X):
+        return [0]
+
+    def predict_proba(self, X):
+        return [[1.0]]
 
 
 def test_predict_route(client, auth_header):
@@ -35,19 +46,20 @@ def test_predict_invalid_request(client, auth_header):
 def test_train_route(client, auth_header):
     mock_model = MagicMock()
     mock_model.train.return_value = {"samples": 1, "classes": 1}
-    mock_model.save.return_value = True
 
     with patch(
         "ml_service.app.api.routes.load_model", return_value=mock_model
     ) as mock_get, patch(
         "ml_service.app.api.routes.track_training"
-    ) as mock_track:
+    ) as mock_track, patch(
+        "ml_service.app.api.routes.ModelManager.save_active_model"
+    ) as mock_save:
         resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}], headers=auth_header)
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["metrics"]["samples"] == 1
         mock_model.train.assert_called_once()
-        mock_model.save.assert_called_once()
+        mock_save.assert_called_once_with({"samples": 1, "classes": 1})
         mock_get.assert_called_once_with(client.application.config["MODEL_PATH"])
         mock_track.assert_called_once()
 
@@ -146,6 +158,41 @@ def test_feedback_route(client, auth_header, monkeypatch):
     assert called['count'] == 1
 
 
+def test_train_updates_metadata(client, auth_header, monkeypatch, tmp_path):
+    path = tmp_path / "model.joblib"
+    model = LightGBMSelector(str(path))
+    model.model = DummyM()
+    model.save(str(path), metrics={"samples": 0}, model_type="lightgbm", version=model_init.MODEL_VERSION)
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        before = json.load(f)["trained_at"]
+
+    client.application.config["MODEL_PATH"] = str(path)
+
+    def dummy_train(data, model=None, **_):
+        return {"samples": len(data)}
+
+    monkeypatch.setattr("ml_service.app.api.routes.train_model", dummy_train)
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.load_model",
+        lambda p: model,
+    )
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.save_active_model",
+        lambda metrics: model.save(str(path), metrics=metrics, model_type="lightgbm", version=model_init.MODEL_VERSION),
+    )
+    monkeypatch.setattr("ml_service.app.api.routes.track_training", lambda *a, **k: None)
+
+    resp = client.post("/api/train", json=[{"optimal_antenna": "a1"}], headers=auth_header)
+    assert resp.status_code == 200
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    assert meta["trained_at"] != before
+    assert meta["metrics"] == {"samples": 1}
+
+
 def test_model_health(client, monkeypatch):
     ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
     monkeypatch.setattr("ml_service.app.api.routes.ModelManager.is_ready", lambda: True)
@@ -161,3 +208,44 @@ def test_model_health(client, monkeypatch):
     assert data["metadata"]["version"] == "1.0"
     assert data["metadata"]["metrics"] == {"samples": 5}
     assert data["metadata"]["trained_at"] == ts.isoformat()
+
+
+def test_list_models_route(client, monkeypatch):
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.list_versions",
+        lambda: ["1.0.0", "2.0.0"],
+    )
+    resp = client.get("/api/models")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"versions": ["1.0.0", "2.0.0"]}
+
+
+def test_switch_model_route(client, auth_header, monkeypatch):
+    called = {}
+
+    def dummy_switch(version):
+        called["version"] = version
+        return True
+
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.switch_version", dummy_switch
+    )
+
+    resp = client.post("/api/models/2.0.0", headers=auth_header)
+    assert resp.status_code == 200
+    assert resp.get_json() == {"status": "ok", "version": "2.0.0"}
+    assert called["version"] == "2.0.0"
+
+
+def test_switch_model_invalid(client, auth_header, monkeypatch):
+    def raise_error(version):
+        raise ValueError("unknown")
+
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.switch_version", raise_error
+    )
+
+    resp = client.post("/api/models/9.9.9", headers=auth_header)
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["type"] == "RequestValidationError"

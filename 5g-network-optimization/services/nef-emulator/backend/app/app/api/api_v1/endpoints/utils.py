@@ -1,8 +1,9 @@
 from datetime import datetime
 import logging, requests, json
+from app.core.constants import DEFAULT_TIMEOUT
 
 logger = logging.getLogger(__name__)
-from typing import Any
+from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
@@ -39,8 +40,14 @@ except (ImportError, AttributeError):
             return True
 from app.core.config import settings
 
+
+class CCFLogRequest(BaseModel):
+    """Generic model for request bodies logged by CAPIF."""
+
+    data: Dict[str, Any]
+
 #Create CAPIF Logger object
-def ccf_logs(input_request: Request, output_response: dict, service_api_description: str, invoker_id: str):
+async def ccf_logs(input_request: Request, output_response: dict, service_api_description: str, invoker_id: str):
     
     try:
         capif_logger = CAPIFLogger(certificates_folder="app/core/certificates",
@@ -63,10 +70,12 @@ def ccf_logs(input_request: Request, output_response: dict, service_api_descript
             endpoint = "/nef/api/v1/3gpp-as-session-with-qos/"
 
         #Request body check and trim
-        if(input_request.method == 'POST') or (input_request.method == 'PUT'):  
-            req_body = input_request._body.decode("utf-8").replace('\n', '')
-            req_body = req_body.replace(' ', '')
-            req_body = json.loads(req_body)
+        if input_request.method in {"POST", "PUT"}:
+            try:
+                parsed = await input_request.json()
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+            req_body = CCFLogRequest(data=parsed).data
         else:
             req_body = " "
         
@@ -90,14 +99,16 @@ def ccf_logs(input_request: Request, output_response: dict, service_api_descript
         log_entries.append(log_entry)
         api_invoker_id = invoker_id
         capif_logger.save_log(api_invoker_id,log_entries)
-    except Exception as ex:
+    except HTTPException:
+        raise
+    except Exception as ex:  # pragma: no cover - defensive
         logging.critical(ex)
         logging.critical("Potential cause of failure: CAPIF Core Function is not deployed or unreachable")
     
 
 # Runtime state is stored in the shared StateManager instance
 
-def add_notifications(request: Request, response: JSONResponse, is_notification: bool):
+async def add_notifications(request: Request, response: JSONResponse, is_notification: bool):
 
     json_data: dict = {}
 
@@ -113,10 +124,12 @@ def add_notifications(request: Request, response: JSONResponse, is_notification:
         serviceAPI = "QoS Information"
 
     #Request body check and trim
-    if(request.method == 'POST') or (request.method == 'PUT'):  
-        req_body = request._body.decode("utf-8").replace('\n', '')
-        req_body = req_body.replace(' ', '')
-        json_data["request_body"] = req_body
+    if request.method in {"POST", "PUT"}:
+        try:
+            parsed = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+        json_data["request_body"] = json.dumps(CCFLogRequest(data=parsed).data)
 
     json_data["response_body"] = response.body.decode("utf-8")  
     json_data["endpoint"] = endpoint
@@ -295,25 +308,31 @@ def get_test(
     }
 
     try:
-        response = requests.request("POST", callbackurl, headers=headers, data=payload)
+        response = requests.request(
+            "POST",
+            callbackurl,
+            headers=headers,
+            data=payload,
+            timeout=DEFAULT_TIMEOUT,
+        )
         return response.json()
     except requests.exceptions.ConnectionError as ex:
         logging.warning(ex)
         raise HTTPException(status_code=409, detail=f"Failed to send the callback request. Error: {ex}")
 
 @router.post("/session-with-qos/callback")
-def create_item(_: UserPlaneNotificationData, request: Request):
+async def create_item(_: UserPlaneNotificationData, request: Request):
 
     http_response = JSONResponse(content={'ack' : 'TRUE'}, status_code=200)
-    add_notifications(request, http_response, True)
-    return http_response 
+    await add_notifications(request, http_response, True)
+    return http_response
 
 @router.post("/monitoring/callback")
-def create_item(_: monitoringevent.MonitoringNotification, request: Request):
+async def create_item(_: monitoringevent.MonitoringNotification, request: Request):
 
     http_response = JSONResponse(content={'ack' : 'TRUE'}, status_code=200)
-    add_notifications(request, http_response, True)
-    return http_response 
+    await add_notifications(request, http_response, True)
+    return http_response
 
 @router.get("/monitoring/notifications")
 def get_notifications(

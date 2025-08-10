@@ -2,6 +2,7 @@ import json
 import logging
 import time
 from datetime import datetime
+from collections import deque
 
 import numpy as np
 import pytest
@@ -260,6 +261,38 @@ def test_switch_version_loads_registered_model(monkeypatch, tmp_path):
     assert ModelManager._last_good_model_path == str(path2)
 
 
+def test_discovered_versions_switchable(monkeypatch, tmp_path):
+    """Versions found on disk should be loadable immediately."""
+    version1 = "1.0.0"
+    version2 = "2.0.0"
+    path1 = tmp_path / f"model_v{version1}.joblib"
+    path2 = tmp_path / f"model_v{version2}.joblib"
+    for p in (path1, path2):
+        p.touch()
+        with open(p.with_suffix(f"{p.suffix}.meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
+
+    loads = []
+
+    def dummy_load(self, path=None):
+        loads.append(path)
+        return True
+
+    monkeypatch.setattr(LightGBMSelector, "load", dummy_load)
+
+    ModelManager._model_instance = None
+    ModelManager._model_paths = {}
+
+    ModelManager.initialize(str(path1), background=False)
+
+    assert ModelManager._model_paths[version1] == str(path1)
+    assert ModelManager._model_paths[version2] == str(path2)
+
+    ModelManager.switch_version(version2)
+    assert loads[-1] == str(path2)
+    assert ModelManager._last_good_model_path == str(path2)
+
+
 def test_switch_version_fallback(monkeypatch, tmp_path):
     version1 = "1.0.0"
     version2 = "2.0.0"
@@ -319,6 +352,45 @@ def test_initialize_background_returns_placeholder(monkeypatch, tmp_path):
     assert ModelManager.get_instance() is final_model
 
 
+def test_feed_feedback_updates_metadata(monkeypatch, tmp_path):
+    """Metadata timestamp should update after drift-triggered retraining."""
+
+    path = tmp_path / "model.joblib"
+    model = LightGBMSelector(str(path))
+    model.model = DummyModel()
+    model.save(str(path), metrics={"samples": 0}, model_type="lightgbm", version=model_init.MODEL_VERSION)
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        before = json.load(f)["trained_at"]
+
+    ModelManager._model_instance = model
+    ModelManager._last_good_model_path = str(path)
+    ModelManager._feedback_data = deque(maxlen=model_init.FEEDBACK_BUFFER_LIMIT)
+
+    model.update = lambda sample, success=True: None
+    model.drift_detected = lambda: True
+
+    def dummy_retrain(data):
+        return {"samples": len(data)}
+
+    model.retrain = dummy_retrain
+
+    monkeypatch.setattr(
+        ModelManager,
+        "save_active_model",
+        lambda metrics: model.save(str(path), metrics=metrics, model_type="lightgbm", version=model_init.MODEL_VERSION),
+    )
+
+    retrained = ModelManager.feed_feedback({"optimal_antenna": "a1"}, success=True)
+    assert retrained
+
+    with open(path.with_suffix(path.suffix + ".meta.json"), "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    assert meta["trained_at"] != before
+    assert meta["metrics"] == {"samples": 1}
+
+
 @pytest.mark.parametrize("fail", [False, True])
 def test_switch_version(monkeypatch, tmp_path, fail):
     """switch_version loads the requested version and falls back on failure."""
@@ -350,6 +422,7 @@ def test_switch_version(monkeypatch, tmp_path, fail):
     ModelManager.switch_version(version2)
 
     assert load_calls[-1] == str(path2)
+
     if fail:
         assert ModelManager.get_instance() is prev_model
         assert ModelManager._last_good_model_path == str(path1)
