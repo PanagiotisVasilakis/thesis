@@ -25,12 +25,9 @@ from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
     DEFAULT_FALLBACK_ANTENNA_ID,
     DEFAULT_FALLBACK_CONFIDENCE,
-    DEFAULT_FALLBACK_RSRP,
-    DEFAULT_FALLBACK_SINR,
-    DEFAULT_FALLBACK_RSRQ,
     DEFAULT_LIGHTGBM_MAX_DEPTH,
     DEFAULT_LIGHTGBM_RANDOM_STATE,
-    env_constants
+    env_constants,
 )
 from ..utils.exception_handler import (
     ExceptionHandler,
@@ -243,58 +240,10 @@ class AntennaSelector(AsyncModelInterface):
             random_state=DEFAULT_LIGHTGBM_RANDOM_STATE,
         )
 
-    def _direction_to_unit(self, direction: tuple | list) -> tuple[float, float]:
-        """Convert a 2D direction vector to unit components."""
-        if isinstance(direction, (list, tuple)) and len(direction) >= 2:
-            magnitude = (direction[0] ** 2 + direction[1] ** 2) ** 0.5
-            if magnitude > 0:
-                return direction[0] / magnitude, direction[1] / magnitude
-        return 0.0, 0.0
-
-    def _current_signal(
-        self, current: str | None, metrics: dict
-    ) -> tuple[float, float, float]:
-        """Return RSRP/SINR/RSRQ for the currently connected antenna."""
-        if current and current in metrics:
-            data = metrics[current]
-            rsrp = data.get("rsrp", DEFAULT_FALLBACK_RSRP)
-            sinr = data.get("sinr")
-            rsrq = data.get("rsrq")
-            if sinr is None:
-                sinr = DEFAULT_FALLBACK_SINR
-            if rsrq is None:
-                rsrq = DEFAULT_FALLBACK_RSRQ
-            return rsrp, sinr, rsrq
-        return DEFAULT_FALLBACK_RSRP, DEFAULT_FALLBACK_SINR, DEFAULT_FALLBACK_RSRQ
-
-    def _neighbor_list(self, metrics: dict, current: str | None, include: bool) -> list:
-        """Return sorted list of neighbour metrics."""
-        if not include or not metrics:
-            return []
-        neighbors = [
-            (
-                aid,
-                vals.get("rsrp", DEFAULT_FALLBACK_RSRP),
-                vals.get("sinr") if vals.get("sinr") is not None else DEFAULT_FALLBACK_SINR,
-                vals.get("rsrq") if vals.get("rsrq") is not None else DEFAULT_FALLBACK_RSRQ,
-                vals.get("cell_load"),
-            )
-            for aid, vals in metrics.items()
-            if aid != current
-        ]
-        neighbors.sort(key=lambda x: x[1], reverse=True)
-        return neighbors
 
     def extract_features(self, data, include_neighbors=True):
-        """Extract features from UE data with performance optimizations.
+        """Extract features from UE data with caching and shared pipeline."""
 
-        Performance improvements:
-        - Reduced dictionary lookups with batch extraction
-        - Pre-allocated feature dictionary
-        - Optimized neighbor processing
-        - Cached default values
-        - Feature extraction caching for repeated requests
-        """
         # Try to get cached features first
         ue_id = data.get("ue_id")
         if ue_id:
@@ -432,7 +381,7 @@ class AntennaSelector(AsyncModelInterface):
         if ue_id:
             from ..utils.feature_cache import feature_cache
             feature_cache.put(ue_id, data, features)
-        
+
         return features
 
     def predict(self, features):
