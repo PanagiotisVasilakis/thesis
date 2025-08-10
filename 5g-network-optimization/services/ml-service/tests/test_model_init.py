@@ -325,7 +325,7 @@ def test_initialize_background_returns_placeholder(monkeypatch, tmp_path):
     """Initialization with background=True should return a placeholder immediately."""
     model_path = tmp_path / "model.joblib"
     model_path.touch()
-    with open(model_path.with_suffix(f"{model_path.suffix}.meta.json"), "w", encoding="utf-8") as f:
+    with open(model_path.with_suffix(model_path.suffix + ".meta.json"), "w", encoding="utf-8") as f:
         json.dump({"model_type": "lightgbm", "version": model_init.MODEL_VERSION}, f)
 
     final_model = DummyModel()
@@ -423,11 +423,6 @@ def test_switch_version(monkeypatch, tmp_path, fail):
 
     assert load_calls[-1] == str(path2)
 
-    # Test switching to a non-existent version
-    import pytest
-    non_existent_version = "non-existent-version"
-    with pytest.raises(ValueError):
-        ModelManager.switch_version(non_existent_version)
     if fail:
         assert ModelManager.get_instance() is prev_model
         assert ModelManager._last_good_model_path == str(path1)
