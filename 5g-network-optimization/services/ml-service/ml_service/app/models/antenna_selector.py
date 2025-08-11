@@ -237,6 +237,12 @@ class AntennaSelector(AsyncModelInterface):
         """Wrapper around pipeline._current_signal for instance access."""
         return pipeline._current_signal(current, metrics)
 
+    def _neighbor_list(
+        self, metrics: dict, current: str | None, include: bool
+    ) -> list[tuple[str, float, float, float, float | None]]:
+        """Wrapper around pipeline._neighbor_list for instance access."""
+        return pipeline._neighbor_list(metrics, current, include)
+
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
@@ -529,7 +535,7 @@ class AntennaSelector(AsyncModelInterface):
         with self._model_lock:
             try:
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                
+
                 # Create atomic save by writing to temporary file first
                 temp_path = f"{save_path}.tmp"
                 joblib.dump(
@@ -537,14 +543,19 @@ class AntennaSelector(AsyncModelInterface):
                         "model": self.model,
                         "feature_names": self.feature_names,
                         "neighbor_count": self.neighbor_count,
-                        "scaler": self.scaler,
                     },
                     temp_path,
                 )
-                
+
                 # Atomic move to final location
                 os.replace(temp_path, save_path)
-                
+
+                # Save scaler separately
+                scaler_path = f"{save_path}.scaler"
+                temp_scaler_path = f"{scaler_path}.tmp"
+                joblib.dump(self.scaler, temp_scaler_path)
+                os.replace(temp_scaler_path, scaler_path)
+
                 # Save metadata
                 meta = {
                     "model_type": model_type,
@@ -553,22 +564,27 @@ class AntennaSelector(AsyncModelInterface):
                 }
                 if metrics is not None:
                     meta["metrics"] = metrics
-                
+
                 meta_path = f"{save_path}.meta.json"
                 temp_meta_path = f"{meta_path}.tmp"
-                
+
                 with open(temp_meta_path, "w", encoding="utf-8") as f:
                     json.dump(meta, f)
-                
+
                 # Atomic move for metadata
                 os.replace(temp_meta_path, meta_path)
-                
+
                 return True
-                
+
             except Exception as e:
                 logger.error("Failed to save model to %s: %s", save_path, e)
                 # Clean up temporary files if they exist
-                for temp_file in [f"{save_path}.tmp", f"{save_path}.meta.json.tmp"]:
+                temp_files = [
+                    f"{save_path}.tmp",
+                    f"{save_path}.meta.json.tmp",
+                    f"{save_path}.scaler.tmp",
+                ]
+                for temp_file in temp_files:
                     try:
                         if os.path.exists(temp_file):
                             os.remove(temp_file)
@@ -590,13 +606,21 @@ class AntennaSelector(AsyncModelInterface):
                     self.model = data["model"]
                     self.feature_names = data.get("feature_names", self.feature_names)
                     self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
-                    self.scaler = data.get("scaler", StandardScaler())
                 else:
                     self.model = data
-                
+
+                # Load scaler from separate file if available, else fallback to legacy
+                scaler_path = f"{load_path}.scaler"
+                if os.path.exists(scaler_path):
+                    self.scaler = joblib.load(scaler_path)
+                elif isinstance(data, dict):
+                    self.scaler = data.get("scaler", StandardScaler())
+                else:
+                    self.scaler = StandardScaler()
+
                 logger.info("Successfully loaded model from %s", load_path)
                 return True
-                
+
             except Exception as e:
                 logger.error("Failed to load model from %s: %s", load_path, e)
                 return False

@@ -1,4 +1,5 @@
 import numpy as np
+from pathlib import Path
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 
 
@@ -63,6 +64,9 @@ def test_scaler_persistence(tmp_path):
 
     path = tmp_path / "model.joblib"
     assert model.save(path)
+
+    scaler_path = Path(str(path) + ".scaler")
+    assert scaler_path.exists(), "Scaler file was not saved separately"
 
     loaded = LightGBMSelector()
     assert loaded.load(path)
