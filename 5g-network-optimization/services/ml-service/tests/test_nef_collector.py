@@ -1,27 +1,25 @@
 import json
 import asyncio
-from unittest.mock import MagicMock
 
 from ml_service.app.data import nef_collector
 from ml_service.app.data.nef_collector import NEFDataCollector
 
 
-def test_login(monkeypatch):
-    mock_client = MagicMock()
-    mock_client.login.return_value = True
-    mock_client.token = "tok"
-    mock_client.get_headers.return_value = {"Authorization": "Bearer tok"}
-    monkeypatch.setattr(nef_collector, "NEFClient", lambda *a, **k: mock_client)
+def test_login(monkeypatch, mock_nef_client):
+    mock_nef_client.login.return_value = True
+    mock_nef_client.token = "tok"
+    mock_nef_client.get_headers.return_value = {"Authorization": "Bearer tok"}
+    monkeypatch.setattr(nef_collector, "NEFClient", lambda *a, **k: mock_nef_client)
     collector = NEFDataCollector(nef_url="http://nef", username="u", password="p")
     assert collector.login() is True
     assert collector.client.token == "tok"
     assert collector.client.get_headers()["Authorization"] == "Bearer tok"
 
 
-def test_get_ue_movement_state(monkeypatch):
+def test_get_ue_movement_state(mock_nef_client):
     collector = NEFDataCollector(nef_url="http://nef")
-    mock_client = MagicMock(get_ue_movement_state=lambda: {"ue1": {"latitude": 1}})
-    collector.client = mock_client
+    mock_nef_client.get_ue_movement_state.return_value = {"ue1": {"latitude": 1}}
+    collector.client = mock_nef_client
     state = collector.get_ue_movement_state()
     assert state == {"ue1": {"latitude": 1}}
 
@@ -30,20 +28,19 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_collect_training_data(tmp_path, monkeypatch):
+async def test_collect_training_data(tmp_path, monkeypatch, mock_nef_client):
     collector = NEFDataCollector(nef_url="http://nef")
     collector.data_dir = str(tmp_path)
 
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
-    mock_client = MagicMock()
-    mock_client.get_ue_movement_state.return_value = sample_state
-    mock_client.get_feature_vector.return_value = {
+    mock_nef_client.get_ue_movement_state.return_value = sample_state
+    mock_nef_client.get_feature_vector.return_value = {
         "neighbor_rsrp_dbm": {"A": -75},
         "neighbor_sinrs": {"A": 12},
         "neighbor_rsrqs": {"A": -10},
         "neighbor_cell_loads": {"A": 2},
     }
-    collector.client = mock_client
+    collector.client = mock_nef_client
     async def fake_sleep(_):
         return None
 
@@ -76,18 +73,17 @@ def test_collect_training_data_invalid():
         asyncio.run(collector.collect_training_data(duration=0, interval=1))
 
 
-def test_collect_sample_missing_cell_id(monkeypatch):
+def test_collect_sample_missing_cell_id(mock_nef_client):
     collector = NEFDataCollector(nef_url="http://nef")
-    mock_client = MagicMock()
-    collector.client = mock_client
+    collector.client = mock_nef_client
 
     result = collector._collect_sample("ue1", {"latitude": 0})
 
     assert result is None
-    mock_client.get_feature_vector.assert_not_called()
+    mock_nef_client.get_feature_vector.assert_not_called()
 
 
-def test_collect_sample_selects_best_antenna(monkeypatch):
+def test_collect_sample_selects_best_antenna(mock_nef_client):
     collector = NEFDataCollector(nef_url="http://nef")
     fv = {
         "neighbor_rsrp_dbm": {"A": -80, "B": -75},
@@ -95,8 +91,8 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
         "neighbor_rsrqs": {"A": -12, "B": -9},
         "neighbor_cell_loads": {"A": 3, "B": 1},
     }
-    mock_client = MagicMock(get_feature_vector=MagicMock(return_value=fv))
-    collector.client = mock_client
+    mock_nef_client.get_feature_vector.return_value = fv
+    collector.client = mock_nef_client
 
     ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
     sample = collector._collect_sample("ue1", ue_data)
@@ -115,18 +111,17 @@ def test_collect_sample_selects_best_antenna(monkeypatch):
     assert sample["time_since_handover"] == 0.0
     assert sample["heading_change_rate"] == 0.0
     assert sample["path_curvature"] == 0.0
-    mock_client.get_feature_vector.assert_called_once_with("ue1")
+    mock_nef_client.get_feature_vector.assert_called_once_with("ue1")
 
 
 @pytest.mark.asyncio
-async def test_collect_training_data_empty(tmp_path, monkeypatch):
+async def test_collect_training_data_empty(tmp_path, monkeypatch, mock_nef_client):
     """When no samples are collected, an empty JSON file should be written."""
     collector = NEFDataCollector(nef_url="http://nef")
     collector.data_dir = str(tmp_path)
 
-    mock_client = MagicMock()
-    mock_client.get_ue_movement_state.return_value = {}
-    collector.client = mock_client
+    mock_nef_client.get_ue_movement_state.return_value = {}
+    collector.client = mock_nef_client
 
     async def fake_sleep(_):
         return None
