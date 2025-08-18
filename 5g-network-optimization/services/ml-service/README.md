@@ -33,6 +33,14 @@ which in turn calls `ModelManager.wait_until_ready()` before returning. This
 ensures that incoming requests block until initialization has completed and a
 fully trained model is available.
 
+## Resource Manager
+
+The service employs a `ResourceManager` utility to track transient objects such
+as client sessions or background tasks. Resources are registered with a unique
+identifier and cleaned up when no longer needed. Attempting to remove an
+unknown identifier logs a warning and returns `False`, allowing callers to
+handle missing resources gracefully.
+
 ## API Endpoints
 
 The routes are defined in `app/api/routes.py`. Example calls are shown using
