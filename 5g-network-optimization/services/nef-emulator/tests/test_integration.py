@@ -23,6 +23,8 @@ def test_collect_training_data(monkeypatch, tmp_path):
     sample_state = {"ue1": {"latitude": 0,
                             "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_client = MagicMock()
+    # Simulate available NEF service
+    mock_client.get_status.return_value = type("Resp", (), {"status_code": 200})()
     mock_client.get_ue_movement_state.return_value = sample_state
     mock_client.get_feature_vector.return_value = {
         "neighbor_rsrp_dbm": {"A": -70},
