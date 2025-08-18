@@ -5,6 +5,7 @@ import pytest
 from ml_service.app.data import nef_collector
 from ml_service.app.data.nef_collector import NEFDataCollector
 
+# Data collection requires a healthy NEF service; `get_status` must return HTTP 200.
 
 def test_login_success():
     mock_client = MagicMock()
@@ -34,11 +35,20 @@ async def test_collect_training_data():
     mock_client = MagicMock()
     mock_client.get_ue_movement_state.return_value = sample_state
     mock_client.get_feature_vector.return_value = {}
+    # Simulate healthy NEF service for data collection
+    mock_client.get_status.return_value = MagicMock(status_code=200)
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
-         patch("asyncio.sleep", new=AsyncMock()), \
-         patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
+         patch("asyncio.sleep", new=AsyncMock()):
         collector = NEFDataCollector(nef_url="http://nef")
-        data = await collector.collect_training_data(duration=1, interval=1)
+        # Provide deterministic time progression only during data collection
+        def time_gen():
+            for t in [0, 0.1, 0.2]:
+                yield t
+            while True:
+                yield 2
+        time_iter = time_gen()
+        with patch("time.time", side_effect=lambda: next(time_iter)):
+            data = await collector.collect_training_data(duration=1, interval=1)
         assert len(data) == 1
         assert data[0]["ue_id"] == "ue1"
         assert data[0]["altitude"] is None
@@ -52,12 +62,20 @@ async def test_collect_training_data_file(tmp_path):
     mock_client = MagicMock()
     mock_client.get_ue_movement_state.return_value = sample_state
     mock_client.get_feature_vector.return_value = {}
+    # Simulate healthy NEF service for data collection
+    mock_client.get_status.return_value = MagicMock(status_code=200)
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_client), \
-         patch("asyncio.sleep", new=AsyncMock()), \
-         patch("time.time", side_effect=[0, 0.1, 0.2, 1.1]):
+         patch("asyncio.sleep", new=AsyncMock()):
         collector = NEFDataCollector(nef_url="http://nef")
         collector.data_dir = str(tmp_path / "collected_data")
-        data = await collector.collect_training_data(duration=1, interval=1)
+        def time_gen():
+            for t in [0, 0.1, 0.2]:
+                yield t
+            while True:
+                yield 2
+        time_iter = time_gen()
+        with patch("time.time", side_effect=lambda: next(time_iter)):
+            data = await collector.collect_training_data(duration=1, interval=1)
 
         files = list((tmp_path / "collected_data").iterdir())
         assert len(files) == 1
