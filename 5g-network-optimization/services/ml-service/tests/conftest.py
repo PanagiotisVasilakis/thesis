@@ -1,5 +1,7 @@
 import importlib.util
 import sys
+from unittest.mock import MagicMock
+
 import pytest
 import matplotlib
 
@@ -47,3 +49,26 @@ def auth_header(client):
     assert resp.status_code == 200
     token = resp.get_json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def mock_nef_client():
+    """Provide a preconfigured mock for :class:`NEFClient` interactions.
+
+    The fixture returns a :class:`~unittest.mock.MagicMock` instance with
+    sensible defaults for the methods most tests rely on. Each test may
+    override these defaults as needed.
+
+    Returns:
+        MagicMock: Mocked NEF client with common methods stubbed out.
+    """
+
+    mock = MagicMock()
+    # Simulate a healthy NEF service by default
+    mock.get_status.return_value = MagicMock(status_code=200)
+    mock.login.return_value = True
+    mock.token = "test-token"
+    mock.get_headers.return_value = {"Authorization": "Bearer test-token"}
+    mock.get_ue_movement_state.return_value = {}
+    mock.get_feature_vector.return_value = {}
+    return mock
