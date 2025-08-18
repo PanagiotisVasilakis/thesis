@@ -189,7 +189,7 @@ class AsyncNEFClient:
                         keepalive_timeout=30,
                         enable_cleanup_closed=True,
                     )
-                    self._session = ClientSession(
+                    session = ClientSession(
                         connector=connector,
                         timeout=self.timeout,
                         headers={
@@ -198,34 +198,44 @@ class AsyncNEFClient:
                         },
                         json_serialize=json.dumps,
                     )
-                    
-                    # Register session with resource manager
-                    self._session_resource_id = global_resource_manager.register_resource(
-                        self._session,
-                        ResourceType.HTTP_SESSION,
-                        cleanup_method=self._session.close,
-                        metadata={
-                            "client_type": "AsyncNEFClient",
-                            "base_url": self.base_url,
-                            "connector_limit": 50
-                        }
-                    )
+
+                    try:
+                        # Register session with resource manager
+                        self._session_resource_id = global_resource_manager.register_resource(
+                            session,
+                            ResourceType.HTTP_SESSION,
+                            cleanup_method=session.close,
+                            metadata={
+                                "client_type": "AsyncNEFClient",
+                                "base_url": self.base_url,
+                                "connector_limit": 50
+                            }
+                        )
+                        self._session = session
+                    except Exception:
+                        # Ensure session is closed if registration fails
+                        await session.close()
+                        raise
         return self._session
 
     async def close(self):
         """Close the HTTP session and clean up resources."""
         self._closed = True
-        
-        # Unregister from resource manager first
-        if self._session_resource_id:
-            global_resource_manager.unregister_resource(self._session_resource_id, force_cleanup=True)
-            self._session_resource_id = None
-        
-        if self._session and not self._session.closed:
-            await self._session.close()
-            
-        # Wait a bit for connections to close
-        await asyncio.sleep(0.1)
+
+        session = self._session
+        self._session = None
+
+        try:
+            if self._session_resource_id:
+                global_resource_manager.unregister_resource(
+                    self._session_resource_id, force_cleanup=True
+                )
+                self._session_resource_id = None
+        finally:
+            if session and not session.closed:
+                await session.close()
+            # Wait a bit for connections to close
+            await asyncio.sleep(0.1)
 
     async def __aenter__(self):
         """Async context manager entry."""

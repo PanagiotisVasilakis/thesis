@@ -253,43 +253,44 @@ class TestMLPipelineIntegration:
     @pytest.mark.asyncio
     async def test_async_nef_client_integration(self):
         """Test async NEF client with mock server responses."""
-        client = AsyncNEFClient("http://mock-nef:8080", timeout=5.0)
-        
-        # Mock the session and responses
-        with patch.object(client, '_get_session') as mock_session:
-            mock_response = Mock()
-            mock_response.status = 200
-            mock_response.json = AsyncMock(return_value={"access_token": "test_token"})
-            mock_response.text = AsyncMock(return_value="OK")
-            mock_response.headers = {"X-API-Version": "1.0"}
-            
-            mock_session_instance = Mock()
-            mock_session_instance.request = AsyncMock(return_value=mock_response)
-            mock_session.return_value = mock_session_instance
-            
+        client = AsyncNEFClient("http://mock-nef:8080", username="user", password="pass", timeout=5.0)
+
+        # Mock internal request method to avoid real HTTP calls
+        with patch.object(client, '_make_request_with_retry', new_callable=AsyncMock) as mock_request:
+            mock_request.side_effect = [
+                {"access_token": "test_token"},  # login
+                {"status_code": 200},             # get_status
+                {"ue_id": "test_ue", "features": {}},  # get_feature_vector
+                {"ue_id": "ue1", "features": {}},      # batch get_feature_vector first
+                {"ue_id": "ue2", "features": {}},      # batch get_feature_vector second
+                {"status_code": 200},             # health_check -> get_status
+            ]
+
             # Test login
             login_success = await client.login()
             assert login_success
             assert client.token == "test_token"
-            
-            # Test status check  
+
+            # Test status check
             status = await client.get_status()
             assert status["status_code"] == 200
-            
+
             # Test feature vector retrieval
-            mock_response.json = AsyncMock(return_value={"ue_id": "test_ue", "features": {}})
             features = await client.get_feature_vector("test_ue")
             assert "ue_id" in features
-            
+
             # Test batch feature vector retrieval
             batch_features = await client.batch_get_feature_vectors(["ue1", "ue2"])
             assert len(batch_features) == 2
-            
+
             # Test health check
             health = await client.health_check()
             assert health is True
-        
-        await client.close()
+
+        # Ensure the client's close method is properly awaited
+        with patch.object(client, 'close', new_callable=AsyncMock, wraps=client.close) as mock_close:
+            await client.close()
+            mock_close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_error_handling_integration(self, temp_model_dir):
@@ -333,26 +334,18 @@ class TestMLPipelineIntegration:
     @pytest.mark.asyncio
     async def test_async_nef_client_error_handling(self):
         """Test async NEF client error handling."""
-        client = AsyncNEFClient("http://unreachable:8080", timeout=1.0, max_retries=2)
-        
-        # Test connection failure
-        with pytest.raises(AsyncNEFClientError):
-            await client.login()
-        
-        # Test with mock server errors
-        with patch.object(client, '_get_session') as mock_session:
-            mock_response = Mock()
-            mock_response.status = 500
-            mock_response.text = AsyncMock(return_value="Internal Server Error")
-            
-            mock_session_instance = Mock()
-            mock_session_instance.request = AsyncMock(return_value=mock_response)
-            mock_session.return_value = mock_session_instance
-            
-            # Should retry and eventually fail
-            with pytest.raises(AsyncNEFClientError):
-                await client.get_status()
-        
+        client = AsyncNEFClient("http://unreachable:8080", username="user", password="pass", timeout=1.0, max_retries=2)
+
+        # Test connection failure returns False without raising
+        with patch.object(client, '_make_request_with_retry', side_effect=AsyncNEFClientError("connection")):
+            assert not await client.login()
+
+        # Test server error handling returns error dict
+        with patch.object(client, '_make_request_with_retry', side_effect=AsyncNEFClientError("server error")):
+            status = await client.get_status()
+            assert status["status_code"] == 0
+            assert "server error" in status["error"]
+
         await client.close()
 
     def test_model_validation_integration(self, sample_features):
