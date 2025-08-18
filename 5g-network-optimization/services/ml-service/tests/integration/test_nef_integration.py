@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
 import pytest
 
 from ml_service.app.data import nef_collector
@@ -32,6 +32,8 @@ async def test_collect_training_data(mock_nef_client):
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_nef_client.get_ue_movement_state.return_value = sample_state
     mock_nef_client.get_feature_vector.return_value = {}
+    # Simulate a healthy NEF service by returning HTTP 200 from get_status
+    mock_nef_client.get_status.return_value = MagicMock(status_code=200)
     times = iter([0, 0.1, 0.2, 1.1, 1.2])
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_nef_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
@@ -58,6 +60,8 @@ async def test_collect_training_data_file(tmp_path, mock_nef_client):
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_nef_client.get_ue_movement_state.return_value = sample_state
     mock_nef_client.get_feature_vector.return_value = {}
+    # Simulate a healthy NEF service by returning HTTP 200 from get_status
+    mock_nef_client.get_status.return_value = MagicMock(status_code=200)
     times = iter([0, 0.1, 0.2, 1.1, 1.2])
     with patch.object(nef_collector, "NEFClient", lambda *a, **k: mock_nef_client), \
          patch("asyncio.sleep", new=AsyncMock()), \
