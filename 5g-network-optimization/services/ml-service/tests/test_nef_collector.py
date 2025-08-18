@@ -1,6 +1,10 @@
 import json
 import asyncio
+from unittest.mock import MagicMock
 
+import pytest
+
+from ml_service.app.clients.nef_client import NEFClientError
 from ml_service.app.data import nef_collector
 from ml_service.app.data.nef_collector import NEFDataCollector
 
@@ -24,7 +28,15 @@ def test_get_ue_movement_state(mock_nef_client):
     assert state == {"ue1": {"latitude": 1}}
 
 
-import pytest
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_obj", [None, MagicMock(status_code=500), object()])
+async def test_collect_training_data_bad_status(mock_nef_client, status_obj):
+    collector = NEFDataCollector(nef_url="http://nef")
+    collector.client = mock_nef_client
+    mock_nef_client.get_status.return_value = status_obj
+
+    with pytest.raises(NEFClientError):
+        await collector.collect_training_data(duration=1, interval=1)
 
 
 @pytest.mark.asyncio
@@ -41,6 +53,7 @@ async def test_collect_training_data(tmp_path, monkeypatch, mock_nef_client):
         "neighbor_cell_loads": {"A": 2},
     }
     collector.client = mock_nef_client
+
     async def fake_sleep(_):
         return None
 

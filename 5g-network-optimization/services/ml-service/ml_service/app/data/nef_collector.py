@@ -211,8 +211,8 @@ class NEFDataCollector:
         # Check if NEF client is available
         try:
             status = self.client.get_status()
-            if status.status_code != 200:
-                raise NEFClientError(f"NEF service not available (status: {status.status_code})")
+            if not getattr(status, "status_code", 0) == 200:
+                raise NEFClientError("NEF service not available")
         except Exception as e:
             raise NEFClientError(f"Cannot connect to NEF service: {e}") from e
 
@@ -598,8 +598,8 @@ class AsyncNEFDataCollector:
         # Check if NEF client is available
         try:
             status = await self.client.get_status()
-            if "error" in status:
-                raise AsyncNEFClientError(f"NEF service not available: {status['error']}")
+            if not getattr(status, "status_code", 0) == 200:
+                raise AsyncNEFClientError("NEF service not available")
         except Exception as e:
             raise AsyncNEFClientError(f"Cannot connect to NEF service: {e}") from e
 
