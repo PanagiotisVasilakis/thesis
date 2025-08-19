@@ -57,54 +57,62 @@ def extract_rf_features(feature_vector: Dict[str, Any]) -> Dict[str, Dict[str, f
 
 
 def extract_environment_features(feature_vector: Dict[str, Any]) -> Dict[str, Optional[float]]:
-    """Extract environment related features from the raw vector."""
+    """Extract environment related features from the raw vector.
 
-        The returned dictionary contains:
+    The returned dictionary contains:
 
-    * **cell_load** – current load on the serving cell expressed as a fraction (0–1). High cell load suggests congestion and increases the likelihood of handing off to a less loaded neighbour.
-
-    * **environment** – optional indicator describing broader environmental conditions (e.g. indoor/outdoor, shadowing). If present, it should be a numeric score; otherwise the value is ``None``.
-
-    * **signal_trend** – recent trend in RSRP/SINR/RSRQ measurements; positive values imply improving conditions whereas negative values indicate deterioration. This helps anticipate when a user’s link quality is degrading and a handover may soon be necessary.
-
-    * **service_profile** – an ordinal representation of the UE’s service class. The mapping follows 3GPP QoS names: ``eMBB`` → 1.0, ``URLLC`` → 2.0, ``mMTC`` → 0.5, with ``0.0`` for unknown or other classes. A higher value implies stricter latency/reliability requirements, prompting the handover logic to favour conservative, low‑latency targets.
-
-    Including these environment descriptors alongside mobility features allows the model to reason jointly about radio quality and QoS requirements when selecting the optimal cell.
-
-    features: Dict[str, Optional[float]] = {}
-    for key in ["cell_load", "environment", "signal_trend"]:
-        value = feature_vector.get(key)
-        features[key] = float(value) if isinstance(value, (int, float)) else None
     
 
+    * **cell_load** – current load on the serving cell expressed as a fraction (0–1).
+
+    * **environment** – optional indicator describing broader environmental conditions (e.g. indoor/outdoor, shadowing).
+
+    * **signal_trend** – recent trend in RSRP/SINR/RSRQ measurements.
+
+    * **service_profile** – an ordinal representation of the UE's service class.
+
+    
+
+    Including these descriptors allows the model to reason about radio quality and QoS requirements.
+
+    """
+
+    features: Dict[str, Optional[float]] = {}
+
+    for key in ["cell_load", "environment", "signal_trend"]:
+
+        value = feature_vector.get(key)
+
+        features[key] = float(value) if isinstance(value, (int, float)) else None
+
+
+
     service_profile = feature_vector.get("service_profile")
+
     if service_profile is not None:
+
         mapping = {"mmtc": 0.5, "embb": 1.0, "urllc": 2.0}
+
         features["service_profile"] = mapping.get(str(service_profile).lower(), 0.0)
-      return features
 
 
 
+    return features
 
 def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float]:
-    """Extract mobility related features including direction components."""
+    """Extract mobility related features including direction components.
 
     The returned dictionary includes:
 
-    * **speed** – instantaneous ground speed (m/s) derived from GNSS or timing advance. High speeds indicate vehicular mobility, whereas values close to zero suggest stationary or pedestrian UEs.
-
+    * **speed** – instantaneous ground speed (m/s) derived from GNSS or timing advance.
     * **velocity** – a smoothed estimate of speed; defaults to instantaneous speed if not provided.
+    * **acceleration** – rate of change of speed (m/s²).
+    * **heading_change_rate** – average absolute change in heading (radians/s).
+    * **path_curvature** – normalised curvature of the UE’s path.
+    * **direction_x** / **direction_y** – unit vector components of movement direction.
 
-    * **acceleration** – rate of change of speed (m/s²). Positive values imply the UE is accelerating; negative values imply deceleration. Helps anticipate imminent handovers.
-
-    * **heading_change_rate** – average absolute change in heading (radians/s) computed over recent positions. Rapid changes indicate erratic movement; low values suggest straight‑line motion.
-
-    * **path_curvature** – normalised curvature of the UE’s path. A straight trajectory yields zero; tighter turns increase the value.
-
-    * **direction_x** / **direction_y** – unit vector components of movement direction on the x and y axes, capturing orientation without magnitude.
-
-    These descriptors allow the model to differentiate between stationary, pedestrian and vehicular users, improving handover timing and reducing ping‑pong events.
-
+    These descriptors allow the model to differentiate between stationary, pedestrian and vehicular users.
+    """
     speed_val = feature_vector.get("speed", 0)
     speed = float(speed_val) if isinstance(speed_val, (int, float)) else 0.0
 
@@ -122,8 +130,8 @@ def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float
     pc_val = feature_vector.get("path_curvature", 0)
     path_curvature = float(pc_val) if isinstance(pc_val, (int, float)) else 0.0
 
-    direction = feature_vector.get("direction", (0, 0, 0))
-    dx, dy = _direction_to_unit(direction)
+    dir_val = feature_vector.get("direction", (0, 0))
+    dx, dy = _cached_direction_to_unit(dir_val)
 
     return {
         "speed": speed,
@@ -134,8 +142,6 @@ def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float
         "direction_x": dx,
         "direction_y": dy,
     }
-
-
 def determine_optimal_antenna(rf_metrics: Dict[str, Dict[str, float]]) -> str:
     """Choose the antenna with highest RSRP using SINR as tie breaker."""
     if not rf_metrics:

@@ -87,15 +87,14 @@ class MetricsAuthenticator:
             encoded_credentials = auth_header[6:]
             decoded = base64.b64decode(encoded_credentials).decode('utf-8')
             username, password = decoded.split(':', 1)
-            
+
             # Use secure comparison to prevent timing attacks
             username_match = hmac.compare_digest(username, self.username or "")
             password_match = hmac.compare_digest(password, self.password or "")
-            
-                    return bool(username_match and password_match and self.username and self.password)
-
+            return bool(username_match and password_match and self.username and self.password)
+        except Exception as e:
+            logger.warning("Basic auth validation error: %s", e)
             return False
-    
     def _validate_bearer_token(self, auth_header: str) -> bool:
         """Validate Bearer token (API key or JWT)."""
         try:
