@@ -1,17 +1,22 @@
 """ML Service for 5G Network Optimization."""
-from flask import Flask, Response, g, request
-import uuid
-import os
-from prometheus_client import generate_latest
-from ml_service.app.monitoring import metrics
-from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
-from ml_service.app.rate_limiter import init_app as init_limiter
-from ml_service.app.error_handlers import register_error_handlers
-from .initialization.model_init import MODEL_VERSION
+
+from flask import Flask
 
 
 def create_app(config=None):
     """Create and configure the Flask application."""
+    # Import heavy dependencies lazily to keep module import light-weight
+    import os
+    import uuid
+    from flask import Response, g, request
+    from prometheus_client import generate_latest
+
+    from ml_service.app.monitoring import metrics
+    from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
+    from ml_service.app.rate_limiter import init_app as init_limiter
+    from ml_service.app.error_handlers import register_error_handlers
+    from .initialization.model_init import MODEL_VERSION
+
     app = Flask(__name__)
 
     # Load default configuration
