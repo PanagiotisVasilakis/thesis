@@ -31,7 +31,7 @@ class MetricsAuthenticator:
                  password: Optional[str] = None,
                  api_key: Optional[str] = None,
                  jwt_secret: Optional[str] = None,
-                 token_expiry_seconds: int = 3600):
+                 token_expiry_seconds: int = env_constants.METRICS_JWT_EXPIRY_SECONDS):
         """Initialize metrics authenticator.
         
         Args:
@@ -92,10 +92,8 @@ class MetricsAuthenticator:
             username_match = hmac.compare_digest(username, self.username or "")
             password_match = hmac.compare_digest(password, self.password or "")
             
-            return username_match and password_match and self.username and self.password
-            
-        except Exception as e:
-            logger.warning("Basic auth validation error: %s", e)
+                    return bool(username_match and password_match and self.username and self.password)
+
             return False
     
     def _validate_bearer_token(self, auth_header: str) -> bool:
