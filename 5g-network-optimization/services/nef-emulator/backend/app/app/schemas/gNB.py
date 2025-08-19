@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, Annotated
 
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, StringConstraints
 
 
 # Shared properties
 class gNBBase(BaseModel):
-    gNB_id: constr(regex=r'^[A-Fa-f0-9]{6}$')
+    gNB_id: Annotated[str, StringConstraints(pattern=r'^[A-Fa-f0-9]{6}$')]
     name: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None
