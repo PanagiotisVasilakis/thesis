@@ -75,7 +75,15 @@ def extract_environment_features(feature_vector: Dict[str, Any]) -> Dict[str, Op
     for key in ["cell_load", "environment", "signal_trend"]:
         value = feature_vector.get(key)
         features[key] = float(value) if isinstance(value, (int, float)) else None
-    return features
+    
+
+    service_profile = feature_vector.get("service_profile")
+    if service_profile is not None:
+        mapping = {"mmtc": 0.5, "embb": 1.0, "urllc": 2.0}
+        features["service_profile"] = mapping.get(str(service_profile).lower(), 0.0)
+      return features
+
+
 
 
 def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float]:
