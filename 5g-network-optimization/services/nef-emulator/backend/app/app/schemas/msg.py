@@ -1,5 +1,7 @@
-from pydantic import BaseModel, constr
+from typing import Annotated
+
+from pydantic import BaseModel, StringConstraints
 
 
 class Msg(BaseModel):
-    supi: constr(regex=r'^[0-9]{15,16}$')
+    supi: Annotated[str, StringConstraints(pattern=r'^[0-9]{15,16}$')]
