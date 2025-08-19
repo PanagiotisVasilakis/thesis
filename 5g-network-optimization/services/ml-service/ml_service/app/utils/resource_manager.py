@@ -428,12 +428,22 @@ class ResourceManager:
         
         self._logger.info("Stopping background cleanup thread...")
         self._shutdown_event.set()
-        
-        self._cleanup_thread.join(timeout=timeout)
+        try:
+            self._cleanup_thread.join(timeout=timeout)
+        except KeyboardInterrupt:
+            # During interpreter shutdown a KeyboardInterrupt may be raised
+            # while waiting for the thread to finish. We retry the join once
+            # more so the exception doesn't propagate to pytest.
+            self._logger.debug("Cleanup thread join interrupted; retrying")
+            self._cleanup_thread.join(timeout=timeout)
+
         if self._cleanup_thread.is_alive():
             self._logger.warning("Background cleanup thread did not stop within timeout")
         else:
             self._logger.info("Background cleanup thread stopped")
+
+        # Clear reference so interpreter doesn't keep the thread object alive
+        self._cleanup_thread = None
     
     def _background_cleanup_loop(self) -> None:
         """Background cleanup loop."""
@@ -558,14 +568,26 @@ class ResourceManager:
     def shutdown(self) -> None:
         """Shutdown the resource manager and clean up all resources."""
         self._logger.info("Shutting down resource manager...")
-        
-        # Stop background cleanup
-        self.stop_background_cleanup()
-        
+        cleaned_count = 0
+
+        # Stop background cleanup, being tolerant of interrupts
+        try:
+            self.stop_background_cleanup()
+        except KeyboardInterrupt:
+            # Avoid bubbling up KeyboardInterrupt during interpreter shutdown
+            self._logger.warning("Shutdown interrupted while stopping cleanup thread")
+            if self._cleanup_thread and self._cleanup_thread.is_alive():
+                self._cleanup_thread.join(timeout=1.0)
+
         # Clean up all resources
-        cleaned_count = self.force_cleanup_all()
-        
-        self._logger.info("Resource manager shutdown complete, cleaned up %d resources", cleaned_count)
+        try:
+            cleaned_count = self.force_cleanup_all()
+        except KeyboardInterrupt:
+            self._logger.warning("Shutdown interrupted during resource cleanup")
+
+        self._logger.info(
+            "Resource manager shutdown complete, cleaned up %d resources", cleaned_count
+        )
 
 
 # Global resource manager instance
