@@ -164,7 +164,7 @@ class NEFClient:
         """Return the raw response from the NEF status endpoint."""
         url = urljoin(self.base_url, "/api/v1/paths/")
         try:
-            response = requests.get(url, timeout=5)
+                response = self.session.get(url, headers=self.get_headers(), timeout=5)
             if response.status_code != 200:
                 self.logger.error(
                     "Error querying NEF status: %s - body: %s",
@@ -208,7 +208,7 @@ class NEFClient:
                 "parameters": parameters,
             }
 
-            response = requests.post(
+            response = self.session.post(
                 url, json=payload, headers=self.get_headers(), timeout=30
             )
 
