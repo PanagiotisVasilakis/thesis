@@ -34,7 +34,7 @@ def test_settings_parsing(monkeypatch):
     settings = config.Settings()
 
     assert (
-        settings.SQLALCHEMY_DATABASE_URI
+        str(settings.SQLALCHEMY_DATABASE_URI)
         == "postgresql://user:pass@localhost/db"
     )
     assert settings.BACKEND_CORS_ORIGINS == [

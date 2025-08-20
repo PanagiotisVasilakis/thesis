@@ -201,7 +201,7 @@ def client(monkeypatch):
             yield cls.validate
 
         @classmethod
-        def validate(cls, v):
+        def validate(cls, v, info=None):
             if isinstance(v, cls):
                 return v
             return cls(v)
