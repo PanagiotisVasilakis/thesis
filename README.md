@@ -208,6 +208,18 @@ docker push <registry>/ml-service:latest
 ```
 
 ## Testing
+### Quick setup
+To create a virtual environment, install all dependencies, and execute the
+test suite in one step, run:
+
+```bash
+./scripts/setup_tests.sh
+```
+
+The script installs packages from both `requirements.txt` and
+`tests/requirements.txt`, exports `PYTHONPATH` for module discovery, and runs
+`pytest -q`.
+
 ### Installing Test Dependencies
 Before running `pytest`, install all required packages.  You can execute the
 helper scripts or run `pip install -r requirements.txt` manually:
