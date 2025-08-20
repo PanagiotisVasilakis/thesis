@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, Annotated
 
-from pydantic import BaseModel, constr, confloat
+from pydantic import BaseModel, StringConstraints, confloat
 
 
 # Shared properties
 class CellBase(BaseModel):
-    cell_id: constr(regex=r'^[A-Fa-f0-9]{9}$')
+    cell_id: Annotated[str, StringConstraints(pattern=r'^[A-Fa-f0-9]{9}$')]
     name: Optional[str] = None
     description: Optional[str] = None
     gNB_id: int = None
