@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, constr, confloat
+from pydantic import BaseModel, StringConstraints, confloat, ConfigDict
 
 
 # Shared properties
 class CellBase(BaseModel):
-    cell_id: constr(regex=r'^[A-Fa-f0-9]{9}$')
+    cell_id: Annotated[str, StringConstraints(pattern=r'^[A-Fa-f0-9]{9}$')]
     name: Optional[str] = None
     description: Optional[str] = None
     gNB_id: int = None
@@ -30,8 +30,7 @@ class CellInDBBase(CellBase):
     owner_id: Optional[int]
     gNB_id: Optional[int]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Properties to return to client

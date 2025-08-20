@@ -1,6 +1,6 @@
 from typing import Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, IPvAnyAddress, AnyHttpUrl
+from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, AnyHttpUrl
 from enum import Enum
 
 # Shared properties | used for request body in endpoint/items.py
@@ -65,9 +65,8 @@ class MonitoringEventSubscriptionCreate(BaseModel):
 
 class MonitoringEventSubscription(MonitoringEventSubscriptionCreate):
     link: Optional[AnyHttpUrl] = Field("https://myresource.com", description="String identifying a referenced resource. This is also returned as a location header in 201 Created Response")
-    ipv4Addr: Optional[IPvAnyAddress] = Field(None, description="String identifying an Ipv4 address")   
-    class Config:
-            orm_mode = True
+    ipv4Addr: Optional[IPvAnyAddress] = Field(None, description="String identifying an Ipv4 address")
+    model_config = ConfigDict(from_attributes=True)
 
 class MonitoringNotification(MonitoringEventReport):
     subscription: AnyHttpUrl

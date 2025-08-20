@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 def _setup_module(monkeypatch, user=None):
@@ -46,8 +46,7 @@ def _setup_module(monkeypatch, user=None):
         link: str | None = None
         ipv4Addr: str | None = None
 
-        class Config:
-            orm_mode = True
+        model_config = ConfigDict(from_attributes=True)
 
     class MonitoringEventReport(BaseModel):
         externalId: str | None = None

@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, constr
+from pydantic import BaseModel, StringConstraints, ConfigDict
 
 
 # Shared properties
 class gNBBase(BaseModel):
-    gNB_id: constr(regex=r'^[A-Fa-f0-9]{6}$')
+    gNB_id: Annotated[str, StringConstraints(pattern=r'^[A-Fa-f0-9]{6}$')]
     name: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None
@@ -23,8 +23,7 @@ class gNBUpdate(gNBBase):
 class gNBInDBBase(gNBBase):
     name: Optional[str]
     owner_id: Optional[int]
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Properties to return to client

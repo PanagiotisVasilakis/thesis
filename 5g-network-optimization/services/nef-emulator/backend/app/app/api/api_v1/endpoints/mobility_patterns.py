@@ -54,7 +54,7 @@ def generate_mobility_pattern(
     Generate mobility pattern using the specified model.
     """
     try:
-        params = request.parameters.dict()
+        params = request.parameters.model_dump()
         
         # Convert list parameters to tuples
         for key in ["start_position", "end_position", "corner_position", "relative_position"]:

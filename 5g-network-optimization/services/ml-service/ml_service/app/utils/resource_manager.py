@@ -205,18 +205,17 @@ class ResourceManager:
             True if successfully unregistered, False otherwise
         """
         with self._lock:
-            if resource_id not in self._resources:
+            tracker = self._resources.get(resource_id)
+            if tracker is None:
                 self._logger.warning("Resource %s not found for unregistration", resource_id)
                 return False
-            
-            tracker = self._resources[resource_id]
-            
+
             # Clean up if needed
             if force_cleanup and tracker.state not in (ResourceState.CLOSED, ResourceState.ERROR):
                 self._cleanup_single_resource(tracker)
-            
-            # Remove from tracking
-            del self._resources[resource_id]
+
+            # Remove from tracking, tolerating prior removals
+            self._resources.pop(resource_id, None)
             
             if tracker.resource_type in self._resources_by_type:
                 self._resources_by_type[tracker.resource_type].discard(resource_id)

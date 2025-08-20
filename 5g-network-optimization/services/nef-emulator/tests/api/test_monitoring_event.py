@@ -13,7 +13,7 @@ from httpx import ASGITransport
 class TestClient(FastAPITestClient):
     def __init__(self, *, transport: ASGITransport, **kwargs):
         super().__init__(transport.app, **kwargs)
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 def _setup_client(monkeypatch, user=None):
@@ -61,8 +61,7 @@ def _setup_client(monkeypatch, user=None):
         link: Optional[str] = None
         ipv4Addr: Optional[str] = None
 
-        class Config:
-            orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
     class MonitoringEventReport(BaseModel):
         externalId: Optional[str] = None

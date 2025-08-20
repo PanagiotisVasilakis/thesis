@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, confloat
+from pydantic import BaseModel, confloat, ConfigDict
 
 
 # Shared properties | used for request body in endpoint/items.py
@@ -29,8 +29,7 @@ class PathUpdate(PathBase):
 class PathInDBBase(PathBase):
     id: int
 
-    class Config: #this class is used to provide configurations to Pydantic
-        orm_mode = True #instead of getting a value from a dict (Pydantic Model) {id = data["id"]} you can get it from an attribure (ORM Model) {id = data.id} 
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Properties to return to client (get all | skip points list)

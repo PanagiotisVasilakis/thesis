@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import json
 import logging
+import shutil
 
 # Add the root directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -30,6 +31,7 @@ def test_nef_adapter():
     
     # Save to JSON
     linear_json = save_path_to_json(linear_points, 'linear_path.json')
+    os.remove('linear_path.json')
     
     # Generate L-shaped path
     params = {
@@ -47,6 +49,7 @@ def test_nef_adapter():
     
     # Save to JSON
     l_shaped_json = save_path_to_json(l_shaped_points, 'l_shaped_path.json')
+    os.remove('l_shaped_path.json')
     
     # Visualize both paths
     plt.figure(figsize=(10, 8))
@@ -77,6 +80,7 @@ def test_nef_adapter():
     filepath = os.path.join(out_dir, 'mobility_patterns.png')
     plt.savefig(filepath)
     logger.info(f"Visualization saved as {filepath}")
-    
-    return True
+    shutil.rmtree(out_dir, ignore_errors=True)
+
+    assert len(linear_points) > 0 and len(l_shaped_points) > 0
 
