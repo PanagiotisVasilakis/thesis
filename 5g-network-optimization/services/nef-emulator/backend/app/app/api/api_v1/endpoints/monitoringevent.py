@@ -179,7 +179,7 @@ async def create_subscription(
                 logging.error(f"Error: {error}")
             raise HTTPException(status_code=409, detail=f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}")
    
-        json_data = jsonable_encoder(item_in.dict(exclude_unset=True))
+        json_data = jsonable_encoder(item_in.model_dump(exclude_unset=True))
         json_data.update({'owner_id' : current_user.id, "ipv4Addr" : UE.ip_address_v4})
 
         inserted_doc = crud_mongo.create(db_mongo, db_collection, json_data) 
@@ -248,7 +248,7 @@ async def create_subscription(
                 logging.error(f"Error: {error}")
             raise HTTPException(status_code=409, detail=f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}")
    
-        json_data = jsonable_encoder(item_in.dict(exclude_unset=True))
+        json_data = jsonable_encoder(item_in.model_dump(exclude_unset=True))
         json_data.update({'owner_id' : current_user.id, "ipv4Addr" : UE.ip_address_v4})
 
         inserted_doc = crud_mongo.create(db_mongo, db_collection, json_data) 

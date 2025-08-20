@@ -6,9 +6,10 @@ from pydantic import (
     AnyHttpUrl,
     EmailStr,
     PostgresDsn,
-    validator,
+    ValidationInfo,
+    field_validator,
 )
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -25,7 +26,8 @@ class Settings(BaseSettings):
     # ----- CORS -----
     BACKEND_CORS_ORIGINS: List[str] = []
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True, allow_reuse=True)
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
     def assemble_cors_origins(
         cls, v: Union[str, List[str]]
     ) -> Union[List[str], str]:
@@ -39,11 +41,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "My Awesome Project"
     SENTRY_DSN: Optional[AnyHttpUrl] = None
 
-    @validator("SENTRY_DSN", pre=True, allow_reuse=True)
-    def sentry_dsn_can_be_blank(cls, v: str) -> Optional[str]:
-        if not v:
-            return None
-        return v
+    @field_validator("SENTRY_DSN", mode="before")
+    @classmethod
+    def sentry_dsn_can_be_blank(cls, v: Optional[str]) -> Optional[str]:
+        return v or None
 
     # ----- Database -----
     POSTGRES_SERVER: str
@@ -52,18 +53,20 @@ class Settings(BaseSettings):
     POSTGRES_DB: str
     SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
 
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True, allow_reuse=True)
+    @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
+    @classmethod
     def assemble_db_connection(
-        cls, v: Optional[str], values: Dict[str, Any]
+        cls, v: Optional[str], info: ValidationInfo
     ) -> Any:
         if isinstance(v, str):
             return v
+        data = info.data
         return PostgresDsn.build(
             scheme="postgresql",
-            username=values.get("POSTGRES_USER"),
-            password=values.get("POSTGRES_PASSWORD"),
-            host=values.get("POSTGRES_SERVER"),
-            path=f"{values.get('POSTGRES_DB') or ''}",
+            username=data.get("POSTGRES_USER"),
+            password=data.get("POSTGRES_PASSWORD"),
+            host=data.get("POSTGRES_SERVER"),
+            path=f"{data.get('POSTGRES_DB') or ''}",
         )
 
     # ----- MongoDB -----
@@ -86,22 +89,25 @@ class Settings(BaseSettings):
     EMAILS_FROM_EMAIL: Optional[EmailStr] = None
     EMAILS_FROM_NAME: Optional[str] = None
 
-    @validator("EMAILS_FROM_NAME", allow_reuse=True)
+    @field_validator("EMAILS_FROM_NAME", mode="before")
+    @classmethod
     def get_project_name(
-        cls, v: Optional[str], values: Dict[str, Any]
+        cls, v: Optional[str], info: ValidationInfo
     ) -> str:
-        return v or values["PROJECT_NAME"]
+        return v or info.data.get("PROJECT_NAME")
 
     EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48
     EMAIL_TEMPLATES_DIR: str = "/app/app/email-templates/build"
     EMAILS_ENABLED: bool = False
 
-    @validator("EMAILS_ENABLED", pre=True, allow_reuse=True)
-    def get_emails_enabled(cls, v: bool, values: Dict[str, Any]) -> bool:
+    @field_validator("EMAILS_ENABLED", mode="before")
+    @classmethod
+    def get_emails_enabled(cls, v: bool, info: ValidationInfo) -> bool:
+        data = info.data
         return bool(
-            values.get("SMTP_HOST")
-            and values.get("SMTP_PORT")
-            and values.get("EMAILS_FROM_EMAIL")
+            data.get("SMTP_HOST")
+            and data.get("SMTP_PORT")
+            and data.get("EMAILS_FROM_EMAIL")
         )
 
     # ----- User Management -----
@@ -110,10 +116,11 @@ class Settings(BaseSettings):
     USERS_OPEN_REGISTRATION: bool = False
     USE_PUBLIC_KEY_VERIFICATION: bool
 
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
 
 
 settings = Settings()

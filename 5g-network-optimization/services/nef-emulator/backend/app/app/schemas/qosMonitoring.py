@@ -1,5 +1,5 @@
-from typing import List, Optional, Annotated
-from pydantic import BaseModel, Field, IPvAnyAddress, AnyHttpUrl, StringConstraints
+from typing import Annotated, List, Optional
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, IPvAnyAddress, StringConstraints
 from enum import Enum
 
 class Snssai(BaseModel):
@@ -23,8 +23,8 @@ class ReportingFrequency(str, Enum):
     ses_rel = "SESSION_RELEASE"
 
 class QosMonitoringInformation(BaseModel):
-    reqQosMonParams: List[RequestedQoSMonitoringParameters] = Field(None, description="Indicates the requested QoS monitoring parameters to be measured", min_items=1)
-    repFreqs: List[ReportingFrequency] = Field(None, description="Indicates the frequency for the reporting", min_items=1)
+    reqQosMonParams: List[RequestedQoSMonitoringParameters] = Field(None, description="Indicates the requested QoS monitoring parameters to be measured", min_length=1)
+    repFreqs: List[ReportingFrequency] = Field(None, description="Indicates the frequency for the reporting", min_length=1)
     latThreshDl: int = Field(None, description="Threshold in units of milliseconds for downlink packet delay", ge=0)
     latThreshUl: int = Field(None, description="Threshold in units of milliseconds for uplink packet delay", ge=0)
     latThreshRp: int = Field(None, description="Threshold in units of milliseconds for round trip packet delay", ge=0)
@@ -44,7 +44,7 @@ class AsSessionWithQoSSubscriptionCreate(BaseModel):
     snssai: Optional[Snssai] = None
     dnn: Optional[str] = Field("province1.mnc01.mcc202.gprs", description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
     qosReference: int = Field(default=9, description="Identifies a pre-defined QoS Information", ge=1, le=90)
-    altQoSReferences: List[int] = Field(None, description="Identifies an ordered list of pre-defined QoS information. The lower the index of the array the higher the priority.", min_items=1)
+    altQoSReferences: List[int] = Field(None, description="Identifies an ordered list of pre-defined QoS information. The lower the index of the array the higher the priority.", min_length=1)
     usageThreshold: Optional[UsageThreshold] = None
     qosMonInfo: Optional[QosMonitoringInformation] = None
 
@@ -52,8 +52,7 @@ class AsSessionWithQoSSubscriptionCreate(BaseModel):
 class AsSessionWithQoSSubscription(AsSessionWithQoSSubscriptionCreate):
     link: Optional[AnyHttpUrl] = Field("https://myresource.com", description="String identifying a referenced resource. This is also returned as a location header in 201 Created Response")
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 #Schemas for QoS callback
 
@@ -61,9 +60,9 @@ class AccumulatedUsage(UsageThreshold):
     pass
 
 class QoSMonitoringReport(BaseModel):
-    dlDelays: List[int] = Field(None, description="Downlink packet delay", ge=0, min_items=1)
-    ulDelays: List[int] = Field(None, description="Uplink packet delay", ge=0, min_items=1)
-    rtDelays: List[int] = Field(None, description="Round trip packet delay", ge=0, min_items=1)
+    dlDelays: List[int] = Field(None, description="Downlink packet delay", ge=0, min_length=1)
+    ulDelays: List[int] = Field(None, description="Uplink packet delay", ge=0, min_length=1)
+    rtDelays: List[int] = Field(None, description="Round trip packet delay", ge=0, min_length=1)
 
 class UserPlaneEvent(str, Enum):
     gqos = "QOS_GUARANTEED"
@@ -80,4 +79,4 @@ class UserPlaneEventReport(BaseModel):
 
 class UserPlaneNotificationData(BaseModel):
     transaction: AnyHttpUrl = Field("https://myresource.com", description="String identifying the referenced resource created in POST request")
-    eventReports: List[UserPlaneEventReport] = Field(..., description="Contains the reported event and applicable information", min_items=1)
+    eventReports: List[UserPlaneEventReport] = Field(..., description="Contains the reported event and applicable information", min_length=1)

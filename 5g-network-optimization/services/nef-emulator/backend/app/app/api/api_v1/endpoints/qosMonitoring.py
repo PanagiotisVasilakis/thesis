@@ -126,24 +126,25 @@ async def create_subscription(
             raise HTTPException(status_code=400, detail="Please enter a value in repFreqs field")
     
     #Ensure that the user sends only one of the ipv4, ipv6, macAddr fields
-    validate_ids(item_in.dict(exclude_unset=True))
+    payload = item_in.model_dump(exclude_unset=True)
+    validate_ids(payload)
 
     #Check if both UE and subscription exist
-    if 'ipv4Addr' in item_in.dict(exclude_unset=True):    
+    if 'ipv4Addr' in payload:
         UE = ue.get_ipv4(db = db, ipv4 = str(item_in.ipv4Addr), owner_id = current_user.id)
         doc = crud_mongo.read(db_mongo, db_collection, 'ipv4Addr', str(item_in.ipv4Addr))
-        error_var = str(item_in.ipv4Addr) #display ipv4 in HTTP Exception if subscription exists
+        error_var = str(item_in.ipv4Addr)
         selected_id = 'ipv4Addr'
-    elif 'ipv6Addr' in item_in.dict(exclude_unset=True):
+    elif 'ipv6Addr' in payload:
         item_in.ipv6Addr = item_in.ipv6Addr.exploded
         UE = ue.get_ipv6(db = db, ipv6 = str(item_in.ipv6Addr), owner_id = current_user.id)
         doc = crud_mongo.read(db_mongo, db_collection, 'ipv6Addr', str(item_in.ipv6Addr))
-        error_var = str(item_in.ipv6Addr) #display ipv6 in HTTP Exception if subscription exists
+        error_var = str(item_in.ipv6Addr)
         selected_id = 'ipv6Addr'
-    elif 'macAddr' in item_in.dict(exclude_unset=True):
+    elif 'macAddr' in payload:
         UE = ue.get_mac(db = db, mac = str(item_in.macAddr), owner_id = current_user.id)
         doc = crud_mongo.read(db_mongo, db_collection, 'macAddr', item_in.macAddr)
-        error_var = item_in.macAddr #display macAddr in HTTP Exception if subscription exists
+        error_var = item_in.macAddr
         selected_id = 'macAddr'
     
     if not UE: 
@@ -166,7 +167,7 @@ async def create_subscription(
 
     # send_qos_gnb(item_in.qosReference, db_mongo, UE) ##Validate if qos reference matches any of the standardized 5qi values and create/send the QoS Profile to NG-RAN
 
-    json_data = jsonable_encoder(item_in.dict(exclude_unset=True))
+    json_data = jsonable_encoder(payload)
     json_data.update({'owner_id' : current_user.id})
 
     #Add all UE ids in the subscription to help in validation, even if the user selects one id.

@@ -1,6 +1,6 @@
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, StringConstraints, confloat
+from pydantic import BaseModel, StringConstraints, confloat, ConfigDict
 
 
 # Shared properties
@@ -30,8 +30,7 @@ class CellInDBBase(CellBase):
     owner_id: Optional[int]
     gNB_id: Optional[int]
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Properties to return to client

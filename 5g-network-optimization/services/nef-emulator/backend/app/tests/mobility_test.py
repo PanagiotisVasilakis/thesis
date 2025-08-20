@@ -4,6 +4,7 @@ import os
 import matplotlib.pyplot as plt
 from datetime import datetime
 import logging
+import shutil
 
 # Add parent directory to path to find our mobility_models package
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -94,12 +95,12 @@ def test_linear_mobility():
         plt.plot(x_coords, y_coords, 'b-', linewidth=2)
         plt.plot(x_coords[0], y_coords[0], 'go', markersize=10)  # Start point
         plt.plot(x_coords[-1], y_coords[-1], 'ro', markersize=10)  # End point
-        
+
         plt.xlabel('X position (m)')
         plt.ylabel('Y position (m)')
         plt.title('Linear Mobility Model Trajectory')
         plt.grid(True)
-        
+
         # Save plot inside output/mobility
         out_dir = os.path.join('output', 'mobility')
         os.makedirs(out_dir, exist_ok=True)
@@ -108,5 +109,7 @@ def test_linear_mobility():
         logger.info(f"Plot saved as {filepath}")
     except Exception as e:
         logger.error(f"Could not create plot: {e}")
-    
-    return True
+    finally:
+        shutil.rmtree(out_dir, ignore_errors=True)
+
+    assert len(trajectory) > 0

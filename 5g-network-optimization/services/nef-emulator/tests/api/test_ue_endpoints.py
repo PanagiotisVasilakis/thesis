@@ -1,4 +1,5 @@
 from types import SimpleNamespace, ModuleType
+from ipaddress import IPv6Address
 import importlib
 import importlib.util
 from pathlib import Path
@@ -195,25 +196,10 @@ def client(monkeypatch):
     class gNB(BaseModel):
         id: int = 1
 
-    class _IPv6(str):
-        @classmethod
-        def __get_validators__(cls):
-            yield cls.validate
-
-        @classmethod
-        def validate(cls, v, info=None):
-            if isinstance(v, cls):
-                return v
-            return cls(v)
-
-        @property
-        def exploded(self):
-            return str(self)
-
     class UECreate(BaseModel):
         supi: str
         ip_address_v4: str | None = None
-        ip_address_v6: _IPv6 | None = None
+        ip_address_v6: IPv6Address | None = None
         mac_address: str | None = None
         dnn: str | None = None
         mcc: int | None = None
@@ -224,7 +210,7 @@ def client(monkeypatch):
     class UEUpdate(BaseModel):
         supi: str
         ip_address_v4: str | None = None
-        ip_address_v6: _IPv6 | None = None
+        ip_address_v6: IPv6Address | None = None
         mac_address: str | None = None
         dnn: str | None = None
         mcc: int | None = None

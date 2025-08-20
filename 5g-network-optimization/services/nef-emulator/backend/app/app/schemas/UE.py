@@ -1,6 +1,6 @@
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 from enum import Enum
-from pydantic import BaseModel, confloat, IPvAnyAddress, StringConstraints
+from pydantic import BaseModel, ConfigDict, IPvAnyAddress, StringConstraints, confloat
 from pydantic.fields import Field
 
 class Speed(str, Enum):
@@ -68,8 +68,7 @@ class UE(UEBase):
     gNB_id: Optional[int]
     Cell_id: Optional[int]
     
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # Properties to return to client with cell id hex 
 class UEhex(UE):

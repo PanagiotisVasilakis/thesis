@@ -1,6 +1,6 @@
-from typing import Optional, Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, StringConstraints, ConfigDict
 
 
 # Shared properties
@@ -23,8 +23,7 @@ class gNBUpdate(gNBBase):
 class gNBInDBBase(gNBBase):
     name: Optional[str]
     owner_id: Optional[int]
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Properties to return to client
