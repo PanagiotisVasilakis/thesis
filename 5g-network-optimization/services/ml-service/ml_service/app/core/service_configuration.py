@@ -1,7 +1,7 @@
 """Service configuration for dependency injection."""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from .dependency_injection import get_container, DIContainer
 from .interfaces import *
@@ -17,7 +17,7 @@ from ..config.constants import env_constants
 logger = logging.getLogger(__name__)
 
 
-class DefaultModelService:
+class DefaultModelService(ModelInterface):
     """Default implementation of ModelInterface using AntennaSelector."""
     
     def __init__(self, model_path: Optional[str] = None, neighbor_count: Optional[int] = None):
@@ -48,11 +48,16 @@ class DefaultModelService:
         return await self._antenna_selector.evaluate_async(test_data, **kwargs)
 
 
-class DefaultNEFClientService:
+class DefaultNEFClientService(NEFClientInterface):
     """Default implementation of NEFClientInterface."""
     
     def __init__(self, nef_url: str, username: Optional[str] = None, password: Optional[str] = None):
-        self._client = NEFClient(nef_url, username=username, password=password)
+        client_kwargs: Dict[str, Any] = {"base_url": nef_url}
+        if username is not None:
+            client_kwargs["username"] = username
+        if password is not None:
+            client_kwargs["password"] = password
+        self._client = NEFClient(**client_kwargs)
     
     def get_status(self) -> Any:
         return self._client.get_status()
@@ -71,17 +76,20 @@ class DefaultNEFClientService:
         return self._client.get_feature_vector(ue_id)
 
 
-class DefaultAsyncNEFClientService:
+class DefaultAsyncNEFClientService(AsyncNEFClientInterface):
     """Default implementation of AsyncNEFClientInterface."""
     
     def __init__(self, base_url: str, username: Optional[str] = None, password: Optional[str] = None):
-        self._client = AsyncNEFClient(
-            base_url=base_url,
-            username=username,
-            password=password,
-            timeout=env_constants.NEF_TIMEOUT,
-            max_retries=env_constants.NEF_MAX_RETRIES
-        )
+        client_kwargs: Dict[str, Any] = {
+            "base_url": base_url,
+            "timeout": env_constants.NEF_TIMEOUT,
+            "max_retries": env_constants.NEF_MAX_RETRIES,
+        }
+        if username is not None:
+            client_kwargs["username"] = username
+        if password is not None:
+            client_kwargs["password"] = password
+        self._client = AsyncNEFClient(**client_kwargs)
     
     def get_status(self) -> Any:
         # For async client, we need to handle this differently
@@ -116,11 +124,16 @@ class DefaultAsyncNEFClientService:
         return await self._client.batch_get_feature_vectors(ue_ids)
 
 
-class DefaultDataCollectorService:
+class DefaultDataCollectorService(DataCollectorInterface):
     """Default implementation of DataCollectorInterface."""
     
     def __init__(self, nef_url: str, username: Optional[str] = None, password: Optional[str] = None):
-        self._collector = NEFDataCollector(nef_url, username, password)
+        collector_kwargs: Dict[str, Any] = {"nef_url": nef_url}
+        if username is not None:
+            collector_kwargs["username"] = username
+        if password is not None:
+            collector_kwargs["password"] = password
+        self._collector = NEFDataCollector(**collector_kwargs)
     
     def login(self) -> bool:
         return self._collector.login()
@@ -135,7 +148,7 @@ class DefaultDataCollectorService:
         self._collector.cleanup_resources()
 
 
-class DefaultCacheService:
+class DefaultCacheService(CacheInterface):
     """Default implementation of CacheInterface."""
     
     def __init__(self, max_size: int = 1000, ttl_seconds: Optional[float] = None):
@@ -145,11 +158,13 @@ class DefaultCacheService:
         return self._cache.get(key)
     
     def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
+        if ttl is not None and getattr(self._cache, "ttl_seconds", None) is None:
+            # Allow per-call TTL requests by honoring the first explicit value.
+            self._cache.ttl_seconds = ttl
         self._cache.set(key, value)
     
     def delete(self, key: str) -> None:
-        if key in self._cache:
-            del self._cache[key]
+        self._cache.pop(key, None)
     
     def clear(self) -> None:
         self._cache.clear()
@@ -158,7 +173,7 @@ class DefaultCacheService:
         return self._cache.get_stats()
 
 
-class DefaultMetricsCollectorService:
+class DefaultMetricsCollectorService(MetricsCollectorInterface):
     """Default implementation of MetricsCollectorInterface."""
     
     def __init__(self):
@@ -195,7 +210,7 @@ class DefaultMetricsCollectorService:
         return self._metrics.copy()
 
 
-class DefaultExceptionHandlerService:
+class DefaultExceptionHandlerService(ExceptionHandlerInterface):
     """Default implementation of ExceptionHandlerInterface."""
     
     def __init__(self):
@@ -205,10 +220,10 @@ class DefaultExceptionHandlerService:
         return self._exception_handler.handle_exception(exc, context)
     
     def log_exception(self, exc: Exception, context: str = "") -> None:
-        self._exception_handler.log_exception(exc, context)
+        self._exception_handler.log_error(exc, context)
 
 
-class DefaultConfigurationService:
+class DefaultConfigurationService(ConfigurationInterface):
     """Default implementation of ConfigurationInterface."""
     
     def __init__(self):
@@ -227,7 +242,7 @@ class DefaultConfigurationService:
         return env_constants.validate_constants()
 
 
-class DefaultLoggerService:
+class DefaultLoggerService(LoggerInterface):
     """Default implementation of LoggerInterface."""
     
     def __init__(self, name: str = __name__):

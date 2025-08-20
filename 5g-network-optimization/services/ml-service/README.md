@@ -1,310 +1,177 @@
 # ML Service
 
-This Flask-based microservice predicts optimal antenna assignments for user equipment (UE).
-It exposes a REST API consumed by the NEF emulator and by the training scripts.
+Flask-based microservice that predicts handover targets for user equipment (UE) and delivers training/monitoring tooling for the NEF emulator. Every behaviour described below is derived from the current codebase (`ml_service/app`).
 
-## Application Factory
+## Highlights
 
-The entry point for the service is `app/__init__.py` which implements a
-Flask application factory named `create_app`. The factory performs the
-following tasks:
+- Flask application factory (`ml_service.app.create_app`) with background model initialisation, structured logging, JWT auth, and Prometheus metrics.
+- Rich model manager supporting LightGBM, LSTM, Ensemble, and Online models selectable via `MODEL_TYPE`.
+- JWT-protected REST API with rate limiting, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
+- Dedicated `/metrics` endpoint guarded by pluggable credentials (basic, API key, or JWT) plus helper endpoints to mint metrics tokens.
+- Visualization blueprint for coverage maps and trajectories saved under `output/`.
+- Extensive configuration surface via environment variables, all funnelled through `ml_service.app.config.constants`.
 
-1. Loads default configuration such as `NEF_API_URL` and the `MODEL_PATH` for
-   the persisted model.
-2. Creates the model directory and initializes the ML model via
-   `ModelManager.initialize(background=True)`. The service always uses a
-   LightGBM model. If no model exists a lightweight synthetic one is trained and
-   stored automatically. The initialization runs in a background thread so the
-   Flask app can start up quickly.
-3. Registers the REST API blueprint from `app/api` and visualization routes
-   from `app/api/visualization`.
+## Application lifecycle
 
-```python
-from ml_service.app import create_app
-app = create_app()
-```
+`create_app()` performs the following steps:
 
-Running `python app.py` simply invokes this factory and serves the app.
+1. Loads defaults (`NEF_API_URL`, `MODEL_PATH`, auth secrets, JWT expiry, etc.) and applies any overrides passed via the optional `config` mapping.
+2. Ensures the model directory exists and kicks off `ModelManager.initialize(..., background=True)` unless `app.testing` is set. This spawns a monitored thread that either loads an existing model or trains one using synthetic data; the placeholder instance returned immediately is replaced once training completes.
+3. Registers two blueprints: `/api` (core REST endpoints) and `/api/visualization` (image generation helpers). It also wires rate limiting (`Flask-Limiter` default: 100 requests/min) and global error handlers.
+4. Mounts Prometheus middleware (`MetricsMiddleware`) and starts a `MetricsCollector` background thread to publish latency, drift, and resource metrics.
+5. Exposes authenticated `/metrics`, `/metrics/auth/token`, and `/metrics/auth/stats` endpoints. Metrics authentication is skipped in testing but enforced in every other mode.
+6. Adds request/response logging with correlation IDs, making every log line traceable.
 
-`create_app` triggers model loading asynchronously. It calls
-`ModelManager.initialize(background=True)` so the heavy initialization runs in
-the background. Each API handler obtains the model via `api_lib.load_model()`
-which in turn calls `ModelManager.wait_until_ready()` before returning. This
-ensures that incoming requests block until initialization has completed and a
-fully trained model is available.
+`app.py` configures logging via `services/logging_config.py` and runs the Flask server on port `5050`, optionally wrapping it in TLS when `SSL_CERTFILE` and `SSL_KEYFILE` are present.
 
-## Resource Manager
+## Directory guide
 
-The service employs a `ResourceManager` utility to track transient objects such
-as client sessions or background tasks. Resources are registered with a unique
-identifier and cleaned up when no longer needed. Attempting to remove an
-unknown identifier logs a warning and returns `False`, allowing callers to
-handle missing resources gracefully.
+- `app/api/routes.py` – synchronous and async REST endpoints (prediction, training, NEF connectivity, feedback, data collection, model management).
+- `app/api/visualization.py` – coverage-map and trajectory PNG generators backed by Matplotlib helpers.
+- `app/initialization/model_init.py` – `ModelManager`, synthetic training bootstrap, model version discovery (`MODEL_VERSION = 1.0.0`).
+- `app/monitoring/metrics.py` – custom Prometheus registry, middleware, drift monitor, and background collector.
+- `app/auth` – JWT issuance/verification (`create_access_token`, `verify_token`) and metrics authentication strategies.
+- `collect_training_data.py` – CLI utility to harvest NEF samples or delegate to `/api/collect-data`.
 
-## API Endpoints
-
-The routes are defined in `app/api/routes.py`. Example calls are shown using
-`curl` with the default port `5050`. Most endpoints require a JWT token which
-can be obtained from `/api/login` using the credentials configured via
-`AUTH_USERNAME` and `AUTH_PASSWORD`.
-
-### `GET /api/health`
-Simple health probe.
+## Running locally
 
 ```bash
-curl http://localhost:5050/api/health
-```
-
-### `GET /api/model-health`
-Report whether the model is ready and return training metadata.
-
-```bash
-curl http://localhost:5050/api/model-health
-```
-
-### `POST /api/login`
-Obtain a JWT token. Use the configured username and password.
-
-```bash
-curl -X POST http://localhost:5050/api/login \
-     -H 'Content-Type: application/json' \
-     -d '{"username":"admin","password":"admin"}'
-```
-
-### `POST /api/predict`
-Submit UE information and receive the recommended antenna.
-The request body should contain fields such as `ue_id`, `latitude`, `longitude`,
-`connected_to` and an optional `rf_metrics` dictionary.  `rf_metrics` may include
-per‑antenna `rsrp`, `sinr` and `rsrq` values if available. Example:
-
-```bash
-curl -X POST http://localhost:5050/api/predict \
-     -H 'Content-Type: application/json' \
-     -H 'Authorization: Bearer <TOKEN>' \
-     -d '{
-           "ue_id": "u1",
-           "latitude": 100,
-           "longitude": 50,
-           "connected_to": "antenna_1",
-          "rf_metrics": {
-            "antenna_1": {"rsrp": -80, "sinr": 15, "rsrq": -10}
-          }
-         }'
-```
-
-### `POST /api/train`
-Provide an array of training samples to update the model. Each element should
-include the same fields as `/api/predict` plus `optimal_antenna` which is the
-label used during training.
-
-```bash
-curl -X POST http://localhost:5050/api/train \
-     -H 'Content-Type: application/json' \
-     -H 'Authorization: Bearer <TOKEN>' \
-     -d @training_data.json
-```
-
-### `GET /api/nef-status`
-Check connectivity with the NEF emulator specified by `NEF_API_URL`.
-
-```bash
-curl http://localhost:5050/api/nef-status
-```
-
-### `POST /api/collect-data`
-Trigger data collection directly from the NEF emulator. Provide NEF credentials
-and optional `duration` and `interval` parameters.
-
-```bash
-curl -X POST http://localhost:5050/api/collect-data \
-     -H 'Content-Type: application/json' \
-     -H 'Authorization: Bearer <TOKEN>' \
-     -d '{"username": "admin", "password": "admin", "duration": 60, "interval": 1}'
-```
-
-### `GET /api/models`
-List discovered model versions.
-
-```bash
-curl http://localhost:5050/api/models
-```
-
-### `POST /api/models/<version>`
-Switch the active model to the specified version.
-
-```bash
-curl -X POST http://localhost:5050/api/models/1.1.0 \
-     -H 'Authorization: Bearer <TOKEN>'
-```
-
-### `GET /metrics`
-Expose Prometheus metrics for monitoring.
-
-```bash
-curl http://localhost:5050/metrics
-```
-
-### Visualization Endpoints
-Additional helpers under `/api/visualization` generate PNG images.
-
-```
-# Coverage map of predicted antennas
-curl -o coverage.png http://localhost:5050/api/visualization/coverage-map
-
-# Movement trajectory (POST JSON array of samples)
-curl -X POST http://localhost:5050/api/visualization/trajectory \
-     -H 'Content-Type: application/json' -d @trajectory.json -o trajectory.png
-```
-
-## Environment Variables
-
-The service reads configuration from the Flask app settings. Important variables:
-
-| Variable | Description | Default |
-|---------------|-----------------------------------------------------------|-------------------------------|
-| `NEF_API_URL` | Base URL of the NEF emulator used by the `/nef-status` API | `http://localhost:8080` |
-| `MODEL_PATH` | Location of the persisted model file | `app/models/antenna_selector_v1.0.0.joblib` |
-| `LIGHTGBM_TUNE` | Run hyperparameter tuning on startup when set to `1` | `0` |
-| `LIGHTGBM_TUNE_N_ITER` | Number of parameter combinations to try during tuning | `10` |
-| `LIGHTGBM_TUNE_CV` | Cross-validation folds used while tuning | `3` |
-| `NEIGHBOR_COUNT` | Preallocate feature slots for this many neighbouring antennas | *(dynamic)* |
-| `RESOURCE_BLOCKS` | Number of resource blocks used when computing per-antenna RSRQ | `50` |
-| `AUTH_USERNAME` | Username for the `/api/login` endpoint | `admin` |
-| `AUTH_PASSWORD` | Password for the `/api/login` endpoint | `admin` |
-| `JWT_SECRET` | Secret key used to sign JWT tokens | `change-me` |
-| `SSL_CERTFILE` | Path to TLS certificate for HTTPS | *(unset)* |
-| `SSL_KEYFILE` | Path to TLS key for HTTPS | *(unset)* |
-
-The service always runs with a LightGBM model; no other model types are supported.
-`RESOURCE_BLOCKS` is used by `NetworkStateManager` when calculating RSRQ for each antenna.
-`MODEL_PATH` determines where this model is stored and is read from the environment at startup. Override it to choose a custom location.
-To retain the model between container runs you can mount a host directory and point `MODEL_PATH` at a file in that directory.
-
-On startup the service scans the directory of `MODEL_PATH` for files named
-`antenna_selector_v*.joblib`.  Each discovered version is registered so you can
-switch models at runtime using the management API without restarting the
-service.
-
-Each saved model is accompanied by a `*.meta.json` file containing the
-`model_type`, training metrics, a `trained_at` timestamp and a version string.  When the service
-starts, this metadata is checked to ensure the correct model class is loaded.
-If the stored type differs from the configured one a `ModelError` is raised.
-A warning is logged when the version in the metadata does not match the
-internal model format version (`1.0`).
-The metadata file is automatically rewritten whenever the model is trained via
-the `/api/train` endpoint or retrained through drift detection in
-`ModelManager.feed_feedback`.
-
-During initialization the service keeps track of the last successfully loaded
-model **and** the path from which it was loaded. Should loading or training
-fail for any reason, the previous model instance along with its last known
-path are restored automatically and the error is logged. This ensures
-predictions can continue using the last verified model even if a startup update
-fails.
-
-For example, create a `docker-compose.override.yml`:
-
-```yaml
-services:
-  ml-service:
-    volumes:
-      - ./model-data:/persisted-model
-    environment:
-      - MODEL_PATH=/persisted-model/antenna_selector_v1.0.0.joblib
-```
-
-This service is called by the NEF emulator using the `ML_SERVICE_URL` variable.
-The emulator sends UE feature vectors to `/api/predict` and expects the returned
-`antenna_id` to perform a handover.
-
-These variables can be supplied in your environment or via `docker-compose`.
-
-Example request mirroring the NEF emulator:
-```bash
-curl -X POST http://localhost:5050/api/predict \
-     -H 'Content-Type: application/json' \
-     -H 'Authorization: Bearer <TOKEN>' \
-     -d '{"ue_id":"u1","latitude":100,"longitude":50,"connected_to":"antenna_1"}'
-```
-
-## Running Locally
-
-Install the dependencies and start the Flask app:
-
-```bash
-pip install -r ../../../requirements.txt
+python -m venv .venv
+. .venv/Scripts/activate  # or source .venv/bin/activate on Linux/macOS
+pip install -r ../../requirements.txt
+export AUTH_USERNAME=admin AUTH_PASSWORD=admin JWT_SECRET=change-me
 python app.py
 ```
 
-The API will be available on `http://localhost:5050`.
-To serve the API over HTTPS set `SSL_CERTFILE` and `SSL_KEYFILE` to the
-paths of your certificate and key.
+The service listens on `http://localhost:5050` by default. Set `SSL_CERTFILE`/`SSL_KEYFILE` to serve HTTPS.
 
-## Running with Docker
-
-Build and run the container directly:
+### Docker
 
 ```bash
 docker build -t ml-service .
 docker run -p 5050:5050 \
-  -e NEF_API_URL=http://localhost:8080 \
-  -e SSL_CERTFILE=/certs/cert.pem \
-  -e SSL_KEYFILE=/certs/key.pem \
-  -v /path/to/certs:/certs:ro \
-  ml-service
+     -e AUTH_USERNAME=admin -e AUTH_PASSWORD=admin -e JWT_SECRET=change-me \
+     -e NEF_API_URL=http://localhost:8080 \
+     ml-service
 ```
 
-The service is also started automatically when using the repository
-`docker-compose.yml`.
+The top-level `docker-compose.yml` in this repository starts the NEF emulator, ML service, and monitoring stack end-to-end.
 
-## Training the Model
+## API overview
 
-Ensure the NEF emulator is running with UEs in motion
-before collecting data.  Training data is gathered with
-`collect_training_data.py` which leverages `app/data/nef_collector.py`.
-Collected JSON files are stored under `app/data/collected_data` and can be sent
-to the `/api/train` endpoint to update the selected model. The trained model is
-persisted at the location specified by `MODEL_PATH`.
-Each sample now also contains an `rf_metrics` dictionary with per-antenna RSRP,
-SINR and optionally RSRQ values.
-If the NEF provides altitude for a UE it is stored in the `altitude` field so
-that predictions can account for the device's height.
+All endpoints live under `/api` and return JSON. Rate limiting and JWT authentication apply to every route except where noted.
+
+| Endpoint | Method | Auth? | Purpose |
+|----------|--------|-------|---------|
+| `/api/health` | GET | No | Liveness probe. |
+| `/api/model-health` | GET | No | Reports `ModelManager.is_ready()` and the latest metadata (version, timestamps, metrics). |
+| `/api/login` | POST | No | Issues a JWT given `AUTH_USERNAME`/`AUTH_PASSWORD`. Body validated via `LoginRequest` Pydantic model. |
+| `/api/predict` | POST | Yes | Synchronous prediction. Uses `PredictionRequest`, calls `predict()` helper, records metrics & drift data. |
+| `/api/predict-async` | POST | Yes | Runs `model.predict_async` if the underlying selector supports it. |
+| `/api/train` | POST | Yes | Batch training. Accepts list of `TrainingSample` payloads (50 MB cap) and persists via `ModelManager.save_active_model`. |
+| `/api/train-async` | POST | Yes | Awaitable variant using `model.train_async`. |
+| `/api/collect-data` | POST | Yes | Asynchronously fetches samples from the NEF emulator using `NEFDataCollector.collect_training_data`. Optional credentials/duration/interval. |
+| `/api/nef-status` | GET | Yes | Health-checks the configured NEF URL through `NEFClient.get_status()`, returning version headers when reachable. |
+| `/api/models` | GET | Yes | Lists discovered `antenna_selector_v*.joblib` versions. |
+| `/api/models/<version>` | POST/PUT | Yes | Switches active model; validates via `model_version_validator` and raises structured errors on missing files/permissions. |
+| `/api/feedback` | POST | Yes | Accepts a list of `FeedbackSample` entries, feeding them into `ModelManager.feed_feedback` for drift-triggered retraining. |
+
+### Visualization endpoints
+
+- `GET /api/visualization/coverage-map` – generates a coverage heatmap. Will auto-train with synthetic data if the model is uninitialised.
+- `POST /api/visualization/trajectory` – consumes an array of UE snapshots and emits `trajectory.png` in the configured output directory.
+
+Example usage:
 
 ```bash
-# Collect data for five minutes and train the model when done
-python collect_training_data.py --duration 300 --train
+# Acquire a JWT token
+TOKEN=$(curl -s -X POST http://localhost:5050/api/login \
+     -H "Content-Type: application/json" \
+     -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
+
+# Run a prediction
+curl -X POST http://localhost:5050/api/predict \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+                    "ue_id":"ue-42",
+                    "latitude":38.0,
+                    "longitude":23.7,
+                    "connected_to":"antenna_1",
+                    "rf_metrics": {
+                         "antenna_1": {"rsrp": -78, "sinr": 15, "rsrq": -9}
+                    }
+               }'
 ```
 
-The script accepts `--url`, `--username` and `--password` options to authenticate
-with the NEF emulator if needed.  Passing `--ml-service-url` will trigger
-collection via the `/api/collect-data` endpoint of a running ML service instead
-of gathering data locally. After training, the updated model file can be
-loaded automatically on the next service start.
+## Metrics & authentication
 
-## Hyperparameter Tuning
+- `/metrics` returns Prometheus-formatted stats generated by `generate_latest(metrics.REGISTRY)`.
+- Requests must supply Basic credentials (`METRICS_AUTH_USERNAME`/`METRICS_AUTH_PASSWORD`), a bearer API key (`METRICS_API_KEY`), or a valid JWT minted with `/metrics/auth/token`.
+- `/metrics/auth/token` issues a JWT signed with `JWT_SECRET` and honours the expiry configured by `METRICS_JWT_EXPIRY_SECONDS`.
+- `/metrics/auth/stats` exposes failed-attempt counters and lockout information maintained by `MetricsAuthenticator`.
 
-Set the environment variable `LIGHTGBM_TUNE=1` before starting the service to
-run a quick randomized search for optimal LightGBM parameters. During
-initialization the service generates synthetic data and executes the tuning
-routine defined in `app/utils/tuning.py`.  The best estimator is then persisted
-at `MODEL_PATH`.
+## Environment variables
 
-The tuning helpers expose optional `n_iter` and `cv` parameters controlling the
-number of random search iterations and the cross‑validation folds. When the
-service starts with `LIGHTGBM_TUNE=1` these values default to `10` and `3`
-respectively.  You can override them by setting `LIGHTGBM_TUNE_N_ITER` and
-`LIGHTGBM_TUNE_CV` environment variables or by calling
-`tune_and_train(model, data, n_iter=..., cv=...)` directly from your own
-scripts.
+### Core settings
 
-With the default search (`n_iter=10`, `cv=3`) tuning synthetic data of 500
-samples typically finishes in a few seconds on a modern laptop and requires less
-than 200 MB of RAM. Increase `n_iter` or `cv` to explore a larger parameter
-space at the cost of longer runtimes and higher memory usage.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | *(unset)* | Required for `/api/login`. If omitted, authentication is disabled and a warning is logged (only recommended for local experiments). |
+| `JWT_SECRET` | random per boot | HMAC key for JWTs. Provide a stable value for multi-instance deployments. |
+| `NEF_API_URL` | `http://localhost:8080` | Base URL consumed by NEF client calls and the data collector. |
+| `MODEL_PATH` | `ml_service/app/models/antenna_selector_v1.0.0.joblib` | Storage location for the active model and metadata. Parent folders are created automatically. |
+| `MODEL_TYPE` | `lightgbm` | Chooses selector class (`lightgbm`, `lstm`, `ensemble`, `online`). Metadata can override this. |
+| `NEIGHBOR_COUNT` | `3` | Passed to selector constructors to size neighbour-aware features. |
+| `LIGHTGBM_TUNE` | `0` | When `1`, runs randomized LightGBM tuning during bootstrap. Tweaked via `LIGHTGBM_TUNE_N_ITER` and `LIGHTGBM_TUNE_CV`. |
+| `PORT` / `HOST` | `5050` / `0.0.0.0` | Gunicorn/Flask bind address and port when launched via `app.py`. |
+| `RATE_LIMIT_PER_MINUTE` | `100` | Default `Flask-Limiter` quota. |
+
+### Metrics auth options
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `METRICS_AUTH_ENABLED` | `true` | Flag consumed by helper scripts; the service itself always enforces authentication outside of testing. |
+| `METRICS_AUTH_USERNAME` | `metrics` | Basic auth username. Leave blank to disable basic auth. |
+| `METRICS_AUTH_PASSWORD` | *(unset)* | Basic auth password. |
+| `METRICS_API_KEY` | *(unset)* | Bearer API key alternative. |
+| `METRICS_JWT_EXPIRY_SECONDS` | `3600` | Token TTL for `/metrics/auth/token`. |
+
+### Logging and HTTPS
+
+- `LOG_LEVEL`, `LOG_FILE` influence `configure_logging`.
+- `SSL_CERTFILE`, `SSL_KEYFILE` enable TLS when set.
+
+Refer to `ml_service/app/config/constants.py` for the complete list, including cache sizing, drift monitoring, async worker limits, and input sanitisation toggles.
+
+## Collecting and training data
+
+`collect_training_data.py` orchestrates NEF sampling and optional training.
 
 ```bash
-LIGHTGBM_TUNE=1 python app.py
+python collect_training_data.py \
+     --url http://localhost:8080 \
+     --username admin --password admin \
+     --duration 300 --interval 1 --train
 ```
 
-Tuning uses a small search space suitable for demonstration purposes. Adjust
-`tuning.tune_lightgbm` if more exhaustive searches are required.
+- Uses `NEFDataCollector` to login, validate UE movement, and gather JSON samples under `ml_service/app/data/collected_data/`.
+- When `--ml-service-url` is supplied, the script delegates to `/api/collect-data` on a running ML service, automatically authenticating via `/api/login`.
+- If Feast helpers are available (`feature_store_utils`), samples are ingested before training.
+
+## Testing & quality
+
+```bash
+pytest tests
+```
+
+The top-level scripts `scripts/setup_tests.sh` and `scripts/run_tests.sh` install dependencies, configure `PYTHONPATH`, and run the suite with coverage. Unit tests rely on tmp paths for generated artefacts, so the repository stays clean after execution.
+
+## Troubleshooting
+
+- **Model never becomes ready**: check logs for thread monitor entries (`model_background_init`). A failure reverts to the last good model path and surfaces in `/api/model-health` metadata.
+- **401 on `/metrics`**: ensure at least one metrics credential is configured. Use `/metrics/auth/token` to mint a short-lived JWT.
+- **`/api/collect-data` returns zero samples**: verify the NEF emulator has UEs in motion via its `/api/v1/movement` endpoints before invoking collection.
+- **Rate limit exceeded**: increase `RATE_LIMIT_PER_MINUTE` or tune specific routes by extending `Flask-Limiter` in `rate_limiter.py`.
+
+Everything above reflects the current code; adjust this README whenever API routes, defaults, or background services change.
