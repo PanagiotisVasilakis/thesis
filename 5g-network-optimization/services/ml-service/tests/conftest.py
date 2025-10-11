@@ -1,5 +1,5 @@
-import importlib.util
 import sys
+import types
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,10 +12,7 @@ def load_create_app():
     """Return the ``create_app`` factory from the installed package."""
 
     # Stub optional visualization dependency not present in test environment
-    sys.modules.setdefault(
-        "seaborn",
-        importlib.util.module_from_spec(importlib.util.spec_from_loader("seaborn", loader=None)),
-    )
+    sys.modules.setdefault("seaborn", types.ModuleType("seaborn"))
 
     from ml_service.app import create_app
 
@@ -72,3 +69,18 @@ def mock_nef_client():
     mock.get_ue_movement_state.return_value = {}
     mock.get_feature_vector.return_value = {}
     return mock
+
+
+class DummyHTTPClient:
+    """Simple drop-in HTTP client used to stub NEF requests in tests."""
+
+    def post(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("Dummy HTTP post not stubbed for this test")
+
+    def get(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("Dummy HTTP get not stubbed for this test")
+
+
+@pytest.fixture
+def dummy_http_client():
+    return DummyHTTPClient()

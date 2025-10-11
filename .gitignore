@@ -3,3 +3,4 @@ thesis/
 *.pyc
 .env
 mlops/feast_repo/data/
+.venv

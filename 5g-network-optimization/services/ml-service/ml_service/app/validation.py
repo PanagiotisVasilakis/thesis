@@ -1,9 +1,11 @@
 """Input validation utilities for API endpoints."""
-from functools import wraps
-from flask import request, jsonify
-from pydantic import BaseModel, ValidationError, Field
-from typing import Dict, Any, Optional, List, Union
+import inspect
 import re
+from functools import wraps
+from typing import Any, Dict, List, Optional, Type, Union
+
+from flask import jsonify, request
+from pydantic import BaseModel, Field, ValidationError
 
 from .errors import RequestValidationError
 
@@ -138,7 +140,7 @@ class ModelVersionRequest(BaseModel):
         return v
 
 
-def validate_json_input(schema_class: Optional[BaseModel] = None, 
+def validate_json_input(schema_class: Optional[Type[BaseModel]] = None, 
                        allow_list: bool = False,
                        required: bool = True,
                        partial_validation: bool = False):
@@ -152,72 +154,75 @@ def validate_json_input(schema_class: Optional[BaseModel] = None,
         partial_validation: Whether to allow partial validation (ignore extra fields)
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Get JSON payload
+        def _perform_validation():
             payload = request.get_json(silent=True)
-            
-            # Check if JSON is required
+
             if required and payload is None:
                 raise RequestValidationError("Invalid or missing JSON payload")
-            
-            # If no schema validation needed, just pass through
+
             if schema_class is None:
-                return func(*args, **kwargs)
-            
-            # Handle list inputs
+                request.validated_data = payload  # type: ignore[attr-defined]
+                request.validation_metadata = {"schema": None}  # type: ignore[attr-defined]
+                return
+
             if allow_list and isinstance(payload, list):
                 validated_items = []
                 validation_errors = []
-                
+
                 for i, item in enumerate(payload):
                     try:
-                        if partial_validation:
-                            # Parse with extra fields ignored
-                            validated_item = schema_class.parse_obj(item)
-                        else:
-                            validated_item = schema_class.parse_obj(item)
+                        validated_item = schema_class.model_validate(item)
                         validated_items.append(validated_item)
                     except ValidationError as err:
                         detailed_errors = _format_validation_errors(err, f"item[{i}]")
                         validation_errors.append(f"Item {i}: {detailed_errors}")
-                
-                # If we have validation errors, raise them all
+
                 if validation_errors:
                     raise RequestValidationError(
-                        f"Validation failed for {len(validation_errors)} items: " +
-                        "; ".join(validation_errors)
+                        "Validation failed for "
+                        f"{len(validation_errors)} items: "
+                        + "; ".join(validation_errors)
                     )
-                
-                # Set validated data and include validation metadata
-                request.validated_data = validated_items
-                request.validation_metadata = {
+
+                request.validated_data = validated_items  # type: ignore[attr-defined]
+                validation_metadata = {
                     "total_items": len(payload),
                     "validated_items": len(validated_items),
-                    "schema": schema_class.__name__
+                    "schema": schema_class.__name__,
                 }
+                request.validation_metadata = validation_metadata  # type: ignore[attr-defined]
             else:
-                # Validate single object
                 try:
-                    if partial_validation:
-                        validated_data = schema_class.parse_obj(payload)
-                    else:
-                        validated_data = schema_class.parse_obj(payload)
-                    request.validated_data = validated_data
-                    request.validation_metadata = {
+                    validated_data = schema_class.model_validate(payload)
+                    request.validated_data = validated_data  # type: ignore[attr-defined]
+                    validation_metadata = {
                         "schema": schema_class.__name__,
-                        "fields_validated": len(validated_data.__fields__)
+                        "fields_validated": len(validated_data.model_fields),
                     }
+                    request.validation_metadata = validation_metadata  # type: ignore[attr-defined]
                 except ValidationError as err:
                     detailed_errors = _format_validation_errors(err, "root")
-                    # Add suggestions for common fixes
-                    suggestions = _generate_validation_suggestions(err, payload)
+                    payload_dict: Dict[str, Any] = payload if isinstance(payload, dict) else {}
+                    suggestions = _generate_validation_suggestions(err, payload_dict)
                     error_message = f"Validation errors: {detailed_errors}"
                     if suggestions:
                         error_message += f". Suggestions: {suggestions}"
                     raise RequestValidationError(error_message) from err
-            
+
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                _perform_validation()
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _perform_validation()
             return func(*args, **kwargs)
+
         return wrapper
     return decorator
 
@@ -230,8 +235,7 @@ def validate_query_params(**param_specs):
         **param_specs: Parameter name -> validation function mapping
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
+        def _validate():
             validated_params = {}
             for param_name, validator in param_specs.items():
                 value = request.args.get(param_name)
@@ -242,9 +246,23 @@ def validate_query_params(**param_specs):
                         raise RequestValidationError(
                             f"Invalid query parameter '{param_name}': {err}"
                         ) from err
-            
-            request.validated_params = validated_params
+
+            request.validated_params = validated_params  # type: ignore[attr-defined]
+
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                _validate()
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _validate()
             return func(*args, **kwargs)
+
         return wrapper
     return decorator
 
@@ -257,23 +275,33 @@ def validate_path_params(**param_specs):
         **param_specs: Parameter name -> validation function mapping
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
+        def _validate(kwargs_to_update):
             validated_kwargs = {}
             for param_name, validator in param_specs.items():
-                if param_name in kwargs:
+                if param_name in kwargs_to_update:
                     try:
-                        validated_kwargs[param_name] = validator(kwargs[param_name])
+                        validated_kwargs[param_name] = validator(kwargs_to_update[param_name])
                     except (ValueError, TypeError) as err:
                         raise RequestValidationError(
                             f"Invalid path parameter '{param_name}': {err}"
                         ) from err
-                else:
-                    validated_kwargs[param_name] = kwargs[param_name]
-            
-            # Update kwargs with validated values
-            kwargs.update(validated_kwargs)
+
+            kwargs_to_update.update(validated_kwargs)
+
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                _validate(kwargs)
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _validate(kwargs)
             return func(*args, **kwargs)
+
         return wrapper
     return decorator
 
@@ -286,15 +314,28 @@ def validate_content_type(*allowed_types):
         *allowed_types: List of allowed content types
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
+        def _validate():
             content_type = request.content_type
             if content_type not in allowed_types:
                 raise RequestValidationError(
                     f"Invalid content type '{content_type}'. "
                     f"Allowed types: {', '.join(allowed_types)}"
                 )
+
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                _validate()
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _validate()
             return func(*args, **kwargs)
+
         return wrapper
     return decorator
 
@@ -307,17 +348,30 @@ def validate_request_size(max_size_mb: int = 10):
         max_size_mb: Maximum allowed payload size in MB
     """
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
+        def _validate():
             content_length = request.content_length
             if content_length is not None:
                 max_bytes = max_size_mb * 1024 * 1024
                 if content_length > max_bytes:
                     raise RequestValidationError(
-                        f"Request payload too large. "
+                        "Request payload too large. "
                         f"Maximum allowed: {max_size_mb}MB"
                     )
+
+        if inspect.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                _validate()
+                return await func(*args, **kwargs)
+
+            return async_wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _validate()
             return func(*args, **kwargs)
+
         return wrapper
     return decorator
 

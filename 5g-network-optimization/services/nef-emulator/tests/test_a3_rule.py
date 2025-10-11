@@ -84,3 +84,24 @@ def test_a3_rule_negative_hysteresis():
 def test_a3_rule_negative_ttt():
     with pytest.raises(ValueError):
         A3EventRule(ttt_seconds=-0.5)
+
+def test_a3_rule_new_interface():
+    """Test the new A3 rule interface with enhanced features."""
+    from datetime import datetime
+    
+    # Test basic initialization with new parameters
+    rule = A3EventRule(hysteresis_db=3.0, ttt_seconds=1.0, event_type="rsrp_based")
+    now = datetime(2025, 1, 1)
+    
+    # Test with dict inputs (new interface)
+    serving_metrics = {"rsrp": -80, "rsrq": -10}
+    target_metrics = {"rsrp": -75, "rsrq": -9}
+    
+    # Should not trigger initially (timer starts)
+    result = rule.check(serving_metrics, target_metrics, now)
+    assert result is False
+    
+    # Test with mixed criteria
+    rule_mixed = A3EventRule(hysteresis_db=3.0, ttt_seconds=0.0, event_type="mixed", rsrq_threshold=-12)
+    result_mixed = rule_mixed.check(serving_metrics, target_metrics, now)
+    assert result_mixed is True  # Should trigger immediately due to 0 TTT and meeting criteria

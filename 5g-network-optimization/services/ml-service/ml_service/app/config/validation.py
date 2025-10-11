@@ -360,7 +360,7 @@ class ConfigValidator:
         if self._config is None:
             raise RuntimeError("Configuration not validated. Call validate_config() first.")
         
-        config_dict = self._config.dict()
+        config_dict = self._config.model_dump()
         
         # Mask sensitive values
         if "security" in config_dict:

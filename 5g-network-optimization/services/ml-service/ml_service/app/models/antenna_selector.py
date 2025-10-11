@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional
 
 import yaml
 
-from ..initialization.model_init import MODEL_VERSION
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
@@ -510,7 +509,7 @@ class AntennaSelector(AsyncModelInterface):
         *,
         model_type: str = "lightgbm",
         metrics: dict | None = None,
-        version: str = MODEL_VERSION,
+        version: str | None = None,
     ) -> bool:
         """Persist the model and accompanying metadata.
 
@@ -525,6 +524,12 @@ class AntennaSelector(AsyncModelInterface):
         version:
             Semantic version of the persisted format.
         """
+
+        if version is None:
+            # Import locally to avoid circular import during module loading.
+            from ..initialization.model_init import MODEL_VERSION
+
+            version = MODEL_VERSION
 
         save_path = path or self.model_path
         if not save_path:

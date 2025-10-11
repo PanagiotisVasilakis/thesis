@@ -140,7 +140,7 @@ def health_check():
 @validate_json_input(PredictionRequest)
 def predict_di():
     """Make antenna selection prediction using dependency injection."""
-    req = request.validated_data
+    req = request.validated_data  # type: ignore[attr-defined]
     services = get_services()
     
     # Log request
@@ -148,7 +148,7 @@ def predict_di():
     
     try:
         # Check cache first
-        cache_key = f"prediction:{req.ue_id}:{hash(str(req.dict()))}"
+        cache_key = f"prediction:{req.ue_id}:{hash(str(req.model_dump()))}"
         cached_result = services.cache.get(cache_key)
         
         if cached_result:
@@ -167,7 +167,7 @@ def predict_di():
             })
         
         # Extract features and predict using DI model
-        features = services.model.extract_features(req.dict(exclude_none=True))
+        features = services.model.extract_features(req.model_dump(exclude_none=True))
         result = services.model.predict(features)
         
         # Cache result
@@ -210,15 +210,15 @@ def predict_di():
 @validate_json_input(PredictionRequest)
 async def predict_async_di():
     """Make async antenna selection prediction using dependency injection."""
-    req = request.validated_data
+    req = request.validated_data  # type: ignore[attr-defined]
     services = get_services()
     
     services.logger.info(f"Async prediction request for UE: {req.ue_id}")
     
     try:
         # Extract features and predict using DI model
-        features = services.model.extract_features(req.dict(exclude_none=True))
-        result = await services.model.predict_async(features)
+        features = services.model.extract_features(req.model_dump(exclude_none=True))
+    result = await services.model.predict_async(features)  # type: ignore[attr-defined]
         
         # Track metrics
         services.metrics.track_prediction(result["antenna_id"], result["confidence"])
@@ -249,8 +249,8 @@ async def predict_async_di():
 @validate_json_input(TrainingSample, allow_list=True)
 def train_di():
     """Train the model using dependency injection."""
-    validated_samples = request.validated_data
-    samples = [sample.dict(exclude_none=True) for sample in validated_samples]
+    validated_samples = request.validated_data  # type: ignore[attr-defined]
+    samples = [sample.model_dump(exclude_none=True) for sample in validated_samples]
     services = get_services()
     
     services.logger.info(f"Training request with {len(samples)} samples")
@@ -317,7 +317,9 @@ def nef_status_di():
 @validate_json_input(CollectDataRequest, required=False)
 async def collect_data_di():
     """Collect training data using dependency injection."""
-    params = request.validated_data or CollectDataRequest()
+    params = getattr(request, "validated_data", None)
+    if params is None:
+        params = CollectDataRequest()
     services = get_services()
     
     duration = params.duration

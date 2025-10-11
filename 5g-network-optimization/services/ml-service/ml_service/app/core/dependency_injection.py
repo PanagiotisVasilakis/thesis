@@ -1,6 +1,7 @@
 """Dependency injection container for loose coupling."""
 
 import logging
+import re
 import threading
 from typing import Any, Dict, Type, TypeVar, Callable, Optional, Union, get_type_hints
 from abc import ABC
@@ -38,6 +39,7 @@ class DIContainer:
         self._factories: Dict[str, Callable] = {}
         self._interfaces: Dict[str, Type] = {}
         self._dependencies: Dict[str, Dict[str, Any]] = {}
+        self._singleton_factories: set[str] = set()
         self._lock = threading.RLock()
         
         # Register core interfaces
@@ -68,7 +70,13 @@ class DIContainer:
         with self._lock:
             if inspect.isclass(implementation):
                 # Store factory for lazy initialization
-                self._factories[interface_name] = lambda: implementation(**kwargs)
+                def _factory() -> Any:
+                    instance = implementation(**kwargs)
+                    self._singletons[interface_name] = instance
+                    return instance
+
+                self._factories[interface_name] = _factory
+                self._singleton_factories.add(interface_name)
             else:
                 # Store instance directly
                 self._singletons[interface_name] = implementation
@@ -132,7 +140,11 @@ class DIContainer:
                 instance = self._factories[interface_name]()
                 
                 # For singletons, cache the instance
-                if interface_name in self._dependencies or interface_name.endswith('Singleton'):
+                if (
+                    interface_name in self._singleton_factories
+                    or interface_name in self._dependencies
+                    or interface_name.endswith('Singleton')
+                ):
                     self._singletons[interface_name] = instance
                 
                 return instance
@@ -225,6 +237,11 @@ class DIContainer:
         
         return target_class(**dependencies)
     
+    def get_interface_class(self, interface: Union[str, Type]) -> Optional[Type]:
+        """Return the concrete class registered for an interface name, if any."""
+        interface_name = self._get_interface_name(interface)
+        return self._interfaces.get(interface_name)
+
     def _get_interface_name(self, interface: Union[str, Type]) -> str:
         """Get standardized interface name."""
         if isinstance(interface, str):
@@ -255,6 +272,27 @@ def get_container() -> DIContainer:
 def inject(*dependencies) -> Callable:
     """Decorator for automatic dependency injection."""
     def decorator(func: Callable) -> Callable:
+        sig = inspect.signature(func)
+        try:
+            type_hints = get_type_hints(func)
+        except Exception:  # pragma: no cover - defensive; shouldn't occur in tests
+            type_hints = {}
+
+        annotation_map: Dict[Any, str] = {}
+        for param_name, annotation in type_hints.items():
+            annotation_map[annotation] = param_name
+            if isinstance(annotation, str):
+                annotation_map.setdefault(annotation, param_name)
+            elif hasattr(annotation, '__name__'):
+                annotation_map.setdefault(annotation.__name__, param_name)
+
+        def _camel_to_snake(name: str) -> str:
+            segments = re.findall(
+                r"[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+",
+                name,
+            )
+            return "_".join(segment.lower() for segment in segments if segment)
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             container = get_container()
@@ -262,16 +300,40 @@ def inject(*dependencies) -> Callable:
             # Resolve dependencies
             for dep in dependencies:
                 if isinstance(dep, str):
-                    dep_name = dep
                     dep_type = dep
+                    dep_name_hint = dep
                 elif hasattr(dep, '__name__'):
-                    dep_name = dep.__name__.lower().replace('interface', '')
                     dep_type = dep
+                    dep_name_hint = dep.__name__
                 else:
                     continue
-                
-                if dep_name not in kwargs and container.is_registered(dep_type):
-                    kwargs[dep_name] = container.get(dep_type)
+
+                param_name = None
+
+                # Prefer parameter annotated with dependency type
+                interface_class = container.get_interface_class(dep_type)
+                if interface_class and interface_class in annotation_map:
+                    param_name = annotation_map[interface_class]
+                elif dep_type in annotation_map:
+                    param_name = annotation_map[dep_type]
+                else:
+                    normalized = dep_name_hint.replace('Interface', '')
+                    candidates = [
+                        normalized,
+                        _camel_to_snake(normalized),
+                        normalized.lower(),
+                        _camel_to_snake(dep_name_hint),
+                    ]
+                    for candidate in candidates:
+                        if candidate in sig.parameters:
+                            param_name = candidate
+                            break
+
+                if not param_name:
+                    continue
+
+                if param_name not in kwargs and container.is_registered(dep_type):
+                    kwargs[param_name] = container.get(dep_type)
             
             return func(*args, **kwargs)
         
@@ -288,6 +350,15 @@ def autowired(target_class: Type) -> Type:
         container = get_container()
         dependencies = container.resolve_dependencies(target_class)
         
+        try:
+            bound = inspect.signature(original_init).bind_partial(self, *args, **kwargs)
+            provided_params = set(bound.arguments.keys()) - {"self"}
+        except TypeError:
+            provided_params = set()
+
+        for provided in provided_params:
+            dependencies.pop(provided, None)
+
         # Merge resolved dependencies with provided kwargs
         final_kwargs = {**dependencies, **kwargs}
         original_init(self, *args, **final_kwargs)

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PredictionRequest(BaseModel):
     """Schema for prediction requests."""
+
+    model_config = ConfigDict(extra="forbid")
 
     ue_id: str
     latitude: Optional[float] = None
@@ -23,25 +25,17 @@ class PredictionRequest(BaseModel):
     connected_to: Optional[str] = None
     rf_metrics: Optional[Dict[str, Dict[str, float]]] = None
 
-    class Config:
-        extra = "forbid"
-
 
 class TrainingSample(PredictionRequest):
     """Schema for training samples."""
 
     # training samples may omit UE identifier
-    ue_id: Optional[str] = None
+    ue_id: Optional[str] = None  # type: ignore[override]
     optimal_antenna: str
-
-    class Config:
-        extra = "forbid"
 
 
 class FeedbackSample(TrainingSample):
     """Schema for feedback on handover outcome."""
 
     success: bool = True
-
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")

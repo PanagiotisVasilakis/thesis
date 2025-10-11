@@ -355,7 +355,7 @@ class TestMLPipelineIntegration:
         
         # Test schema validation
         valid_login = {"username": "test", "password": "test123"}
-        login_req = LoginRequest.parse_obj(valid_login)
+        login_req = LoginRequest.model_validate(valid_login)
         assert login_req.username == "test"
         
         # Test prediction request validation
@@ -368,8 +368,8 @@ class TestMLPipelineIntegration:
                 "antenna_1": {"rsrp": -85, "sinr": 15, "rsrq": -8}
             }
         }
-        
-        pred_req = PredictionRequest.parse_obj(prediction_data)
+
+        pred_req = PredictionRequest.model_validate(prediction_data)
         assert pred_req.ue_id == "test_ue"
         assert pred_req.latitude == 500.0
 

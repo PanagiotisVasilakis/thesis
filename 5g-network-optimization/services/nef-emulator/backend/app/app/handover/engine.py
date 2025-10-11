@@ -65,7 +65,9 @@ class HandoverEngine:
         # Always have an A3 rule available; it will only be used when
         # machine learning is disabled.
         self.rule = A3EventRule(
-            hysteresis_db=self._a3_params[0], ttt_seconds=self._a3_params[1]
+            hysteresis_db=self._a3_params[0], 
+            ttt_seconds=self._a3_params[1],
+            event_type="rsrp_based"  # Default to RSRP-based for backward compatibility
         )
 
         env = os.getenv("ML_HANDOVER_ENABLED") if use_ml is None else None
@@ -144,10 +146,27 @@ class HandoverEngine:
         fv = self.state_mgr.get_feature_vector(ue_id)
         current = fv["connected_to"]
         now = datetime.utcnow()
+        
+        # Prepare serving cell metrics
+        serving_rsrp = fv["neighbor_rsrp_dbm"][current]
+        serving_rsrq = fv["neighbor_rsrqs"].get(current) if "neighbor_rsrqs" in fv else None
+        serving_metrics = {
+            "rsrp": serving_rsrp,
+            "rsrq": serving_rsrq
+        } if serving_rsrq is not None else serving_rsrp
+        
+        # Check each neighbor
         for aid, rsrp in fv["neighbor_rsrp_dbm"].items():
             if aid == current:
                 continue
-            if self.rule.check(fv["neighbor_rsrp_dbm"][current], rsrp, now):
+            
+            neighbor_rsrq = fv["neighbor_rsrqs"].get(aid) if "neighbor_rsrqs" in fv else None
+            target_metrics = {
+                "rsrp": rsrp,
+                "rsrq": neighbor_rsrq
+            } if neighbor_rsrq is not None else rsrp
+            
+            if self.rule.check(serving_metrics, target_metrics, now):
                 return aid
         return None
 

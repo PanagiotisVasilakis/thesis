@@ -93,7 +93,7 @@ def list_models():
 @validate_json_input(LoginRequest)
 def login():
     """Return a JWT token for valid credentials."""
-    data = request.validated_data
+    data = request.validated_data  # type: ignore[attr-defined]
     if (
         data.username == current_app.config["AUTH_USERNAME"]
         and data.password == current_app.config["AUTH_PASSWORD"]
@@ -110,11 +110,12 @@ def login():
 @validate_json_input(PredictionRequest)
 def predict():
     """Make antenna selection prediction based on UE data."""
-    req = request.validated_data
+    req = request.validated_data  # type: ignore[attr-defined]
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
-        result, features = predict_ue(req.dict(exclude_none=True), model=model)
+        request_payload = req.model_dump(exclude_none=True)
+        result, features = predict_ue(request_payload, model=model)
     except (ValueError, TypeError, KeyError) as exc:
         # Handle specific model-related errors
         raise ModelError(f"Prediction failed: {exc}") from exc
@@ -124,7 +125,7 @@ def predict():
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
-        current_app.metrics_collector.drift_monitor.update(features)
+        current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
 
     return jsonify(
         {
@@ -143,17 +144,18 @@ def predict():
 @validate_json_input(PredictionRequest)
 async def predict_async():
     """Make async antenna selection prediction based on UE data."""
-    req = request.validated_data
+    req = request.validated_data  # type: ignore[attr-defined]
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
-        
+
         # Extract features for async prediction
-        features = model.extract_features(req.dict(exclude_none=True))
-        
+        request_payload = req.model_dump(exclude_none=True)
+        features = model.extract_features(request_payload)
+
         # Use async prediction
         result = await model.predict_async(features)
-        
+
     except (ValueError, TypeError, KeyError) as exc:
         # Handle specific model-related errors
         raise ModelError(f"Async prediction failed: {exc}") from exc
@@ -163,7 +165,7 @@ async def predict_async():
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
-        current_app.metrics_collector.drift_monitor.update(features)
+        current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
 
     return jsonify(
         {
@@ -183,8 +185,8 @@ async def predict_async():
 @validate_json_input(TrainingSample, allow_list=True)
 def train():
     """Train the model with provided data."""
-    validated_samples = request.validated_data
-    samples = [sample.dict(exclude_none=True) for sample in validated_samples]
+    validated_samples = request.validated_data  # type: ignore[attr-defined]
+    samples = [sample.model_dump(exclude_none=True) for sample in validated_samples]
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
@@ -218,8 +220,8 @@ def train():
 @validate_json_input(TrainingSample, allow_list=True)
 async def train_async():
     """Train the model asynchronously with provided data."""
-    validated_samples = request.validated_data
-    samples = [sample.dict(exclude_none=True) for sample in validated_samples]
+    validated_samples = request.validated_data  # type: ignore[attr-defined]
+    samples = [sample.model_dump(exclude_none=True) for sample in validated_samples]
 
     try:
         model = load_model(current_app.config["MODEL_PATH"])
@@ -281,9 +283,11 @@ def nef_status():
 @validate_content_type("application/json")
 @validate_request_size(1)  # 1MB max for data collection params
 @validate_json_input(CollectDataRequest, required=False)
-async def collect_data():
+def collect_data():
     """Collect training data from the NEF emulator."""
-    params = request.validated_data or CollectDataRequest()
+    params = getattr(request, "validated_data", None)
+    if params is None:
+        params = CollectDataRequest()
 
     duration = params.duration
     interval = params.interval
@@ -301,9 +305,23 @@ async def collect_data():
     if not collector.get_ue_movement_state():
         raise RequestValidationError("No UEs found in movement state")
 
-    try:
-    samples = await collector.collect_training_data(duration=duration, interval=interval)
+    def _execute_collection():
+        async def _collect():
+            return await collector.collect_training_data(
+                duration=duration, interval=interval
+            )
 
+        try:
+            return asyncio.run(_collect())
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(_collect())
+            finally:
+                loop.close()
+
+    try:
+        samples = _execute_collection()
     except NEFClientError as exc:
         raise NEFConnectionError(exc) from exc
 
@@ -327,14 +345,14 @@ async def collect_data():
 @validate_json_input(FeedbackSample, allow_list=True)
 def feedback():
     """Receive handover outcome feedback from the NEF emulator."""
-    samples = request.validated_data
+    samples = request.validated_data  # type: ignore[attr-defined]
     if not isinstance(samples, list):
         samples = [samples]
 
     retrained = False
     for sample in samples:
         retrained = ModelManager.feed_feedback(
-            sample.dict(exclude_none=True, exclude={"success"}),
+            sample.model_dump(exclude_none=True, exclude={"success"}),
             success=sample.success,
         ) or retrained
 

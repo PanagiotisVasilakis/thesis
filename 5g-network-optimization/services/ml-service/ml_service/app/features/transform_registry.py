@@ -60,6 +60,17 @@ def resolve_transform(spec: str) -> Callable[[Any], Any]:
         return _TRANSFORMS[spec]
 
     if "." in spec:
+        # Security: Check for potentially dangerous module names
+        dangerous_patterns = [
+            "os.", "subprocess.", "sys.", "importlib.", "__", "exec", "eval", "compile"
+        ]
+        
+        # Check if the spec contains dangerous patterns
+        spec_lower = spec.lower()
+        for pattern in dangerous_patterns:
+            if pattern in spec_lower:
+                raise ValueError(f"Transform spec '{spec}' contains potentially dangerous patterns")
+        
         module_path, func_name = spec.rsplit(".", 1)
         module = importlib.import_module(module_path)
         func = getattr(module, func_name)

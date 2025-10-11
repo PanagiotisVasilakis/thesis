@@ -2,6 +2,9 @@
 
 from flask import Flask
 
+# Re-export commonly patched components for tests
+from .monitoring.metrics import MetricsCollector  # noqa: F401
+
 
 def create_app(config=None):
     """Create and configure the Flask application."""
@@ -20,7 +23,7 @@ def create_app(config=None):
     app = Flask(__name__)
 
     # Load default configuration
-    app.config.from_mapping(
+    default_config = dict(
         SECRET_KEY=os.getenv("SECRET_KEY", os.urandom(32).hex()),
         NEF_API_URL="http://localhost:8080",
         MODEL_PATH=os.path.join(
@@ -32,17 +35,34 @@ def create_app(config=None):
         JWT_SECRET=os.getenv("JWT_SECRET", os.urandom(32).hex()),
         JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
     )
+    app.config.from_mapping(default_config)
     
     # Ensure required auth configuration is provided
-    if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
-        app.logger.warning(
-            "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
-            "Authentication will be disabled. This is not recommended for production."
-        )
-
-    # Load provided configuration if available
     if config:
         app.config.update(config)
+
+    if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
+        # Check if we're in test mode - in which case allow no auth
+        if not app.testing:
+            app.logger.error(
+                "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
+                "Authentication is required for production deployment."
+            )
+            # Raise an error to prevent the application from starting without authentication in production
+            raise ValueError(
+                "Authentication credentials must be provided via AUTH_USERNAME and AUTH_PASSWORD environment variables for production deployments"
+            )
+        else:
+            app.logger.warning(
+                "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
+                "Applying default credentials for tests only."
+            )
+            if not app.config.get("AUTH_USERNAME"):
+                app.config["AUTH_USERNAME"] = os.getenv("TEST_AUTH_USERNAME", "test_user")
+            if not app.config.get("AUTH_PASSWORD"):
+                app.config["AUTH_PASSWORD"] = os.getenv(
+                    "TEST_AUTH_PASSWORD", "test_secure_password_123!"
+                )
 
     # Create models directory if it doesn't exist
     os.makedirs(os.path.dirname(app.config["MODEL_PATH"]), exist_ok=True)
@@ -107,13 +127,13 @@ def create_app(config=None):
     # Start background collector for drift and resource metrics
     collector = MetricsCollector()
     collector.start()
-    app.metrics_collector = collector
+    app.metrics_collector = collector  # type: ignore[attr-defined]
 
     @app.teardown_appcontext
     def _shutdown_metrics_collector(exception=None):
         """Stop background metric collection when the app context ends."""
         if hasattr(app, "metrics_collector"):
-            app.metrics_collector.stop()
+            app.metrics_collector.stop()  # type: ignore[attr-defined]
 
     register_error_handlers(app)
 

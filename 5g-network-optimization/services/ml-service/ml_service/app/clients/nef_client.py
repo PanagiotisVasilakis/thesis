@@ -27,17 +27,18 @@ class NEFClient:
     """Client for the NEF emulator API."""
 
     def __init__(
-        self, 
-        base_url: str, 
-        username: str = None, 
-        password: str = None,
+        self,
+        base_url: str,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         pool_connections: int = 10,
         pool_maxsize: int = 20,
         max_retries: int = 3,
-        backoff_factor: float = 0.5
+        backoff_factor: float = 0.5,
+        http_client: Optional[Any] = None,
     ):
         """Initialize the NEF client with connection pooling and circuit breaker protection.
-        
+
         Args:
             base_url: Base URL for the NEF emulator
             username: Authentication username
@@ -46,40 +47,25 @@ class NEFClient:
             pool_maxsize: Maximum number of connections in each pool
             max_retries: Maximum number of retry attempts
             backoff_factor: Backoff factor for retries
+            http_client: Optional custom HTTP client for testing
         """
         self.base_url = base_url
         self.username = username
         self.password = password
         self.token = None
         self.logger = logging.getLogger(__name__)
-        
-        # Create session with connection pooling
-        self.session = requests.Session()
-        
-        # Configure retry strategy
-        retry_strategy = Retry(
-            total=max_retries,
-            status_forcelist=[429, 500, 502, 503, 504],
-            backoff_factor=backoff_factor,
-            raise_on_status=False
-        )
-        
-        # Configure HTTP adapter with connection pooling
-        adapter = HTTPAdapter(
+
+        # Select HTTP client implementation suitable for the environment
+        self._http = self._initialize_http_client(
+            http_client=http_client,
             pool_connections=pool_connections,
             pool_maxsize=pool_maxsize,
-            max_retries=retry_strategy
+            max_retries=max_retries,
+            backoff_factor=backoff_factor,
         )
-        
-        # Mount adapter for both HTTP and HTTPS
-        self.session.mount("http://", adapter)
-        self.session.mount("https://", adapter)
-        
-        # Set default headers
-        self.session.headers.update({
-            "User-Agent": "NEFClient/1.0",
-            "Connection": "keep-alive"
-        })
+
+        # Backwards compatibility: expose session attr when HTTP client supports closing
+        self.session = self._http if hasattr(self._http, "close") else None
         
         # Initialize circuit breakers for different endpoint types
         self._login_breaker = CircuitBreaker(
@@ -107,6 +93,39 @@ class NEFClient:
             pool_connections, pool_maxsize, max_retries
         )
 
+    def _initialize_http_client(
+        self,
+        http_client: Optional[Any],
+        pool_connections: int,
+        pool_maxsize: int,
+        max_retries: int,
+        backoff_factor: float,
+    ) -> Any:
+        """Return an HTTP client instance suited for production or tests."""
+        if http_client is not None:
+            return http_client
+
+        session = requests.Session()
+        retry_kwargs: Dict[str, Any] = {
+            "total": max_retries,
+            "status_forcelist": [429, 500, 502, 503, 504],
+            "backoff_factor": backoff_factor,
+            "raise_on_status": False,
+        }
+        retry_strategy = Retry(**retry_kwargs)
+        adapter = HTTPAdapter(
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+            max_retries=retry_strategy,
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        session.headers.update({
+            "User-Agent": "NEFClient/1.0",
+            "Connection": "keep-alive",
+        })
+        return session
+
     def login(self) -> bool:
         """Authenticate with the NEF emulator using circuit breaker protection."""
         if not self.username or not self.password:
@@ -117,7 +136,7 @@ class NEFClient:
 
         def _do_login():
             login_url = urljoin(self.base_url, "/api/v1/login/access-token")
-            response = self.session.post(
+            response = self._http.post(
                 login_url,
                 data={"username": self.username, "password": self.password},
                 timeout=10,
@@ -125,10 +144,6 @@ class NEFClient:
 
             if response.status_code == 200:
                 self.token = response.json().get("access_token")
-                # Update session headers with authentication token
-                self.session.headers.update({
-                    "Authorization": f"Bearer {self.token}"
-                })
                 self.logger.info(
                     "Successfully authenticated with NEF emulator"
                 )
@@ -139,10 +154,7 @@ class NEFClient:
                     response.status_code,
                     response.text,
                 )
-                # Raise exception to trigger circuit breaker on auth failures
-                raise requests.exceptions.HTTPError(
-                    f"Authentication failed with status {response.status_code}"
-                )
+                return False
 
         try:
             return self._login_breaker.call(_do_login)
@@ -164,7 +176,7 @@ class NEFClient:
         """Return the raw response from the NEF status endpoint."""
         url = urljoin(self.base_url, "/api/v1/paths/")
         try:
-            response = self.session.get(url, headers=self.get_headers(), timeout=5)
+            response = self._http.get(url, headers=self.get_headers(), timeout=5)
             if response.status_code != 200:
                 self.logger.error(
                     "Error querying NEF status: %s - body: %s",
@@ -197,8 +209,8 @@ class NEFClient:
         Returns:
             List of path points or None if request fails
         """
+        url = urljoin(self.base_url, "/api/v1/mobility-patterns/generate")
         try:
-            url = urljoin(self.base_url, "/api/v1/mobility-patterns/generate")
 
             payload = {
                 "model_type": model_type,
@@ -208,7 +220,7 @@ class NEFClient:
                 "parameters": parameters,
             }
 
-            response = self.session.post(
+            response = self._http.post(
                 url, json=payload, headers=self.get_headers(), timeout=30
             )
 
@@ -229,10 +241,10 @@ class NEFClient:
 
     def get_ue_movement_state(self) -> Dict[str, Any]:
         """Get current state of all UEs in movement."""
+        url = urljoin(self.base_url, "/api/v1/ue-movement/state-ues")
         try:
-            url = urljoin(self.base_url, "/api/v1/ue-movement/state-ues")
 
-            response = self.session.get(
+            response = self._http.get(
                 url, headers=self.get_headers(), timeout=10
             )
 
@@ -257,9 +269,9 @@ class NEFClient:
 
     def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
         """Return the ML feature vector for the given UE."""
+        url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
         try:
-            url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
-            response = self.session.get(
+            response = self._http.get(
                 url, headers=self.get_headers(), timeout=10
             )
             if response.status_code == 200:
@@ -295,8 +307,9 @@ class NEFClient:
     
     def close(self) -> None:
         """Close the session and clean up connection pools."""
-        if hasattr(self, 'session'):
-            self.session.close()
+        session = getattr(self, "session", None)
+        if session is not None and hasattr(session, "close"):
+            session.close()
             self.logger.info("NEF client session closed and connection pools cleaned up")
     
     def __enter__(self):

@@ -11,4 +11,5 @@ if __name__ == "__main__":
     cert = os.getenv("SSL_CERTFILE")
     key = os.getenv("SSL_KEYFILE")
     ssl_context = (cert, key) if cert and key else None
-    app.run(host="0.0.0.0", port=5050, debug=True, ssl_context=ssl_context)
+    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "yes")
+    app.run(host="0.0.0.0", port=5050, debug=debug_mode, ssl_context=ssl_context)
