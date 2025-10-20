@@ -17,6 +17,7 @@ from ..errors import (
 )
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
+from ..schemas import PredictionRequestWithQoS
 from ..initialization.model_init import ModelManager
 from ..auth import (
     create_access_token,
@@ -146,6 +147,43 @@ def predict():
             "ue_id": req.ue_id,
             "predicted_antenna": result["antenna_id"],
             "confidence": result["confidence"],
+            "features_used": list(features.keys()),
+        }
+    )
+
+
+@api_bp.route("/predict-with-qos", methods=["POST"])
+@require_auth
+@require_roles("predict", "admin")
+@limiter.limit(limit_for("predict"))
+@validate_content_type("application/json")
+@validate_request_size(5)  # 5MB max for prediction requests
+@validate_json_input(PredictionRequestWithQoS)
+def predict_with_qos():
+    """Make antenna selection prediction considering QoS requirements."""
+    req = request.validated_data  # type: ignore[attr-defined]
+
+    try:
+        model = load_model(current_app.config["MODEL_PATH"])
+        request_payload = req.model_dump(exclude_none=True)
+        result, features = predict_ue(request_payload, model=model)
+    except (ValueError, TypeError, KeyError) as exc:
+        # Handle specific model-related errors
+        raise ModelError(f"Prediction failed: {exc}") from exc
+    except FileNotFoundError as exc:
+        # Handle missing model file
+        raise ModelError(f"Model file not found: {exc}") from exc
+
+    track_prediction(result["antenna_id"], result["confidence"])
+    if hasattr(current_app, "metrics_collector"):
+        current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
+
+    return jsonify(
+        {
+            "ue_id": req.ue_id,
+            "predicted_antenna": result["antenna_id"],
+            "confidence": result["confidence"],
+            "qos_compliance": result.get("qos_compliance", {"service_priority_ok": True}),
             "features_used": list(features.keys()),
         }
     )

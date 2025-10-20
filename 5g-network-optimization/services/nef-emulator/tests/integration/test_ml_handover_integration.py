@@ -8,14 +8,19 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient as FastAPITestClient
 from httpx import ASGITransport
+from importlib.machinery import ModuleSpec
+from typing import cast, Any
 
 
-pytestmark = pytest.mark.skip(reason="Requires full ML dependencies")
+# Integration test for ML handover behavior — runs in-process with patched ML client
 
 
 class TestClient(FastAPITestClient):
     def __init__(self, *, transport: ASGITransport, **kwargs):
-        super().__init__(transport.app, **kwargs)
+        # transport.app is a typed ASGI app; mypy/pylance sometimes
+        # complains about exact ASGI types — cast to satisfy type checkers
+        app = cast(Any, transport.app)
+        super().__init__(app, **kwargs)
 
 
 class DummyAntenna:
@@ -68,10 +73,11 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
             del sys.modules[name]
 
     spec_state = importlib.util.spec_from_file_location(
-        "app.network.state_manager", backend_root /
-        "app" / "network" / "state_manager.py"
+        "app.network.state_manager", backend_root / "app" / "network" / "state_manager.py"
     )
+    assert spec_state is not None and isinstance(spec_state, ModuleSpec)
     state_mod = importlib.util.module_from_spec(spec_state)
+    assert spec_state.loader is not None
     spec_state.loader.exec_module(state_mod)
 
     class DummyResponse:
@@ -94,22 +100,27 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
     monkeypatch.setenv("ML_SERVICE_URL", "http://ml")
 
     sys.modules["app.network"] = ModuleType("app.network")
-    sys.modules["app.network"].state_manager = state_mod
+    # assign attribute via setattr so type checkers don't complain
+    setattr(sys.modules["app.network"], "state_manager", state_mod)
     sys.modules["app.network.state_manager"] = state_mod
 
     spec_engine = importlib.util.spec_from_file_location(
         "app.handover.engine", backend_root / "app" / "handover" / "engine.py"
     )
+    assert spec_engine is not None and isinstance(spec_engine, ModuleSpec)
     engine_mod = importlib.util.module_from_spec(spec_engine)
+    assert spec_engine.loader is not None
 
     spec_rule = importlib.util.spec_from_file_location(
         "app.handover.a3_rule", backend_root / "app" / "handover" / "a3_rule.py"
     )
+    assert spec_rule is not None and isinstance(spec_rule, ModuleSpec)
     rule_mod = importlib.util.module_from_spec(spec_rule)
+    assert spec_rule.loader is not None
     spec_rule.loader.exec_module(rule_mod)
 
     handover_pkg = ModuleType("app.handover")
-    handover_pkg.a3_rule = rule_mod
+    setattr(handover_pkg, "a3_rule", rule_mod)
     spec_engine.loader.exec_module(engine_mod)
     sys.modules["app.handover"] = handover_pkg
     sys.modules["app.handover.engine"] = engine_mod
@@ -117,12 +128,16 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
     spec_ml = importlib.util.spec_from_file_location(
         "ml_api", backend_root / "app" / "api" / "api_v1" / "endpoints" / "ml_api.py"
     )
+    assert spec_ml is not None and isinstance(spec_ml, ModuleSpec)
     ml_api = importlib.util.module_from_spec(spec_ml)
+    assert spec_ml.loader is not None
     spec_ml.loader.exec_module(ml_api)
 
     app = FastAPI()
     app.include_router(ml_api.router, prefix="/api/v1")
-    return TestClient(transport=ASGITransport(app=app)), ml_api
+    # ASGITransport expects a concrete ASGI app; cast for type checkers
+    transport = ASGITransport(app=cast(Any, app))
+    return TestClient(transport=transport), ml_api
 
 
 def test_handover_triggers_prediction(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -135,7 +150,35 @@ def test_handover_triggers_prediction(monkeypatch: pytest.MonkeyPatch) -> None:
         "u1": {"position": (0, 0, 0), "connected_to": "A", "speed": 0.0}
     }
 
+    # Scenario A: ML reports qos_compliance OK despite low confidence
+    dummy_model.predict.return_value = {
+        "antenna_id": "B",
+        "confidence": 0.4,
+        "qos_compliance": {"service_priority_ok": True, "required_confidence": 0.8, "observed_confidence": 0.4, "details": {}},
+    }
+    # Record baseline metric values from the real monitoring module so we
+    # observe increments made by the HandoverEngine (avoid creating a
+    # separate module instance).
+    import importlib
+
+    metrics_mod = importlib.import_module("app.monitoring.metrics")
+    base_ok = metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="ok")._value.get()
     resp = nef_client.post("/api/v1/ml/handover", params={"ue_id": "u1"})
     assert resp.status_code == 200
     assert resp.json()["to"] == "B"
     assert dummy_model.predict.called
+    assert metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="ok")._value.get() == base_ok + 1
+
+    # Scenario B: ML reports qos_compliance failed and engine should fallback
+    dummy_model.predict.return_value = {
+        "antenna_id": "B",
+        "confidence": 0.9,
+        "qos_compliance": {"service_priority_ok": False, "required_confidence": 0.95, "observed_confidence": 0.9, "details": {}},
+    }
+    base_failed = metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="failed")._value.get()
+    base_fallbacks = metrics_mod.HANDOVER_FALLBACKS._value.get()
+    resp2 = nef_client.post("/api/v1/ml/handover", params={"ue_id": "u1"})
+    assert resp2.status_code == 200
+    # Fallback may choose same or different antenna; ensure fallback counter incremented
+    assert metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="failed")._value.get() == base_failed + 1
+    assert metrics_mod.HANDOVER_FALLBACKS._value.get() == base_fallbacks + 1

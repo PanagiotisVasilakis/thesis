@@ -72,7 +72,8 @@ with open('linear_path.json', 'r') as f:
 path_url = "http://localhost:8080/api/v1/paths/"
 path_response = requests.post(path_url, json=path_data, headers=headers)
 path_id = path_response.json()["id"]
-print(f"Created path with ID: {path_id}")
+# Example: log or print the created path id when running as a script
+# logger.info(f"Created path with ID: {path_id}")
 
 # 3. Update UE to use the path
 ue_id = "your_ue_id"  # Get this from your NEF emulator
@@ -84,7 +85,8 @@ ue_response = requests.put(ue_url, json=ue_data, headers=headers)
 start_url = "http://localhost:8080/api/v1/ue-movement/start-loop"
 start_data = {"supi": "your_ue_supi"}  # Get SUPI from your UE
 start_response = requests.post(start_url, json=start_data, headers=headers)
-print("UE movement started")
+# Example: log or notify that the UE movement has started
+# logger.info("UE movement started")
 ```
 
 ### A3 Rule-Based Handover

@@ -1,6 +1,6 @@
 """API endpoints for circuit breaker monitoring and management."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from flask import Blueprint, jsonify
@@ -133,7 +133,7 @@ def health_check() -> Any:
             "status": health_status,
             "open_circuits": len(open_circuits),
             "total_circuits": len(total_stats),
-            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds") + "Z",
         }), http_status
         
     except Exception as e:

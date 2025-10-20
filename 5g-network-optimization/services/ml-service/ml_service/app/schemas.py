@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PredictionRequest(BaseModel):
@@ -39,3 +39,15 @@ class FeedbackSample(TrainingSample):
 
     success: bool = True
     model_config = ConfigDict(extra="forbid")
+
+
+class PredictionRequestWithQoS(PredictionRequest):
+    """Extended prediction request with QoS requirements."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Allowed values: 'urllc', 'embb', 'mmtc', 'default'
+    service_type: str = "default"
+    qos_requirements: Optional[Dict[str, float]] = None
+    edge_service_requirements: Optional[Dict[str, Any]] = None
+    service_priority: int = Field(5, ge=1, le=10)
