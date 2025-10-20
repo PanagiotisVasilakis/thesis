@@ -47,15 +47,7 @@ def tune_and_train(
 ) -> Dict[str, Any]:
     """Tune LightGBM hyperparameters and update ``model`` with the result."""
 
-    X = []
-    y = []
-    for sample in training_data:
-        features = model.extract_features(sample)
-        X.append([features[name] for name in model.feature_names])
-        y.append(sample.get("optimal_antenna"))
-
-    X_arr = np.array(X)
-    y_arr = np.array(y)
+    X_arr, y_arr = model.build_dataset(training_data)
 
     best_estimator, best_params = tune_lightgbm(
         X_arr, y_arr, n_iter=n_iter, cv=cv
@@ -63,7 +55,7 @@ def tune_and_train(
     model.model = best_estimator
 
     return {
-        "samples": len(X),
+    "samples": len(X_arr),
         "best_params": best_params,
         "feature_importance": dict(
             zip(model.feature_names, model.model.feature_importances_)

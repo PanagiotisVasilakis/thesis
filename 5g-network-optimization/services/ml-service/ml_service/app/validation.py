@@ -113,6 +113,11 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1, max_length=1000)
 
 
+class RefreshTokenRequest(BaseModel):
+    """Validation schema for refresh-token requests."""
+    refresh_token: str = Field(..., min_length=10)
+
+
 class CollectDataRequest(BaseModel):
     """Validation schema for data collection requests."""
     duration: int = Field(60, ge=1, le=3600)  # 1 second to 1 hour
@@ -195,9 +200,10 @@ def validate_json_input(schema_class: Optional[Type[BaseModel]] = None,
                 try:
                     validated_data = schema_class.model_validate(payload)
                     request.validated_data = validated_data  # type: ignore[attr-defined]
+                    schema_fields = getattr(schema_class, "model_fields", {})
                     validation_metadata = {
                         "schema": schema_class.__name__,
-                        "fields_validated": len(validated_data.model_fields),
+                        "fields_validated": len(schema_fields),
                     }
                     request.validation_metadata = validation_metadata  # type: ignore[attr-defined]
                 except ValidationError as err:

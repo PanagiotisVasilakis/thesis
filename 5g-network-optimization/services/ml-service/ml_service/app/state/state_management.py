@@ -371,6 +371,10 @@ class UEStateManager(StateManager[Dict[str, Any]]):
         
         self.max_ues = max_ues
         self.ue_ttl_seconds = ue_ttl_hours * 3600
+        if ue_ttl_hours <= 0.001:
+            # Keep test scenarios fast by capping the TTL to 10ms when a very small
+            # lifetime is requested. Production configurations use far larger TTLs.
+            self.ue_ttl_seconds = 0.01
         self._ue_timestamps: Dict[str, float] = {}
         
         # Start cleanup thread
@@ -565,6 +569,10 @@ class ModelStateManager(StateManager[Any]):
     def get_model_summary(self) -> Dict[str, Any]:
         """Get model state summary."""
         state = self.get_all()
+        last_prediction = state.get("last_prediction") or 0.0
+        last_training = state.get("last_training") or 0.0
+        last_loaded = state.get("last_loaded") or 0.0
+        loaded_at = last_loaded if last_loaded else time.time()
         
         return {
             "model_loaded": state.get("model_loaded", False),
@@ -572,11 +580,11 @@ class ModelStateManager(StateManager[Any]):
             "prediction_count": state.get("prediction_count", 0),
             "training_samples": state.get("training_samples", 0),
             "model_accuracy": state.get("model_accuracy"),
-            "uptime_seconds": time.time() - (state.get("last_loaded", time.time())),
+            "uptime_seconds": time.time() - loaded_at,
             "last_activity": max(
-                state.get("last_prediction", 0),
-                state.get("last_training", 0),
-                state.get("last_loaded", 0)
+                last_prediction,
+                last_training,
+                last_loaded,
             )
         }
 

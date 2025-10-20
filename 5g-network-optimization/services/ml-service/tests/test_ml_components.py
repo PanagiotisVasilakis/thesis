@@ -119,7 +119,7 @@ def test_model_training_and_prediction(tmp_path):
         logger.info(f"Feature importance visualization saved to {out_path}")
     
     # Visualize predictions in a 2D space
-    visualize_predictions(test_data, predictions, tmp_path, NUM_ANTENNAS)
+    visualize_predictions(model, test_data, predictions, tmp_path, NUM_ANTENNAS)
     
     # Save model
     try:
@@ -131,7 +131,7 @@ def test_model_training_and_prediction(tmp_path):
 
     assert accuracy > 0.7, f"Model accuracy too low: {accuracy:.2%}"
 
-def visualize_predictions(test_data, predictions, tmp_path, num_antennas: int):
+def visualize_predictions(model, test_data, predictions, tmp_path, num_antennas: int):
     """Visualize predictions in a 2D space for an arbitrary antenna count."""
     logger.info("\nVisualizing predictions...")
 
@@ -161,9 +161,6 @@ def visualize_predictions(test_data, predictions, tmp_path, num_antennas: int):
     y_grid = np.linspace(0, 866, grid_resolution)
     X, Y = np.meshgrid(x_grid, y_grid)
 
-    boundary_model = LightGBMSelector()
-    boundary_model.train(test_data)
-
     Z = np.empty((grid_resolution, grid_resolution), dtype=object)
     dummy_rf = {aid: {'rsrp': -80, 'sinr': 10} for aid in unique_antennas}
 
@@ -178,8 +175,8 @@ def visualize_predictions(test_data, predictions, tmp_path, num_antennas: int):
                 'rf_metrics': dummy_rf,
             }
 
-            features = boundary_model.extract_features(dummy_data)
-            prediction = boundary_model.predict(features)
+            features = model.extract_features(dummy_data)
+            prediction = model.predict(features)
             Z[i, j] = prediction['antenna_id']
 
     antenna_map = {aid: idx + 1 for idx, aid in enumerate(unique_antennas)}

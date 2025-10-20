@@ -30,6 +30,7 @@ from ..validation import (
     LoginRequest,
     CollectDataRequest,
 )
+from ..rate_limiter import limiter, limit_for
 
 # Create blueprint for DI-enabled routes
 di_bp = Blueprint('di_api', __name__, url_prefix='/di/api/v1')
@@ -135,6 +136,7 @@ def health_check():
 
 @di_bp.route("/predict", methods=["POST"])
 @require_auth_di
+@limiter.limit(limit_for("predict"))
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
@@ -205,6 +207,7 @@ def predict_di():
 
 @di_bp.route("/predict-async", methods=["POST"])
 @require_auth_di
+@limiter.limit(limit_for("predict_async"))
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
@@ -218,7 +221,7 @@ async def predict_async_di():
     try:
         # Extract features and predict using DI model
         features = services.model.extract_features(req.model_dump(exclude_none=True))
-    result = await services.model.predict_async(features)  # type: ignore[attr-defined]
+        result = await services.model.predict_async(features)  # type: ignore[attr-defined]
         
         # Track metrics
         services.metrics.track_prediction(result["antenna_id"], result["confidence"])
@@ -244,6 +247,7 @@ async def predict_async_di():
 
 @di_bp.route("/train", methods=["POST"])
 @require_auth_di
+@limiter.limit(limit_for("train"))
 @validate_content_type("application/json")
 @validate_request_size(50)  # 50MB max for training data
 @validate_json_input(TrainingSample, allow_list=True)
@@ -312,6 +316,7 @@ def nef_status_di():
 
 @di_bp.route("/collect-data", methods=["POST"])
 @require_auth_di
+@limiter.limit(limit_for("collect_data"))
 @validate_content_type("application/json")
 @validate_request_size(1)  # 1MB max for data collection params
 @validate_json_input(CollectDataRequest, required=False)
@@ -319,7 +324,7 @@ async def collect_data_di():
     """Collect training data using dependency injection."""
     params = getattr(request, "validated_data", None)
     if params is None:
-        params = CollectDataRequest()
+        params = CollectDataRequest.model_validate({})
     services = get_services()
     
     duration = params.duration

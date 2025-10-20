@@ -559,11 +559,19 @@ class AsyncModelManager:
         logger.info("Shutting down AsyncModelManager...")
         
         # Stop workers
+        per_worker_timeout = timeout / len(self.workers) if self.workers else timeout
         for worker in self.workers:
-            worker.stop(timeout=timeout / len(self.workers))
-        
-        # Shutdown executor
-        self.executor.shutdown(wait=True, timeout=timeout)
+            worker.stop(timeout=per_worker_timeout)
+
+        start = time.time()
+        self.executor.shutdown(wait=True)
+        elapsed = time.time() - start
+        if timeout and elapsed > timeout:
+            logger.warning(
+                "Executor shutdown exceeded timeout %.2fs (%.2fs)",
+                timeout,
+                elapsed,
+            )
         
         # Unregister from resource manager
         if hasattr(self, '_resource_id') and self._resource_id:

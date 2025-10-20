@@ -15,14 +15,38 @@ def create_app(config=None):
     from prometheus_client import generate_latest
 
     from ml_service.app.monitoring import metrics
-    from ml_service.app.monitoring.metrics import MetricsMiddleware, MetricsCollector
+    from ml_service.app.monitoring.metrics import MetricsMiddleware
     from ml_service.app.rate_limiter import init_app as init_limiter
     from ml_service.app.error_handlers import register_error_handlers
     from .initialization.model_init import MODEL_VERSION
 
     app = Flask(__name__)
 
+    def _parse_roles(raw: str | list[str] | None) -> list[str]:
+        if raw is None:
+            return []
+        if isinstance(raw, list):
+            return [role for role in raw if role]
+        parts = [part.strip() for part in str(raw).split(",")]
+        return [part for part in parts if part]
+
+    def _parse_rate_limits() -> dict[str, str]:
+        return {
+            "login": os.getenv("RATELIMIT_LOGIN", "10 per minute"),
+            "predict": os.getenv("RATELIMIT_PREDICT", "60 per minute"),
+            "predict_async": os.getenv("RATELIMIT_PREDICT_ASYNC", "60 per minute"),
+            "train": os.getenv("RATELIMIT_TRAIN", "10 per minute"),
+            "train_async": os.getenv("RATELIMIT_TRAIN_ASYNC", "6 per hour"),
+            "collect_data": os.getenv("RATELIMIT_COLLECT_DATA", "5 per minute"),
+            "feedback": os.getenv("RATELIMIT_FEEDBACK", "30 per minute"),
+            "refresh": os.getenv("RATELIMIT_REFRESH", "30 per hour"),
+            "circuit_breaker": os.getenv("RATELIMIT_CIRCUIT_BREAKER", "20 per minute"),
+        }
+
     # Load default configuration
+    default_roles = _parse_roles(os.getenv("AUTH_ROLES"))
+    if not default_roles:
+        default_roles = ["admin"]
     default_config = dict(
         SECRET_KEY=os.getenv("SECRET_KEY", os.urandom(32).hex()),
         NEF_API_URL="http://localhost:8080",
@@ -34,12 +58,19 @@ def create_app(config=None):
         AUTH_PASSWORD=os.getenv("AUTH_PASSWORD"),
         JWT_SECRET=os.getenv("JWT_SECRET", os.urandom(32).hex()),
         JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
+        JWT_REFRESH_SECRET=os.getenv("JWT_REFRESH_SECRET"),
+        JWT_REFRESH_EXPIRES_MINUTES=int(os.getenv("JWT_REFRESH_EXPIRES_MINUTES", "4320")),
+        AUTH_ROLES=default_roles,
+        RATELIMIT_DEFAULT=os.getenv("RATELIMIT_DEFAULT", "100 per minute"),
+        RATELIMIT_STORAGE_URI=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
+        RATE_LIMITS=_parse_rate_limits(),
     )
     app.config.from_mapping(default_config)
     
     # Ensure required auth configuration is provided
     if config:
         app.config.update(config)
+        app.config["AUTH_ROLES"] = _parse_roles(app.config.get("AUTH_ROLES")) or default_roles
 
     if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
         # Check if we're in test mode - in which case allow no auth
@@ -81,14 +112,18 @@ def create_app(config=None):
 
     app.register_blueprint(api_bp)
 
+    # Register circuit breaker management blueprint
+    from .api.circuit_breaker import circuit_breaker_bp
+
+    app.register_blueprint(circuit_breaker_bp)
+
     # Register visualization blueprint
     from .api.visualization import viz_bp
 
     app.register_blueprint(viz_bp)
 
-    # Initialise rate limiting (disabled during testing)
-    if not app.testing:
-        init_limiter(app)
+    # Initialise rate limiting (disabled automatically during testing)
+    init_limiter(app)
 
     # Import metrics authentication
     from .auth.metrics_auth import require_metrics_auth, get_metrics_authenticator

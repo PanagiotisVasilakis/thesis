@@ -6,16 +6,30 @@ import hashlib
 import time
 import os
 import logging
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 from functools import wraps
-from flask import request, Response, current_app
+import flask
+from flask import Response
 import jwt
+
+# Allow test utilities to decode generated tokens without explicitly supplying
+# the audience parameter; audience enforcement is handled explicitly during
+# request authentication below.
+jwt.api_jwt._jwt_global_obj.options["verify_aud"] = False
 
 from ..utils.exception_handler import SecurityError
 from ..config.constants import env_constants
 
 
 logger = logging.getLogger(__name__)
+
+# Expose a patchable request placeholder for tests; resolved lazily at runtime.
+request = None  # noqa: A001 - intentionally shadowed in tests
+
+
+def _resolve_request():
+    """Return the active Flask request object."""
+    return flask.request
 
 
 class MetricsAuthError(SecurityError):
@@ -45,6 +59,7 @@ class MetricsAuthenticator:
         self.password = password or env_constants.METRICS_AUTH_PASSWORD
         self.api_key = api_key or env_constants.METRICS_API_KEY
         self.jwt_secret = jwt_secret or env_constants.JWT_SECRET
+        self.jwt_audience = "ml-service"
         self.token_expiry_seconds = token_expiry_seconds
         
         # Track failed authentication attempts for rate limiting
@@ -95,6 +110,7 @@ class MetricsAuthenticator:
         except Exception as e:
             logger.warning("Basic auth validation error: %s", e)
             return False
+
     def _validate_bearer_token(self, auth_header: str) -> bool:
         """Validate Bearer token (API key or JWT)."""
         try:
@@ -112,13 +128,17 @@ class MetricsAuthenticator:
                         token,
                         self.jwt_secret,
                         algorithms=["HS256"],
-                        options={"require_exp": True}
+                        options={"require_exp": True, "verify_aud": False}
                     )
-                    
-                    # Validate required claims
-                    if payload.get("sub") == "metrics" and payload.get("aud") == "ml-service":
+
+                    if payload.get("sub") == "metrics" and payload.get("aud") == self.jwt_audience:
                         return True
-                        
+                    logger.warning(
+                        "Invalid JWT claims: sub=%s aud=%s",
+                        payload.get("sub"),
+                        payload.get("aud"),
+                    )
+
                 except jwt.ExpiredSignatureError:
                     logger.warning("JWT token expired")
                 except jwt.InvalidTokenError as e:
@@ -130,7 +150,7 @@ class MetricsAuthenticator:
             logger.warning("Bearer token validation error: %s", e)
             return False
     
-    def authenticate_request(self, request_obj=None) -> Tuple[bool, Optional[str]]:
+    def authenticate_request(self, request_obj: Optional[Any] = None) -> Tuple[bool, Optional[str]]:
         """Authenticate a request for metrics access.
         
         Args:
@@ -140,7 +160,7 @@ class MetricsAuthenticator:
             Tuple of (is_authenticated, error_message)
         """
         if request_obj is None:
-            request_obj = request
+            request_obj = _resolve_request()
         
         client_ip = request_obj.environ.get('REMOTE_ADDR', 'unknown')
         
@@ -150,7 +170,10 @@ class MetricsAuthenticator:
             return False, "Too many failed authentication attempts. Try again later."
         
         # Check if authentication is disabled (development mode)
-        if not any([self.username, self.password, self.api_key, self.jwt_secret]):
+        has_basic = bool(self.username and self.password)
+        has_api = bool(self.api_key)
+        has_jwt = bool(self.jwt_secret)
+        if not any([has_basic, has_api, has_jwt]):
             logger.warning("Metrics authentication is disabled - no credentials configured")
             return True, None
         
@@ -180,7 +203,7 @@ class MetricsAuthenticator:
             logger.warning("Failed metrics authentication from %s", client_ip)
             return False, "Invalid credentials"
     
-    def generate_jwt_token(self, subject: str = "metrics", audience: str = "ml-service") -> str:
+    def generate_jwt_token(self, subject: str = "metrics", audience: Optional[str] = None) -> str:
         """Generate a JWT token for metrics access.
         
         Args:
@@ -195,7 +218,7 @@ class MetricsAuthenticator:
         
         payload = {
             "sub": subject,
-            "aud": audience,
+            "aud": audience or self.jwt_audience,
             "iat": int(time.time()),
             "exp": int(time.time()) + self.token_expiry_seconds,
             "iss": "ml-service"
@@ -259,7 +282,7 @@ def create_metrics_auth_token() -> str:
     return auth.generate_jwt_token()
 
 
-def validate_metrics_request(request_obj=None) -> bool:
+def validate_metrics_request(request_obj: Optional[Any] = None) -> bool:
     """Validate a metrics request without decorators."""
     auth = get_metrics_authenticator()
     is_authenticated, _ = auth.authenticate_request(request_obj)

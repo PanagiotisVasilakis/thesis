@@ -1,10 +1,13 @@
 """API endpoints for circuit breaker monitoring and management."""
 
-from flask import Blueprint, jsonify, request
-from typing import Dict, Any
+from datetime import datetime
+from typing import Any
 
+from flask import Blueprint, jsonify
+
+from ..api.decorators import require_auth, require_roles
+from ..rate_limiter import limiter, limit_for
 from ..utils.circuit_breaker import circuit_registry
-from ..utils.auth import require_auth
 
 # Create blueprint for circuit breaker endpoints
 circuit_breaker_bp = Blueprint('circuit_breaker', __name__, url_prefix='/api/v1/circuit-breakers')
@@ -12,7 +15,9 @@ circuit_breaker_bp = Blueprint('circuit_breaker', __name__, url_prefix='/api/v1/
 
 @circuit_breaker_bp.route('/status', methods=['GET'])
 @require_auth
-def get_circuit_breaker_status() -> Dict[str, Any]:
+@require_roles('admin')
+@limiter.limit(limit_for("circuit_breaker"))
+def get_circuit_breaker_status() -> Any:
     """Get status of all registered circuit breakers.
     
     Returns:
@@ -42,7 +47,9 @@ def get_circuit_breaker_status() -> Dict[str, Any]:
 
 @circuit_breaker_bp.route('/reset', methods=['POST'])
 @require_auth
-def reset_circuit_breakers() -> Dict[str, Any]:
+@require_roles('admin')
+@limiter.limit(limit_for("circuit_breaker"))
+def reset_circuit_breakers() -> Any:
     """Reset all circuit breakers to closed state.
     
     Returns:
@@ -65,7 +72,9 @@ def reset_circuit_breakers() -> Dict[str, Any]:
 
 @circuit_breaker_bp.route('/reset/<circuit_name>', methods=['POST'])
 @require_auth
-def reset_circuit_breaker(circuit_name: str) -> Dict[str, Any]:
+@require_roles('admin')
+@limiter.limit(limit_for("circuit_breaker"))
+def reset_circuit_breaker(circuit_name: str) -> Any:
     """Reset a specific circuit breaker to closed state.
     
     Args:
@@ -97,7 +106,7 @@ def reset_circuit_breaker(circuit_name: str) -> Dict[str, Any]:
 
 
 @circuit_breaker_bp.route('/health', methods=['GET'])
-def health_check() -> Dict[str, Any]:
+def health_check() -> Any:
     """Health check endpoint for circuit breakers (no auth required).
     
     Returns basic health status for monitoring systems.
@@ -124,7 +133,7 @@ def health_check() -> Dict[str, Any]:
             "status": health_status,
             "open_circuits": len(open_circuits),
             "total_circuits": len(total_stats),
-            "timestamp": circuit_registry._get_current_timestamp() if hasattr(circuit_registry, '_get_current_timestamp') else None
+            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         }), http_status
         
     except Exception as e:
@@ -136,7 +145,9 @@ def health_check() -> Dict[str, Any]:
 
 @circuit_breaker_bp.route('/<circuit_name>/stats', methods=['GET'])
 @require_auth
-def get_circuit_breaker_stats(circuit_name: str) -> Dict[str, Any]:
+@require_roles('admin')
+@limiter.limit(limit_for("circuit_breaker"))
+def get_circuit_breaker_stats(circuit_name: str) -> Any:
     """Get detailed statistics for a specific circuit breaker.
     
     Args:

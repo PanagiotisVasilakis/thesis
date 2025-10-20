@@ -2,11 +2,11 @@
 from flask import jsonify, request, current_app, g
 import time
 from pathlib import Path
-from functools import wraps
 import asyncio
 from pydantic import ValidationError
 
 from . import api_bp
+from .decorators import require_auth, require_roles
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 from ..clients.nef_client import NEFClient, NEFClientError
@@ -18,51 +18,25 @@ from ..errors import (
 from ..monitoring.metrics import track_prediction, track_training
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
 from ..initialization.model_init import ModelManager
-from ..auth import create_access_token, verify_token
+from ..auth import (
+    create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    rotate_refresh_token,
+    revoke_refresh_tokens_for_subject,
+)
 from ..validation import (
     validate_json_input,
     validate_path_params,
     validate_request_size,
     validate_content_type,
     LoginRequest,
+    RefreshTokenRequest,
     CollectDataRequest,
     model_version_validator,
     bounded_int,
 )
-
-
-def require_auth(func):
-    """Decorator enforcing JWT authentication."""
-    def _check_token():
-        if current_app.testing:
-            return None
-        header = request.headers.get("Authorization", "")
-        if not header.startswith("Bearer "):
-            return jsonify({"error": "Missing token"}), 401
-        token = header.split(" ", 1)[1]
-        user = verify_token(token)
-        if not user:
-            return jsonify({"error": "Invalid token"}), 401
-        g.user = user
-
-    if asyncio.iscoroutinefunction(func):
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            resp = _check_token()
-            if resp is not None:
-                return resp
-            return await func(*args, **kwargs)
-
-        return async_wrapper
-    else:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            resp = _check_token()
-            if resp is not None:
-                return resp
-            return func(*args, **kwargs)
-
-        return wrapper
+from ..rate_limiter import limiter, limit_for
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -88,6 +62,7 @@ def list_models():
 
 
 @api_bp.route("/login", methods=["POST"])
+@limiter.limit(limit_for("login"))
 @validate_content_type("application/json")
 @validate_request_size(1)  # 1MB max for login
 @validate_json_input(LoginRequest)
@@ -98,13 +73,52 @@ def login():
         data.username == current_app.config["AUTH_USERNAME"]
         and data.password == current_app.config["AUTH_PASSWORD"]
     ):
-        token = create_access_token(data.username)
-        return jsonify({"access_token": token})
+        roles = list(current_app.config.get("AUTH_ROLES", []))
+        revoke_refresh_tokens_for_subject(data.username)
+        token = create_access_token(data.username, roles=roles)
+        refresh_token = create_refresh_token(data.username, roles=roles)
+        return jsonify(
+            {
+                "access_token": token,
+                "refresh_token": refresh_token,
+                "roles": roles,
+            }
+        )
     return jsonify({"error": "Invalid credentials"}), 401
+
+
+@api_bp.route("/refresh", methods=["POST"])
+@limiter.limit(limit_for("refresh"))
+@validate_content_type("application/json")
+@validate_request_size(1)
+@validate_json_input(RefreshTokenRequest)
+def refresh_token():
+    """Issue a new access token using a valid refresh token."""
+    data = request.validated_data  # type: ignore[attr-defined]
+    payload = verify_refresh_token(data.refresh_token)
+    if not payload:
+        return jsonify({"error": "Invalid refresh token"}), 401
+
+    rotate_refresh_token(payload["jti"])
+    subject = payload["sub"]
+    roles = payload.get("roles", [])
+
+    access_token = create_access_token(subject, roles=roles)
+    new_refresh_token = create_refresh_token(subject, roles=roles)
+
+    return jsonify(
+        {
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "roles": roles,
+        }
+    )
 
 
 @api_bp.route("/predict", methods=["POST"])
 @require_auth
+@require_roles("predict", "admin")
+@limiter.limit(limit_for("predict"))
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
@@ -139,6 +153,8 @@ def predict():
 
 @api_bp.route("/predict-async", methods=["POST"])
 @require_auth
+@require_roles("predict", "admin")
+@limiter.limit(limit_for("predict_async"))
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
@@ -180,6 +196,8 @@ async def predict_async():
 
 @api_bp.route("/train", methods=["POST"])
 @require_auth
+@require_roles("train", "admin")
+@limiter.limit(limit_for("train"))
 @validate_content_type("application/json")
 @validate_request_size(50)  # 50MB max for training data
 @validate_json_input(TrainingSample, allow_list=True)
@@ -215,6 +233,8 @@ def train():
 
 @api_bp.route("/train-async", methods=["POST"])
 @require_auth
+@require_roles("train", "admin")
+@limiter.limit(limit_for("train_async"))
 @validate_content_type("application/json")
 @validate_request_size(50)  # 50MB max for training data
 @validate_json_input(TrainingSample, allow_list=True)
@@ -251,6 +271,7 @@ async def train_async():
 
 @api_bp.route("/nef-status", methods=["GET"])
 @require_auth
+@require_roles("nef", "admin")
 def nef_status():
     """Check NEF connectivity and get status."""
     try:
@@ -280,6 +301,8 @@ def nef_status():
 
 @api_bp.route("/collect-data", methods=["POST"])
 @require_auth
+@require_roles("data", "admin")
+@limiter.limit(limit_for("collect_data"))
 @validate_content_type("application/json")
 @validate_request_size(1)  # 1MB max for data collection params
 @validate_json_input(CollectDataRequest, required=False)
@@ -287,7 +310,7 @@ def collect_data():
     """Collect training data from the NEF emulator."""
     params = getattr(request, "validated_data", None)
     if params is None:
-        params = CollectDataRequest()
+        params = CollectDataRequest.model_validate({})
 
     duration = params.duration
     interval = params.interval
@@ -340,6 +363,8 @@ def collect_data():
 
 @api_bp.route("/feedback", methods=["POST"])
 @require_auth
+@require_roles("feedback", "admin")
+@limiter.limit(limit_for("feedback"))
 @validate_content_type("application/json")
 @validate_request_size(10)  # 10MB max for feedback data
 @validate_json_input(FeedbackSample, allow_list=True)
@@ -361,6 +386,7 @@ def feedback():
 
 @api_bp.route("/models/<version>", methods=["POST", "PUT"])
 @require_auth
+@require_roles("admin")
 @validate_path_params(version=model_version_validator)
 def switch_model(version: str):
     """Switch the active model to the specified version."""

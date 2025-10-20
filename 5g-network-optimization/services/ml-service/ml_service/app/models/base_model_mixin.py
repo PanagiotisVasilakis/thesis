@@ -22,6 +22,18 @@ class BaseModelMixin:
         if not training_data:
             raise ValueError("Training data cannot be empty")
             
+        ensure_capacity = getattr(self, "ensure_neighbor_capacity", None)
+        if callable(ensure_capacity):
+            max_neighbors = 0
+            for sample in training_data:
+                metrics = sample.get("rf_metrics") or {}
+                current = sample.get("connected_to")
+                neighbor_count = len([aid for aid in metrics.keys() if aid != current])
+                if neighbor_count > max_neighbors:
+                    max_neighbors = neighbor_count
+            if max_neighbors:
+                ensure_capacity(max_neighbors)
+
         X, y = [], []
         for sample in training_data:
             features = self.extract_features(sample)

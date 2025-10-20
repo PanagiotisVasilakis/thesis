@@ -8,7 +8,7 @@ import threading
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 
 import yaml
 
@@ -177,7 +177,7 @@ class AntennaSelector(AsyncModelInterface):
         self.model_path = model_path
         # Thread-safety: protect concurrent reads/writes to the underlying estimator
         self._model_lock = threading.RLock()
-        self.model = None
+        self.model: Optional[lgb.LGBMClassifier] = None
         self.scaler = StandardScaler()
 
         if config_path is None:
@@ -242,6 +242,24 @@ class AntennaSelector(AsyncModelInterface):
         """Wrapper around pipeline._neighbor_list for instance access."""
         return pipeline._neighbor_list(metrics, current, include)
 
+    def ensure_neighbor_capacity(self, desired_count: int) -> None:
+        """Expand neighbour-derived features to accommodate ``desired_count`` antennas."""
+        if desired_count <= self.neighbor_count:
+            return
+        with self._init_lock:
+            if desired_count <= self.neighbor_count:
+                return
+            for idx in range(self.neighbor_count, desired_count):
+                self.feature_names.extend(
+                    [
+                        f"rsrp_a{idx+1}",
+                        f"sinr_a{idx+1}",
+                        f"rsrq_a{idx+1}",
+                        f"neighbor_cell_load_a{idx+1}",
+                    ]
+                )
+            self.neighbor_count = desired_count
+
     def _initialize_model(self):
         """Initialize a default LightGBM model."""
         self.model = lgb.LGBMClassifier(
@@ -254,142 +272,33 @@ class AntennaSelector(AsyncModelInterface):
     def extract_features(self, data, include_neighbors=True):
         """Extract features from UE data with caching and shared pipeline."""
 
-        # Try to get cached features first
         ue_id = data.get("ue_id")
         if ue_id:
             from ..utils.feature_cache import feature_cache
 
             cached_features = feature_cache.get(ue_id, data)
             if cached_features is not None:
-                return cached_features
+                missing_keys = [name for name in self.feature_names if name not in cached_features]
+                if not missing_keys:
+                    return cached_features
 
-        # Batch extract common values to reduce dict.get() calls
-        latitude = data.get("latitude", 0)
-        longitude = data.get("longitude", 0)
-        altitude = data.get("altitude", 0)
-        speed = data.get("speed", 0)
-        velocity = data.get("velocity")
-        if velocity is None:
-            velocity = speed
-        velocity = velocity if velocity is not None else 0
-        
-        heading_change_rate = data.get("heading_change_rate", 0)
-        path_curvature = data.get("path_curvature", 0)
-        acceleration = data.get("acceleration", 0)
-        cell_load = data.get("cell_load", 0)
-        time_since_handover = data.get("time_since_handover", 0)
-        signal_trend = data.get("signal_trend", 0)
-        environment = data.get("environment", 0)
-        rsrp_stddev = data.get("rsrp_stddev", 0)
-        sinr_stddev = data.get("sinr_stddev", 0)
-        
-        # Optimized handover count extraction
-        if "handover_count" in data:
-            handover_count = data["handover_count"]
-        else:
-            hist = data.get("handover_history")
-            handover_count = len(hist) if isinstance(hist, list) else 0
-        
-        # Optimized direction processing with caching
-        direction = data.get("direction", (0, 0, 0))
-        if isinstance(direction, (list, tuple)) and len(direction) >= 2:
-            from ..utils.feature_cache import _cached_direction_to_unit
-            direction_tuple = tuple(direction[:3]) if len(direction) >= 3 else (direction[0], direction[1], 0)
-            dx, dy = _cached_direction_to_unit(direction_tuple)
-        else:
-            dx, dy = 0.0, 0.0
-        
-        # Batch RF metrics processing
-        rf_metrics = data.get("rf_metrics", {})
-        current_antenna = data.get("connected_to")
-        rsrp_curr, sinr_curr, rsrq_curr = self._current_signal(current_antenna, rf_metrics)
-        
-        # Pre-allocate features dictionary with known size
-        base_feature_count = len(self.base_feature_names) + (self.neighbor_count * 4) + 3
-        features = {}
-        features.update({
-            "latitude": latitude,
-            "longitude": longitude,
-            "altitude": altitude,
-            "speed": speed,
-            "velocity": velocity,
-            "heading_change_rate": heading_change_rate,
-            "path_curvature": path_curvature,
-            "acceleration": acceleration,
-            "cell_load": cell_load,
-            "handover_count": handover_count,
-            "time_since_handover": time_since_handover,
-            "signal_trend": signal_trend,
-            "environment": environment,
-            "rsrp_stddev": rsrp_stddev,
-            "sinr_stddev": sinr_stddev,
-            "direction_x": dx,
-            "direction_y": dy,
-            "rsrp_current": rsrp_curr,
-            "sinr_current": sinr_curr,
-            "rsrq_current": rsrq_curr,
-        })
+        features, neighbor_count, feature_names = pipeline.build_model_features(
+            data,
+            base_feature_names=self.base_feature_names,
+            neighbor_count=self.neighbor_count,
+            include_neighbors=include_neighbors,
+            init_lock=self._init_lock,
+            feature_names=self.feature_names,
+        )
 
-        # Optimized neighbor processing
-        neighbors = self._neighbor_list(rf_metrics, current_antenna, include_neighbors)
-        best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
-        if neighbors:
-            # Extract best values from first neighbor (already sorted)
-            first_neighbor = neighbors[0]
-            best_rsrp, best_sinr, best_rsrq = first_neighbor[1], first_neighbor[2], first_neighbor[3]
-
-        # Thread-safe neighbor count initialization
-        if self.neighbor_count == 0:
+        if neighbor_count != self.neighbor_count or feature_names is not self.feature_names:
             with self._init_lock:
-                if self.neighbor_count == 0:
-                    self.neighbor_count = len(neighbors)
-                    # Batch extend feature names
-                    new_features = []
-                    for idx in range(self.neighbor_count):
-                        new_features.extend([
-                            f"rsrp_a{idx+1}",
-                            f"sinr_a{idx+1}",
-                            f"rsrq_a{idx+1}",
-                            f"neighbor_cell_load_a{idx+1}",
-                        ])
-                    self.feature_names.extend(new_features)
+                self.neighbor_count = neighbor_count
+                self.feature_names = feature_names
 
-        # Optimized neighbor feature extraction with batch updates
-        neighbor_updates = {}
-        for idx in range(self.neighbor_count):
-            if idx < len(neighbors):
-                neighbor = neighbors[idx]
-                neighbor_updates.update({
-                    f"rsrp_a{idx+1}": neighbor[1],
-                    f"sinr_a{idx+1}": neighbor[2],
-                    f"rsrq_a{idx+1}": neighbor[3],
-                    f"neighbor_cell_load_a{idx+1}": neighbor[4] if neighbor[4] is not None else 0
-                })
-            else:
-                # Use batch update for default values
-                neighbor_updates.update({
-                    f"rsrp_a{idx+1}": -120,
-                    f"sinr_a{idx+1}": 0,
-                    f"rsrq_a{idx+1}": -30,
-                    f"neighbor_cell_load_a{idx+1}": 0
-                })
-        
-        # Batch update neighbor features
-        features.update(neighbor_updates)
-        
-        # Add difference features
-        features.update({
-            "best_rsrp_diff": best_rsrp - rsrp_curr,
-            "best_sinr_diff": best_sinr - sinr_curr,
-            "best_rsrq_diff": best_rsrq - rsrq_curr,
-        })
-
-        # Apply configured feature transformations via registry
-        apply_feature_transforms(features)
-
-        # Cache the extracted features for future use
         if ue_id:
             from ..utils.feature_cache import feature_cache
+
             feature_cache.put(ue_id, data, features)
 
         return features
@@ -413,8 +322,12 @@ class AntennaSelector(AsyncModelInterface):
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
-                probabilities = self.model.predict_proba(X)[0]
-                classes_ = self.model.classes_
+                if self.model is None:
+                    raise ModelError("Model is not initialized")
+
+                model = cast(lgb.LGBMClassifier, self.model)
+                probabilities = model.predict_proba(X)[0]
+                classes_ = model.classes_
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
@@ -482,14 +395,15 @@ class AntennaSelector(AsyncModelInterface):
         # Thread-safe training with lock
         with self._model_lock:
             # Train the model
-            self.model.fit(X, y)
+            model = cast(lgb.LGBMClassifier, self.model)
+            model.fit(X, y)
             
             # Return training metrics
             return {
                 "samples": len(X),
                 "classes": len(set(y)),
                 "feature_importance": dict(
-                    zip(self.feature_names, self.model.feature_importances_)
+                    zip(self.feature_names, cast(lgb.LGBMClassifier, self.model).feature_importances_)
                 ),
             }
 
@@ -608,11 +522,11 @@ class AntennaSelector(AsyncModelInterface):
             try:
                 data = joblib.load(load_path)
                 if isinstance(data, dict) and "model" in data:
-                    self.model = data["model"]
+                    self.model = cast(lgb.LGBMClassifier, data["model"])
                     self.feature_names = data.get("feature_names", self.feature_names)
                     self.neighbor_count = data.get("neighbor_count", self.neighbor_count)
                 else:
-                    self.model = data
+                    self.model = cast(lgb.LGBMClassifier, data)
 
                 # Load scaler from separate file if available, else fallback to legacy
                 scaler_path = f"{load_path}.scaler"

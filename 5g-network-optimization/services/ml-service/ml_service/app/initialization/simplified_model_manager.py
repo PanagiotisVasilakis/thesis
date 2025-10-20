@@ -166,15 +166,18 @@ class SimplifiedModelManager:
             # Save the trained model
             if model_path:
                 try:
-                    model.save(
+                    saved = model.save(
                         model_path,
                         model_type=model_type or os.environ.get("MODEL_TYPE", "lightgbm").lower(),
                         metrics=metrics,
                         version=MODEL_VERSION,
                     )
+                    if not saved:
+                        raise ModelError(f"Model save returned False for path {model_path}")
                     self._logger.info("Model saved to %s", model_path)
                 except Exception as exc:
                     self._logger.error("Failed to save model to %s: %s", model_path, exc)
+                    raise ModelError(f"Failed to persist model: {exc}") from exc
             
             return model
             

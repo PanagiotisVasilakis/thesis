@@ -45,13 +45,15 @@ def extract_rf_features(feature_vector: Dict[str, Any]) -> Dict[str, Dict[str, f
         rsrq = rsrqs.get(antenna_id)
         load = loads.get(antenna_id)
 
-        metrics: Dict[str, float] = {"rsrp": rsrp}
+        metrics: Dict[str, float] = {}
+        if rsrp is not None:
+            metrics["rsrp"] = float(rsrp)
         if sinr is not None:
-            metrics["sinr"] = sinr
+            metrics["sinr"] = float(sinr)
         if rsrq is not None:
-            metrics["rsrq"] = rsrq
+            metrics["rsrq"] = float(rsrq)
         if load is not None:
-            metrics["cell_load"] = load
+            metrics["cell_load"] = float(load)
         rf_metrics[antenna_id] = metrics
     return rf_metrics
 
@@ -139,6 +141,8 @@ def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float
     path_curvature = float(pc_val) if isinstance(pc_val, (int, float)) else 0.0
 
     dir_val = feature_vector.get("direction", (0, 0))
+    if isinstance(dir_val, list):
+        dir_val = tuple(dir_val)
     dx, dy = _cached_direction_to_unit(dir_val)
 
     return {
