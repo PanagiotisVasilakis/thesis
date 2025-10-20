@@ -38,6 +38,15 @@ class BaseModelMixin:
         for sample in training_data:
             features = self.extract_features(sample)
             validate_feature_ranges(features)
+            # Ensure service_type (if present) is encoded as numeric so the
+            # feature vector can be converted to float. Preserve other
+            # features as-is; non-numeric values will raise below.
+            from ml_service.app.core.qos_encoding import encode_service_type
+
+            svc = features.get("service_type")
+            if svc is not None and not isinstance(svc, (int, float)):
+                features["service_type"] = encode_service_type(svc)
+
             X.append([features[name] for name in self.feature_names])
             y.append(sample.get("optimal_antenna"))
             

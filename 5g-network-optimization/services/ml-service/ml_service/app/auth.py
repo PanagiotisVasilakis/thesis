@@ -1,7 +1,7 @@
 """JWT authentication utilities for ML Service."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import Any, Iterable, Optional
 from uuid import uuid4
@@ -70,7 +70,7 @@ def _normalise_roles(roles: Optional[Iterable[str]]) -> list[str]:
 
 def _compute_expiry(config_key: str, fallback_minutes: int) -> datetime:
     minutes = int(current_app.config.get(config_key, fallback_minutes))
-    return datetime.utcnow() + timedelta(minutes=minutes)
+    return datetime.now(timezone.utc) + timedelta(minutes=minutes)
 
 
 def create_access_token(
@@ -84,7 +84,7 @@ def create_access_token(
         expires_delta = timedelta(minutes=current_app.config.get("JWT_EXPIRES_MINUTES", 30))
     to_encode = {
         "sub": subject,
-        "exp": datetime.utcnow() + expires_delta,
+        "exp": datetime.now(timezone.utc) + expires_delta,
         "roles": _normalise_roles(roles),
         "type": "access",
     }
@@ -102,7 +102,7 @@ def create_refresh_token(
     if expires_delta is None:
         expires_at = _compute_expiry("JWT_REFRESH_EXPIRES_MINUTES", 1440)
     else:
-        expires_at = datetime.utcnow() + expires_delta
+        expires_at = datetime.now(timezone.utc) + expires_delta
 
     refresh_roles = _normalise_roles(roles)
     payload = {
@@ -157,7 +157,7 @@ def verify_refresh_token(token: str) -> Optional[dict[str, Any]]:
     if stored["sub"] != subject:
         store.pop(jti)
         return None
-    if stored["exp"] < datetime.utcnow():
+    if stored["exp"] < datetime.now(timezone.utc):
         store.pop(jti)
         return None
     return {

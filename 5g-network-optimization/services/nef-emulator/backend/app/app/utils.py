@@ -1,11 +1,11 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import emails
 from emails.template import JinjaTemplate
-from jose import jwt
+from jose import jwt, JWTError
 
 from app.core.config import settings
 
@@ -76,7 +76,7 @@ def send_new_account_email(email_to: str, username: str, password: str) -> None:
 
 def generate_password_reset_token(email: str) -> str:
     delta = timedelta(hours=settings.EMAIL_RESET_TOKEN_EXPIRE_HOURS)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     expires = now + delta
     exp = expires.timestamp()
     encoded_jwt = jwt.encode(
@@ -97,5 +97,5 @@ def verify_password_reset_token(token: str) -> Optional[str]:
         # claim is missing and return ``None`` instead.
         return decoded_token.get("sub")
 
-    except jwt.JWTError:
+    except JWTError:
         return None

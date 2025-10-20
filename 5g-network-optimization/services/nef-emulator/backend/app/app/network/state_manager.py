@@ -2,7 +2,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import math
 
 
@@ -153,7 +153,7 @@ class NetworkStateManager:
             "ue_id": ue_id,
             "from": prev,
             "to": target_antenna_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.handover_history.append(ev)
         self.logger.info(f"Handover for {ue_id}: {prev} → {target_antenna_id}")

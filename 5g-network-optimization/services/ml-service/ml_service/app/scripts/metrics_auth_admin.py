@@ -30,6 +30,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from ml_service.app.auth.metrics_auth import MetricsAuthenticator, MetricsAuthError
 from ml_service.app.config.constants import env_constants
 
+# Module logger
+logger = logging.getLogger(__name__)
+
 
 def generate_api_key(length: int = 32) -> str:
     """Generate a cryptographically secure API key.
@@ -115,7 +118,7 @@ def test_authentication(
         # Test JWT token generation if JWT secret is provided
         if jwt_secret:
             token = authenticator.generate_jwt_token()
-            print(f"✓ JWT token generation successful: {token[:20]}...")
+            logging.getLogger(__name__).info("✓ JWT token generation successful: %s...", token[:20])
         
         # Test basic auth validation if credentials are provided
         if username and password:
@@ -125,9 +128,9 @@ def test_authentication(
             
             is_valid = authenticator._validate_basic_auth(auth_header)
             if is_valid:
-                print("✓ Basic authentication validation successful")
+                logging.getLogger(__name__).info("✓ Basic authentication validation successful")
             else:
-                print("✗ Basic authentication validation failed")
+                logging.getLogger(__name__).error("✗ Basic authentication validation failed")
                 return False
         
         # Test API key validation if provided
@@ -135,15 +138,16 @@ def test_authentication(
             auth_header = f"Bearer {api_key}"
             is_valid = authenticator._validate_bearer_token(auth_header)
             if is_valid:
-                print("✓ API key validation successful")
+                logging.getLogger(__name__).info("✓ API key validation successful")
             else:
-                print("✗ API key validation failed")
+                logging.getLogger(__name__).error("✗ API key validation failed")
                 return False
-        
+
+        # If we reach here, all requested checks passed
         return True
-        
+
     except Exception as e:
-        print(f"✗ Authentication test failed: {e}")
+        logger.error("✗ Authentication test failed: %s", e)
         return False
 
 
@@ -153,8 +157,8 @@ def validate_configuration() -> bool:
     Returns:
         True if configuration is valid
     """
-    print("Validating metrics authentication configuration...")
-    print()
+    logging.getLogger(__name__).info("Validating metrics authentication configuration...")
+    logging.getLogger(__name__).info("")
     
     # Check environment variables
     config_items = [
@@ -172,25 +176,26 @@ def validate_configuration() -> bool:
             missing_configs.append(name)
         else:
             status = "✓ SET" if isinstance(value, bool) else f"✓ SET ({len(str(value))} chars)"
-        
-        print(f"{name:25} {status}")
-    
-    print()
-    
+
+        # Log each config item
+        logger.info("%s %s", f"{name:25}", status)
+
+    logger.info("")
+
     if not env_constants.METRICS_AUTH_ENABLED:
-        print("⚠️  Metrics authentication is DISABLED")
-        print("   Set METRICS_AUTH_ENABLED=true to enable authentication")
+        logger.warning("⚠️  Metrics authentication is DISABLED")
+        logger.warning("   Set METRICS_AUTH_ENABLED=true to enable authentication")
         return True
     
     if missing_configs:
-        print("❌ Missing required configuration:")
+        logger.error("❌ Missing required configuration:")
         for config in missing_configs:
-            print(f"   - {config}")
-        print()
-        print("At least one of the following must be set:")
-        print("   - METRICS_AUTH_USERNAME and METRICS_AUTH_PASSWORD (for Basic auth)")
-        print("   - METRICS_API_KEY (for Bearer token auth)")
-        print("   - JWT_SECRET (for JWT token generation)")
+            logger.error("   - %s", config)
+        logger.info("")
+        logger.info("At least one of the following must be set:")
+        logger.info("   - METRICS_AUTH_USERNAME and METRICS_AUTH_PASSWORD (for Basic auth)")
+        logger.info("   - METRICS_API_KEY (for Bearer token auth)")
+        logger.info("   - JWT_SECRET (for JWT token generation)")
         return False
     
     # Test the configuration
@@ -202,33 +207,33 @@ def validate_configuration() -> bool:
     )
     
     if success:
-        print("\n✓ Metrics authentication configuration is valid")
+        logger.info("\n✓ Metrics authentication configuration is valid")
     else:
-        print("\n❌ Metrics authentication configuration has issues")
+        logger.error("\n❌ Metrics authentication configuration has issues")
     
     return success
 
 
 def print_example_config():
     """Print example configuration for metrics authentication."""
-    print("Example environment configuration for metrics authentication:")
-    print()
-    print("# Enable metrics authentication")
-    print("export METRICS_AUTH_ENABLED=true")
-    print()
-    print("# Option 1: Basic Authentication")
-    print("export METRICS_AUTH_USERNAME=metrics")
-    print("export METRICS_AUTH_PASSWORD=your-secure-password")
-    print()
-    print("# Option 2: API Key Authentication")
-    print("export METRICS_API_KEY=your-api-key")
-    print()
-    print("# Option 3: JWT Token Authentication")
-    print("export JWT_SECRET=your-jwt-secret")
-    print()
-    print("# Additional security settings")
-    print("export METRICS_MAX_FAILED_ATTEMPTS=5")
-    print("export METRICS_LOCKOUT_DURATION=300")
+    logger.info("Example environment configuration for metrics authentication:")
+    logger.info("")
+    logger.info("# Enable metrics authentication")
+    logger.info("export METRICS_AUTH_ENABLED=true")
+    logger.info("")
+    logger.info("# Option 1: Basic Authentication")
+    logger.info("export METRICS_AUTH_USERNAME=metrics")
+    logger.info("export METRICS_AUTH_PASSWORD=your-secure-password")
+    logger.info("")
+    logger.info("# Option 2: API Key Authentication")
+    logger.info("export METRICS_API_KEY=your-api-key")
+    logger.info("")
+    logger.info("# Option 3: JWT Token Authentication")
+    logger.info("export JWT_SECRET=your-jwt-secret")
+    logger.info("")
+    logger.info("# Additional security settings")
+    logger.info("export METRICS_MAX_FAILED_ATTEMPTS=5")
+    logger.info("export METRICS_LOCKOUT_DURATION=300")
 
 
 def main():
@@ -302,17 +307,17 @@ Examples:
     try:
         if args.command == 'generate-api-key':
             api_key = generate_api_key(args.length)
-            print(f"Generated API key: {api_key}")
-            print()
-            print("Set this as an environment variable:")
-            print(f"export METRICS_API_KEY={api_key}")
+            logger.info("Generated API key: %s", api_key)
+            logger.info("")
+            logger.info("Set this as an environment variable:")
+            logger.info("export METRICS_API_KEY=%s", api_key)
             
         elif args.command == 'generate-password':
             password = generate_password(args.length)
-            print(f"Generated password: {password}")
-            print()
-            print("Set this as an environment variable:")
-            print(f"export METRICS_AUTH_PASSWORD={password}")
+            logger.info("Generated password: %s", password)
+            logger.info("")
+            logger.info("Set this as an environment variable:")
+            logger.info("export METRICS_AUTH_PASSWORD=%s", password)
             
         elif args.command == 'create-token':
             token = create_jwt_token(
@@ -322,8 +327,8 @@ Examples:
                 api_key=args.api_key,
                 jwt_secret=args.jwt_secret
             )
-            print(f"JWT Token: {token}")
-            print(f"Expires in: {args.duration} seconds")
+            logger.info("JWT Token: %s", token)
+            logger.info("Expires in: %s seconds", args.duration)
             
         elif args.command == 'test-auth':
             success = test_authentication(
@@ -344,7 +349,7 @@ Examples:
         return 0
         
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error("Error: %s", e)
         return 1
 
 

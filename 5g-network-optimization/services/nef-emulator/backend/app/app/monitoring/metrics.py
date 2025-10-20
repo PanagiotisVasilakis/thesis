@@ -17,6 +17,14 @@ HANDOVER_FALLBACKS = Counter(
     registry=REGISTRY
 )
 
+# Record compliance outcomes of ML predictions when QoS checks are applied
+HANDOVER_COMPLIANCE = Counter(
+    'nef_handover_compliance_total',
+    'Number of ML predictions evaluated for QoS compliance',
+    ['outcome'],
+    registry=REGISTRY,
+)
+
 # Observe request processing time for each endpoint
 REQUEST_DURATION = Histogram(
     'nef_request_duration_seconds',

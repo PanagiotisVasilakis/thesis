@@ -15,6 +15,7 @@ import yaml
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from ..features import pipeline
+from ..core.qos import qos_from_request
 from ..features.transform_registry import (
     register_feature_transform,
     apply_feature_transforms,
@@ -291,6 +292,24 @@ class AntennaSelector(AsyncModelInterface):
             feature_names=self.feature_names,
         )
 
+        # Derive QoS features from the incoming request payload. This keeps
+        # the feature-extraction pipeline backward-compatible while enabling
+        # downstream model training to use QoS-derived signals.
+        try:
+            qos = qos_from_request(data)
+            # Merge and ensure features contain QoS keys
+            features.setdefault("service_type", qos.get("service_type"))
+            features.setdefault("service_priority", qos.get("service_priority"))
+            features.setdefault("latency_requirement_ms", qos.get("latency_requirement_ms"))
+            features.setdefault("throughput_requirement_mbps", qos.get("throughput_requirement_mbps"))
+            features.setdefault("reliability_pct", qos.get("reliability_pct"))
+        except Exception:
+            # Non-fatal: if QoS derivation fails, continue with base features
+            pass
+        # Preserve original `service_type` as provided (string) to remain
+        # backward-compatible for callers and tests. Numeric encoding for
+        # training is performed later when building the dataset.
+
         if neighbor_count != self.neighbor_count or feature_names is not self.feature_names:
             with self._init_lock:
                 self.neighbor_count = neighbor_count
@@ -312,6 +331,17 @@ class AntennaSelector(AsyncModelInterface):
         validate_feature_ranges(features)
 
         # Convert features to the format expected by the model and scale
+        # Ensure `service_type` is numeric for prediction as well
+        try:
+            from ml_service.app.core.qos_encoding import encode_service_type
+
+            svc = features.get("service_type")
+            if svc is not None and not isinstance(svc, (int, float)):
+                features["service_type"] = encode_service_type(svc)
+        except Exception:
+            # non-fatal; let the eventual conversion raise if still invalid
+            pass
+
         X = np.array([[features[name] for name in self.feature_names]], dtype=float)
         if self.scaler:
             try:
@@ -326,8 +356,17 @@ class AntennaSelector(AsyncModelInterface):
                     raise ModelError("Model is not initialized")
 
                 model = cast(lgb.LGBMClassifier, self.model)
-                probabilities = model.predict_proba(X)[0]
-                classes_ = model.classes_
+                # Ensure the returned probabilities are a NumPy array so
+                # indexing and numpy ops work correctly even if some
+                # implementations return sparse-like objects.
+                probas = np.asarray(model.predict_proba(X))
+                # If the estimator returns a 2D array (n_samples, n_classes)
+                # take the first row; if it's already 1D use it as-is.
+                if probas.ndim == 1:
+                    probabilities = probas
+                else:
+                    probabilities = probas[0]
+                classes_ = np.asarray(model.classes_)
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
@@ -476,7 +515,11 @@ class AntennaSelector(AsyncModelInterface):
                 os.replace(temp_scaler_path, scaler_path)
 
                 # Save metadata
-                meta = {
+                # Allow metadata values to be heterogeneous (numbers, dicts,
+                # lists) by typing the metadata map as Dict[str, Any]. This
+                # prevents static type-checkers from assuming all values are
+                # strings when we later attach `metrics` as a dict.
+                meta: Dict[str, Any] = {
                     "model_type": model_type,
                     "trained_at": datetime.now(timezone.utc).isoformat(),
                     "version": version,
