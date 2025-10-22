@@ -406,18 +406,43 @@ class AsyncNEFClient:
             ue_id = StringValidator.validate_ue_id(ue_id)
         except ValidationError as e:
             raise ValueError(str(e)) from e
-            
+
         url = urljoin(self.base_url, f"/api/v1/ml/state/{ue_id}")
-        
+
         try:
             response = await self._make_request_with_retry(
                 "GET", url, headers=self.get_headers()
             )
             return response
-                
+
         except (AsyncNEFClientError, CircuitBreakerError) as exc:
             self.logger.error("Feature vector request for UE %s failed: %s", ue_id, exc)
             return {}
+
+    async def get_qos_requirements(self, ue_id: str) -> Dict[str, Any]:
+        """Return QoS requirements advertised for a UE."""
+
+        if not ue_id:
+            raise ValueError("UE identifier is required to fetch QoS requirements")
+
+        url = urljoin(self.base_url, f"/api/v1/qos/{ue_id}/requirements")
+
+        try:
+            response = await self._make_request_with_retry(
+                "GET", url, headers=self.get_headers()
+            )
+            return response
+        except AsyncNEFClientError as exc:
+            if "HTTP 404" in str(exc):
+                self.logger.info(
+                    "No QoS profile published for UE %s (HTTP 404)", ue_id
+                )
+                return {}
+            self.logger.error("QoS request for UE %s failed: %s", ue_id, exc)
+            raise
+        except CircuitBreakerError as exc:
+            self.logger.error("QoS circuit breaker open for UE %s: %s", ue_id, exc)
+            raise
 
     async def batch_get_feature_vectors(
         self, ue_ids: List[str]

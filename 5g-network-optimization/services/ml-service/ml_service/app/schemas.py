@@ -24,6 +24,9 @@ class PredictionRequest(BaseModel):
     direction: Optional[List[float]] = None
     connected_to: Optional[str] = None
     rf_metrics: Optional[Dict[str, Dict[str, float]]] = None
+    service_type: Optional[str] = None
+    service_priority: Optional[int] = Field(default=None, ge=1, le=10)
+    qos_requirements: Optional[Dict[str, float]] = None
 
 
 class TrainingSample(PredictionRequest):

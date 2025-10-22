@@ -32,6 +32,11 @@ async def test_collect_training_data(mock_nef_client):
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_nef_client.get_ue_movement_state.return_value = sample_state
     mock_nef_client.get_feature_vector.return_value = {}
+    mock_nef_client.get_qos_requirements.return_value = {
+        "serviceType": "embb",
+        "servicePriority": 4,
+        "requirements": {"latency_requirement_ms": 30, "throughput": 150},
+    }
     # Simulate a healthy NEF service by returning HTTP 200 from get_status
     mock_nef_client.get_status.return_value = MagicMock(status_code=200)
     times = iter([0, 0.1, 0.2, 1.1, 1.2])
@@ -48,10 +53,16 @@ async def test_collect_training_data(mock_nef_client):
         time_iter = time_gen()
         with patch("time.time", side_effect=lambda: next(time_iter)):
             data = await collector.collect_training_data(duration=1, interval=1)
-        assert len(data) == 1
-        assert data[0]["ue_id"] == "ue1"
-        assert data[0]["altitude"] is None
-        assert data[0]["time_since_handover"] == 0.0
+    assert len(data) == 1
+    assert data[0]["ue_id"] == "ue1"
+    assert data[0]["altitude"] is None
+    assert data[0]["time_since_handover"] == 0.0
+    assert data[0]["service_type"] == "embb"
+    assert data[0]["service_priority"] == 4
+    assert data[0]["qos_requirements"] == {
+        "latency_requirement_ms": 30.0,
+        "throughput_requirement_mbps": 150.0,
+    }
 
 
 @pytest.mark.asyncio
@@ -60,6 +71,11 @@ async def test_collect_training_data_file(tmp_path, mock_nef_client):
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_nef_client.get_ue_movement_state.return_value = sample_state
     mock_nef_client.get_feature_vector.return_value = {}
+    mock_nef_client.get_qos_requirements.return_value = {
+        "service_type": "urllc",
+        "service_priority": 3,
+        "requirements": {"latency": 10, "reliability_pct": 99.9},
+    }
     # Simulate a healthy NEF service by returning HTTP 200 from get_status
     mock_nef_client.get_status.return_value = MagicMock(status_code=200)
     times = iter([0, 0.1, 0.2, 1.1, 1.2])
@@ -77,10 +93,16 @@ async def test_collect_training_data_file(tmp_path, mock_nef_client):
         with patch("time.time", side_effect=lambda: next(time_iter)):
             data = await collector.collect_training_data(duration=1, interval=1)
 
-        files = list((tmp_path / "collected_data").iterdir())
-        assert len(files) == 1
-        with open(files[0]) as f:
-            saved = json.load(f)
-        assert saved == data
-        assert "altitude" in saved[0]
-        assert saved[0]["altitude"] is None
+    files = list((tmp_path / "collected_data").iterdir())
+    assert len(files) == 1
+    with open(files[0]) as f:
+        saved = json.load(f)
+    assert saved == data
+    assert "altitude" in saved[0]
+    assert saved[0]["altitude"] is None
+    assert saved[0]["service_type"] == "urllc"
+    assert saved[0]["service_priority"] == 3
+    assert saved[0]["qos_requirements"] == {
+        "latency_requirement_ms": 10.0,
+        "reliability_pct": 99.9,
+    }

@@ -1,5 +1,6 @@
 import json
 import asyncio
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -72,6 +73,10 @@ async def test_collect_training_data(tmp_path, monkeypatch, mock_nef_client):
     assert data[0]["time_since_handover"] == 0.0
     assert data[0]["heading_change_rate"] == 0.0
     assert data[0]["path_curvature"] == 0.0
+    assert data[0]["qos_requirements"] is None
+    assert data[0]["service_type"] is None
+    assert data[0]["service_priority"] is None
+    mock_nef_client.get_qos_requirements.assert_called_once_with("ue1")
 
     files = list(tmp_path.iterdir())
     assert len(files) == 1
@@ -125,6 +130,58 @@ def test_collect_sample_selects_best_antenna(mock_nef_client):
     assert sample["heading_change_rate"] == 0.0
     assert sample["path_curvature"] == 0.0
     mock_nef_client.get_feature_vector.assert_called_once_with("ue1")
+
+
+def test_collect_sample_maps_qos_requirements(mock_nef_client):
+    collector = NEFDataCollector(nef_url="http://nef")
+    mock_nef_client.get_feature_vector.return_value = {
+        "neighbor_rsrp_dbm": {"A": -70},
+        "neighbor_sinrs": {"A": 15},
+        "neighbor_rsrqs": {"A": -8},
+    }
+    mock_nef_client.get_qos_requirements.return_value = {
+        "service_type": "urllc",
+        "service_priority": 2,
+        "requirements": {
+            "latencyRequirementMs": 5,
+            "throughput_requirement_mbps": 120,
+            "reliabilityPct": 99.99,
+        },
+    }
+    collector.client = mock_nef_client
+
+    ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
+    sample = collector._collect_sample("ue1", ue_data)
+
+    assert sample["service_type"] == "urllc"
+    assert sample["service_priority"] == 2
+    assert sample["qos_requirements"] == {
+        "latency_requirement_ms": 5.0,
+        "throughput_requirement_mbps": 120.0,
+        "reliability_pct": 99.99,
+    }
+    mock_nef_client.get_qos_requirements.assert_called_once_with("ue1")
+
+
+def test_collect_sample_logs_missing_qos(mock_nef_client, caplog):
+    collector = NEFDataCollector(nef_url="http://nef")
+    collector.client = mock_nef_client
+    mock_nef_client.get_feature_vector.return_value = {
+        "neighbor_rsrp_dbm": {"A": -80},
+        "neighbor_sinrs": {"A": 10},
+    }
+    mock_nef_client.get_qos_requirements.return_value = {}
+
+    ue_data = {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1.0}
+
+    with caplog.at_level(logging.WARNING):
+        sample = collector._collect_sample("ue1", ue_data)
+
+    assert sample is not None
+    assert sample["qos_requirements"] is None
+    assert any(
+        "QoS requirements unavailable" in record.message for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio
