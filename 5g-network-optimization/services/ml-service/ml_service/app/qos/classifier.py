@@ -31,9 +31,26 @@ class MetricDefinition:
 
 
 @dataclass(frozen=True)
+class MetricDefaults:
+    """Optional default weight and threshold hints for a metric."""
+
+    weight: Optional[float] = None
+    threshold: Optional[float] = None
+
+    def as_dict(self) -> Dict[str, float]:
+        data: Dict[str, float] = {}
+        if self.weight is not None:
+            data["weight"] = float(self.weight)
+        if self.threshold is not None:
+            data["threshold"] = float(self.threshold)
+        return data
+
+
+@dataclass(frozen=True)
 class QoSProfile:
     metrics: Dict[str, MetricDefinition]
     minimum_score: Optional[float]
+    metric_defaults: Dict[str, MetricDefaults]
 
 
 class QoSServiceClassifier:
@@ -84,17 +101,52 @@ class QoSServiceClassifier:
                     tolerance=tolerance,
                     mandatory=mandatory,
                 )
+            defaults_cfg = raw.get("metric_defaults", {})
+            metric_defaults: Dict[str, MetricDefaults] = {}
+            for metric_name, cfg in defaults_cfg.items():
+                weight_val = cfg.get("weight")
+                threshold_val = cfg.get("threshold")
+                try:
+                    weight_default = (
+                        float(weight_val) if weight_val is not None else None
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid default weight for metric '{metric_name}' in '{service}'"
+                    ) from exc
+                try:
+                    threshold_default = (
+                        float(threshold_val) if threshold_val is not None else None
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(
+                        f"Invalid default threshold for metric '{metric_name}' in '{service}'"
+                    ) from exc
+                metric_defaults[metric_name] = MetricDefaults(
+                    weight=weight_default, threshold=threshold_default
+                )
             minimum_score = raw.get("minimum_score")
             profiles[service] = QoSProfile(
                 metrics=metric_defs,
                 minimum_score=(
                     float(minimum_score) if minimum_score is not None else None
                 ),
+                metric_defaults=metric_defaults,
             )
         return profiles
 
     def available_services(self) -> Iterable[str]:
         return self._profiles.keys()
+
+    def get_metric_defaults(
+        self, service_type: Optional[str] = None
+    ) -> Dict[str, Dict[str, float]]:
+        """Return configured default weights/thresholds for a service type."""
+
+        profile = self._get_profile(service_type)
+        return {
+            name: defaults.as_dict() for name, defaults in profile.metric_defaults.items()
+        }
 
     def _get_profile(self, service_type: Optional[str]) -> QoSProfile:
         if service_type and service_type in self._profiles:

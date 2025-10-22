@@ -18,6 +18,10 @@ def write_config(tmp_path: Path) -> Path:
                     "throughput": {"weight": 0.4, "objective": "max", "threshold": 100.0},
                 },
                 "minimum_score": 0.7,
+                "metric_defaults": {
+                    "latency": {"weight": 0.6, "threshold": 20.0},
+                    "throughput": {"weight": 0.4, "threshold": 100.0},
+                },
             },
             "embb": {
                 "metrics": {
@@ -27,6 +31,10 @@ def write_config(tmp_path: Path) -> Path:
                         "objective": "max",
                         "threshold": 150.0,
                     },
+                },
+                "metric_defaults": {
+                    "latency": {"weight": 0.5, "threshold": 15.0},
+                    "throughput": {"weight": 0.5, "threshold": 150.0},
                 },
             },
             "urllc": {
@@ -101,4 +109,18 @@ def test_assess_combines_score_and_compliance(tmp_path: Path) -> None:
     assert result["breakdown"]["latency"]["normalized_score"] == pytest.approx(1.0)
     assert not result["compliant"]
     assert result["compliance_details"]["_minimum_score"]["compliant"] is True
+
+
+def test_metric_defaults_are_exposed(tmp_path: Path) -> None:
+    config_path = write_config(tmp_path)
+    classifier = QoSServiceClassifier(config_path=str(config_path))
+
+    defaults = classifier.get_metric_defaults("embb")
+
+    assert defaults["latency"]["weight"] == pytest.approx(0.5)
+    assert defaults["throughput"]["threshold"] == pytest.approx(150.0)
+
+    # Falls back to default service when service type unknown
+    fallback_defaults = classifier.get_metric_defaults("unknown")
+    assert fallback_defaults["latency"]["threshold"] == pytest.approx(20.0)
 
