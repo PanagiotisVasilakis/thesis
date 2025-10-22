@@ -124,8 +124,9 @@ The NEF applies the following decision tree after receiving the response:
 1. **Transport/Protocol Failure** – If the request exhausts retries or returns ≥500, execute deterministic A3 handover logic and flag the interaction for offline analysis.
 2. **Security Failure** – If token validation or nonce verification fails, quarantine the event, rotate credentials and fall back to deterministic logic until health checks recover.
 3. **Low Confidence** – If `decision.confidence < 0.8` or `fallback_hint.trigger == "LOW_CONFIDENCE"`, run the A3 rule but log the model output for retraining.
-4. **TTL Breach** – If the NEF cannot apply the decision within `ttl_seconds`, discard the prediction and rescore with fresh telemetry.
-5. **Successful Recommendation** – Apply the recommended action (`HANDOVER`, `STAY`, `DEGRADE`) and push an acknowledgement to the observability topic.
+4. **TTL Breach** – If the NEF cannot apply the decision within `ttl_seconds`, discard the prediction, emit a `handover.fallbacks` event annotated with `reason="ttl_expired"`, and rescore with fresh telemetry.
+5. **Service Degradation** – When circuit-breaker counters in the ML service exceed `CB_FAILURE_THRESHOLD` it returns synthetic `503` responses. The NEF interprets consecutive 5xx responses as a health incident, forces `ML_HANDOVER_ENABLED=0`, and routes all traffic through the A3 rule until the breaker recovers.
+6. **Successful Recommendation** – Apply the recommended action (`HANDOVER`, `STAY`, `DEGRADE`) and push an acknowledgement to the observability topic.
 
 ## 5. Sequence Placement & Integration Touchpoints
 1. **Telemetry Ingress** – UE events enter the NEF mobility pipeline. The NEF publishes metrics to Prometheus before invoking the ML service.
