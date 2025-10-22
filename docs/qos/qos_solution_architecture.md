@@ -15,6 +15,8 @@ This document describes how the 5G Network Optimization thesis solution delivers
 3. The selected antenna is applied through `NetworkStateManager`, updating UE state, logging outcomes, and emitting Prometheus metrics for downstream dashboards.
 4. Feast ingestion jobs persist historical traces, enabling retraining workflows that feed the LightGBM model registered in MLflow and deployed through the automated MLOps pipeline.
 
+> **Diagram:** [NEF to ML QoS Interaction Flow](diagrams/ml_nef_interaction.drawio) – Visualizes the nominal event path from UE mobility updates through the NEF, decision plane, and downstream observability pipelines.
+
 ## Traceability to Thesis Chapters
 - **Thesis Project Summary (`docs/THESIS_SUMMARY.md`)** – Provides the high-level component descriptions referenced throughout this QoS architecture.
 - **Feature Engineering (`docs/feature_transforms.md` & `docs/feature_ranges_and_alerts.md`)** – Captures the feature catalog and monitoring thresholds that inform QoS scoring logic.
@@ -125,5 +127,8 @@ All fallbacks keep the offending payload, utility score, and confidence metrics
 in MLflow for post-incident analysis and as seed data for the next retraining
 cycle.
 
+> **Diagram:** [NEF Fallback Control Flow](diagrams/ml_nef_fallback.drawio) – Summarizes the guardrails that transition traffic back to deterministic policies and log artefacts for remediation.
+
 ## Diagram References
-*Placeholder for linking sequence diagrams, deployment topologies, and data flow illustrations supporting the QoS architecture.*
+- [NEF to ML QoS Interaction Flow](diagrams/ml_nef_interaction.drawio) – Normal mobility-to-ML orchestration path.
+- [NEF Fallback Control Flow](diagrams/ml_nef_fallback.drawio) – Control-plane recovery and remediation triggers.
