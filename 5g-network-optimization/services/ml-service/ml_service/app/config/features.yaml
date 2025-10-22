@@ -106,7 +106,56 @@ base_features:
     transform: float
     min: 0.0
     max: 100000.0
+  - name: jitter_ms
+    transform: float
+    min: 0.0
+    max: 1000.0
   - name: reliability_pct
     transform: float
     min: 0.0
     max: 100.0
+qos_profiles:
+  default:
+    metrics:
+      latency_requirement_ms:
+        weight: 0.4
+        objective: min
+        threshold: 50.0
+      throughput_requirement_mbps:
+        weight: 0.4
+        objective: max
+        threshold: 100.0
+      reliability_pct:
+        weight: 0.2
+        objective: max
+        threshold: 99.0
+    minimum_score: 0.75
+  embb:
+    metrics:
+      latency_requirement_ms:
+        weight: 0.3
+        objective: min
+        threshold: 30.0
+      throughput_requirement_mbps:
+        weight: 0.5
+        objective: max
+        threshold: 150.0
+      reliability_pct:
+        weight: 0.2
+        objective: max
+        threshold: 99.5
+  urllc:
+    metrics:
+      latency_requirement_ms:
+        weight: 0.5
+        objective: min
+        threshold: 10.0
+      jitter_ms:
+        weight: 0.2
+        objective: min
+        threshold: 1.0
+      reliability_pct:
+        weight: 0.3
+        objective: max
+        threshold: 99.999
+    minimum_score: 0.85
