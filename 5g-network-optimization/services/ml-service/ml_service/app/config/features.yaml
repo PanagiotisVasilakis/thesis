@@ -130,6 +130,16 @@ qos_profiles:
         objective: max
         threshold: 99.0
     minimum_score: 0.75
+    metric_defaults:
+      latency_requirement_ms:
+        weight: 0.4
+        threshold: 50.0
+      throughput_requirement_mbps:
+        weight: 0.4
+        threshold: 100.0
+      reliability_pct:
+        weight: 0.2
+        threshold: 99.0
   embb:
     metrics:
       latency_requirement_ms:
@@ -144,6 +154,16 @@ qos_profiles:
         weight: 0.2
         objective: max
         threshold: 99.5
+    metric_defaults:
+      latency_requirement_ms:
+        weight: 0.3
+        threshold: 30.0
+      throughput_requirement_mbps:
+        weight: 0.5
+        threshold: 150.0
+      reliability_pct:
+        weight: 0.2
+        threshold: 99.5
   urllc:
     metrics:
       latency_requirement_ms:
@@ -157,5 +177,15 @@ qos_profiles:
       reliability_pct:
         weight: 0.3
         objective: max
+        threshold: 99.999
+    metric_defaults:
+      latency_requirement_ms:
+        weight: 0.5
+        threshold: 10.0
+      jitter_ms:
+        weight: 0.2
+        threshold: 1.0
+      reliability_pct:
+        weight: 0.3
         threshold: 99.999
     minimum_score: 0.85
