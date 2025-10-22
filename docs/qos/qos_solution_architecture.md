@@ -22,19 +22,19 @@ This document describes how the 5G Network Optimization thesis solution delivers
 - **MLOps Pipeline (`mlops/README.md`)** – Documents the automated build, registration, and canary rollout processes linked to model lifecycle management.
 
 ## Request/Response Extensions
-*Placeholder for detailing NEF and ML API payload enrichments supporting QoS attributes.*
+The QoS pipeline adopts the contract documented in [`docs/integration/nef_ml_integration.md`](../integration/nef_ml_integration.md). Prediction calls move to `POST /api/v2/predict` using HTTP/2 with mTLS and OAuth 2.0 client credentials layered for defence in depth. The request payload now bundles serving cell telemetry, candidate cell metrics (including backhaul load), enriched mobility vectors, and service requirements such as latency or throughput SLAs. Responses return explicit actions (`HANDOVER`, `STAY`, `DEGRADE`, `FAILOVER`), model explainability artefacts, and fallback hints to inform deterministic recovery paths.
 
 ## Scoring
 *Placeholder for describing QoS scoring formulas, thresholds, and integration with Prometheus alerts.*
 
 ## NEF Integration
-*Placeholder for documenting NEF API surface area, mobility event hooks, and QoS-specific callbacks.*
+NEF integration touchpoints align with the sequence outlined in the integration blueprint: telemetry ingress, feature engineering, secure ML invocation, response handling, fallback triggering, and the `/api/v2/feedback` loop. The NEF publishes Prometheus metrics before each ML call, emits Kafka events (`handover.decisions`, `handover.fallbacks`), and stores audit trails tagged by `interaction_id`. Mobility event hooks remain in the NEF emulator's FastAPI layer, which now enforces nonce validation and TTL checks before applying ML-backed decisions.
 
 ## Configuration Knobs
 *Placeholder for enumerating environment variables, feature flags, and tuning parameters impacting QoS behaviour.*
 
 ## Fallback Logic
-*Placeholder for outlining deterministic and fail-safe behaviours when ML predictions or external dependencies are unavailable.*
+Fallback behaviour mirrors the decision tree in the integration blueprint. Transport or security failures immediately trigger the deterministic A3 rule while opening incidents. Low-confidence ML responses (<0.8) or expired TTLs defer to the A3 rule but keep predictions for retraining datasets. If the ML service requests `FAILOVER`, the NEF suspends further ML invocations until health checks pass, ensuring QoS guarantees remain intact during degradations.
 
 ## Diagram References
 *Placeholder for linking sequence diagrams, deployment topologies, and data flow illustrations supporting the QoS architecture.*
