@@ -292,6 +292,45 @@ class NEFClient:
             self.logger.error(f"Error parsing feature vector response: {str(e)}")
             raise NEFClientError(f"Invalid response format: {e}") from e
 
+    def get_qos_requirements(self, ue_id: str) -> Dict[str, Any]:
+        """Return QoS requirements advertised for a UE."""
+
+        if not ue_id:
+            raise ValueError("UE identifier is required to fetch QoS requirements")
+
+        url = urljoin(self.base_url, f"/api/v1/qos/{ue_id}/requirements")
+
+        try:
+            response = self._http.get(
+                url, headers=self.get_headers(), timeout=10
+            )
+
+            if response.status_code == 404:
+                self.logger.info(
+                    "No QoS profile published for UE %s (HTTP 404)", ue_id
+                )
+                return {}
+
+            if response.status_code != 200:
+                self.logger.error(
+                    "Error getting QoS requirements: %s - body: %s",
+                    response.status_code,
+                    response.text,
+                )
+                raise NEFClientError(
+                    f"Failed to fetch QoS requirements: HTTP {response.status_code}"
+                )
+
+            return response.json()
+        except requests.exceptions.RequestException as exc:
+            self.logger.error("QoS request to %s failed: %s", url, exc)
+            raise NEFClientError(
+                f"QoS request failed: {exc}"
+            ) from exc
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            self.logger.error(f"Error parsing QoS response: {str(e)}")
+            raise NEFClientError(f"Invalid QoS response format: {e}") from e
+
     def get_circuit_breaker_stats(self) -> Dict[str, Any]:
         """Get statistics for all circuit breakers in this client."""
         return {

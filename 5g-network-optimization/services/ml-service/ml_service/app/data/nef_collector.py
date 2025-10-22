@@ -7,9 +7,7 @@ from datetime import datetime
 import asyncio
 import time
 from collections import deque
-from typing import Any, Dict, List
-
-from typing import Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.mobility_metrics import MobilityMetricTracker
 from ..utils.memory_managed_dict import UETrackingDict, LRUDict
@@ -53,6 +51,137 @@ POSITION_WINDOW_SIZE = env_constants.POSITION_WINDOW_SIZE
 
 from ..clients.nef_client import NEFClient, NEFClientError
 from ..clients.async_nef_client import AsyncNEFClient, AsyncNEFClientError, CircuitBreakerError
+
+
+def _normalize_qos_payload(
+    payload: Any,
+    ue_id: str,
+    logger: logging.Logger,
+) -> Tuple[Optional[str], Optional[int], Optional[Dict[str, float]]]:
+    """Validate and normalize QoS payloads returned by the NEF API.
+
+    Args:
+        payload: Raw payload returned by the NEF client.
+        ue_id: Identifier of the UE the payload belongs to.
+        logger: Logger used to emit diagnostic messages.
+
+    Returns:
+        Tuple containing service type, service priority, and a normalized
+        dictionary of QoS thresholds. Elements are ``None`` when validation
+        fails.
+    """
+
+    if payload in (None, {}):
+        logger.debug("No QoS requirements returned for UE %s", ue_id)
+        return None, None, None
+
+    if not isinstance(payload, dict):
+        logger.error(
+            "Unexpected QoS payload type for UE %s: %s",
+            ue_id,
+            type(payload).__name__,
+        )
+        return None, None, None
+
+    def _lookup(keys: List[str], source: Dict[str, Any]) -> Any:
+        for key in keys:
+            if key in source:
+                return source[key]
+        return None
+
+    service_type: Optional[str] = None
+    raw_service_type = _lookup(["service_type", "serviceType"], payload)
+    if isinstance(raw_service_type, str):
+        service_type = raw_service_type.strip() or None
+    elif raw_service_type is not None:
+        logger.warning(
+            "Invalid QoS service_type for UE %s: %r", ue_id, raw_service_type
+        )
+
+    service_priority: Optional[int] = None
+    raw_priority = _lookup(["service_priority", "servicePriority"], payload)
+    if raw_priority is not None:
+        try:
+            service_priority = int(raw_priority)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid QoS service_priority for UE %s: %r", ue_id, raw_priority
+            )
+
+    candidate_sections = [
+        payload.get("requirements"),
+        payload.get("qos_requirements"),
+        payload.get("qosRequirements"),
+    ]
+    requirements_section = next(
+        (section for section in candidate_sections if isinstance(section, dict)),
+        None,
+    )
+
+    if requirements_section is None:
+        requirements_section = payload
+
+    normalized: Dict[str, float] = {}
+
+    def _extract_float(keys: List[str]) -> Optional[float]:
+        if not isinstance(requirements_section, dict):
+            return None
+        for key in keys:
+            if key not in requirements_section:
+                continue
+            value = requirements_section.get(key)
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid QoS %s for UE %s: %r",
+                    key,
+                    ue_id,
+                    value,
+                )
+        return None
+
+    latency = _extract_float([
+        "latency_requirement_ms",
+        "latencyRequirementMs",
+        "latency_ms",
+        "latency",
+    ])
+    if latency is not None:
+        normalized["latency_requirement_ms"] = latency
+
+    throughput = _extract_float([
+        "throughput_requirement_mbps",
+        "throughputRequirementMbps",
+        "throughput_mbps",
+        "throughput",
+    ])
+    if throughput is not None:
+        normalized["throughput_requirement_mbps"] = throughput
+
+    reliability = _extract_float([
+        "reliability_pct",
+        "reliabilityPct",
+        "reliability_percent",
+        "reliability",
+    ])
+    if reliability is not None:
+        normalized["reliability_pct"] = reliability
+
+    jitter = _extract_float([
+        "jitter_ms",
+        "jitterMs",
+    ])
+    if jitter is not None:
+        normalized["jitter_ms"] = jitter
+
+    if not normalized and service_type is None and service_priority is None:
+        logger.warning(
+            "QoS payload for UE %s did not contain recognizable requirement fields",
+            ue_id,
+        )
+
+    return service_type, service_priority, normalized or None
 
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
@@ -112,6 +241,9 @@ class NEFDataCollector:
             }
         )
 
+        # Track UEs for which QoS data was unavailable to avoid spamming logs
+        self._missing_qos_logged: set[str] = set()
+
     def _log_memory_stats(self):
         """Log comprehensive memory usage statistics for optimized tracking dictionaries."""
         now = time.time()
@@ -164,6 +296,64 @@ class NEFDataCollector:
         
         if inactive_ues:
             self.logger.info("Cleaned up %d inactive UEs", len(inactive_ues))
+
+    def _fetch_qos_requirements(
+        self, ue_id: str
+    ) -> Tuple[Optional[str], Optional[int], Optional[Dict[str, float]]]:
+        """Retrieve QoS requirements for a UE with robust error handling."""
+
+        client_method = getattr(self.client, "get_qos_requirements", None)
+        if client_method is None:
+            if ue_id not in self._missing_qos_logged:
+                self.logger.info(
+                    "NEF client does not expose QoS endpoint; skipping QoS for UE %s",
+                    ue_id,
+                )
+                self._missing_qos_logged.add(ue_id)
+            return None, None, None
+
+        try:
+            payload = client_method(ue_id)
+        except NEFClientError as exc:
+            if ue_id not in self._missing_qos_logged:
+                self.logger.warning(
+                    "Failed to fetch QoS requirements for UE %s: %s",
+                    ue_id,
+                    exc,
+                )
+                self._missing_qos_logged.add(ue_id)
+            return None, None, None
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.exception(
+                "Unexpected error retrieving QoS requirements for UE %s", ue_id
+            )
+            return None, None, None
+
+        service_type, service_priority, qos_requirements = _normalize_qos_payload(
+            payload,
+            ue_id,
+            self.logger,
+        )
+
+        if (
+            service_type is not None
+            or service_priority is not None
+            or qos_requirements is not None
+        ) and ue_id in self._missing_qos_logged:
+            self._missing_qos_logged.discard(ue_id)
+
+        if (
+            service_type is None
+            and service_priority is None
+            and qos_requirements is None
+            and ue_id not in self._missing_qos_logged
+        ):
+            self.logger.warning(
+                "QoS requirements unavailable after validation for UE %s", ue_id
+            )
+            self._missing_qos_logged.add(ue_id)
+
+        return service_type, service_priority, qos_requirements
 
     @handle_exceptions(NEFClientError, context="NEF authentication", reraise=False, default_return=False, logger_name="NEFDataCollector")
     def login(self):
@@ -266,6 +456,7 @@ class NEFDataCollector:
             return None
 
         fv = self.client.get_feature_vector(ue_id)
+        service_type, service_priority, qos_requirements = self._fetch_qos_requirements(ue_id)
         rsrps = fv.get("neighbor_rsrp_dbm", {})
         sinrs = fv.get("neighbor_sinrs", {})
         rsrqs = fv.get("neighbor_rsrqs", {})
@@ -426,6 +617,9 @@ class NEFDataCollector:
             "connected_to": connected_cell_id,
             "optimal_antenna": best_antenna,
             "rf_metrics": rf_metrics,
+            "service_type": service_type,
+            "service_priority": service_priority,
+            "qos_requirements": qos_requirements,
         }
 
     def _save_collected_data(self, collected_data: list) -> None:

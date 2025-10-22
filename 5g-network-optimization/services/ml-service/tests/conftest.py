@@ -68,6 +68,7 @@ def mock_nef_client():
     mock.get_headers.return_value = {"Authorization": "Bearer test-token"}
     mock.get_ue_movement_state.return_value = {}
     mock.get_feature_vector.return_value = {}
+    mock.get_qos_requirements.return_value = {}
     return mock
 
 
