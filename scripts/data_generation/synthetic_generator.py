@@ -1,16 +1,36 @@
 """Synthetic QoS request generator for 5G service classes.
 
-The generator produces synthetic service requests enriched with QoS fields
-required by downstream experimentation pipelines.  It supports three
-3GPP-aligned service classes (eMBB, URLLC, mMTC) plus a ``default`` catch-all
-profile.  Each profile models latency, throughput, reliability and priority
-using lightweight triangular distributions that keep values within realistic
-ranges while biasing towards expected operating points.
+Summary
+=======
+The generator produces synthetic service requests enriched with latency,
+reliability, throughput, and priority fields required by downstream
+experimentation pipelines.  Four service profiles are bundled: URLLC,
+eMBB, mMTC, and a ``default`` fall-back.  Their parameter ranges are tuned to
+reflect 3GPP-aligned operational envelopes gathered from public requirements
+tables and internal benchmarking notes.  These values strike a balance between
+realistic boundaries (``min``/``max`` pairs) and expected operating points via
+the triangular ``mode`` parameters.
 
-The module can be imported from tests or executed directly as a CLI utility.  A
-``--profile`` flag exposes pre-defined service mixes (balanced, eMBB-heavy,
-etc.) so experimenters can quickly adjust demand scenarios without memorising
-weight vectors.
+Parameter sources and service mix presets
+-----------------------------------------
+Profile definitions live in :data:`SERVICE_PROFILES` while mix presets are
+exposed through :data:`SERVICE_MIX_PROFILES`.  The CLI ``--profile`` flag lets
+users reference the mixes by name (``balanced``, ``embb-heavy``, etc.) without
+memorising raw weight vectors.  New services can be added by extending these
+maps in code; they are automatically normalised and sampled during request
+generation.
+
+Reproducibility guidance
+------------------------
+The generator uses :func:`random.triangular` for bounded sampling and a
+:class:`random.Random` instance to isolate RNG state.  Supplying ``--seed`` (or
+``seed`` when calling :func:`generate_synthetic_requests`) ensures bit-for-bit
+reproducible datasets, regardless of whether CSV or JSON output is selected.
+Leaving the seed unset falls back to Python's default entropy source for
+exploratory runs.
+
+The module can be imported from tests or executed directly as a CLI utility.
+Datasets may be written to disk or streamed to stdout in CSV/JSON formats.
 """
 from __future__ import annotations
 
@@ -49,6 +69,9 @@ class ServiceProfile:
         only minimal additional handling is required.
         """
 
+        # ``random.triangular`` interprets arguments as (low, high, mode).  We keep
+        # them grouped to mirror the dataclass attributes so future reviewers can
+        # cross-check defaults directly against :data:`SERVICE_PROFILES`.
         latency = rng.triangular(
             self.latency_ms[0], self.latency_ms[1], self.latency_mode
         )
@@ -230,6 +253,9 @@ def _write_csv(path: Path, records: Sequence[Mapping[str, object]]) -> None:
             writer.writeheader()
         return
 
+    # Persist the header order based on the first record.  This implicitly
+    # enforces schema stability: all dataclass samples emit identical keys, so a
+    # deviation here would signal an upstream change in record structure.
     headers = list(records[0].keys())
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=headers)
