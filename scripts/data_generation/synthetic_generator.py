@@ -18,7 +18,10 @@ exposed through :data:`SERVICE_MIX_PROFILES`.  The CLI ``--profile`` flag lets
 users reference the mixes by name (``balanced``, ``embb-heavy``, etc.) without
 memorising raw weight vectors.  New services can be added by extending these
 maps in code; they are automatically normalised and sampled during request
-generation.
+generation.  When finer control is required, the CLI also exposes explicit
+``--embb-weight``, ``--urllc-weight``, and ``--mmtc-weight`` flags that accept
+raw ratios and normalise them with the selected preset (including the
+``default`` service).
 
 Reproducibility guidance
 ------------------------
@@ -187,11 +190,53 @@ def get_service_mix(profile: str) -> Dict[str, float]:
     for service in SERVICE_PROFILES:
         mix.setdefault(service, 0.0)
 
-    total = sum(mix.values())
-    if total <= 0:
-        raise ValueError(f"Invalid mix definition for profile '{profile}': sum is {total}")
+    return _normalise_weight_map(mix)
 
-    return {service: weight / total for service, weight in mix.items()}
+
+def _normalise_weight_map(weights: Mapping[str, float]) -> Dict[str, float]:
+    """Return a normalised copy of *weights* covering all service profiles.
+
+    Args:
+        weights: Mapping of service name to raw weight value. Missing services are
+            treated as zero. Unknown service names raise :class:`ValueError` to
+            surface configuration issues early.
+
+    Raises:
+        ValueError: If a weight is negative, if a service name is unknown, or if
+            the sum of the supplied weights is not positive.
+    """
+
+    unknown = set(weights).difference(SERVICE_PROFILES)
+    if unknown:
+        raise ValueError(
+            "Unknown service weight(s) supplied: " + ", ".join(sorted(unknown))
+        )
+
+    ordered_services = list(SERVICE_PROFILES)
+    raw_values: Dict[str, float] = {}
+    total = 0.0
+    for service in ordered_services:
+        weight = float(weights.get(service, 0.0))
+        if weight < 0:
+            raise ValueError(f"Weight for service '{service}' must be non-negative")
+        raw_values[service] = weight
+        total += weight
+
+    if total <= 0:
+        raise ValueError("At least one service weight must be greater than zero")
+
+    normalised: Dict[str, float] = {}
+    running_total = 0.0
+    for idx, service in enumerate(ordered_services):
+        if idx == len(ordered_services) - 1:
+            # Ensure floating point rounding does not drift the total away from 1.0.
+            normalised_weight = 1.0 - running_total
+        else:
+            normalised_weight = raw_values[service] / total
+            running_total += normalised_weight
+        normalised[service] = max(normalised_weight, 0.0)
+
+    return normalised
 
 
 def _choose_service_type(rng: random.Random, weights: Mapping[str, float]) -> str:
@@ -212,6 +257,7 @@ def generate_synthetic_requests(
     *,
     profile: str = "balanced",
     seed: int | None = None,
+    weights: Mapping[str, float] | None = None,
 ) -> List[Dict[str, object]]:
     """Generate synthetic QoS requests.
 
@@ -219,13 +265,18 @@ def generate_synthetic_requests(
         num_records: Number of records to emit. Must be non-negative.
         profile: Named service mix profile from :data:`SERVICE_MIX_PROFILES`.
         seed: Optional deterministic seed for reproducibility.
+        weights: Optional raw service weights overriding ``profile``. Weights are
+            automatically normalised and may omit services, which default to zero.
     """
 
     if num_records < 0:
         raise ValueError("num_records must be non-negative")
 
     rng = random.Random(seed)
-    mix = get_service_mix(profile)
+    if weights is not None:
+        mix = _normalise_weight_map(weights)
+    else:
+        mix = get_service_mix(profile)
 
     records: List[Dict[str, object]] = []
     for idx in range(num_records):
@@ -283,6 +334,33 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Preconfigured service mix profile",
     )
     parser.add_argument(
+        "--embb-weight",
+        type=float,
+        default=None,
+        help=(
+            "Raw weight for enhanced Mobile Broadband traffic. Overrides the "
+            "selected profile when supplied; weights are auto-normalised."
+        ),
+    )
+    parser.add_argument(
+        "--urllc-weight",
+        type=float,
+        default=None,
+        help=(
+            "Raw weight for Ultra-Reliable Low-Latency traffic. Values must be "
+            "non-negative and will be normalised alongside other weights."
+        ),
+    )
+    parser.add_argument(
+        "--mmtc-weight",
+        type=float,
+        default=None,
+        help=(
+            "Raw weight for massive Machine-Type Communication traffic. "
+            "Combine with the other weight flags to define a custom mix."
+        ),
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=None,
@@ -307,8 +385,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
+    cli_overrides = {
+        "embb": args.embb_weight,
+        "urllc": args.urllc_weight,
+        "mmtc": args.mmtc_weight,
+    }
+    overrides = {k: v for k, v in cli_overrides.items() if v is not None}
+    weights = None
+    if overrides:
+        base_mix = get_service_mix(args.profile)
+        weights = {**base_mix, **overrides}
+
     records = generate_synthetic_requests(
-        args.records, profile=args.profile, seed=args.seed
+        args.records, profile=args.profile, seed=args.seed, weights=weights
     )
 
     if args.output:

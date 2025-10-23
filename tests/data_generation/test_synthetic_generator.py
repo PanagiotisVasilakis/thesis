@@ -7,6 +7,7 @@ import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
+from typing import Mapping
 
 import pytest
 
@@ -107,3 +108,64 @@ def test_get_service_mix_normalises_weights() -> None:
     assert pytest.approx(sum(mix.values()), abs=1e-9) == 1.0
     for service in SERVICE_PROFILES:
         assert service in mix
+
+
+def test_generate_synthetic_requests_accepts_custom_weights() -> None:
+    weights = {"urllc": 2.0, "embb": 1.0, "mmtc": 1.0, "default": 0.0}
+    records = generate_synthetic_requests(4000, seed=123, weights=weights)
+
+    counts = Counter(record["service_type"] for record in records)
+    ratios = {
+        service: counts.get(service, 0) / len(records) for service in SERVICE_PROFILES
+    }
+    assert ratios["urllc"] == pytest.approx(0.5, abs=0.05)
+    assert ratios["embb"] == pytest.approx(0.25, abs=0.04)
+    assert ratios["mmtc"] == pytest.approx(0.25, abs=0.04)
+    assert counts.get("default", 0) == 0
+
+
+@pytest.mark.parametrize(
+    "invalid_weights",
+    [
+        {"urllc": -0.1, "embb": 0.5, "mmtc": 0.5},
+        {service: 0.0 for service in SERVICE_PROFILES},
+    ],
+)
+def test_generate_synthetic_requests_rejects_invalid_weights(
+    invalid_weights: Mapping[str, float]
+) -> None:
+    with pytest.raises(ValueError):
+        generate_synthetic_requests(10, weights=invalid_weights)
+
+
+def test_cli_accepts_custom_weights(tmp_path: Path) -> None:
+    output_path = tmp_path / "weighted.json"
+    cmd = [
+        sys.executable,
+        str(SCRIPT_PATH),
+        "--records",
+        "400",
+        "--profile",
+        "balanced",
+        "--seed",
+        "5",
+        "--output",
+        str(output_path),
+        "--format",
+        "json",
+        "--embb-weight",
+        "5.0",
+        "--urllc-weight",
+        "1.0",
+        "--mmtc-weight",
+        "0.5",
+    ]
+
+    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    with output_path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    counts = Counter(item["service_type"] for item in payload)
+    ratio = counts["embb"] / len(payload)
+    assert ratio > 0.6
+    assert counts["embb"] > counts["urllc"] > counts["mmtc"]

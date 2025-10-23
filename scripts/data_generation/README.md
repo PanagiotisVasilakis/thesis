@@ -11,6 +11,9 @@ API and a command-line utility for producing labelled QoS request datasets.
 python scripts/data_generation/synthetic_generator.py \
     --records 5000 \
     --profile embb-heavy \
+    --embb-weight 0.5 \
+    --urllc-weight 0.3 \
+    --mmtc-weight 0.15 \
     --seed 42 \
     --output output/embb-heavy.csv \
     --format csv
@@ -22,6 +25,11 @@ Key flags:
 - `--profile` – service mix preset. Choose from `balanced`, `embb-heavy`,
   `urllc-heavy`, `mmtc-heavy`, or `uniform`. Presets normalise internally, so
   custom ratios need only sum to a positive value if you extend the module.
+- `--embb-weight`, `--urllc-weight`, `--mmtc-weight` – optional raw weights for
+  the three 5G service classes. Provide any non-negative values; the generator
+  normalises them together with the preset (including the `default` class) so
+  the final mix always sums to 1. Supplying all three effectively defines a
+  custom mix without editing the code.
 - `--seed` – optional RNG seed for reproducible datasets. Omit to use system
   entropy for exploratory runs.
 - `--output` – destination file path. Directories are created automatically.
