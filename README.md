@@ -67,6 +67,57 @@ scripts/install_deps.sh --skip-if-present
 
 The environment variables documented below (`ML_HANDOVER_ENABLED` and others) can be passed on the command line or in an `.env` file to control the behavior of both services.
 
+## Synthetic QoS Dataset Generator
+
+The thesis uses `scripts/data_generation/synthetic_generator.py` to create reproducible datasets for experimentation with enhanced Mobile Broadband (eMBB), Ultra-Reliable Low-Latency Communications (URLLC), massive Machine-Type Communications (mMTC), and a fall-back `default` profile. The generator is dependency-free beyond the packages in `requirements.txt` and only requires CPython 3.10 or newer.
+
+### CSV schema
+
+Each CSV row produced by the generator is ordered exactly as shown below so downstream notebooks and pipelines can load the file without additional schema discovery:
+
+| Column | Description |
+| --- | --- |
+| `request_id` | Stable identifier in the form `req_000000`, ensuring deterministic joins across derivative datasets. |
+| `service_type` | One of `embb`, `urllc`, `mmtc`, or `default`, representing the 3GPP traffic class sampled for the record. |
+| `latency_ms` | Round-trip latency in milliseconds sampled from a triangular distribution tuned to industry guidance. |
+| `reliability_pct` | Probability of successful delivery expressed as a percentage (e.g., `99.995`). |
+| `throughput_mbps` | Expected user-plane throughput in megabits per second. |
+| `priority` | Integer priority bucket aligned with 5QI-alike scheduling tiers used in the experiments. |
+
+JSON output preserves the same field names for parity with the CSV schema.
+
+### Traffic distributions and rationale
+
+Service parameter envelopes align with 3GPP TS 22.261 and TR 38.913 for eMBB/URLLC and 3GPP TS 22.104 for mMTC, while the priority ranges mirror the conversational/mission-critical 5QI groupings from 3GPP TS 23.501 Annex E. By sampling bounded triangular distributions we bias the generator toward the operating points highlighted in those specifications while staying within their recommended minimum/maximum targets. A deeper explanation of the envelopes, trade-offs, and academic references is available in [`docs/qos/synthetic_qos_dataset.md`](docs/qos/synthetic_qos_dataset.md).
+
+### CLI usage
+
+Run the generator directly to produce a CSV dataset using the built-in balanced mix:
+
+```bash
+python scripts/data_generation/synthetic_generator.py   --records 10000   --profile balanced   --output output/samples.csv   --format csv   --seed 42
+```
+
+To rebalance the service mix, supply raw weights for any subset of traffic classes. The generator normalises the weights against the chosen profile (including the `default` catch-all) and validates that at least one class remains non-zero:
+
+```bash
+python scripts/data_generation/synthetic_generator.py   --records 5000   --profile urllc-heavy   --embb-weight 0.5   --urllc-weight 1.0   --mmtc-weight 0.2   --format json   --output output/urllc_bias.json
+```
+
+Use `--seed` for deterministic datasets and omit `--output` to stream results to stdout, which is helpful when piping samples into exploratory notebooks.
+
+### Reproducing thesis experiments
+
+1. Install dependencies via `pip install -r requirements.txt`.
+2. Generate the desired datasets with the commands above, capturing both CSV and JSON formats as needed.
+3. Execute the statistical and CLI regression tests to confirm the generator is behaving within the calibrated tolerances:
+
+   ```bash
+   pytest tests/data_generation/test_synthetic_generator.py
+   ```
+
+4. Record the random seeds and CLI options used so the experiment notebooks can recreate the same service mix distributions.
+
 ## Mobility Models and A3 Handover
 
 The emulator includes several 3GPP-compliant mobility models located under `5g-network-optimization/services/nef-emulator/backend/app/app/mobility_models`:
