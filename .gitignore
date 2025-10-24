@@ -2,5 +2,6 @@ thesis/
 **/__pycache__/
 *.pyc
 .env
-mlops/feast_repo/data/
+mlops/feast_repo/data/*
+!mlops/feast_repo/data/.gitkeep
 .venv

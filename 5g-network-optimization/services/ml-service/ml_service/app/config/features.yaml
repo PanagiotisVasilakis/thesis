@@ -63,6 +63,18 @@ base_features:
     transform: float
     min: 0.0
     max: 10.0
+  - name: latency_ms
+    transform: float
+    min: 0.0
+    max: 500.0
+  - name: throughput_mbps
+    transform: float
+    min: 0.0
+    max: 10000.0
+  - name: packet_loss_rate
+    transform: float
+    min: 0.0
+    max: 100.0
   - name: rsrp_current
     transform: float
     min: -140.0

@@ -1,32 +1,16 @@
-from datetime import timedelta
-from feast import (
-    Entity,
-    FeatureView,
-    FileSource,
-    FeatureStore,
-)
+"""Feast repository entry point referencing the shared feature store package."""
 
-from .constants import feast_fields
+from feast import FeatureStore
 
-ue = Entity(name="ue_id", join_keys=["ue_id"])
+from mlops.feature_store.feature_repo import ue, ue_metrics_view
 
-source = FileSource(
-    path="data/training_data.parquet",
-    timestamp_field="timestamp",
-)
 
-ue_metrics_view = FeatureView(
-    name="ue_metrics_view",
-    entities=[ue],
-    ttl=timedelta(days=1),
-    schema=feast_fields(),
-    online=True,
-    source=source,
-)
+def apply() -> None:
+    """Apply the entity and feature view definitions to the Feast registry."""
 
-def apply():
     fs = FeatureStore(".")
     fs.apply([ue, ue_metrics_view])
+
 
 if __name__ == "__main__":
     apply()
