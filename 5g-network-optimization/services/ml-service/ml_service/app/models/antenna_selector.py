@@ -315,6 +315,15 @@ class AntennaSelector(AsyncModelInterface):
             features.setdefault("latency_requirement_ms", qos.get("latency_requirement_ms"))
             features.setdefault("throughput_requirement_mbps", qos.get("throughput_requirement_mbps"))
             features.setdefault("reliability_pct", qos.get("reliability_pct"))
+            # Observed QoS metrics (may come directly from telemetry)
+            if "latency_ms" not in features:
+                features["latency_ms"] = float(data.get("latency_ms", qos.get("latency_requirement_ms", 0.0) or 0.0))
+            if "throughput_mbps" not in features:
+                features["throughput_mbps"] = float(data.get("throughput_mbps", qos.get("throughput_requirement_mbps", 0.0) or 0.0))
+            if "packet_loss_rate" not in features:
+                features["packet_loss_rate"] = float(data.get("packet_loss_rate", 0.0) or 0.0)
+            if "jitter_ms" not in features:
+                features["jitter_ms"] = float(data.get("jitter_ms", 0.0) or 0.0)
         except Exception:
             # Non-fatal: if QoS derivation fails, continue with base features
             pass
