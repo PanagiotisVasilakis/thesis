@@ -31,6 +31,15 @@ OUTPUT_DIR="$REPO_ROOT/thesis_results/$EXPERIMENT_NAME"
 COMPOSE_FILE="$REPO_ROOT/5g-network-optimization/docker-compose.yml"
 NEF_INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple.sh"
 
+NEF_SCHEME=${NEF_SCHEME:-http}
+NEF_HOST=${NEF_HOST:-localhost}
+NEF_PORT=${NEF_PORT:-8080}
+NEF_API_BASE="${NEF_SCHEME}://${NEF_HOST}:${NEF_PORT}/api/v1"
+NEF_TOKEN=""
+
+UE_IDS=("202010000000001" "202010000000002" "202010000000003")
+UE_SPEED_PROFILES=("LOW" "LOW" "HIGH")
+
 # Ensure docker compose sees the ML profile and resolves the ml-service dependency.
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-ml}"
 export ML_LOCAL="${ML_LOCAL:-ml}"
@@ -105,7 +114,18 @@ export_metrics() {
             echo "," >> "$output_file"
         fi
         
-        local result=$(curl -s "${prom_url}/api/v1/query?query=${query}" | jq -c .)
+        local response
+        if ! response=$(curl -sS --get --data-urlencode "query=${query}" "${prom_url}/api/v1/query"); then
+            warn "Failed to fetch metrics for $name"
+            response='{"status":"error","errorType":"request","error":"curl_failed"}'
+        fi
+
+        local result
+        if ! result=$(printf '%s' "$response" | jq -c . 2>/dev/null); then
+            warn "Invalid response for $name"
+            result='{"status":"error","errorType":"parse","error":"invalid_json"}'
+        fi
+
         echo "    \"$name\": $result" >> "$output_file"
     done <<< "$metric_queries"
     
@@ -114,6 +134,146 @@ export_metrics() {
     echo "}" >> "$output_file"
     
     log "Metrics exported successfully"
+}
+
+ensure_nef_token() {
+    if [ -n "$NEF_TOKEN" ]; then
+        return 0
+    fi
+
+    local username="${FIRST_SUPERUSER:-admin@my-email.com}"
+    local password="${FIRST_SUPERUSER_PASSWORD:-pass}"
+    local response
+    if ! response=$(curl -sS -X POST "${NEF_API_BASE}/login/access-token" \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/x-www-form-urlencoded' \
+        --data-urlencode "username=${username}" \
+        --data-urlencode "password=${password}" \
+        -d "grant_type=&scope=&client_id=&client_secret="); then
+        warn "Failed to reach NEF login endpoint"
+        return 1
+    fi
+
+    local token
+    token=$(printf '%s' "$response" | jq -r '.access_token // empty')
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+        warn "NEF login did not return an access token"
+        return 1
+    fi
+
+    NEF_TOKEN="$token"
+    log "Authenticated with NEF"
+    return 0
+}
+
+start_ue_movement() {
+    local supi="$1"
+    local profile="$2"
+    local attempt
+
+    for attempt in 1 2; do
+        if ! ensure_nef_token; then
+            warn "Skipping UE ${supi}: authentication unavailable"
+            return 1
+        fi
+
+        local response_file
+        response_file=$(mktemp)
+        local http_code
+        local curl_exit=0
+        http_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -X POST "${NEF_API_BASE}/ue_movement/start-loop" \
+            -H "Authorization: Bearer ${NEF_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"supi\": \"${supi}\"}") || curl_exit=$?
+
+        if [ $curl_exit -ne 0 ]; then
+            warn "UE ${supi} start request failed (curl exit $curl_exit)"
+            rm -f "$response_file"
+            return 1
+        fi
+
+        if [[ "$http_code" == 2* ]]; then
+            log "Started UE ${supi} (profile ${profile})"
+            rm -f "$response_file"
+            return 0
+        fi
+
+        local body
+        body=$(cat "$response_file")
+        rm -f "$response_file"
+
+        if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+            warn "UE ${supi} start unauthorized (HTTP ${http_code}); refreshing token"
+            NEF_TOKEN=""
+            continue
+        fi
+
+        warn "Failed to start UE ${supi} (HTTP ${http_code}): ${body}"
+        return 1
+    done
+
+    warn "Failed to start UE ${supi} after retries"
+    return 1
+}
+
+stop_ue_movement() {
+    local supi="$1"
+    local attempt
+
+    for attempt in 1 2; do
+        if ! ensure_nef_token; then
+            warn "Skipping stop for UE ${supi}: authentication unavailable"
+            return 1
+        fi
+
+        local response_file
+        response_file=$(mktemp)
+        local http_code
+        local curl_exit=0
+        http_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -X POST "${NEF_API_BASE}/ue_movement/stop-loop" \
+            -H "Authorization: Bearer ${NEF_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            -d "{\"supi\": \"${supi}\"}") || curl_exit=$?
+
+        if [ $curl_exit -ne 0 ]; then
+            warn "UE ${supi} stop request failed (curl exit $curl_exit)"
+            rm -f "$response_file"
+            return 1
+        fi
+
+        if [[ "$http_code" == 2* ]]; then
+            log "Stopped UE ${supi}"
+            rm -f "$response_file"
+            return 0
+        fi
+
+        local body
+        body=$(cat "$response_file")
+        rm -f "$response_file"
+
+        if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+            NEF_TOKEN=""
+            warn "UE ${supi} stop unauthorized (HTTP ${http_code}); refreshing token"
+            continue
+        fi
+
+        warn "Failed to stop UE ${supi} (HTTP ${http_code}): ${body}"
+        return 1
+    done
+
+    warn "Failed to stop UE ${supi} after retries"
+    return 1
+}
+
+stop_all_ues() {
+    local supi
+    for supi in "${UE_IDS[@]}"; do
+        if ! stop_ue_movement "$supi"; then
+            warn "UE ${supi} may still be running"
+        fi
+    done
 }
 
 # ============================================================================
@@ -234,19 +394,18 @@ fi
 
 # Start UE movement
 log "Starting UE movement..."
-UE_IDS=("202010000000001" "202010000000002" "202010000000003")
-SPEEDS=(5.0 10.0 15.0)
+NEF_TOKEN=""
+if ! ensure_nef_token; then
+    error "Unable to authenticate with NEF for UE movement"
+    exit 1
+fi
 
 for i in "${!UE_IDS[@]}"; do
     ue_id="${UE_IDS[$i]}"
-    speed="${SPEEDS[$i]}"
-    
-    curl -s -X POST "http://localhost:8080/api/v1/ue_movement/start" \
-        -H "Content-Type: application/json" \
-        -d "{\"supi\": \"$ue_id\", \"speed\": $speed}" > /dev/null 2>&1 || {
-        warn "Could not start UE $ue_id"
-    }
-    log "Started UE $ue_id at ${speed} m/s"
+    profile="${UE_SPEED_PROFILES[$i]}"
+    if ! start_ue_movement "$ue_id" "$profile"; then
+        warn "UE ${ue_id} may not have started correctly"
+    fi
 done
 
 # Run ML experiment
@@ -260,24 +419,24 @@ NEXT_SNAPSHOT=$SAMPLING_INTERVAL
 SNAPSHOT_INDEX=1
 
 # Define metrics to collect during ML mode so snapshots reuse the same list
-ML_METRICS="handover_decisions_total|nef_handover_decisions_total{outcome=\"applied\"}
-handover_failures|nef_handover_decisions_total{outcome=\"skipped\"}
-ml_fallbacks|nef_handover_fallback_total
+ML_METRICS="total_handovers|sum(nef_handover_decisions_total{outcome=\"applied\"})
+failed_handovers|sum(nef_handover_decisions_total{outcome=\"skipped\"})
+ml_fallbacks|sum(nef_handover_fallback_total)
 pingpong_suppressions|sum(ml_pingpong_suppressions_total)
-pingpong_too_recent|ml_pingpong_suppressions_total{reason=\"too_recent\"}
-pingpong_too_many|ml_pingpong_suppressions_total{reason=\"too_many\"}
-pingpong_immediate|ml_pingpong_suppressions_total{reason=\"immediate_return\"}
-qos_compliance_ok|nef_handover_compliance_total{outcome=\"ok\"}
-qos_compliance_failed|nef_handover_compliance_total{outcome=\"failed\"}
-qos_pass_by_service|sum(ml_qos_compliance_total{outcome=\"passed\"}) by (service_type)
-qos_fail_by_service|sum(ml_qos_compliance_total{outcome=\"failed\"}) by (service_type)
+pingpong_too_recent|sum(ml_pingpong_suppressions_total{reason=\"too_recent\"})
+pingpong_too_many|sum(ml_pingpong_suppressions_total{reason=\"too_many\"})
+pingpong_immediate|sum(ml_pingpong_suppressions_total{reason=\"immediate_return\"})
+qos_compliance_ok|sum(nef_handover_compliance_total{outcome=\"ok\"})
+qos_compliance_failed|sum(nef_handover_compliance_total{outcome=\"failed\"})
+qos_compliance_by_service|sum(ml_qos_compliance_total{outcome=\"passed\"}) by (service_type)
+qos_failures_by_service|sum(ml_qos_compliance_total{outcome=\"failed\"}) by (service_type)
 qos_violations_by_metric|sum(ml_qos_violation_total) by (metric)
 adaptive_confidence|ml_qos_adaptive_confidence
-prediction_requests|ml_prediction_requests_total
+total_predictions|sum(ml_prediction_requests_total)
 avg_confidence|avg(ml_prediction_confidence_avg)
-p95_latency|histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m]))
-p50_interval|histogram_quantile(0.50, rate(ml_handover_interval_seconds_bucket[5m]))
-p95_interval|histogram_quantile(0.95, rate(ml_handover_interval_seconds_bucket[5m]))"
+p95_latency_ms|histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m])) * 1000
+p50_handover_interval|histogram_quantile(0.50, rate(ml_handover_interval_seconds_bucket[5m]))
+p95_handover_interval|histogram_quantile(0.95, rate(ml_handover_interval_seconds_bucket[5m]))"
 
 while [ $ELAPSED -lt $((DURATION_MINUTES * 60)) ]; do
     sleep 30
@@ -294,6 +453,9 @@ while [ $ELAPSED -lt $((DURATION_MINUTES * 60)) ]; do
     done
 
 log "ML experiment complete"
+
+log "Stopping UE movement..."
+stop_all_ues
 
 # Collect ML metrics
 log "Collecting ML mode metrics..."
@@ -347,17 +509,18 @@ fi
 
 # Start UE movement (same pattern as ML mode)
 log "Starting UE movement..."
+NEF_TOKEN=""
+if ! ensure_nef_token; then
+    error "Unable to authenticate with NEF for UE movement"
+    exit 1
+fi
 
 for i in "${!UE_IDS[@]}"; do
     ue_id="${UE_IDS[$i]}"
-    speed="${SPEEDS[$i]}"
-    
-    curl -s -X POST "http://localhost:8080/api/v1/ue_movement/start" \
-        -H "Content-Type: application/json" \
-        -d "{\"supi\": \"$ue_id\", \"speed\": $speed}" > /dev/null 2>&1 || {
-        warn "Could not start UE $ue_id"
-    }
-    log "Started UE $ue_id at ${speed} m/s"
+    profile="${UE_SPEED_PROFILES[$i]}"
+    if ! start_ue_movement "$ue_id" "$profile"; then
+        warn "UE ${ue_id} may not have started correctly"
+    fi
 done
 
 # Run A3 experiment (same duration as ML)
@@ -376,14 +539,19 @@ done
 
 log "A3 experiment complete"
 
+log "Stopping UE movement..."
+stop_all_ues
+
 # Collect A3 metrics
 log "Collecting A3 mode metrics..."
 
-A3_METRICS="handover_decisions_total|nef_handover_decisions_total{outcome=\"applied\"}
-handover_failures|nef_handover_decisions_total{outcome=\"skipped\"}
-qos_compliance_ok|nef_handover_compliance_total{outcome=\"ok\"}
-qos_compliance_failed|nef_handover_compliance_total{outcome=\"failed\"}
-request_duration|histogram_quantile(0.95, rate(nef_request_duration_seconds_bucket[5m]))"
+A3_METRICS="total_handovers|sum(nef_handover_decisions_total{outcome=\"applied\"})
+failed_handovers|sum(nef_handover_decisions_total{outcome=\"skipped\"})
+qos_compliance_ok|sum(nef_handover_compliance_total{outcome=\"ok\"})
+qos_compliance_failed|sum(nef_handover_compliance_total{outcome=\"failed\"})
+qos_compliance_by_service|sum(nef_handover_compliance_total{outcome=\"ok\"}) by (service_type)
+qos_failures_by_service|sum(nef_handover_compliance_total{outcome=\"failed\"}) by (service_type)
+p95_latency_ms|histogram_quantile(0.95, rate(nef_request_duration_seconds_bucket[5m])) * 1000"
 
 export_metrics "$OUTPUT_DIR/metrics/a3_mode_metrics.json" "$A3_METRICS"
 
@@ -455,7 +623,7 @@ cat > "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md" << 'EOFSUM'
 
 - **gNBs**: 1 (gNB1)
 - **Cells**: 4 (Administration, Radioisotopes, IIT, Faculty)
-- **UEs**: 3 (speeds: 5, 10, 15 m/s)
+- **UEs**: 3 (speed profiles: LOW, LOW, HIGH)
 - **Paths**: 2 (NCSRD Library, NCSRD Gate-IIT)
 
 ## Results

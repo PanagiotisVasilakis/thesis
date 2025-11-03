@@ -18,13 +18,14 @@ Usage:
 
 import argparse
 import json
+import math
 import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
@@ -49,6 +50,165 @@ from services.logging_config import configure_logging
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _safe_float(value: Optional[str], default: float = 0.0) -> float:
+    """Best-effort conversion of Prometheus string values to float."""
+    try:
+        number = float(value)  # Handles int-like and float-like strings
+        if math.isnan(number):
+            return default
+        return number
+    except (TypeError, ValueError):
+        return default
+
+
+def _ratio_percent(numerator: float, denominator: float, default: float = 0.0) -> float:
+    """Compute percentage while avoiding division-by-zero issues."""
+    denom = float(denominator)
+    if math.isclose(denom, 0.0):
+        return default
+    return float(numerator) / denom * 100.0
+
+
+def _extract_value_from_export(entry: Optional[Dict], default: float = 0.0) -> float:
+    """Extract scalar metric values from stored Prometheus responses."""
+    if not entry:
+        return default
+
+    data = entry.get('data', {})
+    result_type = data.get('resultType')
+
+    if result_type == 'scalar':
+        result = data.get('result', [])
+        if isinstance(result, (list, tuple)) and len(result) >= 2:
+            return _safe_float(result[1], default)
+        return default
+
+    results = data.get('result', [])
+    if not isinstance(results, list) or not results:
+        return default
+
+    total = 0.0
+    for item in results:
+        value_field = item.get('value') or []
+        value_str = value_field[1] if len(value_field) >= 2 else None
+        total += _safe_float(value_str, 0.0)
+    return total
+
+
+def _extract_vector_from_export(entry: Optional[Dict], label: str) -> Dict[str, float]:
+    """Extract vector metrics grouped by label from stored Prometheus responses."""
+    if not entry:
+        return {}
+
+    data = entry.get('data', {})
+    results = data.get('result', [])
+    if not isinstance(results, list):
+        return {}
+
+    output: Dict[str, float] = {}
+    for item in results:
+        metric = item.get('metric', {})
+        label_value = metric.get(label)
+        if not label_value:
+            continue
+        value_field = item.get('value') or []
+        value_str = value_field[1] if len(value_field) >= 2 else None
+        output[label_value] = _safe_float(value_str, 0.0)
+    return output
+
+
+def convert_exported_metrics(metrics: Dict[str, Dict], mode: str) -> Dict[str, Any]:
+    """Convert raw Prometheus export payload into visualization-ready metrics."""
+    def metric_entry(name: str, *fallbacks: str) -> Optional[Dict]:
+        entry = metrics.get(name)
+        if entry is not None:
+            return entry
+        for candidate in fallbacks:
+            entry = metrics.get(candidate)
+            if entry is not None:
+                return entry
+        return None
+
+    instant: Dict[str, Any] = {
+        'total_handovers': _extract_value_from_export(metric_entry('total_handovers', 'handover_decisions_total')),
+        'failed_handovers': _extract_value_from_export(metric_entry('failed_handovers', 'handover_failures')),
+        'qos_compliance_ok': _extract_value_from_export(metric_entry('qos_compliance_ok')),
+        'qos_compliance_failed': _extract_value_from_export(metric_entry('qos_compliance_failed')),
+        'total_predictions': _extract_value_from_export(metric_entry('total_predictions', 'prediction_requests')),
+        'avg_confidence': _extract_value_from_export(metric_entry('avg_confidence'), default=0.5),
+        'p95_latency_ms': _extract_value_from_export(metric_entry('p95_latency_ms', 'p95_latency')),
+        'p50_handover_interval': _extract_value_from_export(metric_entry('p50_handover_interval', 'p50_interval')),
+        'p95_handover_interval': _extract_value_from_export(metric_entry('p95_handover_interval', 'p95_interval')),
+    }
+
+    instant['qos_compliance_by_service'] = _extract_vector_from_export(
+        metric_entry('qos_compliance_by_service', 'qos_pass_by_service'), 'service_type'
+    )
+    instant['qos_failures_by_service'] = _extract_vector_from_export(
+        metric_entry('qos_failures_by_service', 'qos_fail_by_service'), 'service_type'
+    )
+    instant['qos_violations_by_metric'] = _extract_vector_from_export(
+        metric_entry('qos_violations_by_metric'), 'metric'
+    )
+
+    if mode == 'ml':
+        instant.update({
+            'ml_fallbacks': _extract_value_from_export(metric_entry('ml_fallbacks')),
+            'pingpong_suppressions': _extract_value_from_export(metric_entry('pingpong_suppressions')),
+            'pingpong_too_recent': _extract_value_from_export(metric_entry('pingpong_too_recent')),
+            'pingpong_too_many': _extract_value_from_export(metric_entry('pingpong_too_many')),
+            'pingpong_immediate': _extract_value_from_export(metric_entry('pingpong_immediate')),
+        })
+        instant['adaptive_confidence'] = _extract_vector_from_export(
+            metric_entry('adaptive_confidence'), 'service_type'
+        )
+    else:
+        instant.setdefault('ml_fallbacks', 0.0)
+        instant.setdefault('pingpong_suppressions', 0.0)
+        instant.setdefault('pingpong_too_recent', 0.0)
+        instant.setdefault('pingpong_too_many', 0.0)
+        instant.setdefault('pingpong_immediate', 0.0)
+        instant['adaptive_confidence'] = {}
+
+    return instant
+
+
+def normalize_metrics_payload(raw: Dict[str, Any], mode: str) -> Dict[str, Any]:
+    """Normalize varying metric payload schemas into the expected structure."""
+    if not isinstance(raw, dict):
+        return {'instant': raw}
+
+    payload = dict(raw)  # Shallow copy so we can adjust without mutating caller
+
+    # Handle nested "instant" blocks that still contain raw Prometheus responses
+    instant_section = payload.get('instant')
+    if isinstance(instant_section, dict) and 'metrics' in instant_section:
+        payload['instant'] = convert_exported_metrics(instant_section['metrics'], mode)
+        return payload
+
+    # Handle top-level Prometheus export payloads
+    if 'metrics' in payload:
+        normalized: Dict[str, Any] = {'instant': convert_exported_metrics(payload['metrics'], mode)}
+        if 'timeseries' in payload:
+            normalized['timeseries'] = payload['timeseries']
+        if 'timestamp' in payload:
+            normalized['timestamp'] = payload['timestamp']
+        return normalized
+
+    # Already structured as instant metrics
+    if 'instant' in payload:
+        return payload
+
+    return {'instant': payload}
+
+
+def load_metrics_payload(path: str, mode: str) -> Dict[str, Any]:
+    """Load metrics JSON file, normalizing Prometheus exports when needed."""
+    with open(path) as f:
+        raw = json.load(f)
+    return normalize_metrics_payload(raw, mode)
 
 
 class PrometheusClient:
@@ -939,12 +1099,23 @@ class ComparisonVisualizer:
         
         ml_pingpong_rate = (ml['pingpong_suppressions'] / ml['total_handovers'] * 100) if ml['total_handovers'] > 0 else 0
         a3_pingpong_rate = 18.0  # Baseline
-        
-        pingpong_reduction = ((a3_pingpong_rate - ml_pingpong_rate) / a3_pingpong_rate * 100)
-        
+
+        pingpong_reduction = _ratio_percent(
+            a3_pingpong_rate - ml_pingpong_rate,
+            a3_pingpong_rate,
+            default=0.0,
+        )
+
         ml_interval = ml.get('p50_handover_interval', 8.0)
         a3_interval = ml_interval * 0.4
         interval_improvement = ((ml_interval / a3_interval - 1) * 100) if a3_interval > 0 else 0
+
+        ml_compliance_total = ml['qos_compliance_ok'] + ml['qos_compliance_failed']
+        ml_compliance_rate = _ratio_percent(
+            ml['qos_compliance_ok'],
+            ml_compliance_total,
+            default=0.0,
+        )
         
         # Generate report
         report = f"""
@@ -1011,8 +1182,8 @@ PING-PONG PREVENTION EFFECTIVENESS:
   Prevention rate:     {ml_pingpong_rate:.1f}% of handovers had ping-pong risk
   
 QoS AWARENESS:
-  ML-specific feature demonstrating service-priority gating
-  Compliance: {int(ml['qos_compliance_ok']) / (int(ml['qos_compliance_ok']) + int(ml['qos_compliance_failed'])) * 100:.1f}%
+    ML-specific feature demonstrating service-priority gating
+    Compliance: {ml_compliance_rate:.1f}%
 
 ================================================================================
                          THESIS IMPLICATIONS
@@ -1281,23 +1452,23 @@ Examples:
         logger.info(f"Loading data from {args.input}")
         with open(args.input) as f:
             data = json.load(f)
-        ml_metrics = data['ml_mode']['instant']
-        a3_metrics = data['a3_mode']['instant']
-        ml_timeseries = data['ml_mode'].get('timeseries')
-        a3_timeseries = data['a3_mode'].get('timeseries')
+        ml_section = normalize_metrics_payload(data['ml_mode'], mode='ml')
+        a3_section = normalize_metrics_payload(data['a3_mode'], mode='a3')
+        ml_metrics = ml_section.get('instant', {})
+        a3_metrics = a3_section.get('instant', {})
+        ml_timeseries = ml_section.get('timeseries')
+        a3_timeseries = a3_section.get('timeseries')
     
     elif args.ml_metrics and args.a3_metrics:
         # Load separate metric files
         logger.info(f"Loading ML metrics from {args.ml_metrics}")
-        with open(args.ml_metrics) as f:
-            ml_data = json.load(f)
-        ml_metrics = ml_data.get('instant', ml_data)
+        ml_data = load_metrics_payload(args.ml_metrics, mode='ml')
+        ml_metrics = ml_data.get('instant', {})
         ml_timeseries = ml_data.get('timeseries')
         
         logger.info(f"Loading A3 metrics from {args.a3_metrics}")
-        with open(args.a3_metrics) as f:
-            a3_data = json.load(f)
-        a3_metrics = a3_data.get('instant', a3_data)
+        a3_data = load_metrics_payload(args.a3_metrics, mode='a3')
+        a3_metrics = a3_data.get('instant', {})
         a3_timeseries = a3_data.get('timeseries')
     
     else:
