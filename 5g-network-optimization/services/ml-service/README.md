@@ -6,7 +6,7 @@ Flask-based microservice that predicts handover targets for user equipment (UE) 
 
 - Flask application factory (`ml_service.app.create_app`) with background model initialisation, structured logging, JWT auth, and Prometheus metrics.
 - Rich model manager supporting LightGBM, LSTM, Ensemble, and Online models selectable via `MODEL_TYPE`.
-- JWT-protected REST API with rate limiting, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
+- JWT-protected REST API with rate limiting, QoS-aware `/api/predict-with-qos`, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
 - Dedicated `/metrics` endpoint guarded by pluggable credentials (basic, API key, or JWT) plus helper endpoints to mint metrics tokens.
 - Visualization blueprint for coverage maps and trajectories saved under `output/`.
 - Extensive configuration surface via environment variables, all funnelled through `ml_service.app.config.constants`.
@@ -67,6 +67,7 @@ All endpoints live under `/api` and return JSON. Rate limiting and JWT authentic
 | `/api/model-health` | GET | No | Reports `ModelManager.is_ready()` and the latest metadata (version, timestamps, metrics). |
 | `/api/login` | POST | No | Issues a JWT given `AUTH_USERNAME`/`AUTH_PASSWORD`. Body validated via `LoginRequest` Pydantic model. |
 | `/api/predict` | POST | Yes | Synchronous prediction. Uses `PredictionRequest`, calls `predict()` helper, records metrics & drift data. |
+| `/api/predict-with-qos` | POST | Yes | QoS-aware prediction that returns a `qos_compliance` verdict alongside the antenna suggestion. |
 | `/api/predict-async` | POST | Yes | Runs `model.predict_async` if the underlying selector supports it. |
 | `/api/train` | POST | Yes | Batch training. Accepts list of `TrainingSample` payloads (50 MB cap) and persists via `ModelManager.save_active_model`. |
 | `/api/train-async` | POST | Yes | Awaitable variant using `model.train_async`. |

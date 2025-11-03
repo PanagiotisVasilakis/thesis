@@ -1,56 +1,46 @@
 """Data collection from NEF emulator for ML training."""
-import json
 import logging
 import os
 from datetime import datetime
 
 import asyncio
 import time
-from collections import deque
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..utils.mobility_metrics import MobilityMetricTracker
-from ..utils.memory_managed_dict import UETrackingDict, LRUDict
-from ..utils.optimized_memory_dict import (
-    OptimizedUETrackingDict, 
-    MemoryEfficientSignalBuffer,
-    create_optimized_ue_tracking_dict
-)
 from ..config.constants import (
     env_constants,
     DEFAULT_COLLECTION_DURATION,
     DEFAULT_COLLECTION_INTERVAL,
     DEFAULT_NEF_TIMEOUT,
     DEFAULT_COLLECTION_RETRIES,
-    DEFAULT_STATS_LOG_INTERVAL
+    DEFAULT_STATS_LOG_INTERVAL,
 )
 from ..utils.common_validators import (
     DataCollectionValidator,
     UEDataValidator,
-    ValidationHelper,
     validate_ue_sample_data,
-    ValidationError
+    ValidationError,
 )
 from ..utils.exception_handler import (
-    ExceptionHandler,
-    NetworkError,
-    DataError,
     handle_exceptions,
-    safe_execute,
-    exception_context
+    exception_context,
 )
 from ..utils.resource_manager import (
     global_resource_manager,
     ResourceType,
-    managed_resource,
-    async_managed_resource
 )
+from ..clients.nef_client import NEFClient, NEFClientError
+from ..clients.async_nef_client import AsyncNEFClient, AsyncNEFClientError, CircuitBreakerError
+from .feature_extractor import (
+    FeatureExtractor,
+    HandoverTracker,
+    SignalProcessor,
+    MobilityProcessor,
+)
+from .persistence import TrainingDataPersistence
 
 SIGNAL_WINDOW_SIZE = env_constants.SIGNAL_WINDOW_SIZE
 POSITION_WINDOW_SIZE = env_constants.POSITION_WINDOW_SIZE
-
-from ..clients.nef_client import NEFClient, NEFClientError
-from ..clients.async_nef_client import AsyncNEFClient, AsyncNEFClientError, CircuitBreakerError
 
 
 def _normalize_qos_payload(
@@ -183,10 +173,217 @@ def _normalize_qos_payload(
 
     return service_type, service_priority, normalized or None
 
+
+class _CollectorComponents:
+    """Bundle of helper components shared by collectors."""
+
+    def __init__(
+        self,
+        *,
+        logger: logging.Logger,
+        data_dir: str,
+        max_ues: int,
+        ue_ttl_hours: float,
+        signal_window_size: int,
+        position_window_size: int,
+    ) -> None:
+        self._logger = logger
+        self.max_ues = max_ues
+        self.feature_extractor = FeatureExtractor()
+        self.handover_tracker = HandoverTracker(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
+        self.signal_processor = SignalProcessor(
+            signal_window_size=signal_window_size,
+            max_ues=max_ues,
+            ue_ttl_hours=ue_ttl_hours,
+        )
+        self.mobility_processor = MobilityProcessor(
+            position_window_size=position_window_size,
+            max_ues=max_ues,
+            ue_ttl_hours=ue_ttl_hours,
+        )
+        self.persistence = TrainingDataPersistence(data_dir=data_dir)
+
+    @staticmethod
+    def _to_float(value: Any) -> Optional[float]:
+        try:
+            if value is None:
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def build_sample(
+        self,
+        *,
+        ue_id: str,
+        ue_data: Dict[str, Any],
+        feature_vector: Dict[str, Any],
+        connected_cell_id: str,
+        service_type: Optional[str],
+        service_priority: Optional[int],
+        qos_requirements: Optional[Dict[str, float]],
+        timestamp: float,
+    ) -> Dict[str, Any]:
+        rf_metrics = self.feature_extractor.extract_rf_features(feature_vector or {})
+        optimal_antenna = (
+            self.feature_extractor.determine_optimal_antenna(rf_metrics)
+            if rf_metrics
+            else connected_cell_id
+        )
+
+        env_features = self.feature_extractor.extract_environment_features(feature_vector or {})
+        cell_load = self._to_float(env_features.get("cell_load"))
+        environment = self._to_float(env_features.get("environment"))
+        signal_trend_override = self._to_float(env_features.get("signal_trend"))
+
+        serving_metrics = rf_metrics.get(connected_cell_id, {}) if connected_cell_id else {}
+        rsrp_current = self._to_float(serving_metrics.get("rsrp"))
+        sinr_current = self._to_float(serving_metrics.get("sinr"))
+        rsrq_current = self._to_float(serving_metrics.get("rsrq"))
+
+        rsrp_stddev, sinr_stddev = self.signal_processor.update_signal_metrics(
+            ue_id,
+            rsrp_current,
+            sinr_current,
+            rsrq_current,
+        )
+        signal_trend = self.signal_processor.calculate_signal_trend(
+            ue_id,
+            rsrp_current,
+            sinr_current,
+            rsrq_current,
+        )
+        if signal_trend_override is not None:
+            signal_trend = signal_trend_override
+
+        latitude = ue_data.get("latitude")
+        longitude = ue_data.get("longitude")
+        speed = self._to_float(ue_data.get("speed"))
+
+        heading_change_rate, path_curvature, derived_accel = self.mobility_processor.update_mobility_metrics(
+            ue_id,
+            latitude if isinstance(latitude, (int, float)) else 0.0,
+            longitude if isinstance(longitude, (int, float)) else 0.0,
+            speed,
+        )
+
+        handover_count, time_since_handover = self.handover_tracker.update_handover_state(
+            ue_id,
+            connected_cell_id,
+            timestamp,
+        )
+
+        velocity_val = self._to_float(feature_vector.get("velocity"))
+        velocity = velocity_val if velocity_val is not None else speed
+
+        accel_feature = self._to_float(feature_vector.get("acceleration"))
+        accel_data = self._to_float(ue_data.get("acceleration"))
+        acceleration = (
+            accel_feature
+            if accel_feature is not None
+            else accel_data if accel_data is not None else derived_accel
+        )
+
+        altitude = ue_data.get("altitude")
+        if altitude is None:
+            altitude = feature_vector.get("altitude")
+
+        if cell_load is None:
+            fallback_cell_load = self._to_float(feature_vector.get("cell_load"))
+            if fallback_cell_load is not None:
+                cell_load = fallback_cell_load
+            else:
+                cell_load = (len(rf_metrics) / 10.0) if rf_metrics else 0.0
+
+        if environment is None:
+            environment = 0.0
+
+        sample = {
+            "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
+            "ue_id": ue_id,
+            "latitude": ue_data.get("latitude"),
+            "longitude": ue_data.get("longitude"),
+            "heading_change_rate": heading_change_rate,
+            "path_curvature": path_curvature,
+            "altitude": altitude,
+            "speed": speed,
+            "velocity": velocity,
+            "acceleration": acceleration,
+            "cell_load": cell_load,
+            "handover_count": handover_count,
+            "time_since_handover": time_since_handover,
+            "signal_trend": signal_trend,
+            "environment": environment,
+            "rsrp_stddev": rsrp_stddev,
+            "sinr_stddev": sinr_stddev,
+            "connected_to": connected_cell_id,
+            "optimal_antenna": optimal_antenna,
+            "rf_metrics": rf_metrics,
+            "service_type": service_type,
+            "service_priority": service_priority,
+            "qos_requirements": qos_requirements,
+        }
+
+        return sample
+
+    def get_stats(self) -> Dict[str, Any]:
+        stats: Dict[str, Any] = {}
+        try:
+            stats["handover_tracker"] = self.handover_tracker.get_stats()
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.debug("Failed to collect handover tracker stats: %s", exc)
+            try:
+                stats["handover_tracker"] = {"tracked_ues": len(self.handover_tracker._prev_cell)}
+            except Exception:
+                pass
+        try:
+            stats["signal_processor"] = self.signal_processor.get_stats()
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.debug("Failed to collect signal processor stats: %s", exc)
+            try:
+                stats["signal_processor"] = {"tracked_ues": len(self.signal_processor._prev_signal)}
+            except Exception:
+                pass
+        try:
+            stats["mobility_processor"] = self.mobility_processor.get_stats()
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.debug("Failed to collect mobility processor stats: %s", exc)
+            try:
+                stats["mobility_processor"] = {"tracked_ues": len(self.mobility_processor._prev_speed)}
+            except Exception:
+                pass
+        try:
+            stats["storage"] = self.persistence.get_storage_stats()
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.debug("Failed to collect storage stats: %s", exc)
+            try:
+                stats["storage"] = {"data_directory": self.persistence.data_dir.as_posix()}
+            except Exception:
+                pass
+        return stats
+
+    def cleanup(self) -> None:
+        try:
+            self.handover_tracker._prev_cell.clear()
+            self.handover_tracker._handover_counts.clear()
+            self.handover_tracker._last_handover_ts.clear()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        try:
+            self.signal_processor._prev_signal.clear()
+            self.signal_processor._signal_buffer.clear()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        try:
+            self.mobility_processor._prev_speed.clear()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+
 class NEFDataCollector:
     """Collect data from NEF emulator for ML training."""
 
-    def __init__(self, nef_url=None, username=None, password=None):
+    def __init__(self, nef_url=None, username=None, password=None, data_dir: Optional[str] = None):
         """Initialize the data collector with optimized NEF client."""
         # Use environment-aware defaults
         nef_url = nef_url or env_constants.NEF_URL
@@ -203,28 +400,24 @@ class NEFDataCollector:
         self.nef_url = nef_url
         self.username = username
         self.password = password
-        self.data_dir = os.path.join(os.path.dirname(__file__), 'collected_data')
+        self.data_dir = data_dir or os.path.join(os.path.dirname(__file__), 'collected_data')
         os.makedirs(self.data_dir, exist_ok=True)
 
         # Set up logger for this collector
         self.logger = logging.getLogger('NEFDataCollector')
 
-        # Memory-optimized tracking dictionaries with automatic cleanup
         max_ues = env_constants.UE_TRACKING_MAX_UES
         ttl_hours = env_constants.UE_TRACKING_TTL_HOURS
-        
-        # Use optimized memory dictionaries for better performance
-        self._prev_speed: OptimizedUETrackingDict[float] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        self._prev_cell: OptimizedUETrackingDict[str] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        self._handover_counts: OptimizedUETrackingDict[int] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        self._prev_signal: OptimizedUETrackingDict[dict[str, float]] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        self._last_handover_ts: OptimizedUETrackingDict[float] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        
-        # Use memory-efficient signal buffers instead of deques
-        self._signal_buffers: OptimizedUETrackingDict[Dict[str, MemoryEfficientSignalBuffer]] = create_optimized_ue_tracking_dict(max_ues, ttl_hours)
-        # Mobility metrics tracker per UE
-        self.mobility_tracker = MobilityMetricTracker(POSITION_WINDOW_SIZE)
-        
+
+        self._components = _CollectorComponents(
+            logger=self.logger,
+            data_dir=self.data_dir,
+            max_ues=max_ues,
+            ue_ttl_hours=ttl_hours,
+            signal_window_size=SIGNAL_WINDOW_SIZE,
+            position_window_size=POSITION_WINDOW_SIZE,
+        )
+
         # Track last statistics logging time
         self._last_stats_log = time.time()
         self._stats_log_interval = env_constants.STATS_LOG_INTERVAL
@@ -248,54 +441,17 @@ class NEFDataCollector:
         """Log comprehensive memory usage statistics for optimized tracking dictionaries."""
         now = time.time()
         if now - self._last_stats_log >= self._stats_log_interval:
-            self.logger.info("=== NEF Collector Memory Statistics ===")
-            
-            # Log individual dictionary statistics
-            self._prev_speed.log_stats()
-            self._prev_cell.log_stats() 
-            self._handover_counts.log_stats()
-            self._prev_signal.log_stats()
-            self._last_handover_ts.log_stats()
-            self._signal_buffers.log_stats()
-            
-            # Log aggregated memory usage
-            total_memory = 0
-            for tracking_dict in [self._prev_speed, self._prev_cell, self._handover_counts, 
-                                self._prev_signal, self._last_handover_ts, self._signal_buffers]:
-                memory_stats = tracking_dict.get_memory_usage()
-                if "error" not in memory_stats:
-                    total_memory += memory_stats.get("estimated_cache_mb", 0)
-            
-            self.logger.info("Total estimated memory usage: %.2f MB", total_memory)
-            
-            # Cleanup inactive UEs if memory usage is high
-            if total_memory > env_constants.UE_TRACKING_MEMORY_LIMIT_MB * 0.8:  # 80% threshold
-                self.logger.warning("Memory usage high (%.2f MB), cleaning up inactive UEs", total_memory)
-                self._cleanup_inactive_ues()
-            
-            self.logger.info("=== End Memory Statistics ===")
+            stats = self._components.get_stats()
+            if stats:
+                self.logger.info("=== NEF Collector Runtime Statistics ===")
+                for name, details in stats.items():
+                    self.logger.info("%s: %s", name, details)
+                self.logger.info("=== End Runtime Statistics ===")
             self._last_stats_log = now
     
     def _cleanup_inactive_ues(self):
-        """Clean up inactive UEs from all tracking dictionaries."""
-        # Get UEs that haven't been accessed recently
-        inactive_ues = []
-        for ue_id in list(self._prev_speed.keys()):
-            # Check if UE has been inactive (not accessed recently)
-            if self._prev_speed.get(ue_id) is None:  # Will be None if expired
-                inactive_ues.append(ue_id)
-        
-        # Clean up inactive UEs from all dictionaries
-        for ue_id in inactive_ues:
-            self._prev_speed.pop(ue_id, None)
-            self._prev_cell.pop(ue_id, None)
-            self._handover_counts.pop(ue_id, None)
-            self._prev_signal.pop(ue_id, None)
-            self._last_handover_ts.pop(ue_id, None)
-            self._signal_buffers.pop(ue_id, None)
-        
-        if inactive_ues:
-            self.logger.info("Cleaned up %d inactive UEs", len(inactive_ues))
+        """Compatibility no-op; helpers manage eviction internally."""
+        return 0
 
     def _fetch_qos_requirements(
         self, ue_id: str
@@ -354,6 +510,29 @@ class NEFDataCollector:
             self._missing_qos_logged.add(ue_id)
 
         return service_type, service_priority, qos_requirements
+
+    def _build_sample(
+        self,
+        *,
+        ue_id: str,
+        ue_data: Dict[str, Any],
+        feature_vector: Dict[str, Any],
+        connected_cell_id: str,
+        service_type: Optional[str],
+        service_priority: Optional[int],
+        qos_requirements: Optional[Dict[str, float]],
+    ) -> Dict[str, Any]:
+        timestamp = time.time()
+        return self._components.build_sample(
+            ue_id=ue_id,
+            ue_data=ue_data,
+            feature_vector=feature_vector,
+            connected_cell_id=connected_cell_id,
+            service_type=service_type,
+            service_priority=service_priority,
+            qos_requirements=qos_requirements,
+            timestamp=timestamp,
+        )
 
     @handle_exceptions(NEFClientError, context="NEF authentication", reraise=False, default_return=False, logger_name="NEFDataCollector")
     def login(self):
@@ -455,188 +634,29 @@ class NEFDataCollector:
             self.logger.debug("No Cell_id for UE %s", ue_id)
             return None
 
-        fv = self.client.get_feature_vector(ue_id)
+        fv = self.client.get_feature_vector(ue_id) or {}
         service_type, service_priority, qos_requirements = self._fetch_qos_requirements(ue_id)
-        rsrps = fv.get("neighbor_rsrp_dbm", {})
-        sinrs = fv.get("neighbor_sinrs", {})
-        rsrqs = fv.get("neighbor_rsrqs", {})
-        loads = fv.get("neighbor_cell_loads", {})
-        if not isinstance(rsrps, dict):
-            rsrps = {}
-        if not isinstance(sinrs, dict):
-            sinrs = {}
-        if not isinstance(rsrqs, dict):
-            rsrqs = {}
-        if not isinstance(loads, dict):
-            loads = {}
-        cell_load = fv.get("cell_load")
-        environment = fv.get("environment")
-        velocity = fv.get("velocity")
-        acceleration = fv.get("acceleration")
-        signal_trend = fv.get("signal_trend")
-        altitude = ue_data.get("altitude")
-        if altitude is None:
-            altitude = fv.get("altitude")
 
-        if not isinstance(cell_load, (int, float)):
-            cell_load = None
-        if not isinstance(environment, (int, float)):
-            environment = None
-        if not isinstance(velocity, (int, float)):
-            velocity = None
-        if not isinstance(acceleration, (int, float)):
-            acceleration = None
-        if not isinstance(signal_trend, (int, float)):
-            signal_trend = None
-        if altitude is not None and not isinstance(altitude, (int, float)):
-            altitude = None
-
-        connected_cell_id = ue_data.get("Cell_id")
-        rf_metrics: dict[str, dict] = {}
-        best_antenna = connected_cell_id
-        best_rsrp = float("-inf")
-        best_sinr = float("-inf")
-
-        for aid, rsrp in rsrps.items():
-            sinr = sinrs.get(aid)
-            rsrq = rsrqs.get(aid)
-            load = loads.get(aid)
-            metrics = {"rsrp": rsrp}
-            if sinr is not None:
-                metrics["sinr"] = sinr
-            if rsrq is not None:
-                metrics["rsrq"] = rsrq
-            if load is not None:
-                metrics["cell_load"] = load
-            rf_metrics[aid] = metrics
-
-            sinr_val = sinr if sinr is not None else float("-inf")
-            if rsrp > best_rsrp or (rsrp == best_rsrp and sinr_val > best_sinr):
-                best_rsrp = rsrp
-                best_sinr = sinr_val
-                best_antenna = aid
-
-        speed = ue_data.get("speed")
-        prev_speed = self._prev_speed.get(ue_id)
-        if acceleration is None and prev_speed is not None and speed is not None:
-            acceleration = speed - prev_speed
-        self._prev_speed[ue_id] = speed if speed is not None else 0
-
-        now_ts = time.time()
-        prev_cell = self._prev_cell.get(ue_id)
-        if prev_cell is not None and prev_cell != connected_cell_id:
-            self._handover_counts[ue_id] = self._handover_counts.get(ue_id, 0) + 1
-            self._last_handover_ts[ue_id] = now_ts
-        self._prev_cell[ue_id] = connected_cell_id
-        if ue_id not in self._last_handover_ts:
-            self._last_handover_ts[ue_id] = now_ts
-        handover_count = self._handover_counts.get(ue_id, 0)
-        time_since_handover = now_ts - self._last_handover_ts.get(ue_id, now_ts)
-
-        prev_sig = self._prev_signal.get(ue_id)
-        cur_rsrp = rsrps.get(connected_cell_id)
-        cur_sinr = sinrs.get(connected_cell_id)
-        if not isinstance(cur_rsrp, (int, float)):
-            cur_rsrp = None
-        if not isinstance(cur_sinr, (int, float)):
-            cur_sinr = None
-        cur_rsrq = rsrqs.get(connected_cell_id)
-        if not isinstance(cur_rsrq, (int, float)):
-            cur_rsrq = None
-
-        lat = ue_data.get("latitude")
-        lon = ue_data.get("longitude")
-        heading_change_rate, path_curvature = self.mobility_tracker.update_position(
-            ue_id, lat, lon
+        return self._build_sample(
+            ue_id=ue_id,
+            ue_data=ue_data,
+            feature_vector=fv,
+            connected_cell_id=connected_cell_id,
+            service_type=service_type,
+            service_priority=service_priority,
+            qos_requirements=qos_requirements,
         )
-
-        # Use memory-efficient signal buffers
-        buffers = self._signal_buffers.setdefault(
-            ue_id,
-            {
-                "rsrp": MemoryEfficientSignalBuffer(SIGNAL_WINDOW_SIZE),
-                "sinr": MemoryEfficientSignalBuffer(SIGNAL_WINDOW_SIZE),
-            },
-        )
-        
-        if cur_rsrp is not None:
-            buffers["rsrp"].append(cur_rsrp)
-        if cur_sinr is not None:
-            buffers["sinr"].append(cur_sinr)
-
-        # Calculate statistics using efficient buffer methods
-        rsrp_stats = buffers["rsrp"].calculate_stats()
-        sinr_stats = buffers["sinr"].calculate_stats()
-        
-        rsrp_std = rsrp_stats["std"]
-        sinr_std = sinr_stats["std"]
-        if signal_trend is None and prev_sig:
-            diffs = []
-            if cur_rsrp is not None:
-                diffs.append(cur_rsrp - prev_sig.get("rsrp", 0))
-            if cur_sinr is not None:
-                diffs.append(cur_sinr - prev_sig.get("sinr", 0))
-            if cur_rsrq is not None:
-                diffs.append(cur_rsrq - prev_sig.get("rsrq", 0))
-            signal_trend = sum(diffs) / len(diffs) if diffs else 0
-        self._prev_signal[ue_id] = {
-            "rsrp": cur_rsrp or 0,
-            "sinr": cur_sinr or 0,
-            "rsrq": cur_rsrq or 0,
-        }
-
-        if cell_load is None:
-            cell_load = len(rsrps) / 10.0 if rsrps else 0.0
-        if velocity is None:
-            velocity = speed
-        if acceleration is None:
-            acceleration = 0.0
-        if signal_trend is None:
-            signal_trend = 0.0
-        if environment is None:
-            environment = 0.0
-
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "ue_id": ue_id,
-            "latitude": ue_data.get("latitude"),
-            "longitude": ue_data.get("longitude"),
-            "heading_change_rate": heading_change_rate,
-            "path_curvature": path_curvature,
-            "altitude": altitude,
-            "speed": speed,
-            "velocity": velocity,
-            "acceleration": acceleration,
-            "cell_load": cell_load,
-            "handover_count": handover_count,
-            "time_since_handover": time_since_handover,
-            "signal_trend": signal_trend,
-            "environment": environment,
-            "rsrp_stddev": rsrp_std,
-            "sinr_stddev": sinr_std,
-            "connected_to": connected_cell_id,
-            "optimal_antenna": best_antenna,
-            "rf_metrics": rf_metrics,
-            "service_type": service_type,
-            "service_priority": service_priority,
-            "qos_requirements": qos_requirements,
-        }
 
     def _save_collected_data(self, collected_data: list) -> None:
         """Persist collected samples to disk."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(self.data_dir, f"training_data_{timestamp}.json")
-        os.makedirs(self.data_dir, exist_ok=True)
-        with open(filename, "w") as f:
-            json.dump(collected_data, f, indent=2)
-
+        filepath = self._components.persistence.save_training_data(collected_data)
         if not collected_data:
-            self.logger.warning(
-                f"Saved empty training data file to {filename}"
-            )
+            self.logger.warning("Saved empty training data file to %s", filepath)
         else:
             self.logger.info(
-                f"Collected {len(collected_data)} samples, saved to {filename}"
+                "Collected %d samples, saved to %s",
+                len(collected_data),
+                filepath,
             )
 
     def get_collection_stats(self) -> Dict[str, Any]:
@@ -645,18 +665,18 @@ class NEFDataCollector:
         Returns:
             Dictionary containing collection statistics
         """
-        return {
+        stats: Dict[str, Any] = {
             "nef_client": {
                 "url": self.nef_url,
-                "circuit_breaker_stats": self.client.get_circuit_breaker_stats()
-            },
-            "components": {
-                "handover_tracker": self.handover_tracker.get_stats(),
-                "signal_processor": self.signal_processor.get_stats(),
-                "mobility_processor": self.mobility_processor.get_stats(),
-                "storage": self.persistence.get_storage_stats()
             }
         }
+        try:
+            stats["nef_client"]["circuit_breaker_stats"] = self.client.get_circuit_breaker_stats()
+        except Exception:  # pragma: no cover - defensive
+            pass
+
+        stats["components"] = self._components.get_stats()
+        return stats
     
     def cleanup_resources(self) -> None:
         """Clean up resources used by the collector."""
@@ -664,15 +684,9 @@ class NEFDataCollector:
             # Clean up NEF client
             if hasattr(self.client, 'close'):
                 self.client.close()
-            
-            # Clean up optimized tracking dictionaries
-            self._prev_speed.clear()
-            self._prev_cell.clear()
-            self._handover_counts.clear()
-            self._prev_signal.clear()
-            self._signal_buffers.clear()
-            self._last_handover_ts.clear()
-            
+            if hasattr(self, "_components"):
+                self._components.cleanup()
+
             # Unregister from resource manager
             if hasattr(self, '_resource_id') and self._resource_id:
                 global_resource_manager.unregister_resource(self._resource_id, force_cleanup=False)
@@ -694,7 +708,7 @@ class NEFDataCollector:
 class AsyncNEFDataCollector:
     """Async version of NEF data collector for improved performance."""
     
-    def __init__(self, nef_url=None, username=None, password=None):
+    def __init__(self, nef_url=None, username=None, password=None, data_dir: Optional[str] = None):
         """Initialize the async data collector."""
         # Use environment-aware defaults
         nef_url = nef_url or env_constants.NEF_URL
@@ -710,42 +724,38 @@ class AsyncNEFDataCollector:
         self.nef_url = nef_url
         self.username = username
         self.password = password
-        self.data_dir = os.path.join(os.path.dirname(__file__), 'collected_data')
+        self.data_dir = data_dir or os.path.join(os.path.dirname(__file__), 'collected_data')
         os.makedirs(self.data_dir, exist_ok=True)
 
         # Set up logger for this collector
         self.logger = logging.getLogger('AsyncNEFDataCollector')
 
-        # Memory-managed tracking dictionaries to prevent memory leaks
         max_ues = env_constants.UE_TRACKING_MAX_UES
         ttl_hours = env_constants.UE_TRACKING_TTL_HOURS
-        
-        self._prev_speed: UETrackingDict[float] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        self._prev_cell: UETrackingDict[str] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        self._handover_counts: UETrackingDict[int] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        self._prev_signal: UETrackingDict[dict[str, float]] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        self._signal_buffer: UETrackingDict[dict[str, deque]] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        self._last_handover_ts: UETrackingDict[float] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ttl_hours)
-        
-        # Mobility metrics tracker per UE
-        self.mobility_tracker = MobilityMetricTracker(POSITION_WINDOW_SIZE)
-        
-        # Track last statistics logging time
+
+        self._components = _CollectorComponents(
+            logger=self.logger,
+            data_dir=self.data_dir,
+            max_ues=max_ues,
+            ue_ttl_hours=ttl_hours,
+            signal_window_size=SIGNAL_WINDOW_SIZE,
+            position_window_size=POSITION_WINDOW_SIZE,
+        )
+
         self._last_stats_log = time.time()
         self._stats_log_interval = env_constants.STATS_LOG_INTERVAL
+        self._missing_qos_logged: set[str] = set()
 
     def _log_memory_stats(self):
         """Log memory usage statistics for tracking dictionaries."""
         now = time.time()
         if now - self._last_stats_log >= self._stats_log_interval:
-            self.logger.info("=== Async NEF Collector Memory Statistics ===")
-            self._prev_speed.log_stats()
-            self._prev_cell.log_stats()
-            self._handover_counts.log_stats()
-            self._prev_signal.log_stats()
-            self._signal_buffer.log_stats()
-            self._last_handover_ts.log_stats()
-            self.logger.info("=== End Memory Statistics ===")
+            stats = self._components.get_stats()
+            if stats:
+                self.logger.info("=== Async NEF Collector Runtime Statistics ===")
+                for name, details in stats.items():
+                    self.logger.info("%s: %s", name, details)
+                self.logger.info("=== End Runtime Statistics ===")
             self._last_stats_log = now
 
     async def login(self) -> bool:
@@ -820,8 +830,17 @@ class AsyncNEFDataCollector:
                     
                     # Process each UE sample
                     for ue_id, ue_data in ue_state.items():
-                        fv = feature_vectors.get(ue_id, {})
-                        if sample := self._collect_sample(ue_id, ue_data, fv):
+                        fv = feature_vectors.get(ue_id, {}) or {}
+                        service_type, service_priority, qos_requirements = await self._fetch_qos_requirements(ue_id)
+                        sample = self._collect_sample(
+                            ue_id,
+                            ue_data,
+                            fv,
+                            service_type,
+                            service_priority,
+                            qos_requirements,
+                        )
+                        if sample:
                             collected_data.append(sample)
 
             # Always sleep between iterations, regardless of errors
@@ -833,7 +852,67 @@ class AsyncNEFDataCollector:
         self._save_collected_data(collected_data)
         return collected_data
 
-    def _collect_sample(self, ue_id: str, ue_data: dict, fv: dict) -> dict | None:
+    async def _fetch_qos_requirements(self, ue_id: str) -> Tuple[Optional[str], Optional[int], Optional[Dict[str, float]]]:
+        client_method = getattr(self.client, "get_qos_requirements", None)
+        if client_method is None:
+            if ue_id not in self._missing_qos_logged:
+                self.logger.info(
+                    "Async NEF client does not expose QoS endpoint; skipping QoS for UE %s",
+                    ue_id,
+                )
+                self._missing_qos_logged.add(ue_id)
+            return None, None, None
+
+        try:
+            payload = await client_method(ue_id)
+        except AsyncNEFClientError as exc:
+            if ue_id not in self._missing_qos_logged:
+                self.logger.warning(
+                    "Failed to fetch QoS requirements for UE %s: %s",
+                    ue_id,
+                    exc,
+                )
+                self._missing_qos_logged.add(ue_id)
+            return None, None, None
+        except Exception as exc:  # pragma: no cover - defensive logging
+            self.logger.exception("Unexpected error retrieving QoS requirements for UE %s", ue_id)
+            return None, None, None
+
+        service_type, service_priority, qos_requirements = _normalize_qos_payload(
+            payload,
+            ue_id,
+            self.logger,
+        )
+
+        if (
+            service_type is not None
+            or service_priority is not None
+            or qos_requirements is not None
+        ) and ue_id in self._missing_qos_logged:
+            self._missing_qos_logged.discard(ue_id)
+
+        if (
+            service_type is None
+            and service_priority is None
+            and qos_requirements is None
+            and ue_id not in self._missing_qos_logged
+        ):
+            self.logger.warning(
+                "QoS requirements unavailable after validation for UE %s", ue_id
+            )
+            self._missing_qos_logged.add(ue_id)
+
+        return service_type, service_priority, qos_requirements
+
+    def _collect_sample(
+        self,
+        ue_id: str,
+        ue_data: dict,
+        fv: dict,
+        service_type: Optional[str],
+        service_priority: Optional[int],
+        qos_requirements: Optional[Dict[str, float]],
+    ) -> dict | None:
         """Create a single training sample with async-fetched feature vector."""
         # Use common validation for UE data (same as sync version)
         sample_data = validate_ue_sample_data(ue_id, ue_data, f"UE {ue_id} sample")
@@ -849,57 +928,47 @@ class AsyncNEFDataCollector:
             self.logger.debug("No Cell_id for UE %s", ue_id)
             return None
 
-        # Use pre-fetched feature vector instead of making individual requests
-        rsrps = fv.get("neighbor_rsrp_dbm", {})
-        sinrs = fv.get("neighbor_sinrs", {})
-        rsrqs = fv.get("neighbor_rsrqs", {})
-        loads = fv.get("neighbor_cell_loads", {})
-        
-        # Continue with same processing logic as sync version...
-        # (Rest of the method would be the same as the sync version)
-        
-        # For brevity, reusing the logic from sync version with modifications for async
-        # This would include all the signal processing, mobility tracking, etc.
-        
-        return {
-            "timestamp": datetime.now().isoformat(),
-            "ue_id": ue_id,
-            "latitude": ue_data.get("latitude"),
-            "longitude": ue_data.get("longitude"),
-            "connected_to": connected_cell_id,
-            # Additional fields would be processed same as sync version...
-        }
+        return self._components.build_sample(
+            ue_id=ue_id,
+            ue_data=ue_data,
+            feature_vector=fv or {},
+            connected_cell_id=connected_cell_id,
+            service_type=service_type,
+            service_priority=service_priority,
+            qos_requirements=qos_requirements,
+            timestamp=time.time(),
+        )
 
     def _save_collected_data(self, collected_data: list) -> None:
         """Persist collected samples to disk (same as sync version)."""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(self.data_dir, f"async_training_data_{timestamp}.json")
-        os.makedirs(self.data_dir, exist_ok=True)
-        with open(filename, "w") as f:
-            json.dump(collected_data, f, indent=2)
-
+        filepath = self._components.persistence.save_training_data(collected_data, filename_prefix="async_training_data")
         if not collected_data:
-            self.logger.warning(f"Saved empty training data file to {filename}")
+            self.logger.warning("Saved empty training data file to %s", filepath)
         else:
-            self.logger.info(f"Collected {len(collected_data)} samples, saved to {filename}")
+            self.logger.info(
+                "Collected %d samples, saved to %s",
+                len(collected_data),
+                filepath,
+            )
 
     def get_collection_stats(self) -> Dict[str, Any]:
         """Get comprehensive statistics about the async data collection system."""
-        return {
-            "nef_client": {
-                "url": self.nef_url,
-                "circuit_breaker_stats": self.client.get_circuit_breaker_stats()
-            },
-            "performance": {
-                "async_enabled": True,
-                "concurrent_requests": True
-            }
+        stats: Dict[str, Any] = {
+            "nef_client": {"url": self.nef_url}
         }
+        try:
+            stats["nef_client"]["circuit_breaker_stats"] = self.client.get_circuit_breaker_stats()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        stats["components"] = self._components.get_stats()
+        stats["performance"] = {"async_enabled": True, "concurrent_requests": True}
+        return stats
     
     async def cleanup_resources(self) -> None:
         """Clean up async resources used by the collector."""
         try:
             await self.client.close()
+            self._components.cleanup()
             self.logger.info("Async NEF data collector resources cleaned up")
         except Exception as e:
             self.logger.error(f"Error cleaning up async collector resources: {e}")

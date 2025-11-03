@@ -10,13 +10,13 @@ This folder contains Kubernetes manifests and tips for running the NEF emulator 
 
 ## Environment Variables
 
-Both deployments rely on the variables listed in the [root README](../../README.md#environment-variables).
+Both deployments rely on the variables listed in the [root README](../../../README.md#environment-variables).
 Define them via `kubectl set env` or by editing the manifests before applying.
 
 ## 1. Build and Push Images
 
 Build the Docker images and push them to a registry accessible by your cluster.
-Refer to the [root README](../../README.md#building-docker-images) for the exact commands.
+Refer to the [root README](../../../README.md#building-docker-images) for the exact commands.
 Update `nef-emulator.yaml` and `ml-service.yaml` to point to your registry images.
 
 ## 2. Deploy the NEF Emulator

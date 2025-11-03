@@ -1,5 +1,7 @@
 # Synthetic QoS Dataset Reference
 
+> This data reference supports the architecture described in `docs/architecture/qos.md`.
+
 This document captures the schema, probability distributions, and operational rationale behind `scripts/data_generation/synthetic_generator.py`. The generator underpins the thesis experiments by emitting reproducible Quality of Service (QoS) request records across enhanced Mobile Broadband (eMBB), Ultra-Reliable Low-Latency Communications (URLLC), massive Machine-Type Communications (mMTC), and a general-purpose fallback profile.
 
 ## Schema overview

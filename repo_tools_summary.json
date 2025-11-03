@@ -1,0 +1,160 @@
+{
+  "generated_at": "2025-11-03T00:00:00Z",
+  "summary": {
+    "languages": {
+      "Python": {
+        "evidence_files": [
+          "scripts/data_generation/synthetic_generator.py",
+          "mlops/data_pipeline/nef_collector.py",
+          "5g-network-optimization/services/ml-service/ml_service/app/app.py",
+          "tests/test_resource_manager_shutdown.py"
+        ],
+        "notes": "Primary implementation language for services, ML code, utilities and tests."
+      },
+      "Shell (bash)": {
+        "evidence_files": [
+          "scripts/install_deps.sh",
+          "scripts/run_tests.sh",
+          "5g-network-optimization/services/ml-service/run_ml_service.sh"
+        ],
+        "notes": "Helper and deployment scripts."
+      },
+      "YAML": {
+        "evidence_files": [
+          "5g-network-optimization/deployment/kubernetes/ml-service.yaml",
+          "5g-network-optimization/monitoring/prometheus/prometheus.yml",
+          "5g-network-optimization/services/ml-service/ml_service/app/config/features.yaml"
+        ],
+        "notes": "Configuration, Kubernetes manifests, Prometheus and feature configuration files."
+      },
+      "Dockerfile / Docker Compose": {
+        "evidence_files": [
+          "5g-network-optimization/services/ml-service/Dockerfile",
+          "5g-network-optimization/docker-compose.yml"
+        ],
+        "notes": "Container definitions and local orchestration."
+      },
+      "Markdown": {
+        "evidence_files": [
+          "README.md",
+          "5g-network-optimization/services/nef-emulator/README.md",
+          "docs/feature_transforms.md"
+        ],
+        "notes": "Documentation and design notes."
+      },
+      "JSON": {
+        "evidence_files": [
+          "5g-network-optimization/services/nef-emulator/docs/test_plan/AsSessionWithQoS/request.json",
+          "output/test_model.joblib.meta.json"
+        ],
+        "notes": "Example request/response files and metadata."
+      }
+    },
+    "frameworks_and_servers": {
+      "FastAPI": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "Listed in root requirements; used for ASGI-based services."
+      },
+      "Flask": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/ml-service/requirements.txt"],
+        "notes": "Also present; some service modules use Flask."
+      },
+      "Uvicorn": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "ASGI server for FastAPI."
+      },
+      "Gunicorn": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/ml-service/requirements.txt"],
+        "notes": "WSGI server for Flask-based deployments."
+      }
+    },
+    "ml_and_data_stack": {
+      "LightGBM": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/ml-service/requirements.txt"],
+        "notes": "Primary ML model library (README mentions LightGBM models)."
+      },
+      "TensorFlow": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/ml-service/requirements.txt"],
+        "notes": "Deep learning library included in requirements."
+      },
+      "scikit-learn": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "Classic ML utilities."
+      },
+      "pandas / numpy": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/ml-service/requirements.txt"],
+        "notes": "Core data processing libraries."
+      },
+      "joblib": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "Model serialization."
+      },
+      "Dask / distributed / pyarrow": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "Large-data processing and serialization."
+      },
+      "MLflow": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "Experiment tracking / model registry."
+      }
+    },
+    "observability": {
+      "Prometheus (prometheus_client)": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/monitoring/prometheus/prometheus.yml"],
+        "notes": "Metrics exposed by services and scraped by Prometheus."
+      },
+      "Grafana": {
+        "evidence_files": ["5g-network-optimization/monitoring/grafana/provisioning/dashboards.yml", "5g-network-optimization/docker-compose.yml"],
+        "notes": "Dashboarding and visualization."
+      }
+    },
+    "deployment_and_ci": {
+      "Docker / Docker Compose": {
+        "evidence_files": ["5g-network-optimization/docker-compose.yml", "5g-network-optimization/services/ml-service/Dockerfile"],
+        "notes": "Containerized local development and orchestration."
+      },
+      "Kubernetes manifests": {
+        "evidence_files": ["5g-network-optimization/deployment/kubernetes/ml-service.yaml"],
+        "notes": "Production deployment manifests."
+      },
+      "GitHub Actions": {
+        "evidence_files": [".github/workflows/tests.yml"],
+        "notes": "CI workflow that installs deps and runs tests."
+      }
+    },
+    "databases_and_connectors": {
+      "PostgreSQL (psycopg2)": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "SQL database driver."
+      },
+      "MongoDB (pymongo)": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "NoSQL connector."
+      }
+    },
+    "network_and_rpc": {
+      "requests / httpx / aiohttp": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "HTTP client libraries used for service-to-service calls."
+      },
+      "gRPC (grpcio)": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "RPC support via gRPC."
+      }
+    },
+    "testing_and_quality": {
+      "pytest / pytest-asyncio / pytest-cov": {
+        "evidence_files": ["requirements.txt", "pytest.ini"],
+        "notes": "Test framework and async plugin; CI runs pytest."
+      },
+      "mypy": {
+        "evidence_files": ["requirements.txt", "5g-network-optimization/services/nef-emulator/backend/app/mypy.ini"],
+        "notes": "Static type checking configuration present."
+      },
+      "linters/formatters": {
+        "evidence_files": ["requirements.txt"],
+        "notes": "black, flake8, isort, autoflake listed for dev formatting and linting."
+      }
+    }
+  }
+}

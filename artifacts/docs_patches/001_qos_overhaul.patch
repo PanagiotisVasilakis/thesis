@@ -1,0 +1,333 @@
+diff --git a/5g-network-optimization/services/ml-service/README.md b/5g-network-optimization/services/ml-service/README.md
+index fdfae93..7ceac76 100644
+--- a/5g-network-optimization/services/ml-service/README.md
++++ b/5g-network-optimization/services/ml-service/README.md
+@@ -6,7 +6,7 @@ Flask-based microservice that predicts handover targets for user equipment (UE)
+ 
+ - Flask application factory (`ml_service.app.create_app`) with background model initialisation, structured logging, JWT auth, and Prometheus metrics.
+ - Rich model manager supporting LightGBM, LSTM, Ensemble, and Online models selectable via `MODEL_TYPE`.
+-- JWT-protected REST API with rate limiting, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
++- JWT-protected REST API with rate limiting, QoS-aware `/api/predict-with-qos`, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
+ - Dedicated `/metrics` endpoint guarded by pluggable credentials (basic, API key, or JWT) plus helper endpoints to mint metrics tokens.
+ - Visualization blueprint for coverage maps and trajectories saved under `output/`.
+ - Extensive configuration surface via environment variables, all funnelled through `ml_service.app.config.constants`.
+@@ -67,6 +67,7 @@ All endpoints live under `/api` and return JSON. Rate limiting and JWT authentic
+ | `/api/model-health` | GET | No | Reports `ModelManager.is_ready()` and the latest metadata (version, timestamps, metrics). |
+ | `/api/login` | POST | No | Issues a JWT given `AUTH_USERNAME`/`AUTH_PASSWORD`. Body validated via `LoginRequest` Pydantic model. |
+ | `/api/predict` | POST | Yes | Synchronous prediction. Uses `PredictionRequest`, calls `predict()` helper, records metrics & drift data. |
++| `/api/predict-with-qos` | POST | Yes | QoS-aware prediction that returns a `qos_compliance` verdict alongside the antenna suggestion. |
+ | `/api/predict-async` | POST | Yes | Runs `model.predict_async` if the underlying selector supports it. |
+ | `/api/train` | POST | Yes | Batch training. Accepts list of `TrainingSample` payloads (50 MB cap) and persists via `ModelManager.save_active_model`. |
+ | `/api/train-async` | POST | Yes | Awaitable variant using `model.train_async`. |
+diff --git a/docs/integration/nef_ml_integration.md b/docs/integration/nef_ml_integration.md
+index fef1bbb..fdfa2e9 100644
+--- a/docs/integration/nef_ml_integration.md
++++ b/docs/integration/nef_ml_integration.md
+@@ -1,147 +1,130 @@
+ # NEF ↔ ML Service Integration Blueprint
+ 
+-## 1. Current NEF References in the Thesis Repository
+-The existing documentation highlights three key areas where the Network Exposure Function (NEF) is described:
+-
+-1. **Project Summary (`docs/THESIS_SUMMARY.md`)** – Introduces the NEF emulator as the mobility event source that exposes REST endpoints and a deterministic fallback path based on the A3 rule when ML predictions are unavailable.
+-2. **QoS Solution Architecture (`docs/qos/qos_solution_architecture.md`)** – Positions the NEF within the QoS assurance flow, describing the UE mobility simulator and placeholders for richer NEF–ML payload definitions.
+-3. **MLOps Pipeline (`mlops/README.md`)** – Mentions the CI/CD workflow that builds and deploys Docker images for both the NEF emulator and the ML service, ensuring aligned release management.
+-
+-These references motivate a deeper definition of the runtime contract between the NEF emulator and the ML inference API so that handover decisions can be automated, audited and reproduced.
+-
+-## 2. Interaction Overview
+-The NEF emulator acts as the producer of mobility events and radio measurements, while the ML service scores the likelihood of improved QoS by switching cells. The NEF orchestrates the interaction through three phases:
++> This guide describes how the FastAPI NEF emulator and the Flask ML service communicate today. For the canonical architecture view, see `docs/architecture/qos.md`.
++
++## Components at a Glance
++
++- **NEF emulator** (`services/nef-emulator/backend/app`)
++  - `NetworkStateManager` builds mobility features and tracks handover history.
++  - `HandoverEngine` decides whether to call the ML service or fall back to the A3 rule.
++  - `/api/v1/ml/*` endpoints expose ML state and kick off handover execution.
++- **ML service** (`services/ml-service/ml_service/app`)
++  - `/api/predict-with-qos` performs QoS-aware inference.
++  - `/api/predict`, `/api/predict-async`, `/api/train*`, `/api/feedback` cover legacy and training flows.
++  - `/metrics` exports Prometheus telemetry; `/api/v1/circuit-breakers/*` surfaces circuit breaker status.
++
++## Runtime Sequence
++
++1. **Feature gathering** – When the NEF receives a mobility update it uses `NetworkStateManager.get_feature_vector(ue_id)` to assemble RF metrics, antenna loads, and cached QoS requirements.
++2. **QoS-aware request** – `HandoverEngine` posts that context to the ML service’s `/api/predict-with-qos` endpoint. The payload must satisfy `PredictionRequestWithQoS`, which enforces service-type and priority bounds.
++3. **Inference & compliance** – The ML service extracts features, derives defaults via `qos_from_request`, and returns `predicted_antenna`, `confidence`, and a conservative `qos_compliance` block.
++4. **Decision handling** – If `service_priority_ok` is true, the NEF applies the ML recommendation. Otherwise it increments `nef_handover_fallback_total` and evaluates the deterministic A3 rule before finalising the response.
++5. **Metrics & feedback** – Both services emit Prometheus metrics. Optional feedback samples can be POSTed to `/api/feedback` so the ML service can queue them for future training.
++
++```47:56:5g-network-optimization/services/ml-service/ml_service/app/schemas.py
++class PredictionRequestWithQoS(PredictionRequest):
++    """Extended prediction request with QoS requirements."""
++
++    model_config = ConfigDict(extra="forbid")
++    # Allowed values: 'urllc', 'embb', 'mmtc', 'default'
++    service_type: str = "default"
++    qos_requirements: Optional[Dict[str, float]] = None
++    edge_service_requirements: Optional[Dict[str, Any]] = None
++    service_priority: int = Field(5, ge=1, le=10)
++```
+ 
+-1. **Feature Assembly** – Collect UE telemetry, enrich it with cached context and build the payload defined below.
+-2. **ML Invocation** – Send the payload to the ML service using the transport and security profile described in §3.
+-3. **Decision Application** – Apply the ML recommendation or fall back to deterministic logic based on the decision logic in §4.
++## Request and Response Examples
+ 
+-## 3. Request / Response Extensions
+-### 3.1 Transport and Security
+-- **Protocol**: HTTPS over HTTP/2 to support concurrent mobility event scoring with lower latency head-of-line blocking.
+-- **Authentication**: Mutual TLS (mTLS) between NEF and ML service pods using service mesh identities (e.g., SPIFFE/SPIRE). Certificates are rotated by the platform CA every 24 hours.
+-- **Authorisation**: OAuth 2.0 client credentials flow layered on top of mTLS. The NEF obtains a short-lived access token (≤5 minutes) from the platform IAM service and includes it in the `Authorization: Bearer <token>` header.
+-- **Integrity & Replay Protection**: Each request carries an `X-Request-Nonce` header. The ML service validates uniqueness within a 10-minute sliding window, persisting hashes in Redis.
+-- **Timeouts & Retries**: Client timeout is 250 ms with two retries using exponential backoff (100 ms, 200 ms). Idempotency is preserved via the `interaction_id` field.
++### Prediction request (`POST /api/predict-with-qos`)
+ 
+-### 3.2 Prediction Request Payload (`POST /api/v2/predict`)
+ ```json
+ {
+-  "interaction_id": "uuid",
+-  "timestamp": "2024-03-01T12:03:12.512Z",
+-  "ue_id": "string",
+-  "serving_cell": {
+-    "cell_id": "string",
+-    "earfcn": 6200,
+-    "rsrp": -91.2,
+-    "rsrq": -8.5,
+-    "sinr": 12.1
+-  },
+-  "candidate_cells": [
+-    {
+-      "cell_id": "string",
+-      "rsrp": -86.4,
+-      "rsrq": -7.1,
+-      "sinr": 15.8,
+-      "backhaul_load": 0.42
+-    }
+-  ],
+-  "mobility": {
+-    "latitude": 48.8566,
+-    "longitude": 2.3522,
+-    "speed_mps": 14.3,
+-    "heading_deg": 185.0,
+-    "altitude_m": 27.5,
+-    "heading_change_rate": 2.1,
+-    "path_curvature": 0.03
+-  },
+-  "radio_context": {
+-    "band": "n78",
+-    "duplex_mode": "TDD",
+-    "ue_capabilities": ["EN-DC", "256QAM"],
+-    "slice_id": "embb-gold",
+-    "qos_class_identifier": 9
++  "ue_id": "demo-ue-1",
++  "latitude": 38.0,
++  "longitude": 23.7,
++  "connected_to": "antenna_1",
++  "rf_metrics": {
++    "antenna_1": {"rsrp": -78.0, "sinr": 15.0},
++    "antenna_2": {"rsrp": -91.0, "sinr": 9.0}
+   },
+-  "service_requirements": {
+-    "target_latency_ms": 20,
+-    "min_throughput_mbps": 75,
+-    "reliability_target": 0.999
+-  }
++  "service_type": "embb",
++  "service_priority": 7,
++  "latency_requirement_ms": 40.0,
++  "throughput_requirement_mbps": 120.0,
++  "reliability_pct": 99.2
+ }
+ ```
+ 
+-### 3.3 Prediction Response Payload
++### Prediction response
++
+ ```json
+ {
+-  "interaction_id": "uuid",
+-  "decision": {
+-    "action": "HANDOVER",  // HANDOVER | STAY | DEGRADE | FAILOVER
+-    "target_cell_id": "string",
+-    "confidence": 0.87,
+-    "expected_latency_ms": 18,
+-    "expected_throughput_mbps": 92,
+-    "rationale": [
+-      {
+-        "feature": "candidate_cells[0].sinr",
+-        "contribution": 0.32
+-      },
+-      {
+-        "feature": "mobility.heading_change_rate",
+-        "contribution": -0.05
+-      }
+-    ]
+-  },
+-  "ttl_seconds": 5,
+-  "fallback_hint": {
+-    "trigger": "LOW_CONFIDENCE",
+-    "recommended_action": "A3_RULE",
+-    "metadata": {
+-      "confidence_threshold": 0.8,
+-      "reason": "Confidence below SLA"
++  "ue_id": "demo-ue-1",
++  "predicted_antenna": "antenna_2",
++  "confidence": 0.86,
++  "qos_compliance": {
++    "service_priority_ok": true,
++    "required_confidence": 0.75,
++    "observed_confidence": 0.86,
++    "details": {
++      "service_type": "embb",
++      "service_priority": 7,
++      "latency_requirement_ms": 40.0,
++      "throughput_requirement_mbps": 120.0,
++      "reliability_pct": 99.2
+     }
+   },
+-  "audit": {
+-    "model_version": "2024.03.01-rc1",
+-    "feature_store_commit": "a13f2e7",
+-    "processing_latency_ms": 37,
+-    "received_nonce": "abc123"
+-  }
++  "features_used": ["latitude", "longitude", "service_priority", "rsrp_a1", "sinr_a1", "rsrp_a2", "sinr_a2"]
+ }
+ ```
+ 
+-- **`decision.action`** enumerates possible outcomes. `DEGRADE` asks the NEF to adjust QoS parameters without handover; `FAILOVER` signals deterministic logic should take over immediately.
+-- **`fallback_hint`** gives the NEF sufficient context to decide whether to retry, fall back to heuristics or escalate to NOC tooling.
+-- **`audit`** metadata ensures end-to-end traceability and ties back to MLflow and Feast artefacts.
+-
+-### 3.4 Training Feedback Endpoint (`POST /api/v2/feedback`)
+-- Used by the NEF to stream ground-truth outcomes (successful or failed handovers) back to the ML service.
+-- Payload extends the request schema with `observed_metrics` (e.g., `actual_latency_ms`, `packet_loss`, `handover_success`), enabling continual learning pipelines.
+-- Requires exactly-once semantics enforced by `interaction_id` and nonce replay checks.
+-
+-## 4. Decision & Fallback Logic
+-The NEF applies the following decision tree after receiving the response:
+-
+-1. **Transport/Protocol Failure** – If the request exhausts retries or returns ≥500, execute deterministic A3 handover logic and flag the interaction for offline analysis.
+-2. **Security Failure** – If token validation or nonce verification fails, quarantine the event, rotate credentials and fall back to deterministic logic until health checks recover.
+-3. **Low Confidence** – If `decision.confidence < 0.8` or `fallback_hint.trigger == "LOW_CONFIDENCE"`, run the A3 rule but log the model output for retraining.
+-4. **TTL Breach** – If the NEF cannot apply the decision within `ttl_seconds`, discard the prediction, emit a `handover.fallbacks` event annotated with `reason="ttl_expired"`, and rescore with fresh telemetry.
+-5. **Service Degradation** – When circuit-breaker counters in the ML service exceed `CB_FAILURE_THRESHOLD` it returns synthetic `503` responses. The NEF interprets consecutive 5xx responses as a health incident, forces `ML_HANDOVER_ENABLED=0`, and routes all traffic through the A3 rule until the breaker recovers.
+-6. **Successful Recommendation** – Apply the recommended action (`HANDOVER`, `STAY`, `DEGRADE`) and push an acknowledgement to the observability topic.
+-
+-## 5. Sequence Placement & Integration Touchpoints
+-1. **Telemetry Ingress** – UE events enter the NEF mobility pipeline. The NEF publishes metrics to Prometheus before invoking the ML service.
+-2. **Feature Engineering Hook** – NEF assembles the payload, attaching cached slice/QoS metadata from the policy function.
+-3. **Secure Invocation** – NEF sends the HTTPS request with mTLS and bearer token. Istio/Linkerd sidecars enforce policy and record traces.
+-4. **ML Decision Processing** – ML service validates nonce, verifies token scopes and scores the request. It stores decisions and explanations in MLflow.
+-5. **Response Handling** – NEF applies the decision, honours TTL, and emits Kafka events (`topic: handover.decisions`) for auditing.
+-6. **Fallback Triggering** – On any of the failures listed in §4, NEF triggers deterministic A3 logic and publishes an alert on `topic: handover.fallbacks`.
+-7. **Feedback Loop** – Successful or failed outcomes are posted to `/api/v2/feedback` within 60 seconds. A background worker batches feedback into the training data lake.
+-
+-## 6. Implementation Milestones
+-To operationalise this blueprint, adopt the following milestones:
+-
+-1. **Contract Validation** – Update FastAPI and Flask schemas to match the payload definitions. Add Pydantic/Marshmallow models and schema tests.
+-2. **Security Enablement** – Provision mTLS certificates and integrate OAuth client credentials flow. Extend integration tests to cover nonce replay protection.
+-3. **Observability & Feedback** – Implement structured logging, Kafka topics, and the feedback ingestion endpoint. Ensure MLflow tracking includes the `interaction_id`.
+-
+-Each milestone can be delivered independently while maintaining backward compatibility by supporting both `/api/predict` (v1) and `/api/v2/predict` during migration.
++The NEF will accept the recommendation when `service_priority_ok` is true. If the flag is false (or missing and the confidence is below `ML_CONFIDENCE_THRESHOLD`), the NEF logs a fallback and reverts to the A3 rule.
++
++```191:238:5g-network-optimization/services/nef-emulator/backend/app/app/handover/engine.py
++                if isinstance(qos_comp, dict):
++                    ok = bool(qos_comp.get("service_priority_ok", True))
++                    metrics.HANDOVER_COMPLIANCE.labels(outcome="ok" if ok else "failed").inc()
++                    if not ok:
++                        metrics.HANDOVER_FALLBACKS.inc()
++                        target = self._select_rule(ue_id) or self.state_mgr.get_feature_vector(ue_id).get("connected_to")
++                elif confidence < self.confidence_threshold:
++                    metrics.HANDOVER_FALLBACKS.inc()
++                    target = self._select_rule(ue_id)
++```
++
++## Operational Guardrails
++
++- **Circuit breakers:** `NEFClient` registers dedicated breakers for login and API traffic so repeated failures surface quickly and can be inspected via `/api/v1/circuit-breakers/status`.
++- **Rate limiting:** The ML service enforces per-endpoint quotas through `Flask-Limiter`. Defaults are 100 predictions/minute and 10 training calls/minute, overridable via `RATELIMIT_*` environment variables.
++- **Backpressure:** Asynchronous inference and training requests share a bounded queue (`ASYNC_MODEL_QUEUE_SIZE`, default 1000). When the queue is full the API rejects the request with a 503 rather than blocking indefinitely.
++- **Metrics:** Both services export Prometheus metrics (`ml_prediction_requests_total`, `nef_handover_decisions_total`, etc.) so dashboards and alerts can be built without code changes.
++
++## Endpoint Summary
++
++| Service | Endpoint | Notes |
++| --- | --- | --- |
++| ML service | `POST /api/predict-with-qos` | Primary QoS-aware prediction endpoint. Authenticated with the same JWT as `/api/predict`. |
++| ML service | `POST /api/feedback` | Optional feedback samples (expects `FeedbackSample` list). |
++| ML service | `POST /api/train` / `POST /api/train-async` | Model training routes guarded by `train`/`admin` roles. |
++| ML service | `GET /api/nef-status` | Simple connectivity check back to the NEF emulator. |
++| NEF | `GET /api/v1/ml/state/{ue_id}` | Returns the current feature vector for a UE (useful for troubleshooting payloads). |
++| NEF | `POST /api/v1/ml/handover?ue_id=...` | Applies the ML or A3 handover decision. |
++| NEF | `/nef/3gpp-as-session-with-qos/v1/*` | Northbound QoS monitoring APIs that drive callbacks and sample JSON referenced by the tests. |
++
++## Testing the Integration
++
++1. **Start the stack:** `docker compose up --build` from the repository root. Supply `AUTH_USERNAME`, `AUTH_PASSWORD`, and `JWT_SECRET` if they are not already set.
++2. **Run automated checks:**
++   ```bash
++   pytest 5g-network-optimization/services/nef-emulator/tests/api/test_qos_information.py \
++          5g-network-optimization/services/ml-service/ml_service/tests/test_qos_core.py
++   ```
++3. **Manual request:** Use the replay example above or the sample payloads under `services/nef-emulator/docs/test_plan/AsSessionWithQoS/` to send a prediction request and verify the response.
++
++## References
++
++- `docs/architecture/qos.md` – canonical architecture, configuration tables, and observability notes.
++- `services/ml-service/ml_service/app/api/routes.py` – REST handlers exposed by the ML service.
++- `services/nef-emulator/backend/app/app/handover/engine.py` – ML invocation and fallback logic.
++- `services/nef-emulator/docs/test_plan/AsSessionWithQoS/` – Example NEF QoS subscription requests and responses.
++
+diff --git a/docs/qos/configuration.md b/docs/qos/configuration.md
+index 071d232..f4c38d0 100644
+--- a/docs/qos/configuration.md
++++ b/docs/qos/configuration.md
+@@ -1,5 +1,7 @@
+ # QoS Configuration Overrides
+ 
++> For the end-to-end architecture and runtime flow, refer to `docs/architecture/qos.md`.
++
+ The QoS classifier consumes the shared `features.yaml` file in
+ `5g-network-optimization/services/ml-service/ml_service/app/config` to discover service-specific
+ scoring profiles.  Each profile now supports a `metric_defaults` section that
+diff --git a/docs/qos/feature_store.md b/docs/qos/feature_store.md
+index 887ab2b..a55f757 100644
+--- a/docs/qos/feature_store.md
++++ b/docs/qos/feature_store.md
+@@ -1,5 +1,7 @@
+ # QoS Feature Store Enhancements
+ 
++> This note complements the system-wide overview in `docs/architecture/qos.md`.
++
+ This document captures the schema and operational updates required to expose QoS
+ metrics through Feast.
+ 
+diff --git a/docs/qos/qos_validation_inventory.md b/docs/qos/qos_validation_inventory.md
+index 347a1a2..9c522fe 100644
+--- a/docs/qos/qos_validation_inventory.md
++++ b/docs/qos/qos_validation_inventory.md
+@@ -1,5 +1,7 @@
+ # QoS Validation Inventory
+ 
++> Use `docs/architecture/qos.md` for the top-level flow; this page focuses on validation hooks.
++
+ This note summarises the components that validate Quality-of-Service (QoS) payloads
+ and feature ranges across the ingestion and prediction stacks. Use it when adding
+ new safeguards or tracing how existing checks flow through the pipeline.
+diff --git a/docs/qos/synthetic_qos_dataset.md b/docs/qos/synthetic_qos_dataset.md
+index 22b1eaa..b3276dd 100644
+--- a/docs/qos/synthetic_qos_dataset.md
++++ b/docs/qos/synthetic_qos_dataset.md
+@@ -1,5 +1,7 @@
+ # Synthetic QoS Dataset Reference
+ 
++> This data reference supports the architecture described in `docs/architecture/qos.md`.
++
+ This document captures the schema, probability distributions, and operational rationale behind `scripts/data_generation/synthetic_generator.py`. The generator underpins the thesis experiments by emitting reproducible Quality of Service (QoS) request records across enhanced Mobile Broadband (eMBB), Ultra-Reliable Low-Latency Communications (URLLC), massive Machine-Type Communications (mMTC), and a general-purpose fallback profile.
+ 
+ ## Schema overview

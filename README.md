@@ -2,7 +2,7 @@
 
 This repository contains the code and configuration for optimizing 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a machine learning service.  All implementation lives in the [`5g-network-optimization`](5g-network-optimization/) directory.
 
-**Getting Started:** see [5g-network-optimization/leftover_docks/GETTING_STARTED.md](5g-network-optimization/leftover_docks/GETTING_STARTED.md) for prerequisites and a full setup walkthrough.
+**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md).
 
 ## Project Overview
 
@@ -45,12 +45,11 @@ This directory groups the code and configuration needed to run the system:
 - The NEF emulator exposes Prometheus metrics at `/metrics` which the monitoring stack scrapes.
 - `5g-network-optimization/docker-compose.yml` – orchestrates all services locally, including the monitoring stack.
 - `pytest.ini` – shared configuration for running the automated tests.
-- `docs/mobility_metric_tracker.md` – algorithm details for incremental mobility metrics.
 
 Run the stack locally from this directory with:
 
 ```bash
-docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
 The ML service relies on a LightGBM model. Set `LIGHTGBM_TUNE=1` to run hyperparameter tuning when the service starts.
@@ -131,7 +130,7 @@ For rule-based scenarios the NEF implements the 3GPP **A3 event** rule. Disable 
 
 ## Environment Variables
 
-The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker-compose`:
+The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker compose`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -176,8 +175,8 @@ print(engine.use_ml)  # True
 ```
 
 When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
-`ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
-contains the recommended antenna which is then applied automatically.
+`ML_SERVICE_URL` at `/api/predict-with-qos` for every UE in motion.  The response
+contains the recommended antenna, the model confidence, and a QoS compliance summary which is then applied automatically.
 
 ## Altitude Input for AntennaSelector
 
@@ -203,22 +202,22 @@ transform names (e.g. `float`, `int`) or fully qualified Python paths such as
 `math.sqrt`.  The registry is also accessible programmatically for custom
 registrations. The path to the configuration file can be overridden using the
 `FEATURE_CONFIG_PATH` environment variable. See
-[`docs/feature_transforms.md`](docs/feature_transforms.md) for details.
+[`docs/architecture/qos.md`](docs/architecture/qos.md) for details on feature transforms and data drift monitoring.
 
 ## Running the System
 
-Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
+Both services run via `docker compose`. Use the environment variables above to switch between rule-based and ML-based modes.
 
 ### Simple A3 Mode
 
 ```bash
-ML_HANDOVER_ENABLED=0 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+ML_HANDOVER_ENABLED=0 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
 ### ML Mode
 
 ```bash
-ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
 ### Single Container Mode
@@ -227,7 +226,7 @@ Install the ML service inside the NEF emulator image and omit the standalone
 `ml-service` container:
 
 ```bash
-ML_LOCAL=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+ML_LOCAL=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
 ### Example API Calls
@@ -328,7 +327,7 @@ Tests also run automatically on merges via the workflow
 Start the containers and run the full integration suite:
 
 ```bash
-ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
+ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 pip install -r requirements.txt
 pip install -e 5g-network-optimization/services/ml-service
 pytest 5g-network-optimization/services/nef-emulator/tests/integration \

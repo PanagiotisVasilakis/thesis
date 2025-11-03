@@ -1,0 +1,281 @@
+diff --git a/5g-network-optimization/deployment/kubernetes/README.md b/5g-network-optimization/deployment/kubernetes/README.md
+index 55ce08b..85a7a3f 100644
+--- a/5g-network-optimization/deployment/kubernetes/README.md
++++ b/5g-network-optimization/deployment/kubernetes/README.md
+@@ -10,13 +10,13 @@ This folder contains Kubernetes manifests and tips for running the NEF emulator
+ 
+ ## Environment Variables
+ 
+-Both deployments rely on the variables listed in the [root README](../../README.md#environment-variables).
++Both deployments rely on the variables listed in the [root README](../../../README.md#environment-variables).
+ Define them via `kubectl set env` or by editing the manifests before applying.
+ 
+ ## 1. Build and Push Images
+ 
+ Build the Docker images and push them to a registry accessible by your cluster.
+-Refer to the [root README](../../README.md#building-docker-images) for the exact commands.
++Refer to the [root README](../../../README.md#building-docker-images) for the exact commands.
+ Update `nef-emulator.yaml` and `ml-service.yaml` to point to your registry images.
+ 
+ ## 2. Deploy the NEF Emulator
+diff --git a/5g-network-optimization/leftover_docks/GETTING_STARTED.md b/5g-network-optimization/leftover_docks/GETTING_STARTED.md
+index 9e475c4..68cbe82 100644
+--- a/5g-network-optimization/leftover_docks/GETTING_STARTED.md
++++ b/5g-network-optimization/leftover_docks/GETTING_STARTED.md
+@@ -23,9 +23,15 @@ This guide explains how to set up the development environment and run the full w
+ 
+ ## Running the Services
+ 
++Before starting the stack, export credentials for the ML service (these defaults match the test configuration):
++
++```bash
++export AUTH_USERNAME=admin AUTH_PASSWORD=admin JWT_SECRET=change-me
++```
++
+ Build and launch all containers with Docker Compose:
+ ```bash
+-docker-compose up --build
++docker compose up --build
+ ```
+ The NEF emulator will start on `http://localhost:8080` and the ML service on `http://localhost:5050`.
+ 
+@@ -35,7 +41,7 @@ After the services are running you can collect training data and train a model u
+ ```bash
+ python services/ml-service/collect_training_data.py --train
+ ```
+-The script gathers radio metrics from the NEF emulator and sends them to the ML service, which trains a model once enough data is collected.
++The script gathers radio metrics from the NEF emulator and sends them to the ML service, which trains a model once enough data is collected. Review `docs/architecture/qos.md` if you need the full QoS flow while iterating on the pipeline.
+ 
+ ## Monitoring and User Interfaces
+ 
+diff --git a/5g-network-optimization/leftover_docks/overview.md b/5g-network-optimization/leftover_docks/overview.md
+index 3bfafe6..8d4cb70 100644
+--- a/5g-network-optimization/leftover_docks/overview.md
++++ b/5g-network-optimization/leftover_docks/overview.md
+@@ -2,6 +2,8 @@
+ 
+ This document summarizes the architecture and deployment workflow of the 5G Network Optimization system.  The repository contains two main services:
+ 
++> For the up-to-date QoS flow and guardrails, see `docs/architecture/qos.md`.
++
+ 1. **NEF Emulator** – a FastAPI application that emulates a 3GPP Network Exposure Function.  It generates mobility events, keeps track of UE state and performs handover decisions.
+ 2. **ML Service** – a Flask application that predicts the optimal antenna for each UE based on real‑time radio metrics.  It can be used directly or invoked from the NEF emulator.
+ 
+@@ -21,7 +23,7 @@ A monitoring stack using Prometheus and Grafana collects metrics from both servi
+ 1. Install [Docker](https://docs.docker.com/get-docker/) and Docker Compose.
+ 2. From the `5g-network-optimization` directory run:
+    ```bash
+-   docker-compose up --build
++   docker compose up --build
+    ```
+ 3. The NEF emulator will be reachable on `http://localhost:8080` and the ML service on `http://localhost:5050`.
+ 
+@@ -29,15 +31,15 @@ To switch between rule‑based and ML‑driven handovers, set environment variab
+ 
+ ```bash
+ # Use only the A3 rule
+-ML_HANDOVER_ENABLED=0 docker-compose up --build
++ML_HANDOVER_ENABLED=0 docker compose up --build
+ 
+ # Enable machine learning
+-ML_HANDOVER_ENABLED=1 docker-compose up --build
++ML_HANDOVER_ENABLED=1 docker compose up --build
+ ```
+ 
+ ## Deploying to Kubernetes
+ 
+-1. Build and push images to a registry accessible by your cluster.  Example commands are provided in the [root README](../README.md#building-docker-images).
++1. Build and push images to a registry accessible by your cluster.  Example commands are provided in the [root README](../../README.md#building-docker-images).
+ 2. Update the image references in `deployment/kubernetes/ml-service.yaml` and any NEF emulator manifest you create.
+ 3. Apply the manifests:
+    ```bash
+diff --git a/README.md b/README.md
+index 559316c..ede84af 100644
+--- a/README.md
++++ b/README.md
+@@ -2,7 +2,7 @@
+ 
+ This repository contains the code and configuration for optimizing 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a machine learning service.  All implementation lives in the [`5g-network-optimization`](5g-network-optimization/) directory.
+ 
+-**Getting Started:** see [5g-network-optimization/leftover_docks/GETTING_STARTED.md](5g-network-optimization/leftover_docks/GETTING_STARTED.md) for prerequisites and a full setup walkthrough.
++**Getting Started:** see [5g-network-optimization/leftover_docks/GETTING_STARTED.md](5g-network-optimization/leftover_docks/GETTING_STARTED.md) for prerequisites and a full setup walkthrough. QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md). A curated map of all documentation lives in [`docs/INDEX.md`](docs/INDEX.md).
+ 
+ ## Project Overview
+ 
+@@ -50,7 +50,7 @@ This directory groups the code and configuration needed to run the system:
+ Run the stack locally from this directory with:
+ 
+ ```bash
+-docker-compose -f 5g-network-optimization/docker-compose.yml up --build
++docker compose -f 5g-network-optimization/docker-compose.yml up --build
+ ```
+ 
+ The ML service relies on a LightGBM model. Set `LIGHTGBM_TUNE=1` to run hyperparameter tuning when the service starts.
+@@ -131,7 +131,7 @@ For rule-based scenarios the NEF implements the 3GPP **A3 event** rule. Disable
+ 
+ ## Environment Variables
+ 
+-The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker-compose`:
++The NEF emulator's `NetworkStateManager` supports several configuration options. Set these variables in your shell or through `docker compose`:
+ 
+ | Variable | Description | Default |
+ |----------|-------------|---------|
+@@ -176,8 +176,8 @@ print(engine.use_ml)  # True
+ ```
+ 
+ When `ML_HANDOVER_ENABLED` is enabled the NEF emulator sends a POST request to
+-`ML_SERVICE_URL` at `/api/predict` for every UE in motion.  The response
+-contains the recommended antenna which is then applied automatically.
++`ML_SERVICE_URL` at `/api/predict-with-qos` for every UE in motion.  The response
++contains the recommended antenna, the model confidence, and a QoS compliance summary which is then applied automatically.
+ 
+ ## Altitude Input for AntennaSelector
+ 
+@@ -207,18 +207,18 @@ registrations. The path to the configuration file can be overridden using the
+ 
+ ## Running the System
+ 
+-Both services run via `docker-compose`. Use the environment variables above to switch between rule-based and ML-based modes.
++Both services run via `docker compose`. Use the environment variables above to switch between rule-based and ML-based modes.
+ 
+ ### Simple A3 Mode
+ 
+ ```bash
+-ML_HANDOVER_ENABLED=0 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
++ML_HANDOVER_ENABLED=0 docker compose -f 5g-network-optimization/docker-compose.yml up --build
+ ```
+ 
+ ### ML Mode
+ 
+ ```bash
+-ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
++ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
+ ```
+ 
+ ### Single Container Mode
+@@ -227,7 +227,7 @@ Install the ML service inside the NEF emulator image and omit the standalone
+ `ml-service` container:
+ 
+ ```bash
+-ML_LOCAL=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
++ML_LOCAL=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
+ ```
+ 
+ ### Example API Calls
+@@ -328,7 +328,7 @@ Tests also run automatically on merges via the workflow
+ Start the containers and run the full integration suite:
+ 
+ ```bash
+-ML_HANDOVER_ENABLED=1 docker-compose -f 5g-network-optimization/docker-compose.yml up --build
++ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
+ pip install -r requirements.txt
+ pip install -e 5g-network-optimization/services/ml-service
+ pytest 5g-network-optimization/services/nef-emulator/tests/integration \
+diff --git a/docs/THESIS_SUMMARY.md b/docs/THESIS_SUMMARY.md
+index e9bf030..2c52ea0 100644
+--- a/docs/THESIS_SUMMARY.md
++++ b/docs/THESIS_SUMMARY.md
+@@ -5,7 +5,7 @@ The 5G Network Optimization project demonstrates how advanced handover algorithm
+ 
+ ## Implemented Components
+ - **NEF Emulator** – FastAPI application that exposes REST endpoints to create UEs, retrieve movement state and trigger handovers.  The implementation lives in `services/nef-emulator/backend/app/`.  It bundles several mobility models and path‑loss calculations so it can simulate realistic radio conditions.  When ML support is disabled, it falls back to the pure A3 rule for deterministic behaviour.  The asynchronous design lets us schedule thousands of events per second without blocking other operations.
+-- **ML Service** – Lightweight Flask API offering `/api/predict` and `/api/train` routes.  It loads or trains the `LightGBMSelector` model on demand, persists the model to disk and exposes metrics for accuracy and request latency.  Training data is gathered from the NEF emulator or from prerecorded traces.  The service relies on a LightGBM classifier and can optionally tune hyperparameters during startup by setting `LIGHTGBM_TUNE=1`【F:README.md†L50-L50】.
++- **ML Service** – Lightweight Flask API offering `/api/predict-with-qos`, `/api/predict`, and `/api/train*` routes.  It loads or trains the `LightGBMSelector` model on demand, persists the model to disk and exposes metrics for accuracy and request latency.  Training data is gathered from the NEF emulator or from prerecorded traces.  The service relies on a LightGBM classifier and can optionally tune hyperparameters during startup by setting `LIGHTGBM_TUNE=1`【F:README.md†L50-L50】.
+ - **Monitoring Stack** – Prometheus scrapes metrics from both services and Grafana dashboards visualise throughput, latency and model accuracy【F:5g-network-optimization/monitoring/README.md†L1-L21】.  Alerts can be configured to detect performance regressions during experiments, giving immediate feedback when tuning the ML model or A3 parameters.
+ - **Docker & Kubernetes** – `docker-compose.yml` spins up the NEF emulator, ML service and monitoring stack for local development.  Kubernetes manifests under `deployment/` replicate the same setup in a cluster for scale testing and CI pipelines【F:README.md†L31-L37】.  Images are built with multi-stage Dockerfiles so the runtime environment stays slim and consistent across setups.
+ 
+@@ -17,7 +17,7 @@ The 5G Network Optimization project demonstrates how advanced handover algorithm
+ `A3EventRule` accumulates measurements of the reference signal received power (RSRP) for the serving and neighbouring cells.  The rule checks whether the target cell’s RSRP exceeds the serving cell by `A3_HYSTERESIS_DB`.  If so, a timer is started and the condition must hold for `A3_TTT_S` seconds.  Any violation resets the timer.  Once both thresholds are met the event is raised and a handover is initiated【F:5g-network-optimization/services/nef-emulator/backend/app/app/handover/a3_rule.py†L1-L23】.
+ 
+ ## ML-Based Logic
+-The `LightGBMSelector` class extends `AntennaSelector` and uses a LightGBM classifier to learn from location, movement and signal metrics for each UE.  Features include latitude, longitude, speed, normalised direction as well as derived mobility metrics like heading change rate and path curvature.  Signal quality variance (`rsrp_stddev`, `sinr_stddev`) and the UE altitude are also persisted in Feast along with the current antenna’s RSRP, SINR and optionally RSRQ readings for neighbouring cells.  Training is performed with optional validation and early stopping as shown in the implementation【F:5g-network-optimization/services/ml-service/ml_service/app/models/lightgbm_selector.py†L45-L116】.  The resulting model is exported with `joblib` and reloaded at startup.  Predictions are served in real time through the Flask API and can be logged to assess feature importance and accuracy.  The training workflow relies on `collect_training_data.py` to query the NEF emulator and save samples which are then uploaded via `/api/train`.  This approach keeps the ML implementation decoupled from the emulator while allowing incremental retraining.
++The `LightGBMSelector` class extends `AntennaSelector` and uses a LightGBM classifier to learn from location, movement and signal metrics for each UE.  Features include latitude, longitude, speed, normalised direction as well as derived mobility metrics like heading change rate and path curvature.  Signal quality variance (`rsrp_stddev`, `sinr_stddev`) and the UE altitude are also persisted in Feast along with the current antenna’s RSRP, SINR and optionally RSRQ readings for neighbouring cells.  Training is performed with optional validation and early stopping as shown in the implementation【F:5g-network-optimization/services/ml-service/ml_service/app/models/lightgbm_selector.py†L45-L116】.  The resulting model is exported with `joblib` and reloaded at startup.  Predictions are served in real time through the Flask API and can be logged to assess feature importance and accuracy.  The training workflow relies on `collect_training_data.py` to query the NEF emulator and save samples which are then uploaded via `/api/train`.  This approach keeps the ML implementation decoupled from the emulator while allowing incremental retraining.  Additional details about QoS gating and fallbacks are captured in `docs/architecture/qos.md`.
+ All feature columns are enumerated once in `feast_repo/constants.py` so the Feast view and ingestion logic stay consistent.
+ 
+ ## Enterprise Standards
+diff --git a/mlops/README.md b/mlops/README.md
+index ee9492c..a2f6f38 100644
+--- a/mlops/README.md
++++ b/mlops/README.md
+@@ -1,57 +1,26 @@
+ # Automated MLOps Pipeline
+ 
+-This directory documents the continuous deployment pipeline that builds the
+-Docker images, registers trained models to MLflow and gradually deploys them
+-using canary releases.
+-
+-## Overview
+-The automation stitches together both the **training pipeline** and
+-**serving pipeline** so that the same artefacts, schema definitions, and
+-validation gates apply throughout the model lifecycle.
+-
+-### Training Pipeline Stages
+-1. **Feature Materialisation** – Nightly Feast jobs materialise feature views
+-   defined in `feast_repo/feature_repo.py` to the online store and historical
+-   parquet buckets. The schema is anchored in
+-   `feast_repo/constants.py` so offline training code and online serving
+-   requests stay aligned.
+-2. **Model Training** – `collect_training_data.py` streams labelled mobility
+-   traces from the NEF emulator, optionally persisting them through
+-   `ml_service.app.data.feature_store_utils.ingest_samples`. The ML service
+-   consumes that dataset through `/api/train`, invoking
+-   `ml_service.app.models.lightgbm_selector.LightGBMSelector.train` with
+-   validation splits and early-stopping callbacks to persist a new model
+-   artifact.
+-3. **Evaluation & Approval** – Continuous integration executes
+-   `pytest -k train` against the ML service package, surfacing the weighted QoS
+-   metrics logged by the training route. Pipeline logic inspects the resulting
+-   MLflow run for minimum accuracy/F1 scores and records a promotion decision in
+-   the registry tags. Models that meet the service-level thresholds are
+-   transitioned to the `Staging` stage automatically.
+-4. **Model Registration** – Approved runs are versioned and promoted within the
+-   MLflow registry. Model metadata (feature store commit hash, training config)
+-   is stored alongside the model to guarantee reproducibility.
+-
+-### Serving Pipeline Stages
+-1. **Docker Build** – Multi-stage Dockerfiles build the NEF emulator and ML
+-   service images on every commit. The build output is tagged with the MLflow
+-   model version when the pipeline is triggered by a registry event.
+-2. **Artifact Sync** – The deployment job syncs the promoted model bundle from
+-   MLflow to the serving image, injecting the corresponding Feast registry
+-   snapshot so online features stay consistent with the trained schema.
+-3. **Canary Deployment** – Kubernetes manifests are rendered through Helm to
+-   reference the new image tag and model version. Argo Rollouts shifts 5% of the
+-   traffic to the canary, running online shadow evaluations before promoting to
+-   100%.
+-4. **Post-Deployment Verification** – Automated smoke tests call
+-   `/api/v2/predict` with synthetic telemetry, while Prometheus monitors model
+-   drift, latency, and error budgets. Failing checks trigger rollback hooks that
+-   revert the rollout to the previous stable tag.
+-
+-The Feast feature store under `feast_repo/` stores training features so model
+-training scripts can fetch consistent data across environments. The feature view
+-includes mobility metrics such as `heading_change_rate`, `path_curvature`,
+-per-user signal variance and altitude in addition to basic location and
+-handover statistics. The list of stored columns is centralised in
+-`feast_repo/constants.py` to avoid drift between ingestion helpers and the
+-schema definition.
++This directory contains the utilities that collect QoS data from the NEF emulator, define the Feast feature store, and orchestrate model training for the ML service. The workflow supports both fully synthetic datasets and live captures streamed from the NEF stack.
++
++## Training Workflow
++
++1. **Collect QoS requirements** – `mlops/data_pipeline/nef_collector.py` offers synchronous helpers (`NEFQoSCollector`) that normalise QoS payloads returned by the NEF API. The module enforces type coercion, required thresholds, and descriptive errors so malformed payloads never reach the model.
++2. **Generate synthetic traces** – `scripts/data_generation/synthetic_generator.py` (documented in `docs/qos/synthetic_qos_dataset.md`) can emit CSV/JSON request datasets that conform to the QoS envelopes used by the LightGBM selector.
++3. **Populate Feast** – The Feast repository in `mlops/feature_store/feature_repo/` defines entities, feature views and the schema used by offline and online stores. `feature_repo/schema.py` keeps the canonical list of columns, including the QoS metrics tracked by tests in `tests/mlops/test_qos_feature_ranges.py`.
++4. **Train via the ML service** – `collect_training_data.py` (under `services/ml-service/`) can call into the NEF emulator or reuse synthetic data, then trigger `/api/train`/`/api/train-async` on the ML service. Training runs emit Prometheus metrics such as `ml_model_training_duration_seconds`, which are scraped by the monitoring stack.
++5. **Regression tests** – `pytest -k qos` exercises the collector, schema validation and model scoring logic. The dedicated QoS tests in `services/ml-service/ml_service/tests/` ensure confidence gating and feature extraction stay in sync with `features.yaml`.
++
++## Serving & Deployment
++
++- **Container builds** – `docker compose -f 5g-network-optimization/docker-compose.yml up --build` builds and runs the NEF emulator, ML service, Prometheus and Grafana locally. The same images back the Kubernetes manifests under `5g-network-optimization/deployment/kubernetes/`.
++- **Configuration** – Runtime settings for QoS (handovers, circuit breakers, rate limits) are described in `docs/architecture/qos.md`. Use environment variables such as `ML_HANDOVER_ENABLED`, `ML_CONFIDENCE_THRESHOLD`, and `ASYNC_MODEL_WORKERS` to tune behaviour per deployment.
++- **Observability** – Both services expose `/metrics` endpoints. Grafana dashboards in `5g-network-optimization/monitoring/grafana/` visualise prediction latency, training statistics, and QoS compliance/fallback counters.
++
++## Repository Layout Highlights
++
++- `data_pipeline/nef_collector.py` – Validates and structures QoS requirements fetched from the NEF API.
++- `feature_store/feature_repo/` – Feast configuration (entities, feature view, schema utilities).
++- `feast_repo/` – Example Feast repository for local materialisation and experimentation.
++- `tests/mlops/test_qos_feature_ranges.py` – Regression tests ensuring the Feast schema and QoS validators accept in-range data and reject violations.
++
++Together these components provide a repeatable path from QoS data ingestion to model training and deployment under Docker Compose or Kubernetes. Whenever you extend the pipeline, update the relevant schema helpers and tests so the training and serving paths remain aligned.

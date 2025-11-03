@@ -1,0 +1,8 @@
+# QoS Architecture Executive Summary
+
+- **Primary flow** – `HandoverEngine` gathers UE state from `NetworkStateManager`, posts it to `/api/predict-with-qos`, and either applies the recommended antenna or falls back to the A3 rule when `qos_compliance.service_priority_ok` is `false`.
+- **Admission control** – `Flask-Limiter` enforces 100 predictions/minute by default (overridable via `RATELIMIT_*`). The `AsyncModelManager` runs inference/training in a bounded queue (`ASYNC_MODEL_QUEUE_SIZE`=1000, `ASYNC_MODEL_WORKERS` default 4). `NEFClient` wraps outbound calls in circuit breakers (3 login failures, 5 API failures) and exposes their status at `/api/v1/circuit-breakers/status`.
+- **Key configuration knobs** – `ML_HANDOVER_ENABLED` selects ML vs A3, `ML_CONFIDENCE_THRESHOLD` gates fallback behaviour, `ML_SERVICE_URL` points to the prediction API, `ASYNC_MODEL_WORKERS`/`MODEL_PREDICTION_TIMEOUT` govern concurrency, and `FEATURE_CONFIG_PATH` controls feature definitions in `features.yaml`.
+- **Operational telemetry** – The ML service reports `ml_prediction_requests_total`, `ml_prediction_latency_seconds`, `ml_data_drift_score`, etc.; the NEF emulator emits `nef_handover_decisions_total`, `nef_handover_fallback_total`, and `nef_handover_compliance_total`. Grafana dashboards in `monitoring/grafana/dashboards/` visualise these metrics out of the box.
+- **Testing hotspots** – `services/ml-service/ml_service/tests/test_qos_core.py`, `test_qos_classifier.py`, `test_qos_encoding.py`, and `tests/mlops/test_qos_feature_ranges.py` provide regression coverage. Sample QoS payloads for manual validation live under `services/nef-emulator/docs/test_plan/AsSessionWithQoS/`.
+

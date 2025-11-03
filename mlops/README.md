@@ -1,57 +1,26 @@
 # Automated MLOps Pipeline
 
-This directory documents the continuous deployment pipeline that builds the
-Docker images, registers trained models to MLflow and gradually deploys them
-using canary releases.
+This directory contains the utilities that collect QoS data from the NEF emulator, define the Feast feature store, and orchestrate model training for the ML service. The workflow supports both fully synthetic datasets and live captures streamed from the NEF stack.
 
-## Overview
-The automation stitches together both the **training pipeline** and
-**serving pipeline** so that the same artefacts, schema definitions, and
-validation gates apply throughout the model lifecycle.
+## Training Workflow
 
-### Training Pipeline Stages
-1. **Feature Materialisation** – Nightly Feast jobs materialise feature views
-   defined in `feast_repo/feature_repo.py` to the online store and historical
-   parquet buckets. The schema is anchored in
-   `feast_repo/constants.py` so offline training code and online serving
-   requests stay aligned.
-2. **Model Training** – `collect_training_data.py` streams labelled mobility
-   traces from the NEF emulator, optionally persisting them through
-   `ml_service.app.data.feature_store_utils.ingest_samples`. The ML service
-   consumes that dataset through `/api/train`, invoking
-   `ml_service.app.models.lightgbm_selector.LightGBMSelector.train` with
-   validation splits and early-stopping callbacks to persist a new model
-   artifact.
-3. **Evaluation & Approval** – Continuous integration executes
-   `pytest -k train` against the ML service package, surfacing the weighted QoS
-   metrics logged by the training route. Pipeline logic inspects the resulting
-   MLflow run for minimum accuracy/F1 scores and records a promotion decision in
-   the registry tags. Models that meet the service-level thresholds are
-   transitioned to the `Staging` stage automatically.
-4. **Model Registration** – Approved runs are versioned and promoted within the
-   MLflow registry. Model metadata (feature store commit hash, training config)
-   is stored alongside the model to guarantee reproducibility.
+1. **Collect QoS requirements** – `mlops/data_pipeline/nef_collector.py` offers synchronous helpers (`NEFQoSCollector`) that normalise QoS payloads returned by the NEF API. The module enforces type coercion, required thresholds, and descriptive errors so malformed payloads never reach the model.
+2. **Generate synthetic traces** – `scripts/data_generation/synthetic_generator.py` (documented in `docs/qos/synthetic_qos_dataset.md`) can emit CSV/JSON request datasets that conform to the QoS envelopes used by the LightGBM selector.
+3. **Populate Feast** – The Feast repository in `mlops/feature_store/feature_repo/` defines entities, feature views and the schema used by offline and online stores. `feature_repo/schema.py` keeps the canonical list of columns, including the QoS metrics tracked by tests in `tests/mlops/test_qos_feature_ranges.py`.
+4. **Train via the ML service** – `collect_training_data.py` (under `services/ml-service/`) can call into the NEF emulator or reuse synthetic data, then trigger `/api/train`/`/api/train-async` on the ML service. Training runs emit Prometheus metrics such as `ml_model_training_duration_seconds`, which are scraped by the monitoring stack.
+5. **Regression tests** – `pytest -k qos` exercises the collector, schema validation and model scoring logic. The dedicated QoS tests in `services/ml-service/ml_service/tests/` ensure confidence gating and feature extraction stay in sync with `features.yaml`.
 
-### Serving Pipeline Stages
-1. **Docker Build** – Multi-stage Dockerfiles build the NEF emulator and ML
-   service images on every commit. The build output is tagged with the MLflow
-   model version when the pipeline is triggered by a registry event.
-2. **Artifact Sync** – The deployment job syncs the promoted model bundle from
-   MLflow to the serving image, injecting the corresponding Feast registry
-   snapshot so online features stay consistent with the trained schema.
-3. **Canary Deployment** – Kubernetes manifests are rendered through Helm to
-   reference the new image tag and model version. Argo Rollouts shifts 5% of the
-   traffic to the canary, running online shadow evaluations before promoting to
-   100%.
-4. **Post-Deployment Verification** – Automated smoke tests call
-   `/api/v2/predict` with synthetic telemetry, while Prometheus monitors model
-   drift, latency, and error budgets. Failing checks trigger rollback hooks that
-   revert the rollout to the previous stable tag.
+## Serving & Deployment
 
-The Feast feature store under `feast_repo/` stores training features so model
-training scripts can fetch consistent data across environments. The feature view
-includes mobility metrics such as `heading_change_rate`, `path_curvature`,
-per-user signal variance and altitude in addition to basic location and
-handover statistics. The list of stored columns is centralised in
-`feast_repo/constants.py` to avoid drift between ingestion helpers and the
-schema definition.
+- **Container builds** – `docker compose -f 5g-network-optimization/docker-compose.yml up --build` builds and runs the NEF emulator, ML service, Prometheus and Grafana locally. The same images back the Kubernetes manifests under `5g-network-optimization/deployment/kubernetes/`.
+- **Configuration** – Runtime settings for QoS (handovers, circuit breakers, rate limits) are described in `docs/architecture/qos.md`. Use environment variables such as `ML_HANDOVER_ENABLED`, `ML_CONFIDENCE_THRESHOLD`, and `ASYNC_MODEL_WORKERS` to tune behaviour per deployment.
+- **Observability** – Both services expose `/metrics` endpoints. Grafana dashboards in `5g-network-optimization/monitoring/grafana/` visualise prediction latency, training statistics, and QoS compliance/fallback counters.
+
+## Repository Layout Highlights
+
+- `data_pipeline/nef_collector.py` – Validates and structures QoS requirements fetched from the NEF API.
+- `feature_store/feature_repo/` – Feast configuration (entities, feature view, schema utilities).
+- `feast_repo/` – Example Feast repository for local materialisation and experimentation.
+- `tests/mlops/test_qos_feature_ranges.py` – Regression tests ensuring the Feast schema and QoS validators accept in-range data and reject violations.
+
+Together these components provide a repeatable path from QoS data ingestion to model training and deployment under Docker Compose or Kubernetes. Whenever you extend the pipeline, update the relevant schema helpers and tests so the training and serving paths remain aligned.

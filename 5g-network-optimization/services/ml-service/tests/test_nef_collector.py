@@ -7,7 +7,7 @@ import pytest
 
 from ml_service.app.clients.nef_client import NEFClientError
 from ml_service.app.data import nef_collector
-from ml_service.app.data.nef_collector import NEFDataCollector
+from ml_service.app.data.nef_collector import NEFDataCollector, AsyncNEFDataCollector
 
 
 def test_login(monkeypatch, mock_nef_client):
@@ -42,8 +42,7 @@ async def test_collect_training_data_bad_status(mock_nef_client, status_obj):
 
 @pytest.mark.asyncio
 async def test_collect_training_data(tmp_path, monkeypatch, mock_nef_client):
-    collector = NEFDataCollector(nef_url="http://nef")
-    collector.data_dir = str(tmp_path)
+    collector = NEFDataCollector(nef_url="http://nef", data_dir=str(tmp_path))
 
     sample_state = {"ue1": {"latitude": 0, "longitude": 0, "speed": 1.0, "Cell_id": "A"}}
     mock_nef_client.get_ue_movement_state.return_value = sample_state
@@ -184,11 +183,52 @@ def test_collect_sample_logs_missing_qos(mock_nef_client, caplog):
     )
 
 
+def test_get_collection_stats(mock_nef_client):
+    collector = NEFDataCollector(nef_url="http://nef")
+    mock_nef_client.get_circuit_breaker_stats.return_value = {"state": "closed"}
+    collector.client = mock_nef_client
+
+    stats = collector.get_collection_stats()
+
+    assert stats["nef_client"]["url"] == "http://nef"
+    assert "components" in stats
+
+
+def test_async_collect_sample(tmp_path):
+    collector = AsyncNEFDataCollector(nef_url="http://nef", data_dir=str(tmp_path))
+    ue_data = {"Cell_id": "A", "latitude": 0.0, "longitude": 0.0, "speed": 0.5}
+    feature_vector = {
+        "neighbor_rsrp_dbm": {"A": -70, "B": -65},
+        "neighbor_sinrs": {"A": 8, "B": 12},
+        "neighbor_rsrqs": {"A": -9, "B": -7},
+        "neighbor_cell_loads": {"A": 1, "B": 2},
+    }
+
+    sample = collector._collect_sample(
+        "ue-async",
+        ue_data,
+        feature_vector,
+        service_type="embb",
+        service_priority=1,
+        qos_requirements={"latency_requirement_ms": 10.0},
+    )
+
+    assert sample["ue_id"] == "ue-async"
+    assert sample["service_type"] == "embb"
+    assert sample["optimal_antenna"] == "B"
+
+
+def test_async_get_collection_stats():
+    collector = AsyncNEFDataCollector(nef_url="http://nef")
+    stats = collector.get_collection_stats()
+    assert stats["nef_client"]["url"] == "http://nef"
+    assert "components" in stats
+
+
 @pytest.mark.asyncio
 async def test_collect_training_data_empty(tmp_path, monkeypatch, mock_nef_client):
     """When no samples are collected, an empty JSON file should be written."""
-    collector = NEFDataCollector(nef_url="http://nef")
-    collector.data_dir = str(tmp_path)
+    collector = NEFDataCollector(nef_url="http://nef", data_dir=str(tmp_path))
 
     mock_nef_client.get_ue_movement_state.return_value = {}
     collector.client = mock_nef_client

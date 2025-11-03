@@ -83,7 +83,7 @@ async def test_collect_training_data_file(tmp_path, mock_nef_client):
          patch("asyncio.sleep", new=AsyncMock()), \
          patch("time.time", side_effect=lambda: next(times, 999999)):
         collector = NEFDataCollector(nef_url="http://nef")
-        collector.data_dir = str(tmp_path / "collected_data")
+        collector = NEFDataCollector(nef_url="http://nef", data_dir=str(tmp_path / "collected_data"))
         def time_gen():
             for t in [0, 0.1, 0.2]:
                 yield t

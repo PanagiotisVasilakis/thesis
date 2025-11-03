@@ -1,0 +1,893 @@
+[
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/__init__.py",
+    "function": "metrics_endpoint",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/metrics",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/__init__.py",
+    "function": "metrics_auth_stats",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/metrics/auth/stats",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/__init__.py",
+    "function": "create_metrics_token",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/metrics/auth/token",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "cache_stats_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/cache-stats",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "collect_data_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/collect-data",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "config_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/config",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "health_check",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "metrics_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/metrics",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "nef_status_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/nef-status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "predict_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/predict",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "predict_di_with_qos",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/predict-with-qos",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/di_routes.py",
+    "function": "services_info_di",
+    "decorator_prefix": "di_bp",
+    "decorator_method": "route",
+    "path": "/services",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "collect_data",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/collect-data",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "feedback",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/feedback",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "health_check",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "login",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/login",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "model_health",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/model-health",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "list_models",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/models",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "switch_model",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/models/<version>",
+    "methods": [
+      "POST",
+      "PUT"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "nef_status",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/nef-status",
+    "methods": [
+      "GET"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "predict",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/predict",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "predict_async",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/predict-async",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "predict_with_qos",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/predict-with-qos",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "refresh_token",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/refresh",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "train",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/train",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/ml_service/app/api/routes.py",
+    "function": "train_async",
+    "decorator_prefix": "api_bp",
+    "decorator_method": "route",
+    "path": "/train-async",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/tests/test_input_sanitization.py",
+    "function": "test_endpoint",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/test",
+    "methods": [
+      "POST"
+    ]
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/tests/test_input_sanitization.py",
+    "function": "get_ue",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/ue/<ue_id>",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/tests/test_metrics.py",
+    "function": "_test",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/api/test",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/tests/test_metrics_auth.py",
+    "function": "test_endpoint",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/test",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/ml-service/tests/test_metrics_auth.py",
+    "function": "test_endpoint",
+    "decorator_prefix": "app",
+    "decorator_method": "route",
+    "path": "/test",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "create_Cell",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "read_Cells",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "get_by_gNB_id",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/by_gNB/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "delete_Cell",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{cell_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "read_Cell",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{cell_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/Cell.py",
+    "function": "update_Cell",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{cell_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "create_UE",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "read_UEs",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "assign_predefined_path",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/associate/path",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "read_UE_Cell",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/by_Cell/{cell_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "read_gNB_id",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/by_gNB/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "delete_UE",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{supi}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "read_UE",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{supi}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/UE.py",
+    "function": "update_UE",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{supi}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/gNB.py",
+    "function": "create_gNB",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/gNB.py",
+    "function": "read_gNBs",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/gNB.py",
+    "function": "delete_gNB",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/gNB.py",
+    "function": "read_gNB",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/gNB.py",
+    "function": "update_gNB",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/login.py",
+    "function": "login_access_token",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/login/access-token",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/login.py",
+    "function": "test_token",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/login/test-token",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/login.py",
+    "function": "recover_password",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/password-recovery/{email}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/login.py",
+    "function": "reset_password",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/reset-password/",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ml_api.py",
+    "function": "apply_handover",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/handover",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ml_api.py",
+    "function": "get_feature_vector",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/state/{ue_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/mobility/patterns.py",
+    "function": "generate_mobility_pattern",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/generate",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/mobility_patterns.py",
+    "function": "generate_mobility_pattern",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/generate",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/monitoringevent.py",
+    "function": "create_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/{scsAsId}/subscriptions",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/monitoringevent.py",
+    "function": "read_active_subscriptions",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{scsAsId}/subscriptions",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/monitoringevent.py",
+    "function": "delete_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/monitoringevent.py",
+    "function": "read_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/monitoringevent.py",
+    "function": "update_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/paths.py",
+    "function": "create_path",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/paths.py",
+    "function": "read_paths",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/paths.py",
+    "function": "delete_path",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/paths.py",
+    "function": "read_path",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/paths.py",
+    "function": "update_path",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosInformation.py",
+    "function": "read_qos_characteristics",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/qosCharacteristics",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosInformation.py",
+    "function": "read_qos_active_profiles",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/qosProfiles/{gNB_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosInformation.py",
+    "function": "read_qos_active_rules",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/qosRules/{supi}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosMonitoring.py",
+    "function": "create_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/{scsAsId}/subscriptions",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosMonitoring.py",
+    "function": "read_active_subscriptions",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{scsAsId}/subscriptions",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosMonitoring.py",
+    "function": "delete_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "delete",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosMonitoring.py",
+    "function": "read_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/qosMonitoring.py",
+    "function": "update_subscription",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{scsAsId}/subscriptions/{subscriptionId}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ue_movement.py",
+    "function": "initiate_movement",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/start-loop",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ue_movement.py",
+    "function": "state_movement",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/state-loop/{supi}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ue_movement.py",
+    "function": "state_ues",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/state-ues",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/ue_movement.py",
+    "function": "terminate_movement",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/stop-loop",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "create_user",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "read_users",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "read_user_me",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/me",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "update_user_me",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/me",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "create_user_open",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/open",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "read_user_by_id",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/{user_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/users.py",
+    "function": "update_user",
+    "decorator_prefix": "router",
+    "decorator_method": "put",
+    "path": "/{user_id}",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "get_scenario",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/export/scenario",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "create_scenario",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/import/scenario",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "create_item",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/monitoring/callback",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "get_last_notifications",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/monitoring/last_notifications",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "get_notifications",
+    "decorator_prefix": "router",
+    "decorator_method": "get",
+    "path": "/monitoring/notifications",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "create_item",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/session-with-qos/callback",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/api/api_v1/endpoints/utils.py",
+    "function": "get_test",
+    "decorator_prefix": "router",
+    "decorator_method": "post",
+    "path": "/test/callback",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "root_redirect",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "dashboard",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/dashboard",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "err401",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/err401",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "err404",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/err404",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "err500",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/err500",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "export",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/export",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "import_view",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/import",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "login",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/login",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "map_view",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/map",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "metrics_endpoint",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/metrics",
+    "methods": null
+  },
+  {
+    "file": "5g-network-optimization/services/nef-emulator/backend/app/app/main.py",
+    "function": "register",
+    "decorator_prefix": "app",
+    "decorator_method": "get",
+    "path": "/register",
+    "methods": null
+  }
+]
