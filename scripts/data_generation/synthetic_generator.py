@@ -86,6 +86,18 @@ class ServiceProfile:
         )
         priority = rng.randint(self.priority[0], self.priority[1])
 
+        observed_latency = max(
+            0.5,
+            latency * rng.uniform(0.85, 1.35),
+        )
+        observed_throughput = max(
+            0.05,
+            throughput * rng.uniform(0.55, 1.15),
+        )
+        observed_jitter = max(0.05, observed_latency * rng.uniform(0.01, 0.08))
+        observed_loss = max(0.0, rng.uniform(0.0, 2.0) + max(0.0,(100.0 - reliability) * rng.uniform(0.2, 1.0)))
+        observed_reliability = max(0.0, 100.0 - observed_loss)
+
         return {
             "request_id": request_id,
             "service_type": self.service_type,
@@ -93,6 +105,13 @@ class ServiceProfile:
             "reliability_pct": round(reliability, 5),
             "throughput_mbps": round(throughput, 3),
             "priority": priority,
+            "observed_latency_ms": round(observed_latency, 3),
+            "observed_jitter_ms": round(observed_jitter, 3),
+            "observed_throughput_mbps": round(observed_throughput, 3),
+            "observed_packet_loss_rate": round(observed_loss, 4),
+            "latency_delta_ms": round(observed_latency - latency, 3),
+            "throughput_delta_mbps": round(observed_throughput - throughput, 3),
+            "reliability_delta_pct": round(observed_reliability - reliability, 5),
         }
 
 

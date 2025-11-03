@@ -15,9 +15,10 @@ from ..errors import (
     ModelError,
     NEFConnectionError,
 )
-from ..monitoring.metrics import track_prediction, track_training
+from ..monitoring.metrics import track_prediction, track_training, QOS_FEEDBACK_EVENTS, ADAPTIVE_CONFIDENCE
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
-from ..schemas import PredictionRequestWithQoS
+from ..schemas import PredictionRequestWithQoS, QoSFeedbackRequest
+from ..core.adaptive_qos import adaptive_qos_manager
 from ..initialization.model_init import ModelManager
 from ..auth import (
     create_access_token,
@@ -185,6 +186,59 @@ def predict_with_qos():
             "confidence": result["confidence"],
             "qos_compliance": result.get("qos_compliance", {"service_priority_ok": True}),
             "features_used": list(features.keys()),
+        }
+    )
+
+
+@api_bp.route("/qos-feedback", methods=["POST"])
+@require_auth
+@require_roles("predict", "admin", "nef")
+@limiter.limit("120/minute")
+@validate_content_type("application/json")
+@validate_request_size(1)
+@validate_json_input(QoSFeedbackRequest)
+def qos_feedback():
+    """Ingest post-handover QoS metrics from the NEF emulator."""
+
+    payload: QoSFeedbackRequest = request.validated_data  # type: ignore[attr-defined]
+    observed = (
+        payload.observed_qos.to_filtered_dict()
+        if payload.observed_qos is not None
+        else {}
+    )
+
+    model = load_model(current_app.config["MODEL_PATH"])
+    model.record_qos_feedback(
+        ue_id=payload.ue_id,
+        antenna_id=payload.antenna_id,
+        service_type=payload.service_type,
+        metrics=observed,
+        passed=payload.success,
+        confidence=payload.confidence,
+        qos_requirements=payload.qos_requirements or {},
+        timestamp=payload.timestamp,
+    )
+
+    outcome = "success" if payload.success else "failure"
+    try:
+        QOS_FEEDBACK_EVENTS.labels(service_type=payload.service_type, outcome=outcome).inc()
+    except Exception:
+        pass
+
+    adaptive_required = adaptive_qos_manager.get_required_confidence(
+        payload.service_type,
+        payload.service_priority,
+    )
+
+    try:
+        ADAPTIVE_CONFIDENCE.labels(service_type=payload.service_type).set(adaptive_required)
+    except Exception:
+        pass
+
+    return jsonify(
+        {
+            "status": "accepted",
+            "adaptive_required_confidence": adaptive_required,
         }
     )
 

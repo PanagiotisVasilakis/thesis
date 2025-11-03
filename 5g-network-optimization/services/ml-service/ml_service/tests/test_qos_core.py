@@ -12,6 +12,27 @@ def test_qos_from_request_defaults():
     assert qos["service_priority"] == int(preset["service_priority"])
 
 
+def test_qos_from_request_with_nested_requirements():
+    payload = {
+        "service_type": "embb",
+        "service_priority": 12,
+        "qos_requirements": {
+            "latency_requirement_ms": -5,
+            "throughput_requirement_mbps": 150000,
+            "jitter_ms": 15,
+            "reliability_pct": 150,
+        },
+    }
+
+    qos = qos_from_request(payload)
+
+    assert qos["service_priority"] == 10  # clamped
+    assert qos["latency_requirement_ms"] == 0.0
+    assert qos["throughput_requirement_mbps"] == 100000.0
+    assert qos["jitter_ms"] == 15.0
+    assert qos["reliability_pct"] == 100.0
+
+
 def test_extract_features_includes_qos(tmp_path):
     # Create a selector with default config and call extract_features with QoS fields
     selector = AntennaSelector(model_path=None, neighbor_count=0, config_path=str(tmp_path / "features.yaml"))

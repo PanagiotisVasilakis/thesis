@@ -1094,3 +1094,15 @@ A: 5 minutes (but 10+ recommended for good statistics)
 
 **Your thesis is now fully equipped for excellent results!** 🎓
 
+### QoS Data Capture
+
+The ML phase now takes three QoS snapshots (evenly spaced across the run) and exports:
+
+- `metrics/ml_snapshot_1.json` – instant Prometheus dump with per-service compliance, violations, and adaptive confidence.
+- `metrics/ml_snapshot_2.json`
+- `metrics/ml_snapshot_3.json`
+- `qos/qos_summary.json` – filtered summary extracted from `comparison_summary.json`.
+- `qos/04_qos_metrics_comparison.png` & `qos/05_qos_violations_by_service_type.png` – dedicated QoS visuals copied from the comparison tool output.
+
+These are produced automatically; no manual steps required.
+

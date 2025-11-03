@@ -17,6 +17,14 @@ HANDOVER_FALLBACKS = Counter(
     registry=REGISTRY
 )
 
+# Count fallback decisions by service type and reason (QoS, confidence, etc.)
+HANDOVER_FALLBACKS_BY_SERVICE = Counter(
+    'nef_handover_fallback_service_total',
+    'Number of ML handover fallbacks grouped by service type and reason',
+    ['service_type', 'reason'],
+    registry=REGISTRY,
+)
+
 # Record compliance outcomes of ML predictions when QoS checks are applied
 HANDOVER_COMPLIANCE = Counter(
     'nef_handover_compliance_total',

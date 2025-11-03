@@ -48,9 +48,58 @@ DEFAULT_QOS_FEATURES: Dict[str, float | int | str] = {
 def apply_qos_defaults(sample: Dict[str, float | int | str]) -> Dict[str, float | int | str]:
     """Ensure QoS-related features are populated for test data."""
 
+    if 'latency_requirement_ms' not in sample or 'observed_latency_ms' not in sample:
+        populate_synthetic_qos(sample)
+
     for key, value in DEFAULT_QOS_FEATURES.items():
         sample.setdefault(key, value)
+
+    latency_req = float(sample.get('latency_requirement_ms', DEFAULT_QOS_FEATURES['latency_requirement_ms']))
+    throughput_req = float(sample.get('throughput_requirement_mbps', DEFAULT_QOS_FEATURES['throughput_requirement_mbps']))
+    reliability_req = float(sample.get('reliability_pct', DEFAULT_QOS_FEATURES['reliability_pct']))
+
+    latency_obs = float(sample.setdefault('observed_latency_ms', sample.get('latency_ms', latency_req)))
+    throughput_obs = float(sample.setdefault('observed_throughput_mbps', sample.get('throughput_mbps', throughput_req)))
+    jitter_obs = float(sample.setdefault('observed_jitter_ms', sample.get('jitter_ms', DEFAULT_QOS_FEATURES['jitter_ms'])))
+    loss_obs = float(sample.setdefault('observed_packet_loss_rate', sample.get('packet_loss_rate', DEFAULT_QOS_FEATURES['packet_loss_rate'])))
+
+    sample.setdefault('latency_delta_ms', latency_obs - latency_req)
+    sample.setdefault('throughput_delta_mbps', throughput_obs - throughput_req)
+    observed_reliability = max(0.0, 100.0 - loss_obs)
+    sample.setdefault('reliability_delta_pct', observed_reliability - reliability_req)
+
     return sample
+
+
+def populate_synthetic_qos(sample: Dict[str, float | int | str]) -> None:
+    """Populate synthetic QoS requirements and observations based on RF context."""
+
+    rsrp_current = float(sample.get('rsrp_current', -85.0))
+    cell_load = float(sample.get('cell_load', 0.5))
+    mobility = float(sample.get('speed', 5.0))
+
+    quality = max(0.0, min(1.0, (rsrp_current + 120.0) / 50.0))
+    load_penalty = min(1.5, cell_load * 1.5)
+    mobility_penalty = min(1.0, mobility / 40.0)
+
+    latency_req = 20.0 + (1.0 - quality) * 40.0 + load_penalty * 10.0
+    throughput_req = 100.0 + quality * 120.0 - load_penalty * 35.0
+    reliability_req = 97.0 + quality * 2.0 - load_penalty * 0.8
+
+    observed_latency = latency_req * (1.0 + load_penalty * 0.15 + mobility_penalty * 0.1)
+    throughput_factor = max(0.3, min(1.2, quality + 0.2 - load_penalty * 0.15))
+    observed_throughput = throughput_req * throughput_factor
+    observed_jitter = max(0.2, observed_latency * (0.015 + load_penalty * 0.03))
+    loss_penalty = max(0.1, (1.0 - quality) + load_penalty * 0.2)
+    observed_loss = min(25.0, loss_penalty * 4.0)
+
+    sample['latency_requirement_ms'] = round(latency_req, 3)
+    sample['throughput_requirement_mbps'] = round(max(10.0, throughput_req), 3)
+    sample['reliability_pct'] = round(min(99.99, reliability_req), 4)
+    sample['observed_latency_ms'] = round(observed_latency, 3)
+    sample['observed_throughput_mbps'] = round(max(5.0, observed_throughput), 3)
+    sample['observed_jitter_ms'] = round(observed_jitter, 4)
+    sample['observed_packet_loss_rate'] = round(observed_loss, 4)
 
 
 class DummyAntenna:
@@ -150,6 +199,7 @@ def create_training_data(num_samples: int = 100, num_antennas: int = 3) -> List[
             sample[f'rsrq_a{j+1}'] = rsrq
             sample[f'neighbor_cell_load_a{j+1}'] = 0.3 + (j * 0.1)
         
+        populate_synthetic_qos(sample)
         apply_qos_defaults(sample)
         data.append(sample)
     
@@ -276,6 +326,7 @@ def test_overlapping_coverage_similar_rsrp(trained_multi_antenna_selector):
         'neighbor_cell_load_a5': 0.4,
     }
 
+    populate_synthetic_qos(overlapping_scenario)
     apply_qos_defaults(overlapping_scenario)
 
     for idx in range(6, 11):
@@ -349,6 +400,7 @@ def test_scalability_with_increasing_antennas(num_antennas, trained_multi_antenn
         features[f'rsrq_a{antenna_idx}'] = -9.0 - i
         features[f'neighbor_cell_load_a{antenna_idx}'] = 0.3 + (i * 0.05)
     
+    populate_synthetic_qos(features)
     apply_qos_defaults(features)
 
     # Pad remaining slots if needed (model supports up to 10)
@@ -453,6 +505,7 @@ def test_rapid_movement_through_cells(trained_multi_antenna_selector):
             features[f'rsrq_a{j+1}'] = -20.0
             features[f'neighbor_cell_load_a{j+1}'] = 0.0
         
+        populate_synthetic_qos(features)
         apply_qos_defaults(features)
 
         result = selector.predict(features)
@@ -559,6 +612,7 @@ def test_load_balancing_across_antennas(trained_multi_antenna_selector):
             features[f'rsrq_a{j+1}'] = -20.0
             features[f'neighbor_cell_load_a{j+1}'] = 0.0
         
+        populate_synthetic_qos(features)
         apply_qos_defaults(features)
 
         result = selector.predict(features)
@@ -646,6 +700,7 @@ def test_edge_case_all_antennas_similar_rsrp(trained_multi_antenna_selector):
         'neighbor_cell_load_a7': 0.2,
     }
 
+    populate_synthetic_qos(features)
     apply_qos_defaults(features)
     
     # Pad remaining
@@ -739,6 +794,7 @@ def test_high_speed_ue_handover_stability(trained_multi_antenna_selector):
             features[f'rsrq_a{j+1}'] = -20.0
             features[f'neighbor_cell_load_a{j+1}'] = 0.0
         
+        populate_synthetic_qos(features)
         apply_qos_defaults(features)
 
         result = selector.predict(features)
@@ -845,6 +901,7 @@ def test_multi_antenna_pingpong_prevention(trained_multi_antenna_selector):
             features[f'rsrq_a{i+1}'] = -20.0
             features[f'neighbor_cell_load_a{i+1}'] = 0.0
         
+        populate_synthetic_qos(features)
         apply_qos_defaults(features)
 
         result = selector.predict(features)
@@ -913,6 +970,7 @@ def test_antenna_density_performance(trained_multi_antenna_selector):
         'connected_to': 'antenna_5',
     }
 
+    populate_synthetic_qos(features)
     apply_qos_defaults(features)
     
     # Add 10 antennas with varying characteristics
@@ -1023,6 +1081,7 @@ def test_thesis_scenario_overlapping_coverage_5_antennas():
         'neighbor_cell_load_a5': 0.5,
     }
 
+    populate_synthetic_qos(demo_features)
     apply_qos_defaults(demo_features)
     
     # ML prediction
@@ -1109,6 +1168,7 @@ def test_coverage_hole_with_multiple_weak_options():
         'neighbor_cell_load_a4': 0.5,
     }
 
+    populate_synthetic_qos(features)
     apply_qos_defaults(features)
     
     # Pad remaining
@@ -1181,6 +1241,7 @@ def test_ml_decision_consistency_with_many_antennas():
         'connected_to': 'antenna_3',
     }
 
+    populate_synthetic_qos(base_features)
     apply_qos_defaults(base_features)
     
     # Add 10 antennas
@@ -1289,6 +1350,7 @@ def test_thesis_claim_ml_handles_3plus_antennas_better():
         'neighbor_cell_load_a5': 0.35,
     }
 
+    populate_synthetic_qos(complex_scenario)
     apply_qos_defaults(complex_scenario)
     
     # Pad remaining
@@ -1382,6 +1444,7 @@ def test_prediction_latency_scales_with_antennas(num_antennas):
         'connected_to': 'antenna_1',
     }
 
+    populate_synthetic_qos(features)
     apply_qos_defaults(features)
     
     # Add antenna metrics
@@ -1468,6 +1531,7 @@ def test_generate_thesis_demonstration_dataset(tmp_path):
             'connected_to': 'antenna_1',
         }
 
+        populate_synthetic_qos(features)
         apply_qos_defaults(features)
         
         # Add metrics for all antennas

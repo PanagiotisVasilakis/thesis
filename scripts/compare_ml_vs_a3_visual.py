@@ -43,6 +43,7 @@ plt.rcParams['font.size'] = 10
 # Add parent directory to path for imports
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "5g-network-optimization"))
 
 from services.logging_config import configure_logging
 import logging
@@ -109,6 +110,21 @@ class PrometheusClient:
         except (KeyError, IndexError, ValueError):
             return []
 
+    def extract_vector(self, result: Dict, label: str) -> Dict[str, float]:
+        """Extract vector results grouped by label (e.g., service_type)."""
+        output: Dict[str, float] = {}
+        try:
+            if result['status'] != 'success':
+                return output
+            for entry in result['data'].get('result', []):
+                metric = entry.get('metric', {})
+                label_value = metric.get(label, 'unknown')
+                value = float(entry['value'][1])
+                output[label_value] = value
+        except (KeyError, IndexError, ValueError):
+            return output
+        return output
+
 
 class MetricsCollector:
     """Collects metrics from both ML and A3 modes."""
@@ -151,7 +167,21 @@ class MetricsCollector:
         
         qos_failed = self.prom.query('nef_handover_compliance_total{outcome="failed"}')
         metrics['qos_compliance_failed'] = self.prom.extract_value(qos_failed)
-        
+
+        # QoS compliance by service type
+        compliance_pass = self.prom.query('sum(ml_qos_compliance_total{outcome="passed"}) by (service_type)')
+        compliance_fail = self.prom.query('sum(ml_qos_compliance_total{outcome="failed"}) by (service_type)')
+        metrics['qos_compliance_by_service'] = self.prom.extract_vector(compliance_pass, 'service_type')
+        metrics['qos_failures_by_service'] = self.prom.extract_vector(compliance_fail, 'service_type')
+
+        # QoS violations by metric
+        violation_metric = self.prom.query('sum(ml_qos_violation_total) by (metric)')
+        metrics['qos_violations_by_metric'] = self.prom.extract_vector(violation_metric, 'metric')
+
+        # Adaptive confidence thresholds per service
+        adaptive_conf = self.prom.query('ml_qos_adaptive_confidence')
+        metrics['adaptive_confidence'] = self.prom.extract_vector(adaptive_conf, 'service_type')
+ 
         # Prediction requests
         predictions = self.prom.query('ml_prediction_requests_total')
         metrics['total_predictions'] = self.prom.extract_value(predictions)
@@ -237,19 +267,22 @@ class ComparisonVisualizer:
         # 3. QoS compliance
         plots.append(self._plot_qos_compliance(ml_metrics, a3_metrics))
         
-        # 4. Handover intervals
+        # 4. QoS violations
+        plots.append(self._plot_qos_violations(ml_metrics, a3_metrics))
+
+        # 5. Handover intervals
         plots.append(self._plot_handover_intervals(ml_metrics, a3_metrics))
         
-        # 5. ML-specific: ping-pong suppression breakdown
+        # 6. ML-specific: ping-pong suppression breakdown
         plots.append(self._plot_suppression_breakdown(ml_metrics))
         
-        # 6. Confidence distribution (ML only)
+        # 7. Confidence distribution (ML only)
         plots.append(self._plot_confidence_metrics(ml_metrics))
         
-        # 7. Comprehensive comparison grid
+        # 8. Comprehensive comparison grid
         plots.append(self._plot_comprehensive_comparison(ml_metrics, a3_metrics))
         
-        # 8. Time series plots (if available)
+        # 9. Time series plots (if available)
         if ml_timeseries:
             plots.append(self._plot_timeseries_comparison(ml_timeseries, a3_timeseries))
         
@@ -377,45 +410,130 @@ class ComparisonVisualizer:
         return output_path
     
     def _plot_qos_compliance(self, ml: Dict, a3: Dict) -> Path:
-        """Plot QoS compliance comparison."""
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        # Calculate compliance rates
-        ml_qos_total = ml['qos_compliance_ok'] + ml['qos_compliance_failed']
-        ml_compliance_rate = (ml['qos_compliance_ok'] / ml_qos_total * 100) if ml_qos_total > 0 else 0
-        
-        # A3 doesn't track QoS compliance explicitly, use estimate or same metric if available
-        a3_qos_total = a3.get('qos_compliance_ok', 0) + a3.get('qos_compliance_failed', 0)
-        if a3_qos_total > 0:
-            a3_compliance_rate = (a3.get('qos_compliance_ok', 0) / a3_qos_total * 100)
-        else:
-            a3_compliance_rate = 85.0  # Conservative baseline estimate
-        
-        modes = ['A3 Rule', 'ML Mode']
-        compliance_rates = [a3_compliance_rate, ml_compliance_rate]
-        colors = ['#FF9999', '#99FF99']
-        
-        bars = ax.bar(modes, compliance_rates, color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
-        
-        for bar, rate in zip(bars, compliance_rates):
+        """Plot QoS compliance comparison with adaptive thresholds."""
+        services = sorted(
+            set(list(ml.get('qos_compliance_by_service', {}).keys()))
+        ) or ['default']
+
+        ml_pass = ml.get('qos_compliance_by_service', {})
+        ml_fail = ml.get('qos_failures_by_service', {})
+        a3_pass = a3.get('qos_compliance_by_service', {})
+        a3_fail = a3.get('qos_failures_by_service', {})
+        adaptive = ml.get('adaptive_confidence', {})
+
+        ml_rates = []
+        a3_rates = []
+        adaptive_points = []
+
+        for service in services:
+            ml_total = ml_pass.get(service, 0.0) + ml_fail.get(service, 0.0)
+            ml_rate = (ml_pass.get(service, 0.0) / ml_total * 100) if ml_total > 0 else 0.0
+            ml_rates.append(ml_rate)
+
+            a3_total = a3_pass.get(service, 0.0) + a3_fail.get(service, 0.0)
+            if a3_total > 0:
+                a3_rate = (a3_pass.get(service, 0.0) / a3_total * 100)
+            else:
+                # Conservative baseline if A3 data not available
+                a3_rate = 85.0
+            a3_rates.append(a3_rate)
+
+            adaptive_points.append(adaptive.get(service, 0.5) * 100)
+
+        x = np.arange(len(services))
+        width = 0.35
+
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        a3_bars = ax.bar(x - width/2, a3_rates, width, label='A3 Rule', color='#FF9999', alpha=0.8, edgecolor='black')
+        ml_bars = ax.bar(x + width/2, ml_rates, width, label='ML Mode', color='#99FF99', alpha=0.85, edgecolor='black')
+
+        for bar in list(a3_bars) + list(ml_bars):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
-                   f'{rate:.1f}%',
-                   ha='center', va='bottom', fontsize=12, fontweight='bold')
-        
-        ax.set_ylabel('QoS Compliance Rate (%)', fontsize=12, fontweight='bold')
-        ax.set_title('QoS Compliance Comparison', fontsize=14, fontweight='bold')
+            ax.text(bar.get_x() + bar.get_width()/2., height + 1,
+                    f'{height:.1f}%', ha='center', fontsize=9, fontweight='bold')
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([svc.upper() for svc in services], fontsize=11)
+        ax.set_ylabel('Compliance Rate (%)', fontsize=12, fontweight='bold')
+        ax.set_title('QoS Compliance by Service Type', fontsize=14, fontweight='bold')
+        ax.axhline(y=95, color='red', linestyle='--', linewidth=2, label='Target: 95%')
         ax.set_ylim([0, 105])
-        ax.grid(True, alpha=0.3, axis='y')
-        ax.axhline(y=95, color='red', linestyle='--', label='Target: 95%', linewidth=2)
-        ax.legend()
-        
+        ax.grid(True, axis='y', alpha=0.3)
+
+        ax2 = ax.twinx()
+        ax2.plot(x, adaptive_points, color='#1E88E5', linewidth=2.0, marker='o', label='Adaptive Confidence')
+        ax2.set_ylabel('Adaptive Confidence Threshold (%)', color='#1E88E5', fontsize=12, fontweight='bold')
+        ax2.set_ylim([0, 100])
+        ax2.tick_params(axis='y', labelcolor='#1E88E5')
+
+        handles, labels = ax.get_legend_handles_labels()
+        handles2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(handles + handles2, labels + labels2, loc='lower right', fontsize=10)
+
         plt.tight_layout()
-        output_path = self.output_dir / "03_qos_compliance_comparison.png"
+        output_path = self.output_dir / "04_qos_metrics_comparison.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
-        
-        logger.info(f"Created QoS compliance comparison: {output_path}")
+
+        logger.info(f"Created QoS metrics comparison: {output_path}")
+        return output_path
+
+    def _plot_qos_violations(self, ml: Dict, a3: Dict) -> Path:
+        """Plot QoS violations by service type and metric."""
+        ml_viols = ml.get('qos_violations_by_metric', {})
+        if not ml_viols:
+            logger.warning("No QoS violation metrics available for visualization")
+            return None
+
+        metrics = list(sorted(ml_viols.keys()))
+        values = [ml_viols[m] for m in metrics]
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+        # Bar chart of violations by metric
+        bars = ax1.bar(metrics, values, color=['#EF476F', '#FFD166', '#06D6A0', '#118AB2'], edgecolor='black')
+        ax1.set_ylabel('Violations (count)', fontsize=12, fontweight='bold')
+        ax1.set_title('ML QoS Violations by Metric', fontsize=14, fontweight='bold')
+        ax1.grid(True, axis='y', alpha=0.3)
+        for bar in bars:
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width()/2., height + max(values) * 0.02,
+                     f'{height:.0f}', ha='center', fontsize=10, fontweight='bold')
+
+        # Heatmap by service type and reason if available
+        service_failures = ml.get('qos_failures_by_service', {})
+        services = sorted(service_failures.keys()) or ['default']
+        heatmap_data = []
+        for service in services:
+            row = []
+            for metric in metrics:
+                # approximate using totals when detailed breakdown missing
+                if metric == 'latency':
+                    row.append(service_failures.get(service, 0.0))
+                else:
+                    row.append(ml_viols.get(metric, 0.0))
+            heatmap_data.append(row)
+
+        sns.heatmap(
+            heatmap_data,
+            annot=True,
+            fmt='.0f',
+            cmap='YlOrRd',
+            xticklabels=[m.upper() for m in metrics],
+            yticklabels=[svc.upper() for svc in services],
+            ax=ax2
+        )
+        ax2.set_title('QoS Violations Heatmap', fontsize=14, fontweight='bold')
+        ax2.set_xlabel('Metric', fontsize=12, fontweight='bold')
+        ax2.set_ylabel('Service Type', fontsize=12, fontweight='bold')
+
+        plt.tight_layout()
+        output_path = self.output_dir / "05_qos_violations_by_service_type.png"
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+
+        logger.info(f"Created QoS violation visualization: {output_path}")
         return output_path
     
     def _plot_handover_intervals(self, ml: Dict, a3: Dict) -> Path:
@@ -461,7 +579,7 @@ class ComparisonVisualizer:
                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightgreen', alpha=0.7))
         
         plt.tight_layout()
-        output_path = self.output_dir / "04_handover_interval_comparison.png"
+        output_path = self.output_dir / "06_handover_interval_comparison.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -519,7 +637,7 @@ class ComparisonVisualizer:
             ax2.set_title('ML Handover Decision Disposition', fontsize=13, fontweight='bold')
         
         plt.tight_layout()
-        output_path = self.output_dir / "05_suppression_breakdown.png"
+        output_path = self.output_dir / "07_suppression_breakdown.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -554,7 +672,7 @@ class ComparisonVisualizer:
         ax.legend(loc='lower right', fontsize=10)
         
         plt.tight_layout()
-        output_path = self.output_dir / "06_confidence_metrics.png"
+        output_path = self.output_dir / "08_confidence_metrics.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -661,7 +779,7 @@ class ComparisonVisualizer:
         axes[1, 1].set_title('Summary Statistics', fontsize=13, fontweight='bold', pad=20)
         
         plt.tight_layout()
-        output_path = self.output_dir / "07_comprehensive_comparison.png"
+        output_path = self.output_dir / "09_comprehensive_comparison.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
@@ -705,7 +823,7 @@ class ComparisonVisualizer:
             axes[1].grid(True, alpha=0.3)
         
         plt.tight_layout()
-        output_path = self.output_dir / "08_timeseries_comparison.png"
+        output_path = self.output_dir / "10_timeseries_comparison.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         

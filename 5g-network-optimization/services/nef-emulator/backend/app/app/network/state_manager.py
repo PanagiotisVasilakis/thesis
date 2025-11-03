@@ -4,6 +4,10 @@ import logging
 import os
 from datetime import datetime, timezone
 import math
+from typing import Dict, Optional
+
+from ..monitoring import QoSMonitor
+from ..simulation.qos_simulator import QoSSimulator
 
 
 class NetworkStateManager:
@@ -69,6 +73,10 @@ class NetworkStateManager:
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
         self.resource_blocks = max(int(resource_blocks), 1)
 
+        # QoS monitoring (Phase 1.1 / 1.2): track observed latency/jitter/throughput/loss
+        self.qos_monitor = QoSMonitor()
+        self.qos_simulator = QoSSimulator()
+
     def get_feature_vector(self, ue_id):
         """
         Return a dict of features for ML based on current state.
@@ -121,7 +129,7 @@ class NetworkStateManager:
                 antenna_loads[conn] += 1
         antenna_loads = {aid: antenna_loads[aid] for aid, _ in ordered}
 
-        features = {
+        features: Dict[str, object] = {
             "ue_id": ue_id,
             "latitude": x,
             "longitude": y,
@@ -133,7 +141,51 @@ class NetworkStateManager:
             "neighbor_rsrqs": neighbor_rsrqs,
             "neighbor_cell_loads": antenna_loads,
         }
+
+        # Generate synthetic QoS observations for the current snapshot.
+        try:
+            simulation_context = {
+                "position": state["position"],
+                "speed": speed,
+                "connected_to": connected,
+                "neighbor_rsrp_dbm": rsrp_dbm,
+                "neighbor_cell_loads": antenna_loads,
+            }
+            simulated = self.qos_simulator.estimate(simulation_context)
+            if simulated:
+                self.qos_monitor.update_qos_metrics(ue_id, simulated)
+        except Exception:  # noqa: BLE001 - defensive
+            self.logger.exception("Failed to simulate QoS metrics for UE %s", ue_id)
+
+        observed_qos = self.qos_monitor.get_qos_metrics(ue_id)
+        if observed_qos is not None:
+            features["observed_qos"] = observed_qos
         return features
+
+    # ------------------------------------------------------------------
+    # QoS helpers
+    # ------------------------------------------------------------------
+    def record_qos_measurement(self, ue_id: str, metrics: Dict[str, float]) -> None:
+        """Record a QoS measurement for ``ue_id``.
+
+        Parameters
+        ----------
+        ue_id: str
+            UE identifier.
+        metrics: Dict[str, float]
+            Dict containing "latency_ms", "jitter_ms", "throughput_mbps",
+            and "packet_loss_rate".
+        """
+
+        try:
+            self.qos_monitor.update_qos_metrics(ue_id, metrics)
+        except Exception:  # noqa: BLE001 - log and continue
+            self.logger.exception("Failed to record QoS metrics for UE %s", ue_id)
+
+    def get_observed_qos(self, ue_id: str) -> Optional[Dict[str, float]]:
+        """Return observed QoS aggregates for ``ue_id`` if available."""
+
+        return self.qos_monitor.get_qos_metrics(ue_id)
 
     def apply_handover_decision(self, ue_id, target_antenna_id):
         """Apply an ML-driven handover decision or rule-based one."""

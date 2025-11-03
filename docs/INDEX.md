@@ -31,6 +31,8 @@ Use this page as the entry point for the repository documentation. The sections 
 ## Configuration & QoS
 
 - [`docs/architecture/qos.md`](architecture/qos.md) – **Canonical reference for QoS flows, admission control, metrics, configuration, feature store integration, validation architecture, data drift monitoring, and feature transforms.**
+- [`QOS_INTEGRATION_PLAN.md`](../QOS_INTEGRATION_PLAN.md) – **ROADMAP**: 5-phase plan for full QoS integration with real metrics, compliance engine, and closed-loop adaptation
+- [`QOS_MODEL_PERFORMANCE.md`](QOS_MODEL_PERFORMANCE.md) – **RESULTS**: Latest QoS-aware training run, feature importances, and retraining workflow guidance
 
 ## Observability
 

@@ -126,6 +126,34 @@ base_features:
     transform: float
     min: 0.0
     max: 100.0
+  - name: observed_latency_ms
+    transform: float
+    min: 0.0
+    max: 500.0
+  - name: observed_jitter_ms
+    transform: float
+    min: 0.0
+    max: 200.0
+  - name: observed_throughput_mbps
+    transform: float
+    min: 0.0
+    max: 10000.0
+  - name: observed_packet_loss_rate
+    transform: float
+    min: 0.0
+    max: 100.0
+  - name: latency_delta_ms
+    transform: float
+    min: -500.0
+    max: 500.0
+  - name: throughput_delta_mbps
+    transform: float
+    min: -10000.0
+    max: 10000.0
+  - name: reliability_delta_pct
+    transform: float
+    min: -100.0
+    max: 100.0
 qos_profiles:
   default:
     metrics:

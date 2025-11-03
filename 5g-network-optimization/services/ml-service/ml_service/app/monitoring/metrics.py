@@ -146,6 +146,49 @@ HANDOVER_INTERVAL = Histogram(
     registry=REGISTRY,
 )
 
+# QoS compliance tracking
+QOS_COMPLIANCE_CHECKS = Counter(
+    'ml_qos_compliance_total',
+    'Number of QoS compliance evaluations',
+    ['service_type', 'outcome'],
+    registry=REGISTRY,
+)
+
+QOS_VIOLATION_REASONS = Counter(
+    'ml_qos_violation_total',
+    'QoS violation reasons encountered by the ML predictor',
+    ['service_type', 'metric'],
+    registry=REGISTRY,
+)
+
+QOS_LATENCY_OBSERVED = Histogram(
+    'ml_qos_latency_observed_ms',
+    'Observed latency for QoS compliance evaluations',
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 250.0, 500.0, 1000.0],
+    registry=REGISTRY,
+)
+
+QOS_THROUGHPUT_OBSERVED = Histogram(
+    'ml_qos_throughput_observed_mbps',
+    'Observed throughput for QoS compliance evaluations',
+    buckets=[0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0, 10000.0],
+    registry=REGISTRY,
+)
+
+QOS_FEEDBACK_EVENTS = Counter(
+    'ml_qos_feedback_total',
+    'Number of QoS feedback samples received from the NEF emulator',
+    ['service_type', 'outcome'],
+    registry=REGISTRY,
+)
+
+ADAPTIVE_CONFIDENCE = Gauge(
+    'ml_qos_adaptive_confidence',
+    'Adaptive confidence threshold per service type',
+    ['service_type'],
+    registry=REGISTRY,
+)
+
 class MetricsMiddleware:
     """Middleware to track metrics for API endpoints."""
 
@@ -187,6 +230,27 @@ def track_prediction(antenna_id, confidence):
     """Track antenna prediction."""
     ANTENNA_PREDICTIONS.labels(antenna_id=antenna_id).inc()
     PREDICTION_CONFIDENCE.labels(antenna_id=antenna_id).set(confidence)
+
+
+def track_qos_compliance(service_type: str | None, passed: bool, violations: List[Dict[str, Any]] | None = None, observed: Dict[str, Any] | None = None) -> None:
+    """Record QoS compliance outcome and violation details."""
+
+    label = service_type or "unknown"
+    outcome = 'passed' if passed else 'failed'
+    QOS_COMPLIANCE_CHECKS.labels(service_type=label, outcome=outcome).inc()
+
+    if observed:
+        latency = observed.get("latency_ms")
+        throughput = observed.get("throughput_mbps")
+        if isinstance(latency, (int, float)):
+            QOS_LATENCY_OBSERVED.observe(float(latency))
+        if isinstance(throughput, (int, float)):
+            QOS_THROUGHPUT_OBSERVED.observe(float(throughput))
+
+    if not passed and violations:
+        for violation in violations:
+            metric = violation.get('metric', 'unknown')
+            QOS_VIOLATION_REASONS.labels(service_type=label, metric=metric).inc()
 
 def store_feature_importance(feature_importance: Dict[str, float], path: str | None = None) -> None:
     """Persist feature importance values to a JSON file.

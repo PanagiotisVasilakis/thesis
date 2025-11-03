@@ -214,6 +214,30 @@ curl -X POST http://localhost:5050/api/predict \
 
 ---
 
+## 🔄 NEW: QoS Integration Roadmap
+
+**Just Added**: Comprehensive plan for full QoS implementation with real network metrics!
+
+**Current QoS**: Confidence-based gating (placeholder)  
+**Full QoS**: Real latency/throughput measurement + multi-criteria compliance + adaptive thresholds  
+
+**Impact**: Transform thesis from "ML is better" to "ML achieves 95% URLLC compliance vs 65% for A3"
+
+**Time Investment**:
+- Minimum Viable: 30-45 hours (Phases 1, 3, 5)
+- Full Implementation: 57-83 hours (All 5 phases)
+
+**Read More**:
+- **Quick Summary**: [🔄_QOS_INTEGRATION_ROADMAP.md](🔄_QOS_INTEGRATION_ROADMAP.md) (5 min)
+- **Full Plan**: [QOS_INTEGRATION_PLAN.md](QOS_INTEGRATION_PLAN.md) (20 min)
+
+**When to Implement**:
+- ✅ Before thesis defense if you want exceptional QoS claims
+- ⚠️ After defense if time-constrained (current system is already strong)
+- 📊 Discuss timeline with supervisor first
+
+---
+
 ## 🎓 For Your Thesis Defense
 
 ### Key Demonstration Points

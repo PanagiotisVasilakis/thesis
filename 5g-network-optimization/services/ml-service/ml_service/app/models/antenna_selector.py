@@ -22,6 +22,8 @@ from ..features.transform_registry import (
     apply_feature_transforms,
 )
 from ..data.feature_extractor import HandoverTracker
+from ..data import AntennaQoSProfiler, QoSHistoryTracker
+from ..core.adaptive_qos import adaptive_qos_manager
 
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
@@ -216,6 +218,12 @@ class AntennaSelector(AsyncModelInterface):
 
         # Initialize handover tracker for ping-pong prevention
         self.handover_tracker = HandoverTracker()
+        self.antenna_profiler = AntennaQoSProfiler()
+        self.qos_history = QoSHistoryTracker()
+        self.qos_bias_enabled = os.getenv("QOS_BIAS_ENABLED", "1").lower() not in {"0", "false", "no"}
+        self.qos_bias_min_samples = int(os.getenv("QOS_BIAS_MIN_SAMPLES", "5"))
+        self.qos_bias_success_threshold = float(os.getenv("QOS_BIAS_SUCCESS_THRESHOLD", "0.9"))
+        self.qos_bias_min_multiplier = float(os.getenv("QOS_BIAS_MIN_MULTIPLIER", "0.35"))
         
         # Anti-ping-pong configuration from environment
         self.min_handover_interval_s = float(os.getenv("MIN_HANDOVER_INTERVAL_S", "2.0"))
@@ -312,6 +320,7 @@ class AntennaSelector(AsyncModelInterface):
             # Merge and ensure features contain QoS keys
             features.setdefault("service_type", qos.get("service_type"))
             features.setdefault("service_priority", qos.get("service_priority"))
+            features.setdefault("service_type_label", qos.get("service_type"))
             features.setdefault("latency_requirement_ms", qos.get("latency_requirement_ms"))
             features.setdefault("throughput_requirement_mbps", qos.get("throughput_requirement_mbps"))
             features.setdefault("reliability_pct", qos.get("reliability_pct"))
@@ -324,6 +333,52 @@ class AntennaSelector(AsyncModelInterface):
                 features["packet_loss_rate"] = float(data.get("packet_loss_rate", 0.0) or 0.0)
             if "jitter_ms" not in features:
                 features["jitter_ms"] = float(data.get("jitter_ms", 0.0) or 0.0)
+
+            def _safe_float(value: Any, fallback: float = 0.0) -> float:
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return float(fallback)
+
+            observed_raw = data.get("observed_qos")
+            if not isinstance(observed_raw, dict):
+                summary = data.get("observed_qos_summary")
+                if isinstance(summary, dict):
+                    observed_raw = summary.get("latest")
+
+            observed_raw = observed_raw if isinstance(observed_raw, dict) else {}
+
+            obs_latency = _safe_float(
+                observed_raw.get("latency_ms"),
+                fallback=features.get("latency_ms", qos.get("latency_requirement_ms", 0.0)) or 0.0,
+            )
+            obs_throughput = _safe_float(
+                observed_raw.get("throughput_mbps"),
+                fallback=features.get("throughput_mbps", qos.get("throughput_requirement_mbps", 0.0)) or 0.0,
+            )
+            obs_jitter = _safe_float(
+                observed_raw.get("jitter_ms"),
+                fallback=features.get("jitter_ms", 0.0) or 0.0,
+            )
+            obs_loss = _safe_float(
+                observed_raw.get("packet_loss_rate"),
+                fallback=features.get("packet_loss_rate", 0.0) or 0.0,
+            )
+
+            features["observed_latency_ms"] = obs_latency
+            features["observed_throughput_mbps"] = obs_throughput
+            features["observed_jitter_ms"] = obs_jitter
+            features["observed_packet_loss_rate"] = obs_loss
+
+            req_latency = _safe_float(qos.get("latency_requirement_ms"), fallback=0.0)
+            req_throughput = _safe_float(qos.get("throughput_requirement_mbps"), fallback=0.0)
+            req_reliability = _safe_float(qos.get("reliability_pct"), fallback=0.0)
+
+            features["latency_delta_ms"] = obs_latency - req_latency
+            features["throughput_delta_mbps"] = obs_throughput - req_throughput
+
+            observed_reliability = max(0.0, 100.0 - obs_loss)
+            features["reliability_delta_pct"] = observed_reliability - req_reliability
         except Exception:
             # Non-fatal: if QoS derivation fails, continue with base features
             pass
@@ -370,6 +425,10 @@ class AntennaSelector(AsyncModelInterface):
             except NotFittedError:
                 pass
 
+        service_type_label = features.get("service_type_label") or features.get("service_type") or "default"
+        if isinstance(service_type_label, (int, float)):
+            service_type_label = str(service_type_label)
+
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
@@ -397,7 +456,16 @@ class AntennaSelector(AsyncModelInterface):
                     classes_ = np.asarray(prediction_model.classes_)
                 else:
                     classes_ = np.asarray(model.classes_)
-                    
+
+            adjusted_probabilities, bias_details, bias_applied = self._apply_qos_bias(
+                probabilities,
+                classes_,
+                service_type_label,
+            )
+
+            if bias_applied:
+                probabilities = adjusted_probabilities
+
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
@@ -407,6 +475,13 @@ class AntennaSelector(AsyncModelInterface):
                 "confidence": confidence
             }
             
+            if bias_applied:
+                result["qos_bias_applied"] = True
+                result["qos_bias_service_type"] = service_type_label
+                result["qos_bias_scores"] = bias_details
+            else:
+                result["qos_bias_applied"] = False
+
             # Add calibration indicator if calibrated model was used
             if hasattr(self, 'calibrated_model') and self.calibrated_model is not None:
                 result["confidence_calibrated"] = True
@@ -520,7 +595,104 @@ class AntennaSelector(AsyncModelInterface):
         result["handover_count_1min"] = handover_count
         result["time_since_last_handover"] = time_since_last
 
+        if result.get("qos_bias_applied"):
+            logger.info(
+                "QoS bias applied for UE %s (service=%s, penalties=%s)",
+                ue_id,
+                service_type_label,
+                result.get("qos_bias_scores"),
+            )
+
         return result
+
+    def _apply_qos_bias(
+        self,
+        probabilities: np.ndarray,
+        classes_: np.ndarray,
+        service_type: str | None,
+    ) -> tuple[np.ndarray, Dict[str, float], bool]:
+        """Reduce probabilities for antennas with poor QoS track record."""
+
+        if not self.qos_bias_enabled or not getattr(self, "antenna_profiler", None):
+            return probabilities, {}, False
+
+        service_label = (service_type or "default").lower()
+        adjusted = probabilities.astype(float).copy()
+        bias_details: Dict[str, float] = {}
+        bias_applied = False
+
+        for idx, antenna in enumerate(classes_):
+            antenna_id = str(antenna)
+            profile = self.antenna_profiler.get_profile(antenna_id, service_label)
+            success_rate = profile.get("success_rate")
+            sample_count = profile.get("sample_count", 0)
+            if success_rate is None or sample_count < self.qos_bias_min_samples:
+                continue
+
+            if success_rate < self.qos_bias_success_threshold:
+                penalty = max(
+                    self.qos_bias_min_multiplier,
+                    success_rate / self.qos_bias_success_threshold,
+                )
+                adjusted[idx] *= penalty
+                bias_details[antenna_id] = float(penalty)
+                bias_applied = True
+
+        if not bias_applied:
+            return probabilities, bias_details, False
+
+        total = adjusted.sum()
+        if total <= 0:
+            return probabilities, bias_details, False
+
+        adjusted /= total
+        return adjusted, bias_details, True
+
+    def record_qos_feedback(
+        self,
+        *,
+        ue_id: str,
+        antenna_id: str,
+        service_type: str,
+        metrics: Dict[str, float],
+        passed: bool,
+        confidence: float = 0.0,
+        qos_requirements: Dict[str, float] | None = None,
+        timestamp: float | None = None,
+    ) -> None:
+        metrics_clean: Dict[str, float] = {}
+        for key, value in (metrics or {}).items():
+            try:
+                metrics_clean[key] = float(value)
+            except (TypeError, ValueError):
+                continue
+
+        self.qos_history.record(
+            ue_id=ue_id,
+            service_type=service_type,
+            metrics=metrics_clean,
+            passed=passed,
+            timestamp=timestamp,
+        )
+
+        self.antenna_profiler.record(
+            antenna_id=antenna_id,
+            service_type=service_type,
+            metrics=metrics_clean,
+            passed=passed,
+            timestamp=timestamp,
+        )
+
+        adaptive_qos_manager.observe_feedback(service_type, passed)
+
+    def get_qos_history_snapshot(self, ue_id: str, window_seconds: float | None = None) -> Dict[str, object]:
+        return self.qos_history.get_qos_history(ue_id, window_seconds)
+
+    def get_antenna_profile(self, antenna_id: str, service_type: str) -> Dict[str, object]:
+        return self.antenna_profiler.get_profile(antenna_id, service_type)
+
+    def get_adaptive_required_confidence(self, service_type: str, priority: int) -> float:
+        return adaptive_qos_manager.get_required_confidence(service_type, priority)
 
     async def predict_async(self, features: Dict[str, Any], priority: int = 5, timeout: Optional[float] = None) -> Dict[str, Any]:
         """Async prediction using the async model manager."""

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -114,6 +115,22 @@ class HandoverEngine:
             "connected_to": fv["connected_to"],
             "rf_metrics": rf_metrics,
         }
+        observed_qos = fv.get("observed_qos")
+        if isinstance(observed_qos, dict):
+            latest = observed_qos.get("latest") or {}
+            if isinstance(latest, dict):
+                simplified = {
+                    key: latest.get(key)
+                    for key in (
+                        "latency_ms",
+                        "jitter_ms",
+                        "throughput_mbps",
+                        "packet_loss_rate",
+                    )
+                    if latest.get(key) is not None
+                }
+                if simplified:
+                    ue_data["observed_qos"] = simplified
         logger = getattr(self.state_mgr, "logger", self.logger)
         if self.use_local_ml and self.model:
             try:
@@ -194,6 +211,7 @@ class HandoverEngine:
         self._update_mode()
         
         # Initialize decision log for thesis analysis
+        fv = None
         decision_log = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "ue_id": ue_id,
@@ -211,6 +229,7 @@ class HandoverEngine:
                 "latitude": fv.get("latitude"),
                 "longitude": fv.get("longitude")
             }
+            self._append_observed_qos(decision_log, fv.get("observed_qos"))
         except Exception as e:
             decision_log["feature_vector_error"] = str(e)
         
@@ -222,6 +241,7 @@ class HandoverEngine:
                 decision_log["ml_available"] = False
                 decision_log["fallback_reason"] = "ml_service_unavailable"
                 decision_log["fallback_to_a3"] = True
+                self._record_fallback_metrics(None, "ml_service_unavailable")
                 target = None
             else:
                 decision_log["ml_available"] = True
@@ -243,8 +263,17 @@ class HandoverEngine:
                         "required_confidence": qos_comp.get("required_confidence"),
                         "observed_confidence": qos_comp.get("observed_confidence"),
                         "service_type": qos_comp.get("details", {}).get("service_type"),
-                        "service_priority": qos_comp.get("details", {}).get("service_priority")
+                        "service_priority": qos_comp.get("details", {}).get("service_priority"),
+                        "violations": qos_comp.get("violations", []),
+                        "metrics": qos_comp.get("metrics"),
+                        "confidence_ok": qos_comp.get("confidence_ok", True),
                     }
+
+                    self._attach_qos_deltas(
+                        decision_log["qos_compliance"],
+                        qos_comp.get("details", {}),
+                        (decision_log.get("observed_qos") or {}).get("latest", {}),
+                    )
                     
                     # record compliance metric
                     try:
@@ -253,9 +282,16 @@ class HandoverEngine:
                         pass
                     
                     if not ok:
+                        if qos_comp.get("violations"):
+                            decision_log["qos_violations"] = qos_comp.get("violations")
                         decision_log["fallback_reason"] = "qos_compliance_failed"
                         decision_log["fallback_to_a3"] = True
                         metrics.HANDOVER_FALLBACKS.inc()
+                        self._record_fallback_metrics(
+                            decision_log["qos_compliance"].get("service_type"),
+                            "qos_compliance_failed",
+                            qos_comp.get("violations"),
+                        )
                         target = self._select_rule(ue_id)
                         decision_log["a3_fallback_target"] = target
                         
@@ -278,6 +314,7 @@ class HandoverEngine:
                         decision_log["fallback_to_a3"] = True
                         decision_log["confidence_threshold"] = self.confidence_threshold
                         metrics.HANDOVER_FALLBACKS.inc()
+                        self._record_fallback_metrics(None, "low_confidence")
                         target = self._select_rule(ue_id)
                         decision_log["a3_fallback_target"] = target
         else:
@@ -306,5 +343,115 @@ class HandoverEngine:
         
         # Final log with complete decision trace
         self.logger.info(f"HANDOVER_APPLIED: {json.dumps(decision_log)}")
-        
+ 
+        try:
+            self._send_qos_feedback(ue_id, decision_log, fv)
+        except Exception as exc:  # noqa: BLE001
+            self.logger.exception("Failed to send QoS feedback", exc_info=exc)
+
         return handover_result
+
+    # ------------------------------------------------------------------
+    # Internal helpers for QoS-aware logging
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _append_observed_qos(decision_log: dict, observed_summary: Optional[dict]) -> None:
+        if not isinstance(observed_summary, dict):
+            return
+
+        decision_log["observed_qos"] = {
+            "sample_count": observed_summary.get("sample_count"),
+            "latest": observed_summary.get("latest"),
+            "avg": observed_summary.get("avg"),
+        }
+
+    @staticmethod
+    def _attach_qos_deltas(destination: dict, requirements: dict, observed: dict) -> None:
+        if not isinstance(destination, dict):
+            return
+        if not isinstance(requirements, dict) or not isinstance(observed, dict):
+            return
+
+        deltas = {}
+
+        req_latency = requirements.get("latency_requirement_ms")
+        obs_latency = observed.get("latency_ms")
+        if req_latency is not None and obs_latency is not None:
+            deltas["latency_ms"] = obs_latency - req_latency
+
+        req_tp = requirements.get("throughput_requirement_mbps")
+        obs_tp = observed.get("throughput_mbps")
+        if req_tp is not None and obs_tp is not None:
+            deltas["throughput_mbps"] = obs_tp - req_tp
+
+        req_reliability = requirements.get("reliability_pct")
+        obs_loss = observed.get("packet_loss_rate")
+        if req_reliability is not None and obs_loss is not None:
+            max_loss = max(0.0, 100.0 - float(req_reliability))
+            deltas["packet_loss_rate"] = obs_loss - max_loss
+
+        if deltas:
+            destination["observed_delta"] = deltas
+
+    @staticmethod
+    def _record_fallback_metrics(service_type: Optional[str], reason: str, violations: Optional[list] = None) -> None:
+        label = (service_type or "unknown").lower()
+        recorded = False
+
+        if violations:
+            for violation in violations:
+                metric = violation.get("metric") if isinstance(violation, dict) else None
+                if metric:
+                    metrics.HANDOVER_FALLBACKS_BY_SERVICE.labels(
+                        service_type=label,
+                        reason=f"qos_{metric}",
+                    ).inc()
+                    recorded = True
+
+        if not recorded:
+            metrics.HANDOVER_FALLBACKS_BY_SERVICE.labels(
+                service_type=label,
+                reason=reason,
+            ).inc()
+
+    def _send_qos_feedback(self, ue_id: str, decision_log: dict, fv: Optional[dict]) -> None:
+        if not self.use_ml:
+            return
+
+        compliance = decision_log.get("qos_compliance") or {}
+        service_type = compliance.get("service_type") or compliance.get("details", {}).get("service_type")
+        service_priority = compliance.get("service_priority") or compliance.get("details", {}).get("service_priority")
+        success = compliance.get("passed")
+
+        qos_requirements = compliance.get("details") or (fv.get("qos_requirements") if isinstance(fv, dict) else None)
+        observed = self.state_mgr.get_observed_qos(ue_id)
+        observed_latest = {}
+        if isinstance(observed, dict):
+            latest = observed.get("latest") if "latest" in observed else observed.get("avg")
+            if isinstance(latest, dict):
+                observed_latest = {
+                    key: latest.get(key)
+                    for key in ("latency_ms", "jitter_ms", "throughput_mbps", "packet_loss_rate")
+                    if latest.get(key) is not None
+                }
+
+        payload = {
+            "ue_id": ue_id,
+            "antenna_id": decision_log.get("final_target") or decision_log.get("current_antenna"),
+            "service_type": service_type or "default",
+            "service_priority": int(service_priority) if service_priority is not None else 5,
+            "confidence": float(decision_log.get("ml_confidence", 0.0)),
+            "success": bool(success) if success is not None else True,
+            "observed_qos": observed_latest,
+            "qos_requirements": qos_requirements,
+            "violations": compliance.get("violations"),
+            "timestamp": datetime.now(timezone.utc).timestamp(),
+        }
+
+        endpoint = f"{self.ml_service_url.rstrip('/')}/api/qos-feedback"
+        try:
+            self.logger.debug("Posting QoS feedback to %s: %s", endpoint, payload)
+            response = requests.post(endpoint, json=payload, timeout=3)
+            response.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("QoS feedback POST failed: %s", exc)

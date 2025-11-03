@@ -22,6 +22,17 @@ The `HandoverEngine.decide_and_apply()` method now logs comprehensive JSON for e
 - Final decision
 - Complete context
 
+### Prometheus Metrics
+
+To make these logs actionable, the implementation also emits structured metrics:
+
+- `ml_qos_compliance_total{service_type, outcome}` – counts QoS evaluations and pass/fail outcomes.
+- `ml_qos_violation_total{service_type, metric}` – counts specific QoS violation reasons (latency, throughput, jitter, reliability).
+- `ml_qos_latency_observed_ms` / `ml_qos_throughput_observed_mbps` – histograms of observed latency and throughput samples captured during QoS checks.
+- `nef_handover_fallback_service_total{service_type, reason}` – counts ML fallbacks grouped by service type and reason (QoS metric, low confidence, ML unavailability).
+- `ml_qos_feedback_total{service_type, outcome}` – counts QoS feedback events received from the NEF emulator.
+- `ml_qos_adaptive_confidence{service_type}` – tracks the adaptive confidence threshold currently applied per service.
+
 ---
 
 ## Log Format
@@ -94,6 +105,9 @@ INFO: HANDOVER_APPLIED: {json with decision + result}
 | `ml_prediction` | string | ML's suggested antenna |
 | `ml_confidence` | float | Prediction confidence (0-1) |
 | `ml_response` | object | Full ML service response |
+| `qos_bias_applied` | boolean | Whether QoS biasing adjusted ML probabilities |
+| `qos_bias_service_type` | string | Service type used for biasing |
+| `qos_bias_scores` | object | Per-antenna penalty multipliers applied when biasing |
 
 ### QoS Fields
 
@@ -104,6 +118,9 @@ INFO: HANDOVER_APPLIED: {json with decision + result}
 | `qos_compliance.required_confidence` | float | Min confidence for service |
 | `qos_compliance.service_type` | string | embb, urllc, mmtc, default |
 | `qos_compliance.service_priority` | integer | Priority level (1-10) |
+| `qos_compliance.metrics` | object | Per-metric status block including `latency`, `throughput`, `jitter`, `reliability` with `passed`, `required`, `observed`, and `delta`. |
+| `qos_compliance.violations` | array | List of metric-level violations (`metric`, `required`, `observed`, `delta`). |
+| `qos_compliance.confidence_ok` | boolean | Whether the ML confidence cleared the priority-driven threshold. |
 
 ### Fallback Fields
 
@@ -118,6 +135,7 @@ INFO: HANDOVER_APPLIED: {json with decision + result}
 - `ml_service_unavailable` - ML service not reachable
 - `qos_compliance_failed` - Prediction doesn't meet QoS
 - `low_confidence` - Confidence below threshold
+- `qos_bias_applied` entries appear alongside the fields above, capturing adaptive penalties when the selector down-weights antennas with poor QoS history.
 
 ### A3 Mode Fields
 

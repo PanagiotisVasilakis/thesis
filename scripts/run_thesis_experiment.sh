@@ -251,13 +251,23 @@ log "Experiment started at $(date)"
 
 START_TIME=$(date +%s)
 ELAPSED=0
+SAMPLING_INTERVAL=$(( (DURATION_MINUTES * 60) / 3 ))
+NEXT_SNAPSHOT=$SAMPLING_INTERVAL
+SNAPSHOT_INDEX=1
 
 while [ $ELAPSED -lt $((DURATION_MINUTES * 60)) ]; do
     sleep 30
     ELAPSED=$(($(date +%s) - START_TIME))
     REMAINING=$((DURATION_MINUTES * 60 - ELAPSED))
     log "ML experiment progress: ${ELAPSED}s / $((DURATION_MINUTES * 60))s (${REMAINING}s remaining)"
-done
+    if [ $ELAPSED -ge $NEXT_SNAPSHOT ] && [ $SNAPSHOT_INDEX -le 3 ]; then
+        SNAP_FILE="$OUTPUT_DIR/metrics/ml_snapshot_${SNAPSHOT_INDEX}.json"
+        export_metrics "$SNAP_FILE" "$ML_METRICS"
+        log "Captured QoS snapshot $SNAPSHOT_INDEX at ${ELAPSED}s"
+        SNAPSHOT_INDEX=$((SNAPSHOT_INDEX + 1))
+        NEXT_SNAPSHOT=$((NEXT_SNAPSHOT + SAMPLING_INTERVAL))
+    fi
+    done
 
 log "ML experiment complete"
 
@@ -274,6 +284,10 @@ pingpong_too_many|ml_pingpong_suppressions_total{reason=\"too_many\"}
 pingpong_immediate|ml_pingpong_suppressions_total{reason=\"immediate_return\"}
 qos_compliance_ok|nef_handover_compliance_total{outcome=\"ok\"}
 qos_compliance_failed|nef_handover_compliance_total{outcome=\"failed\"}
+qos_pass_by_service|sum(ml_qos_compliance_total{outcome=\"passed\"}) by (service_type)
+qos_fail_by_service|sum(ml_qos_compliance_total{outcome=\"failed\"}) by (service_type)
+qos_violations_by_metric|sum(ml_qos_violation_total) by (metric)
+adaptive_confidence|ml_qos_adaptive_confidence
 prediction_requests|ml_prediction_requests_total
 avg_confidence|avg(ml_prediction_confidence_avg)
 p95_latency|histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m]))
@@ -363,6 +377,8 @@ log "Collecting A3 mode metrics..."
 
 A3_METRICS="handover_decisions_total|nef_handover_decisions_total{outcome=\"applied\"}
 handover_failures|nef_handover_decisions_total{outcome=\"skipped\"}
+qos_compliance_ok|nef_handover_compliance_total{outcome=\"ok\"}
+qos_compliance_failed|nef_handover_compliance_total{outcome=\"failed\"}
 request_duration|histogram_quantile(0.95, rate(nef_request_duration_seconds_bucket[5m]))"
 
 export_metrics "$OUTPUT_DIR/metrics/a3_mode_metrics.json" "$A3_METRICS"
@@ -393,6 +409,13 @@ if [ -f "$SCRIPT_DIR/compare_ml_vs_a3_visual.py" ]; then
         --output "$OUTPUT_DIR" > "$OUTPUT_DIR/logs/visualization.log" 2>&1 || {
         warn "Visualization generation encountered issues (check logs)"
     }
+    # Copy QoS specific artefacts to dedicated directory
+    mkdir -p "$OUTPUT_DIR/qos"
+    cp "$OUTPUT_DIR"/04_qos_metrics_comparison.png "$OUTPUT_DIR/qos/" 2>/dev/null || true
+    cp "$OUTPUT_DIR"/05_qos_violations_by_service_type.png "$OUTPUT_DIR/qos/" 2>/dev/null || true
+    if [ -f "$OUTPUT_DIR/comparison_summary.json" ]; then
+        jq '.metrics | {ml: .ml, a3: .a3}' "$OUTPUT_DIR/comparison_summary.json" > "$OUTPUT_DIR/qos/qos_summary.json" || true
+    fi
     log "✅ Visualizations generated"
 else
     warn "Comparison tool not found, skipping visualization generation"
