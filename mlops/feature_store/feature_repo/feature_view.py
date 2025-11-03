@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from feast import FeatureView
+from ._feast_compat import FeatureView
 
 from .entities import ue
 from .schema import feast_fields

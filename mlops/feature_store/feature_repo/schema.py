@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from feast import Field
-from feast.types import Float32, String
+from ._feast_compat import Field, Float32, String
 
 # Ordered mapping of feature names to Feast data types. The QoS metrics are kept
 # alongside the existing mobility telemetry so that both the offline Parquet

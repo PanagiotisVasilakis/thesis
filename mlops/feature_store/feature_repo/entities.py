@@ -1,7 +1,6 @@
 """Feast entities shared by the feature repository and downstream pipelines."""
 
-from feast import Entity
-from feast.types import ValueType
+from ._feast_compat import Entity, ValueType
 
 # UE entity keyed by ``ue_id``. Keeping the entity name stable (`ue_id`) avoids
 # breaking existing materialisation jobs and training pipelines.

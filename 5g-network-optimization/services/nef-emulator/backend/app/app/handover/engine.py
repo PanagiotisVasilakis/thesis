@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime, timezone
 from typing import Optional
@@ -189,50 +190,121 @@ class HandoverEngine:
     # ------------------------------------------------------------------
 
     def decide_and_apply(self, ue_id: str):
-        """Select the best antenna and apply the handover."""
+        """Select the best antenna and apply the handover with structured logging."""
         self._update_mode()
+        
+        # Initialize decision log for thesis analysis
+        decision_log = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "ue_id": ue_id,
+            "mode": "ml" if self.use_ml else "a3",
+            "num_antennas": len(self.state_mgr.antenna_list),
+            "ml_auto_activated": self._auto if hasattr(self, '_auto') else False,
+        }
+        
+        try:
+            # Get current state for logging
+            fv = self.state_mgr.get_feature_vector(ue_id)
+            decision_log["current_antenna"] = fv.get("connected_to")
+            decision_log["ue_speed"] = fv.get("speed", 0.0)
+            decision_log["ue_position"] = {
+                "latitude": fv.get("latitude"),
+                "longitude": fv.get("longitude")
+            }
+        except Exception as e:
+            decision_log["feature_vector_error"] = str(e)
+        
         if self.use_ml:
             result = self._select_ml(ue_id)
+            decision_log["ml_response"] = result
+            
             if result is None:
+                decision_log["ml_available"] = False
+                decision_log["fallback_reason"] = "ml_service_unavailable"
+                decision_log["fallback_to_a3"] = True
                 target = None
             else:
+                decision_log["ml_available"] = True
                 target = result.get("antenna_id")
                 confidence = result.get("confidence")
                 if confidence is None:
                     confidence = 0.0
+                
+                decision_log["ml_prediction"] = target
+                decision_log["ml_confidence"] = confidence
 
                 # Prefer structured qos_compliance when available
                 qos_comp = result.get("qos_compliance")
                 if isinstance(qos_comp, dict):
                     ok = bool(qos_comp.get("service_priority_ok", True))
+                    decision_log["qos_compliance"] = {
+                        "checked": True,
+                        "passed": ok,
+                        "required_confidence": qos_comp.get("required_confidence"),
+                        "observed_confidence": qos_comp.get("observed_confidence"),
+                        "service_type": qos_comp.get("details", {}).get("service_type"),
+                        "service_priority": qos_comp.get("details", {}).get("service_priority")
+                    }
+                    
                     # record compliance metric
                     try:
                         metrics.HANDOVER_COMPLIANCE.labels(outcome="ok" if ok else "failed").inc()
                     except Exception:
-                        # If the metric label doesn't exist for some reason,
-                        # fall back to previous behavior
                         pass
+                    
                     if not ok:
+                        decision_log["fallback_reason"] = "qos_compliance_failed"
+                        decision_log["fallback_to_a3"] = True
                         metrics.HANDOVER_FALLBACKS.inc()
                         target = self._select_rule(ue_id)
+                        decision_log["a3_fallback_target"] = target
+                        
                         # If the rule-based selector found no candidate, use the
-                        # current serving cell as a safe fallback so the API
-                        # returns a valid decision rather than 400. This keeps
-                        # behavior deterministic for integration tests.
+                        # current serving cell as a safe fallback
                         if not target:
                             try:
                                 fv = self.state_mgr.get_feature_vector(ue_id)
                                 target = fv.get("connected_to")
+                                decision_log["final_fallback"] = "current_cell"
                             except Exception:
                                 target = None
+                                decision_log["final_fallback"] = "none"
                 else:
                     # Legacy behavior: use confidence threshold
+                    decision_log["qos_compliance"] = {"checked": False}
+                    
                     if confidence < self.confidence_threshold:
+                        decision_log["fallback_reason"] = "low_confidence"
+                        decision_log["fallback_to_a3"] = True
+                        decision_log["confidence_threshold"] = self.confidence_threshold
                         metrics.HANDOVER_FALLBACKS.inc()
                         target = self._select_rule(ue_id)
+                        decision_log["a3_fallback_target"] = target
         else:
+            # A3 mode
+            decision_log["a3_rule_params"] = {
+                "hysteresis_db": self._a3_params[0],
+                "ttt_seconds": self._a3_params[1]
+            }
             target = self._select_rule(ue_id)
+            decision_log["a3_target"] = target
 
+        decision_log["final_target"] = target
+        decision_log["handover_triggered"] = target is not None
+        
+        # Log structured JSON for thesis analysis
+        self.logger.info(f"HANDOVER_DECISION: {json.dumps(decision_log)}")
+        
         if not target:
+            decision_log["outcome"] = "no_handover"
             return None
-        return self.state_mgr.apply_handover_decision(ue_id, target)
+        
+        # Apply handover and capture result
+        handover_result = self.state_mgr.apply_handover_decision(ue_id, target)
+        decision_log["outcome"] = "applied"
+        decision_log["handover_result"] = handover_result
+        
+        # Final log with complete decision trace
+        self.logger.info(f"HANDOVER_APPLIED: {json.dumps(decision_log)}")
+        
+        return handover_result

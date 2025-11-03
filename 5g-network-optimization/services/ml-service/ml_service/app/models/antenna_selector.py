@@ -6,6 +6,7 @@ import os
 import logging
 import threading
 import json
+import time
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, cast
@@ -20,6 +21,7 @@ from ..features.transform_registry import (
     register_feature_transform,
     apply_feature_transforms,
 )
+from ..data.feature_extractor import HandoverTracker
 
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
@@ -41,6 +43,7 @@ from ..utils.resource_manager import (
     ResourceType
 )
 from .async_model_operations import AsyncModelInterface, get_async_model_manager
+from ..monitoring import metrics
 
 FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
 FALLBACK_CONFIDENCE = DEFAULT_FALLBACK_CONFIDENCE
@@ -211,6 +214,15 @@ class AntennaSelector(AsyncModelInterface):
                     f"neighbor_cell_load_a{idx+1}",
                 ])
 
+        # Initialize handover tracker for ping-pong prevention
+        self.handover_tracker = HandoverTracker()
+        
+        # Anti-ping-pong configuration from environment
+        self.min_handover_interval_s = float(os.getenv("MIN_HANDOVER_INTERVAL_S", "2.0"))
+        self.max_handovers_per_minute = int(os.getenv("MAX_HANDOVERS_PER_MINUTE", "3"))
+        self.pingpong_window_s = float(os.getenv("PINGPONG_WINDOW_S", "10.0"))
+        self.pingpong_confidence_boost = float(os.getenv("PINGPONG_CONFIDENCE_BOOST", "0.9"))
+
         # Try to load existing model
         try:
             if model_path and os.path.exists(model_path):
@@ -323,7 +335,7 @@ class AntennaSelector(AsyncModelInterface):
         return features
 
     def predict(self, features):
-        """Predict the optimal antenna for the UE."""
+        """Predict the optimal antenna for the UE with ping-pong prevention."""
         # Validate required features and their configured ranges
         missing = set(self.feature_names) - set(features)
         if missing:
@@ -355,22 +367,42 @@ class AntennaSelector(AsyncModelInterface):
                 if self.model is None:
                     raise ModelError("Model is not initialized")
 
-                model = cast(lgb.LGBMClassifier, self.model)
+                # Use calibrated model if available (better confidence estimates)
+                # Otherwise use base model
+                prediction_model = getattr(self, 'calibrated_model', None) or self.model
+                model = cast(lgb.LGBMClassifier, prediction_model if hasattr(prediction_model, 'classes_') else self.model)
+                
                 # Ensure the returned probabilities are a NumPy array so
                 # indexing and numpy ops work correctly even if some
                 # implementations return sparse-like objects.
-                probas = np.asarray(model.predict_proba(X))
+                probas = np.asarray(prediction_model.predict_proba(X) if hasattr(prediction_model, 'predict_proba') else model.predict_proba(X))
                 # If the estimator returns a 2D array (n_samples, n_classes)
                 # take the first row; if it's already 1D use it as-is.
                 if probas.ndim == 1:
                     probabilities = probas
                 else:
                     probabilities = probas[0]
-                classes_ = np.asarray(model.classes_)
+                
+                # Get classes from base model (calibrated model wraps it)
+                if hasattr(prediction_model, 'classes_'):
+                    classes_ = np.asarray(prediction_model.classes_)
+                else:
+                    classes_ = np.asarray(model.classes_)
+                    
             idx = int(np.argmax(probabilities))
             antenna_id = classes_[idx]
             confidence = float(probabilities[idx])
-            return {"antenna_id": antenna_id, "confidence": confidence}
+            
+            result = {
+                "antenna_id": antenna_id,
+                "confidence": confidence
+            }
+            
+            # Add calibration indicator if calibrated model was used
+            if hasattr(self, 'calibrated_model') and self.calibrated_model is not None:
+                result["confidence_calibrated"] = True
+            
+            return result
         
         # Use safe execution with fallback
         ue_id = features.get("ue_id", "unknown")
@@ -391,6 +423,93 @@ class AntennaSelector(AsyncModelInterface):
                 "Using default antenna for UE %s due to prediction error",
                 ue_id,
             )
+            return result
+        
+        # ==================================================================
+        # PING-PONG PREVENTION LOGIC (Critical for Thesis)
+        # ==================================================================
+        current_cell = features.get("connected_to")
+        predicted_antenna = result["antenna_id"]
+        confidence = result["confidence"]
+        timestamp = time.time()
+        
+        # Track handover state and get metrics
+        handover_count, time_since_last = self.handover_tracker.update_handover_state(
+            ue_id, current_cell, timestamp
+        )
+        
+        # Only apply ping-pong prevention if prediction suggests a handover
+        if predicted_antenna != current_cell:
+            original_antenna = predicted_antenna
+            suppression_reason = None
+            
+            # Check 1: Too recent (minimum interval between handovers)
+            if time_since_last < self.min_handover_interval_s:
+                logger.debug(
+                    f"Suppressing handover for {ue_id}: too recent "
+                    f"({time_since_last:.1f}s < {self.min_handover_interval_s}s)"
+                )
+                predicted_antenna = current_cell
+                confidence = 1.0  # High confidence to stay
+                suppression_reason = "too_recent"
+            
+            # Check 2: Too many handovers in window (ping-pong detection)
+            elif handover_count >= self.max_handovers_per_minute:
+                handovers_in_window = self.handover_tracker.get_handovers_in_window(ue_id, 60.0)
+                if handovers_in_window >= self.max_handovers_per_minute:
+                    logger.warning(
+                        f"Ping-pong detected for {ue_id}: {handovers_in_window} "
+                        f"handovers in last 60s (limit: {self.max_handovers_per_minute})"
+                    )
+                    # Require much higher confidence to handover
+                    if confidence < self.pingpong_confidence_boost:
+                        predicted_antenna = current_cell
+                        confidence = 1.0
+                        suppression_reason = "too_many"
+            
+            # Check 3: Immediate ping-pong (handover back to recent cell)
+            if suppression_reason is None:
+                is_pingpong = self.handover_tracker.check_immediate_pingpong(
+                    ue_id, predicted_antenna, self.pingpong_window_s
+                )
+                if is_pingpong:
+                    logger.warning(
+                        f"Immediate ping-pong detected for {ue_id}: "
+                        f"trying to return to {predicted_antenna} within {self.pingpong_window_s}s"
+                    )
+                    # Require high confidence to return to recent cell
+                    if confidence < 0.95:
+                        predicted_antenna = current_cell
+                        confidence = 1.0
+                        suppression_reason = "immediate_return"
+            
+            # Record metrics if handover was suppressed
+            if suppression_reason:
+                metrics.PING_PONG_SUPPRESSIONS.labels(reason=suppression_reason).inc()
+                result["anti_pingpong_applied"] = True
+                result["suppression_reason"] = suppression_reason
+                result["original_prediction"] = original_antenna
+                logger.info(
+                    f"Ping-pong prevention: {ue_id} stays on {current_cell} "
+                    f"instead of {original_antenna} (reason: {suppression_reason})"
+                )
+            else:
+                result["anti_pingpong_applied"] = False
+            
+            # Update final result
+            result["antenna_id"] = predicted_antenna
+            result["confidence"] = confidence
+        else:
+            # No handover suggested, no ping-pong prevention needed
+            result["anti_pingpong_applied"] = False
+        
+        # Record handover interval for analytics
+        if time_since_last > 0:
+            metrics.HANDOVER_INTERVAL.observe(time_since_last)
+        
+        # Add handover tracking metadata to result
+        result["handover_count_1min"] = handover_count
+        result["time_since_last_handover"] = time_since_last
 
         return result
 

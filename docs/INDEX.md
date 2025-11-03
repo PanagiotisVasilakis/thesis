@@ -10,7 +10,18 @@ Use this page as the entry point for the repository documentation. The sections 
 - **[THESIS_ABSTRACT.md](THESIS_ABSTRACT.md)** – Research overview, problem statement, and contributions
 - **[RESULTS_GENERATION_CHECKLIST.md](RESULTS_GENERATION_CHECKLIST.md)** – Systematic workflow for generating thesis results
 - **[CODE_ANALYSIS_AND_IMPROVEMENTS.md](CODE_ANALYSIS_AND_IMPROVEMENTS.md)** – Professional code review with improvement recommendations for thesis
+- **[PING_PONG_PREVENTION.md](PING_PONG_PREVENTION.md)** – **NEW FEATURE**: ML ping-pong prevention implementation and thesis demonstration
+- **[ML_VS_A3_COMPARISON_TOOL.md](ML_VS_A3_COMPARISON_TOOL.md)** – **NEW TOOL**: Automated comparative experiment runner and visualization generator
+- **[AUTOMATED_EXPERIMENT_RUNNER.md](AUTOMATED_EXPERIMENT_RUNNER.md)** – **NEW TOOL**: Comprehensive thesis-grade experiment automation with full audit trail
+- **[HANDOVER_HISTORY_ANALYZER.md](HANDOVER_HISTORY_ANALYZER.md)** – **NEW TOOL**: Deep handover pattern analysis and behavioral insights
+- **[MULTI_ANTENNA_TESTING.md](MULTI_ANTENNA_TESTING.md)** – **NEW TESTS**: Comprehensive multi-antenna scenario validation (15+ tests)
+- **[ENHANCED_LOGGING.md](ENHANCED_LOGGING.md)** – **NEW FEATURE**: JSON-structured handover decision logging for thesis analysis
+- **[CONFIDENCE_CALIBRATION.md](CONFIDENCE_CALIBRATION.md)** – **NEW FEATURE**: ML probability calibration for better QoS decisions
+- **[THESIS_CLAIMS_VALIDATION.md](THESIS_CLAIMS_VALIDATION.md)** – **NEW TESTS**: Automated validation of all thesis claims
+- **[THESIS_DEMONSTRATIONS.md](THESIS_DEMONSTRATIONS.md)** – **CRITICAL**: Live defense demonstrations with honest assessment
+- **[⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md](⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md)** – **MUST READ**: Truthful evaluation and mitigation strategies
 - [`README.md`](../README.md) – repository overview, environment variables, and high-level system description
+- [`IMPLEMENTATION_SUMMARY.md`](../IMPLEMENTATION_SUMMARY.md) – Summary of ping-pong prevention implementation
 
 ## Services
 

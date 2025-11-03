@@ -5,3 +5,4 @@ thesis/
 mlops/feast_repo/data/*
 !mlops/feast_repo/data/.gitkeep
 .venv
+thesis_venv/

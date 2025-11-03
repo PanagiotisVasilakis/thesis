@@ -143,6 +143,12 @@ The NEF emulator's `NetworkStateManager` supports several configuration options.
 | `LOG_LEVEL` | Root logger level used by both services | `INFO` |
 | `LOG_FILE` | Optional path for a rotating log file | *(unset)* |
 | `min_antennas_ml` (param) | Minimum antennas required for automatic ML mode. Override when instantiating `HandoverEngine` | `3` |
+| `MIN_HANDOVER_INTERVAL_S` | Minimum seconds between handovers (ping-pong prevention) | `2.0` |
+| `MAX_HANDOVERS_PER_MINUTE` | Maximum handovers allowed in 60-second window | `3` |
+| `PINGPONG_WINDOW_S` | Time window for detecting immediate ping-pong returns | `10.0` |
+| `PINGPONG_CONFIDENCE_BOOST` | Required confidence when ping-pong is detected | `0.9` |
+| `CALIBRATE_CONFIDENCE` | Enable ML confidence calibration for better probability estimates | `1` (enabled) |
+| `CALIBRATION_METHOD` | Calibration method: `isotonic` or `sigmoid` | `isotonic` |
 
 `LOG_LEVEL` sets the verbosity of both services (`DEBUG`, `INFO`, etc.) while
 `LOG_FILE` enables file-based logging with automatic rotation when specified.

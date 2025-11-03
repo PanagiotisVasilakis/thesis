@@ -1,7 +1,7 @@
 """Feature extraction utilities for training data collection."""
 
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from collections import deque
 
 from ..utils.mobility_metrics import MobilityMetricTracker
@@ -52,7 +52,7 @@ class FeatureExtractor:
 
 
 class HandoverTracker:
-    """Tracks handover events and timing for UEs."""
+    """Tracks handover events and timing for UEs with anti-ping-pong support."""
     
     def __init__(self, max_ues: int = 10000, ue_ttl_hours: float = 24.0):
         self.logger = logging.getLogger(__name__)
@@ -61,6 +61,10 @@ class HandoverTracker:
         self._prev_cell: UETrackingDict[str] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
         self._handover_counts: UETrackingDict[int] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
         self._last_handover_ts: UETrackingDict[float] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
+        # Track cell history for ping-pong detection (stores list of (cell_id, timestamp) tuples)
+        self._cell_history: UETrackingDict[list] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
+        # Track handovers in 1-minute window for ping-pong rate calculation
+        self._recent_handovers: UETrackingDict[deque] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
     
     def update_handover_state(self, ue_id: str, current_cell: str, timestamp: float) -> Tuple[int, float]:
         """Update handover state for a UE and return metrics.
@@ -80,9 +84,28 @@ class HandoverTracker:
             self._handover_counts[ue_id] = self._handover_counts.get(ue_id, 0) + 1
             self._last_handover_ts[ue_id] = timestamp
             self.logger.debug(f"Handover detected for UE {ue_id}: {prev_cell} -> {current_cell}")
+            
+            # Track in recent handovers window (60 seconds)
+            if ue_id not in self._recent_handovers:
+                self._recent_handovers[ue_id] = deque()
+            self._recent_handovers[ue_id].append(timestamp)
+            
+            # Clean old entries (older than 60 seconds)
+            while (self._recent_handovers[ue_id] and 
+                   timestamp - self._recent_handovers[ue_id][0] > 60.0):
+                self._recent_handovers[ue_id].popleft()
         
         # Update current cell
         self._prev_cell[ue_id] = current_cell
+        
+        # Track cell history for ping-pong detection
+        if ue_id not in self._cell_history:
+            self._cell_history[ue_id] = []
+        self._cell_history[ue_id].append((current_cell, timestamp))
+        
+        # Keep only last 10 cells in history
+        if len(self._cell_history[ue_id]) > 10:
+            self._cell_history[ue_id] = self._cell_history[ue_id][-10:]
         
         # Initialize timestamps for new UEs
         if ue_id not in self._last_handover_ts:
@@ -93,6 +116,62 @@ class HandoverTracker:
         
         return handover_count, time_since_handover
     
+    def get_recent_cells(self, ue_id: str, n: int = 5) -> List[str]:
+        """Get list of recent cells (most recent first).
+        
+        Args:
+            ue_id: UE identifier
+            n: Number of recent cells to return
+            
+        Returns:
+            List of recent cell IDs (most recent first)
+        """
+        history = self._cell_history.get(ue_id, [])
+        # Return last n cells in reverse order (most recent first)
+        return [cell for cell, _ in history[-n:]][::-1]
+    
+    def get_handovers_in_window(self, ue_id: str, window_seconds: float = 60.0) -> int:
+        """Get number of handovers in the specified time window.
+        
+        Args:
+            ue_id: UE identifier
+            window_seconds: Time window in seconds (default: 60)
+            
+        Returns:
+            Number of handovers in the window
+        """
+        recent = self._recent_handovers.get(ue_id, deque())
+        return len(recent)
+    
+    def check_immediate_pingpong(self, ue_id: str, target_cell: str, window_seconds: float = 10.0) -> bool:
+        """Check if handover to target_cell would be an immediate ping-pong.
+        
+        An immediate ping-pong is detected if the target cell was recently
+        (within window_seconds) the serving cell for this UE.
+        
+        Args:
+            ue_id: UE identifier
+            target_cell: Target cell for potential handover
+            window_seconds: Time window to check (default: 10s)
+            
+        Returns:
+            True if immediate ping-pong detected, False otherwise
+        """
+        history = self._cell_history.get(ue_id, [])
+        if len(history) < 2:
+            return False
+        
+        current_time = history[-1][1] if history else 0.0
+        
+        # Check if target cell appears in recent history (excluding current)
+        for cell, timestamp in history[-6:-1]:  # Check last 5 cells before current
+            if cell == target_cell:
+                time_diff = current_time - timestamp
+                if time_diff <= window_seconds:
+                    return True
+        
+        return False
+    
     def get_stats(self) -> Dict[str, Any]:
         """Get tracking statistics."""
         return {
@@ -101,7 +180,9 @@ class HandoverTracker:
             "memory_usage": {
                 "prev_cell": self._prev_cell.get_memory_usage(),
                 "handover_counts": self._handover_counts.get_memory_usage(),
-                "last_handover_ts": self._last_handover_ts.get_memory_usage()
+                "last_handover_ts": self._last_handover_ts.get_memory_usage(),
+                "cell_history": self._cell_history.get_memory_usage(),
+                "recent_handovers": self._recent_handovers.get_memory_usage()
             }
         }
 

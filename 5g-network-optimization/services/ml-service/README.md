@@ -6,6 +6,7 @@ Flask-based microservice that predicts handover targets for user equipment (UE) 
 
 - Flask application factory (`ml_service.app.create_app`) with background model initialisation, structured logging, JWT auth, and Prometheus metrics.
 - Rich model manager supporting LightGBM, LSTM, Ensemble, and Online models selectable via `MODEL_TYPE`.
+- **Ping-pong prevention** in ML predictions to prevent rapid handover oscillations (critical for thesis demonstration).
 - JWT-protected REST API with rate limiting, QoS-aware `/api/predict-with-qos`, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
 - Dedicated `/metrics` endpoint guarded by pluggable credentials (basic, API key, or JWT) plus helper endpoints to mint metrics tokens.
 - Visualization blueprint for coverage maps and trajectories saved under `output/`.

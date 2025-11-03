@@ -1,6 +1,6 @@
 """Feast data sources for UE metrics features."""
 
-from feast import FileSource
+from ._feast_compat import FileSource
 
 # Offline file source reading from the canonical Parquet dataset. Feast tracks
 # event timestamps via the ``timestamp`` column to support both historical

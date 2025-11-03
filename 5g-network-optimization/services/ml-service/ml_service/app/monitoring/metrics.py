@@ -128,6 +128,24 @@ MEMORY_USAGE = Gauge(
     registry=REGISTRY,
 )
 
+# --- Anti-Ping-Pong Metrics ---
+
+# Track ping-pong suppression events by reason
+PING_PONG_SUPPRESSIONS = Counter(
+    'ml_pingpong_suppressions_total',
+    'Number of times ping-pong prevention blocked a handover',
+    ['reason'],  # 'too_recent', 'too_many', 'immediate_return'
+    registry=REGISTRY,
+)
+
+# Track time between consecutive handovers
+HANDOVER_INTERVAL = Histogram(
+    'ml_handover_interval_seconds',
+    'Time between consecutive handovers for UEs',
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 300.0, 600.0],
+    registry=REGISTRY,
+)
+
 class MetricsMiddleware:
     """Middleware to track metrics for API endpoints."""
 
