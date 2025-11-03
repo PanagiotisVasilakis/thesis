@@ -1,7 +1,13 @@
 """Main entry point for ML Service."""
+import logging
 import os
 
-from services.logging_config import configure_logging
+try:
+    from services.logging_config import configure_logging  # type: ignore
+except ImportError:
+    def configure_logging(level=None, log_file=None):
+        logging.basicConfig(level=level or logging.INFO)
+
 from ml_service.app import create_app
 
 configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))

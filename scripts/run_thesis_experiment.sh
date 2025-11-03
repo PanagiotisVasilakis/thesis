@@ -31,6 +31,10 @@ OUTPUT_DIR="$REPO_ROOT/thesis_results/$EXPERIMENT_NAME"
 COMPOSE_FILE="$REPO_ROOT/5g-network-optimization/docker-compose.yml"
 NEF_INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple.sh"
 
+# Ensure docker compose sees the ML profile and resolves the ml-service dependency.
+export COMPOSE_PROFILES="${COMPOSE_PROFILES:-ml}"
+export ML_LOCAL="${ML_LOCAL:-ml}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -255,26 +259,7 @@ SAMPLING_INTERVAL=$(( (DURATION_MINUTES * 60) / 3 ))
 NEXT_SNAPSHOT=$SAMPLING_INTERVAL
 SNAPSHOT_INDEX=1
 
-while [ $ELAPSED -lt $((DURATION_MINUTES * 60)) ]; do
-    sleep 30
-    ELAPSED=$(($(date +%s) - START_TIME))
-    REMAINING=$((DURATION_MINUTES * 60 - ELAPSED))
-    log "ML experiment progress: ${ELAPSED}s / $((DURATION_MINUTES * 60))s (${REMAINING}s remaining)"
-    if [ $ELAPSED -ge $NEXT_SNAPSHOT ] && [ $SNAPSHOT_INDEX -le 3 ]; then
-        SNAP_FILE="$OUTPUT_DIR/metrics/ml_snapshot_${SNAPSHOT_INDEX}.json"
-        export_metrics "$SNAP_FILE" "$ML_METRICS"
-        log "Captured QoS snapshot $SNAPSHOT_INDEX at ${ELAPSED}s"
-        SNAPSHOT_INDEX=$((SNAPSHOT_INDEX + 1))
-        NEXT_SNAPSHOT=$((NEXT_SNAPSHOT + SAMPLING_INTERVAL))
-    fi
-    done
-
-log "ML experiment complete"
-
-# Collect ML metrics
-log "Collecting ML mode metrics..."
-
-# Define metrics to collect
+# Define metrics to collect during ML mode so snapshots reuse the same list
 ML_METRICS="handover_decisions_total|nef_handover_decisions_total{outcome=\"applied\"}
 handover_failures|nef_handover_decisions_total{outcome=\"skipped\"}
 ml_fallbacks|nef_handover_fallback_total
@@ -293,6 +278,25 @@ avg_confidence|avg(ml_prediction_confidence_avg)
 p95_latency|histogram_quantile(0.95, rate(ml_prediction_latency_seconds_bucket[5m]))
 p50_interval|histogram_quantile(0.50, rate(ml_handover_interval_seconds_bucket[5m]))
 p95_interval|histogram_quantile(0.95, rate(ml_handover_interval_seconds_bucket[5m]))"
+
+while [ $ELAPSED -lt $((DURATION_MINUTES * 60)) ]; do
+    sleep 30
+    ELAPSED=$(($(date +%s) - START_TIME))
+    REMAINING=$((DURATION_MINUTES * 60 - ELAPSED))
+    log "ML experiment progress: ${ELAPSED}s / $((DURATION_MINUTES * 60))s (${REMAINING}s remaining)"
+    if [ $ELAPSED -ge $NEXT_SNAPSHOT ] && [ $SNAPSHOT_INDEX -le 3 ]; then
+        SNAP_FILE="$OUTPUT_DIR/metrics/ml_snapshot_${SNAPSHOT_INDEX}.json"
+        export_metrics "$SNAP_FILE" "$ML_METRICS"
+        log "Captured QoS snapshot $SNAPSHOT_INDEX at ${ELAPSED}s"
+        SNAPSHOT_INDEX=$((SNAPSHOT_INDEX + 1))
+        NEXT_SNAPSHOT=$((NEXT_SNAPSHOT + SAMPLING_INTERVAL))
+    fi
+    done
+
+log "ML experiment complete"
+
+# Collect ML metrics
+log "Collecting ML mode metrics..."
 
 export_metrics "$OUTPUT_DIR/metrics/ml_mode_metrics.json" "$ML_METRICS"
 
@@ -623,9 +627,9 @@ echo "=================="
 echo ""
 
 # Count generated files
-VISUALIZATION_COUNT=$(ls "$OUTPUT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
-METRIC_FILES=$(ls "$OUTPUT_DIR/metrics"/*.json 2>/dev/null | wc -l | tr -d ' ')
-LOG_FILES=$(ls "$OUTPUT_DIR/logs"/*.log 2>/dev/null | wc -l | tr -d ' ')
+VISUALIZATION_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')
+METRIC_FILES=$(find "$OUTPUT_DIR/metrics" -maxdepth 1 -type f -name '*.json' | wc -l | tr -d ' ')
+LOG_FILES=$(find "$OUTPUT_DIR/logs" -maxdepth 1 -type f -name '*.log' | wc -l | tr -d ' ')
 
 echo "Visualizations: $VISUALIZATION_COUNT PNG files"
 echo "Metric files:   $METRIC_FILES JSON files"

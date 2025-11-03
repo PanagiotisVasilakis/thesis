@@ -1,0 +1,11 @@
+{
+  "generated_at": "2025-11-03T19:06:55.352282Z",
+  "per_service": [],
+  "violations": [],
+  "top_violation_metrics": [],
+  "source_log": "/path/to/ml_mode_docker.log",
+  "plots": {
+    "timeline": null,
+    "violations": null
+  }
+}

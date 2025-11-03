@@ -1,13 +1,38 @@
-import logging, json, os, requests
-from pathlib import Path
-import sys
-from evolved5g.sdk import CAPIFProviderConnector
+import logging
+import json
+import os
+import requests
+
+try:
+    from evolved5g.sdk import CAPIFProviderConnector
+except (ImportError, AttributeError):
+    class CAPIFProviderConnector:  # pragma: no cover - optional dependency fallback
+        """Minimal stub when evolved5g SDK is unavailable."""
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+
+        def register_and_onboard_provider(self):
+            logging.getLogger(__name__).warning(
+                "evolved5g SDK not installed; skipping CAPIF provider onboarding"
+            )
+            return False
+
+        def publish_services(self, service_api_description_json_full_path: str):
+            logging.getLogger(__name__).info(
+                "Skipping CAPIF publish for %s", service_api_description_json_full_path
+            )
+            return False
 from app.db.init_db import init_db
 from app.db.session import SessionLocal
 from app.core.config import settings
 
-sys.path.append(str(Path(__file__).resolve().parents[4]))
-from logging_config import configure_logging
+try:
+    from logging_config import configure_logging  # type: ignore
+except ImportError:
+    def configure_logging(level=None, log_file=None):
+        logging.basicConfig(level=level or logging.INFO)
 
 logger = logging.getLogger(__name__)
 

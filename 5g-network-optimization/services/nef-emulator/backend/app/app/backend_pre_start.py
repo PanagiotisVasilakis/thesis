@@ -6,8 +6,26 @@ from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixe
 from app.db.session import SessionLocal
 
 
-sys.path.append(str(Path(__file__).resolve().parents[4]))
-from logging_config import configure_logging
+def _import_logging_config():
+    try:
+        repo_root = Path(__file__).resolve()
+        # Walk up cautiously to avoid IndexError on shallow paths
+        for _ in range(4):
+            repo_root = repo_root.parent
+            if repo_root == repo_root.parent:
+                break
+        sys.path.append(str(repo_root))
+        from logging_config import configure_logging  # type: ignore
+
+        return configure_logging
+    except (ImportError, FileNotFoundError):
+        def _configure_logging(level=None, log_file=None):
+            logging.basicConfig(level=level or logging.INFO)
+
+        return _configure_logging
+
+
+configure_logging = _import_logging_config()
 logger = logging.getLogger(__name__)
 
 max_tries = 60

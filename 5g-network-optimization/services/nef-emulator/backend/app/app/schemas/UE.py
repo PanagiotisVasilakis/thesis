@@ -1,6 +1,6 @@
-from typing import Annotated, Optional
+from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, ConfigDict, IPvAnyAddress, StringConstraints, confloat
+from pydantic import BaseModel, ConfigDict, IPvAnyAddress, confloat
 from pydantic.fields import Field
 
 class Speed(str, Enum):
@@ -14,10 +14,10 @@ class UEBase(BaseModel):
     description: Optional[str] = None
     ip_address_v4: Optional[IPvAnyAddress] = Field(default='10.0.0.0', description="String identifying an Ipv4 address")
     ip_address_v6: Optional[IPvAnyAddress] = Field(default="0:0:0:0:0:0:0:0", description="String identifying an Ipv6 address. Default value ::1/128 (loopback)")
-    mac_address: Annotated[
-        str,
-        StringConstraints(pattern=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$')
-    ] = '22-00-00-00-00-00'
+    mac_address: str = Field(
+        default='22-00-00-00-00-00',
+        regex=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
+    )
     dnn: Optional[str] = Field(default='province1.mnc01.mcc202.gprs', description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
     mcc: Optional[int] = Field(default=202, description="Mobile Country Code (MCC) part of the Public Land Mobile Network (PLMN), comprising 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
     mnc: Optional[int] = Field(default=1, description="Mobile Network Code (MNC) part of the Public Land Mobile Network (PLMN), comprising 2 or 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
@@ -31,39 +31,36 @@ class UEBase(BaseModel):
     speed: Speed = Field(default="LOW", description="This value describes UE's speed. Possible values are \"STATIONARY\" (e.g, IoT device), \"LOW(e.g, pedestrian)\" and \"HIGH (e.g., vehicle)\"")
 
 class UECreate(UEBase):
-    supi: Annotated[
-        str,
-        StringConstraints(pattern=r'^[0-9]{15,16}$')
-    ] = Field(
+    supi: str = Field(
         default="202010000000000",
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
                                                                                              In the current version (v1.1.0) only IMSI is supported""",
+        regex=r'^[0-9]{15,16}$',
     )
 
 class UEUpdate(UEBase):
     pass
 
 class ue_path(BaseModel):
-    supi: Annotated[
-        str,
-        StringConstraints(pattern=r'^[0-9]{15,16}$')
-    ] = Field(default="202010000000000", description= """String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
-                                                                                              In the current version (v1.1.0) only IMSI is supported""")
+    supi: str = Field(
+        default="202010000000000",
+        description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
+                                                                                              In the current version (v1.1.0) only IMSI is supported""",
+        regex=r'^[0-9]{15,16}$',
+    )
     path: int
 
 # Properties to return to client
 class UE(UEBase):
-    supi: Annotated[
-        str,
-        StringConstraints(pattern=r'^[0-9]{15,16}$')
-    ] = Field(
+    supi: str = Field(
         default="202010000000000",
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
 
                                                                                       In the current version (v1.1.0) only IMSI is supported""",
+        regex=r'^[0-9]{15,16}$',
     )
-    latitude: Optional[confloat(ge=-90, le=90)] 
-    longitude: Optional[confloat(ge=-180, le=180)]                                                                                      
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     path_id: Optional[int]
     gNB_id: Optional[int]
     Cell_id: Optional[int]

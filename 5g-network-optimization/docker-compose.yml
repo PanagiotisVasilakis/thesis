@@ -1,4 +1,28 @@
 services:
+  db:
+    image: postgres:12
+    env_file:
+      - .env
+    environment:
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - db-data:/var/lib/postgresql/data/pgdata
+    networks:
+      - 5g-network
+
+  mongo_nef:
+    image: mongo:4.4.10
+    restart: always
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: "${MONGO_USER}"
+      MONGO_INITDB_ROOT_PASSWORD: "${MONGO_PASSWORD}"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - 5g-network
+
   nef-emulator:
     image: 5g-network-optimization/nef-emulator:latest
     build:
@@ -8,6 +32,8 @@ services:
         ML_LOCAL: ${ML_LOCAL:-0}
     ports:
       - "8080:80"
+    env_file:
+      - .env
     environment:
       - SERVER_NAME=localhost
       - SERVER_HOST=http://localhost
@@ -16,6 +42,9 @@ services:
       - ML_LOCAL=${ML_LOCAL:-0}
     networks:
       - 5g-network
+    depends_on:
+      - db
+      - mongo_nef
   
   ml-service:
     image: 5g-network-optimization/ml-service:latest
@@ -26,6 +55,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5050:5050"
+    env_file:
+      - .env
     environment:
       - NEF_API_URL=http://nef-emulator:80
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
@@ -66,3 +97,7 @@ services:
 networks:
   5g-network:
     driver: bridge
+
+volumes:
+  db-data:
+  mongo-data:

@@ -1,5 +1,5 @@
 # Multi-stage build for security and efficiency
-FROM python:3.10-bullseye-slim AS builder
+FROM python:3.10-slim-bullseye AS builder
 
 # Set build arguments for security
 ARG BUILD_DATE
@@ -36,12 +36,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.10-bullseye-slim AS production
+FROM python:3.10-slim-bullseye AS production
 
 # Install runtime dependencies and security updates
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    libgomp1 \
     dumb-init \
     && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/* \
@@ -101,8 +102,8 @@ CMD ["gunicorn", \
      "--bind", "0.0.0.0:5050", \
      "--workers", "4", \
      "--threads", "2", \
-     "--timeout", "30", \
-     "--keepalive", "5", \
+    "--timeout", "30", \
+    "--keep-alive", "5", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \
      "--preload", \

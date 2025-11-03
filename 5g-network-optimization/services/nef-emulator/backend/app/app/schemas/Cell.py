@@ -1,16 +1,16 @@
-from typing import Annotated, Optional
+from typing import Optional
 
-from pydantic import BaseModel, StringConstraints, confloat, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Shared properties
 class CellBase(BaseModel):
-    cell_id: Annotated[str, StringConstraints(pattern=r'^[A-Fa-f0-9]{9}$')]
+    cell_id: str = Field(..., regex=r'^[A-Fa-f0-9]{9}$')
     name: Optional[str] = None
     description: Optional[str] = None
     gNB_id: int = None
-    latitude: confloat(ge=-90, le=90)
-    longitude: confloat(ge=-180, le=180)
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
     radius: float
     
     

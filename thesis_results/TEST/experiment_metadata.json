@@ -1,0 +1,8 @@
+{
+  "experiment_name": "TEST",
+  "duration_minutes": 10,
+  "start_time": "2025-11-03T19:44:21Z",
+  "repository": "https://github.com/PanagiotisVasilakis/thesis.git",
+  "commit": "1abb527003e67322eaf07d3379cf4d5a48ad766c",
+  "docker_compose": "/Users/pvasilakis/thesis/5g-network-optimization/docker-compose.yml"
+}

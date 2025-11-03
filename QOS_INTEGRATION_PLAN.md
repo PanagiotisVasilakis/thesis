@@ -375,13 +375,13 @@ result["qos_compliance"] = {
   - [x] Generate QoS-specific visualizations (`04_qos_metrics_comparison.png`, `05_qos_violations_by_service_type.png`)
 
 #### 5.3 QoS Analysis Tool
-- [ ] Create `scripts/analyze_qos_compliance.py`
-  - [ ] Parse structured QoS logs
-  - [ ] Calculate per-service-type compliance rates
-  - [ ] Identify most common violation reasons
-  - [ ] Generate compliance timeline visualization
-  - [ ] Compare ML vs A3 QoS performance
-  - [ ] Export CSV with detailed QoS statistics
+- [x] Create `scripts/analyze_qos_compliance.py`
+  - [x] Parse structured QoS logs
+  - [x] Calculate per-service-type compliance rates
+  - [x] Identify most common violation reasons
+  - [x] Generate compliance timeline visualization
+  - [x] Compare ML vs A3 QoS performance
+  - [x] Export CSV with detailed QoS statistics
 
 #### 5.4 Integration Tests - Thesis Claims
 - [ ] Extend `tests/thesis/test_ml_vs_a3_claims.py`

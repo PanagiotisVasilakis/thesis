@@ -1,0 +1,16 @@
+2025-11-03 23:14:49,294 - __main__ - INFO - Loading ML metrics from /Users/pvasilakis/thesis/thesis_results/smoke_TEST/metrics/ml_mode_metrics.json
+2025-11-03 23:14:49,295 - __main__ - ERROR - Experiment failed: Expecting value: line 23 column 1 (char 1287)
+Traceback (most recent call last):
+  File "/Users/pvasilakis/thesis/scripts/compare_ml_vs_a3_visual.py", line 1403, in <module>
+    main()
+  File "/Users/pvasilakis/thesis/scripts/compare_ml_vs_a3_visual.py", line 1293, in main
+    ml_data = json.load(f)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 23 column 1 (char 1287)
