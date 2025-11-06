@@ -13,11 +13,7 @@ from .thread_monitor import (
     ThreadFailureLevel,
     monitor_thread_execution
 )
-
-# Semantic version of the expected model format. Bump whenever the
-# persisted model or metadata structure changes in a backwards incompatible
-# way so older files can be detected gracefully.
-MODEL_VERSION = "1.0.0"
+from .model_version import MODEL_VERSION
 from ..errors import ModelError
 from ..models import (EnsembleSelector, LightGBMSelector, LSTMSelector,
                       OnlineHandoverModel)

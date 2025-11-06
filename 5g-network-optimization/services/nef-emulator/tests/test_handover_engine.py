@@ -214,7 +214,9 @@ def test_select_ml(monkeypatch):
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True)
     pred = eng._select_ml("u1")
-    assert pred == {"antenna_id": "B", "confidence": None}
+    assert pred["antenna_id"] == "B"
+    assert pred["confidence"] is None
+    assert pred.get("qos_compliance") is None
     assert sent["data"]["rf_metrics"] == {
         "A": {"rsrp": -80, "sinr": 10, "rsrq": -5},
         "B": {"rsrp": -70, "sinr": 15, "rsrq": -8},
@@ -283,7 +285,9 @@ def test_select_ml_local(monkeypatch):
     sm = DummyStateMgr()
     eng = HandoverEngine(sm, use_ml=True, use_local_ml=True, ml_model_path="foo")
     pred = eng._select_ml("u1")
-    assert pred == {"antenna_id": "B", "confidence": None}
+    assert pred["antenna_id"] == "B"
+    assert pred["confidence"] is None
+    assert pred.get("qos_compliance") is None
     assert calls["post"] == 0
 
 

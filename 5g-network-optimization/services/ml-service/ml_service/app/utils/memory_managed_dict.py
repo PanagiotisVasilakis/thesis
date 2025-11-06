@@ -1,6 +1,7 @@
 """Memory-managed dictionary implementations with automatic cleanup."""
 
 import logging
+import sys
 import threading
 import time
 from collections import OrderedDict, defaultdict
@@ -193,6 +194,32 @@ class LRUDict(Generic[K, V]):
                 "evictions": self.evictions,
                 "ttl_expiries": self.ttl_expiries,
                 "ttl_seconds": self.ttl_seconds
+            }
+
+    def get_memory_usage(self) -> Dict[str, Any]:
+        """Estimate memory usage for the cache contents."""
+        with self._lock:
+            approx_bytes = sys.getsizeof(self._data)
+            for key, entry in self._data.items():
+                try:
+                    approx_bytes += sys.getsizeof(key)
+                except TypeError:
+                    pass
+                value = entry.value
+                try:
+                    approx_bytes += sys.getsizeof(value)
+                except TypeError:
+                    # Some objects (e.g. numpy arrays) handle their own sizing; ignore.
+                    pass
+
+            stats = self.get_stats()
+            return {
+                "cache_entries": stats["size"],
+                "max_size": self.max_size,
+                "approx_bytes": approx_bytes,
+                "hit_rate": stats["hit_rate"],
+                "evictions": stats["evictions"],
+                "ttl_expiries": stats["ttl_expiries"],
             }
     
     def _is_expired(self, entry: CacheEntry[V]) -> bool:

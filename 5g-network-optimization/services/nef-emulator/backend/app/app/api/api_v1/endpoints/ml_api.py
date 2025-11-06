@@ -1,8 +1,14 @@
 # services/nef-emulator/backend/app/app/api/api_v1/endpoints/ml_api.py
 
 from fastapi import APIRouter, HTTPException
-from app.network.state_manager import NetworkStateManager
-from app.handover.engine import HandoverEngine
+
+try:
+    from app.handover.runtime import runtime
+except ImportError:  # pragma: no cover - fallback for test stubs
+    runtime = None
+    from app.network.state_manager import NetworkStateManager
+    from app.handover.engine import HandoverEngine
+
 from app.monitoring import metrics
 
 router = APIRouter(
@@ -11,8 +17,12 @@ router = APIRouter(
 )
 
 # Single, shared NetworkStateManager instance
-state_mgr = NetworkStateManager()
-engine = HandoverEngine(state_mgr)
+if runtime is None:
+    state_mgr = NetworkStateManager()
+    engine = HandoverEngine(state_mgr)
+else:
+    state_mgr = runtime.state_manager
+    engine = runtime.engine
 
 @router.get("/state/{ue_id}")
 def get_feature_vector(ue_id: str):

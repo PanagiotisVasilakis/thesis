@@ -29,11 +29,14 @@ from ..utils.env_utils import get_neighbor_count_from_env
 from ..config.constants import (
     DEFAULT_FALLBACK_ANTENNA_ID,
     DEFAULT_FALLBACK_CONFIDENCE,
+    DEFAULT_FALLBACK_RSRP,
+    DEFAULT_FALLBACK_SINR,
+    DEFAULT_FALLBACK_RSRQ,
     DEFAULT_LIGHTGBM_MAX_DEPTH,
     DEFAULT_LIGHTGBM_RANDOM_STATE,
     env_constants,
 )
-from ..config.feature_specs import validate_feature_ranges
+from ..config.feature_specs import sanitize_feature_ranges, validate_feature_ranges
 from ..utils.exception_handler import (
     ExceptionHandler,
     ModelError,
@@ -46,11 +49,32 @@ from ..utils.resource_manager import (
 )
 from .async_model_operations import AsyncModelInterface, get_async_model_manager
 from ..monitoring import metrics
+from ..initialization.model_version import MODEL_VERSION
 
 FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
 FALLBACK_CONFIDENCE = DEFAULT_FALLBACK_CONFIDENCE
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_QOS_FEATURES = {
+    "service_type": "default",
+    "service_type_label": "default",
+    "service_priority": 5,
+    "latency_requirement_ms": 50.0,
+    "throughput_requirement_mbps": 100.0,
+    "jitter_ms": 5.0,
+    "reliability_pct": 99.0,
+    "latency_ms": 50.0,
+    "throughput_mbps": 100.0,
+    "packet_loss_rate": 0.0,
+    "observed_latency_ms": 50.0,
+    "observed_throughput_mbps": 100.0,
+    "observed_jitter_ms": 5.0,
+    "observed_packet_loss_rate": 0.0,
+    "latency_delta_ms": 0.0,
+    "throughput_delta_mbps": 0.0,
+    "reliability_delta_pct": 1.0,
+}
 
 DEFAULT_TEST_FEATURES = {
     "latitude": 500,
@@ -76,6 +100,7 @@ DEFAULT_TEST_FEATURES = {
     "best_sinr_diff": 0.0,
     "best_rsrq_diff": 0.0,
     "altitude": 0.0,
+    **DEFAULT_QOS_FEATURES,
 }
 
 # Default feature configuration path relative to this file
@@ -158,6 +183,154 @@ class AntennaSelector(AsyncModelInterface):
     # invoked concurrently, so a lock ensures feature names are added only once.
     _init_lock = threading.Lock()
 
+    @staticmethod
+    def _safe_float(value: Any, fallback: float) -> float:
+        """Return ``value`` as float with ``fallback`` on failure."""
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float(fallback)
+
+    def _apply_qos_defaults(self, features: Dict[str, Any]) -> None:
+        """Ensure QoS-related features exist and remain numerically consistent."""
+
+        for key, value in DEFAULT_QOS_FEATURES.items():
+            if key not in features or features[key] is None:
+                features[key] = value
+
+        # Normalise string label for downstream reporting
+        svc_label = features.get("service_type_label")
+        if not svc_label:
+            svc_label = features.get("service_type", DEFAULT_QOS_FEATURES["service_type"])
+        features["service_type_label"] = str(svc_label)
+
+        latency_req = self._safe_float(
+            features.get("latency_requirement_ms"),
+            DEFAULT_QOS_FEATURES["latency_requirement_ms"],
+        )
+        latency_obs = self._safe_float(features.get("latency_ms"), latency_req)
+
+        throughput_req = self._safe_float(
+            features.get("throughput_requirement_mbps"),
+            DEFAULT_QOS_FEATURES["throughput_requirement_mbps"],
+        )
+        throughput_obs = self._safe_float(features.get("throughput_mbps"), throughput_req)
+
+        jitter_req = self._safe_float(features.get("jitter_ms"), DEFAULT_QOS_FEATURES["jitter_ms"])
+        observed_jitter = self._safe_float(features.get("observed_jitter_ms"), jitter_req)
+
+        reliability_req = self._safe_float(features.get("reliability_pct"), DEFAULT_QOS_FEATURES["reliability_pct"])
+        observed_packet_loss = self._safe_float(
+            features.get("observed_packet_loss_rate"),
+            DEFAULT_QOS_FEATURES["observed_packet_loss_rate"],
+        )
+        packet_loss = self._safe_float(features.get("packet_loss_rate"), observed_packet_loss)
+        observed_latency = self._safe_float(features.get("observed_latency_ms"), latency_obs)
+        observed_throughput = self._safe_float(features.get("observed_throughput_mbps"), throughput_obs)
+
+        reliability_observed = max(0.0, 100.0 - observed_packet_loss)
+
+        features["latency_requirement_ms"] = latency_req
+        features["latency_ms"] = latency_obs
+        features["latency_delta_ms"] = self._safe_float(
+            features.get("latency_delta_ms"),
+            latency_obs - latency_req,
+        )
+
+        features["throughput_requirement_mbps"] = throughput_req
+        features["throughput_mbps"] = throughput_obs
+        features["throughput_delta_mbps"] = self._safe_float(
+            features.get("throughput_delta_mbps"),
+            throughput_obs - throughput_req,
+        )
+
+        features["jitter_ms"] = jitter_req
+        features["observed_jitter_ms"] = observed_jitter
+
+        features["reliability_pct"] = reliability_req
+        features["observed_packet_loss_rate"] = observed_packet_loss
+        features["packet_loss_rate"] = packet_loss
+        features["reliability_delta_pct"] = self._safe_float(
+            features.get("reliability_delta_pct"),
+            reliability_observed - reliability_req,
+        )
+
+        features["observed_latency_ms"] = observed_latency
+        features["observed_throughput_mbps"] = observed_throughput
+
+        # Ensure service priority is integral
+        try:
+            features["service_priority"] = int(features.get("service_priority", DEFAULT_QOS_FEATURES["service_priority"]))
+        except (TypeError, ValueError):
+            features["service_priority"] = int(DEFAULT_QOS_FEATURES["service_priority"])
+
+        # Normalise auxiliary QoS containers for downstream consumers
+        if not isinstance(features.get("observed_qos"), dict):
+            features["observed_qos"] = {
+                "latency_ms": observed_latency,
+                "throughput_mbps": observed_throughput,
+                "jitter_ms": observed_jitter,
+                "packet_loss_rate": observed_packet_loss,
+            }
+        if not isinstance(features.get("observed_qos_summary"), dict):
+            features["observed_qos_summary"] = {"latest": features["observed_qos"]}
+
+    def _prepare_features_for_model(self, features: Dict[str, Any]) -> Dict[str, Any]:
+        """Return a copy of ``features`` ready for numerical model ingestion."""
+
+        prepared = dict(features)
+        self._apply_qos_defaults(prepared)
+
+        service_type_raw = prepared.get("service_type", DEFAULT_QOS_FEATURES["service_type"])
+        prepared["service_type_label"] = str(prepared.get("service_type_label") or service_type_raw)
+
+        if not isinstance(service_type_raw, (int, float)):
+            try:
+                from ..core.qos_encoding import encode_service_type
+
+                prepared["service_type"] = encode_service_type(service_type_raw)
+            except Exception:
+                from ..core.qos_encoding import encode_service_type
+
+                prepared["service_type"] = encode_service_type(DEFAULT_QOS_FEATURES["service_type"])
+        else:
+            prepared["service_type"] = float(service_type_raw)
+
+        return prepared
+
+    def _default_feature_value(self, name: str) -> float | int:
+        """Return a safe default for missing features used by the model."""
+
+        if name in DEFAULT_TEST_FEATURES:
+            return DEFAULT_TEST_FEATURES[name]
+        if name in DEFAULT_QOS_FEATURES:
+            return DEFAULT_QOS_FEATURES[name]
+        if name.startswith("rsrp_"):
+            return DEFAULT_FALLBACK_RSRP
+        if name.startswith("sinr_"):
+            return DEFAULT_FALLBACK_SINR
+        if name.startswith("rsrq_"):
+            return DEFAULT_FALLBACK_RSRQ
+        if name.startswith("neighbor_cell_load"):
+            return 0.0
+        if name.endswith("handover_count_1min") or name.endswith("time_since_last_handover"):
+            return 0.0
+        return 0.0
+
+    def _ensure_feature_defaults(self, features: Dict[str, Any]) -> list[str]:
+        """Populate missing feature names with safe defaults.
+
+        Returns a list of feature names that required defaulting so callers
+        can optionally trace or log the adjustments.
+        """
+
+        missing: list[str] = []
+        for name in self.feature_names:
+            if name not in features or features[name] is None:
+                features[name] = self._default_feature_value(name)
+                missing.append(name)
+        return missing
+
     def __init__(
         self,
         model_path: str | None = None,
@@ -215,6 +388,10 @@ class AntennaSelector(AsyncModelInterface):
                     f"rsrq_a{idx+1}",
                     f"neighbor_cell_load_a{idx+1}",
                 ])
+
+        # QoS-derived features are optional for validation; they will be
+        # populated with safe defaults when absent.
+        self.optional_feature_names = set(DEFAULT_QOS_FEATURES.keys())
 
         # Initialize handover tracker for ping-pong prevention
         self.handover_tracker = HandoverTracker()
@@ -386,6 +563,8 @@ class AntennaSelector(AsyncModelInterface):
         # backward-compatible for callers and tests. Numeric encoding for
         # training is performed later when building the dataset.
 
+        self._apply_qos_defaults(features)
+
         if neighbor_count != self.neighbor_count or feature_names is not self.feature_names:
             with self._init_lock:
                 self.neighbor_count = neighbor_count
@@ -400,34 +579,41 @@ class AntennaSelector(AsyncModelInterface):
 
     def predict(self, features):
         """Predict the optimal antenna for the UE with ping-pong prevention."""
+        prepared = self._prepare_features_for_model(features)
+        self._ensure_feature_defaults(prepared)
+        sanitize_feature_ranges(prepared)
         # Validate required features and their configured ranges
-        missing = set(self.feature_names) - set(features)
-        if missing:
-            raise ValueError(f"Missing required features: {missing}")
-        validate_feature_ranges(features)
+        validate_feature_ranges(prepared)
 
         # Convert features to the format expected by the model and scale
         # Ensure `service_type` is numeric for prediction as well
         try:
             from ml_service.app.core.qos_encoding import encode_service_type
 
-            svc = features.get("service_type")
+            svc = prepared.get("service_type")
             if svc is not None and not isinstance(svc, (int, float)):
-                features["service_type"] = encode_service_type(svc)
+                prepared["service_type"] = encode_service_type(svc)
         except Exception:
             # non-fatal; let the eventual conversion raise if still invalid
             pass
 
-        X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+        X = np.array([[prepared[name] for name in self.feature_names]], dtype=float)
         if self.scaler:
             try:
                 X = self.scaler.transform(X)
             except NotFittedError:
                 pass
 
-        service_type_label = features.get("service_type_label") or features.get("service_type") or "default"
+        service_type_label = prepared.get("service_type_label") or prepared.get("service_type") or "default"
         if isinstance(service_type_label, (int, float)):
             service_type_label = str(service_type_label)
+
+        fallback_payload = {
+            "antenna_id": FALLBACK_ANTENNA_ID,
+            "confidence": FALLBACK_CONFIDENCE,
+            "qos_bias_applied": False,
+            "_fallback_marker": True,
+        }
 
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
@@ -489,56 +675,49 @@ class AntennaSelector(AsyncModelInterface):
             return result
         
         # Use safe execution with fallback
-        ue_id = features.get("ue_id", "unknown")
+        ue_id = prepared.get("ue_id", "unknown")
         result = safe_execute(
             _perform_prediction,
             context=f"Model prediction for UE {ue_id}",
-            default_return={
-                "antenna_id": FALLBACK_ANTENNA_ID,
-                "confidence": FALLBACK_CONFIDENCE,
-            },
+            default_return=fallback_payload,
             exceptions=(lgb.basic.LightGBMError, NotFittedError, Exception),
             logger_name="AntennaSelector"
         )
+
+        fallback_used = bool(result.pop("_fallback_marker", False))
         
-        if result["antenna_id"] == FALLBACK_ANTENNA_ID:
-            # Explicit warning to surface when the model falls back to defaults
+        if fallback_used:
             logger.warning(
                 "Using default antenna for UE %s due to prediction error",
                 ue_id,
             )
+            result.setdefault("anti_pingpong_applied", False)
             return result
         
         # ==================================================================
         # PING-PONG PREVENTION LOGIC (Critical for Thesis)
         # ==================================================================
-        current_cell = features.get("connected_to")
+        current_cell = prepared.get("connected_to")
         predicted_antenna = result["antenna_id"]
         confidence = result["confidence"]
         timestamp = time.time()
         
         # Track handover state and get metrics
-        handover_count, time_since_last = self.handover_tracker.update_handover_state(
-            ue_id, current_cell, timestamp
-        )
+        if current_cell:
+            handover_count, time_since_last = self.handover_tracker.update_handover_state(
+                ue_id, current_cell, timestamp
+            )
+        else:
+            handover_count = 0
+            time_since_last = float("inf")
         
         # Only apply ping-pong prevention if prediction suggests a handover
-        if predicted_antenna != current_cell:
+        if current_cell and predicted_antenna != current_cell:
             original_antenna = predicted_antenna
             suppression_reason = None
             
-            # Check 1: Too recent (minimum interval between handovers)
-            if time_since_last < self.min_handover_interval_s:
-                logger.debug(
-                    f"Suppressing handover for {ue_id}: too recent "
-                    f"({time_since_last:.1f}s < {self.min_handover_interval_s}s)"
-                )
-                predicted_antenna = current_cell
-                confidence = 1.0  # High confidence to stay
-                suppression_reason = "too_recent"
-            
-            # Check 2: Too many handovers in window (ping-pong detection)
-            elif handover_count >= self.max_handovers_per_minute:
+            # Check 1: Too many handovers in rolling window (ping-pong detection)
+            if handover_count >= self.max_handovers_per_minute:
                 handovers_in_window = self.handover_tracker.get_handovers_in_window(ue_id, 60.0)
                 if handovers_in_window >= self.max_handovers_per_minute:
                     logger.warning(
@@ -550,6 +729,16 @@ class AntennaSelector(AsyncModelInterface):
                         predicted_antenna = current_cell
                         confidence = 1.0
                         suppression_reason = "too_many"
+            
+            # Check 2: Too recent (minimum interval between handovers)
+            if suppression_reason is None and time_since_last < self.min_handover_interval_s:
+                logger.debug(
+                    f"Suppressing handover for {ue_id}: too recent "
+                    f"({time_since_last:.1f}s < {self.min_handover_interval_s}s)"
+                )
+                predicted_antenna = current_cell
+                confidence = 1.0  # High confidence to stay
+                suppression_reason = "too_recent"
             
             # Check 3: Immediate ping-pong (handover back to recent cell)
             if suppression_reason is None:
@@ -588,12 +777,13 @@ class AntennaSelector(AsyncModelInterface):
             result["anti_pingpong_applied"] = False
         
         # Record handover interval for analytics
-        if time_since_last > 0:
+        if current_cell and time_since_last != float("inf") and time_since_last > 0:
             metrics.HANDOVER_INTERVAL.observe(time_since_last)
         
-        # Add handover tracking metadata to result
-        result["handover_count_1min"] = handover_count
-        result["time_since_last_handover"] = time_since_last
+        # Add handover tracking metadata to result when applicable
+        if current_cell:
+            result["handover_count_1min"] = handover_count
+            result["time_since_last_handover"] = time_since_last
 
         if result.get("qos_bias_applied"):
             logger.info(
@@ -714,7 +904,9 @@ class AntennaSelector(AsyncModelInterface):
         y = []
 
         for sample in training_data:
-            features = self.extract_features(sample)
+            extracted = self.extract_features(sample)
+            features = self._prepare_features_for_model(extracted)
+            self._ensure_feature_defaults(features)
             feature_vector = [features[name] for name in self.feature_names]
 
             # The label is the optimal antenna ID
@@ -779,9 +971,6 @@ class AntennaSelector(AsyncModelInterface):
         """
 
         if version is None:
-            # Import locally to avoid circular import during module loading.
-            from ..initialization.model_init import MODEL_VERSION
-
             version = MODEL_VERSION
 
         save_path = path or self.model_path

@@ -63,6 +63,7 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
     
     def _ensemble_predict(self, features: dict) -> dict:
         """Internal prediction method that aggregates results from all models."""
+        prepared = self._prepare_features_for_model(features)
         probs_accum = None
         classes = None
         active_models = 0
@@ -76,7 +77,7 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
                     if model.classes_ is None:
                         continue
                     # Use the model's own predict method to avoid duplication
-                    result = model.predict(features)
+                    result = model.predict(prepared)
                     if result["antenna_id"] == FALLBACK_ANTENNA_ID:
                         continue
                     # Convert single prediction to probability array
@@ -88,9 +89,9 @@ class EnsembleSelector(BaseModelMixin, AntennaSelector):
                 else:
                     # Use BaseModelMixin's validate_features if available
                     if hasattr(model, 'validate_features'):
-                        model.validate_features(features)
+                        model.validate_features(prepared)
                     
-                    X = np.array([[features[name] for name in model.feature_names]], dtype=float)
+                    X = np.array([[prepared[name] for name in model.feature_names]], dtype=float)
                     if hasattr(model, "scaler") and model.scaler is not None:
                         X = model.scaler.transform(X)
                     prob = model.model.predict_proba(X)[0]

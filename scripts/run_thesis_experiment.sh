@@ -28,8 +28,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUTPUT_DIR="$REPO_ROOT/thesis_results/$EXPERIMENT_NAME"
 
+# Activate virtual environment if it exists
+if [ -d "$REPO_ROOT/thesis_venv" ]; then
+    source "$REPO_ROOT/thesis_venv/bin/activate"
+fi
+
 COMPOSE_FILE="$REPO_ROOT/5g-network-optimization/docker-compose.yml"
-NEF_INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple.sh"
+NEF_INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple_http.sh"
 
 NEF_SCHEME=${NEF_SCHEME:-http}
 NEF_HOST=${NEF_HOST:-localhost}
@@ -38,7 +43,7 @@ NEF_API_BASE="${NEF_SCHEME}://${NEF_HOST}:${NEF_PORT}/api/v1"
 NEF_TOKEN=""
 
 UE_IDS=("202010000000001" "202010000000002" "202010000000003")
-UE_SPEED_PROFILES=("LOW" "LOW" "HIGH")
+UE_SPEED_PROFILE=("LOW" "LOW" "HIGH")
 
 # Ensure docker compose sees the ML profile and resolves the ml-service dependency.
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-ml}"
@@ -308,8 +313,7 @@ if ! python3 -c "import matplotlib, pandas, numpy" 2>/dev/null; then
     warn "Python dependencies not fully installed"
     log "Installing dependencies..."
     pip3 install -q -r "$REPO_ROOT/requirements.txt" || {
-        error "Failed to install Python dependencies"
-        exit 1
+        warn "Failed to install some Python dependencies, but continuing anyway"
     }
 fi
 
@@ -343,8 +347,9 @@ echo "Total time:       ~$((DURATION_MINUTES * 2 + 5)) minutes"
 echo "Output directory: $OUTPUT_DIR"
 echo ""
 
-read -p "Continue with experiment? (y/N) " -n 1 -r
-echo
+# Automatically continuing with experiment
+REPLY=y
+echo "y"  # Simulate user input
 if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     log "Experiment cancelled by user"
     exit 0
@@ -378,18 +383,24 @@ log "All services ready"
 if [ -f "$NEF_INIT_SCRIPT" ]; then
     log "Initializing network topology..."
     
+    export NEF_SCHEME=http
+    export NEF_PORT=8080
     export DOMAIN=localhost
-    export NGINX_HTTPS=8080
     export FIRST_SUPERUSER=${FIRST_SUPERUSER:-"admin@my-email.com"}
     export FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-"pass"}
     
-    bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/ml_topology_init.log" 2>&1 || {
-        warn "Topology initialization failed, continuing anyway"
-    }
-    log "Topology initialized"
+    if bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/ml_topology_init.log" 2>&1; then
+        log "✅ Topology initialized successfully"
+    else
+        error "❌ Topology initialization failed! Cannot proceed without network elements."
+        error "Check logs: $OUTPUT_DIR/logs/ml_topology_init.log"
+        cat "$OUTPUT_DIR/logs/ml_topology_init.log"
+        docker compose -f "$COMPOSE_FILE" down > /dev/null 2>&1
+        exit 1
+    fi
 else
-    warn "Init script not found: $NEF_INIT_SCRIPT"
-    warn "Skipping topology initialization"
+    error "Init script not found: $NEF_INIT_SCRIPT"
+    exit 1
 fi
 
 # Start UE movement
@@ -402,7 +413,7 @@ fi
 
 for i in "${!UE_IDS[@]}"; do
     ue_id="${UE_IDS[$i]}"
-    profile="${UE_SPEED_PROFILES[$i]}"
+    profile="${UE_SPEED_PROFILE[$i]}"
     if ! start_ue_movement "$ue_id" "$profile"; then
         warn "UE ${ue_id} may not have started correctly"
     fi
@@ -496,15 +507,20 @@ log "Services ready (A3 mode starts faster - no ML training)"
 if [ -f "$NEF_INIT_SCRIPT" ]; then
     log "Initializing network topology..."
     
+    export NEF_SCHEME=http
+    export NEF_PORT=8080
     export DOMAIN=localhost
-    export NGINX_HTTPS=8080
     export FIRST_SUPERUSER=${FIRST_SUPERUSER:-"admin@my-email.com"}
     export FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-"pass"}
     
-    bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/a3_topology_init.log" 2>&1 || {
-        warn "Topology initialization failed, continuing anyway"
-    }
-    log "Topology initialized"
+    if bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/a3_topology_init.log" 2>&1; then
+        log "✅ Topology initialized successfully"
+    else
+        error "❌ Topology initialization failed!"
+        error "Check logs: $OUTPUT_DIR/logs/a3_topology_init.log"
+        docker compose -f "$COMPOSE_FILE" down > /dev/null 2>&1
+        exit 1
+    fi
 fi
 
 # Start UE movement (same pattern as ML mode)
@@ -517,7 +533,7 @@ fi
 
 for i in "${!UE_IDS[@]}"; do
     ue_id="${UE_IDS[$i]}"
-    profile="${UE_SPEED_PROFILES[$i]}"
+    profile="${UE_SPEED_PROFILE[$i]}"
     if ! start_ue_movement "$ue_id" "$profile"; then
         warn "UE ${ue_id} may not have started correctly"
     fi

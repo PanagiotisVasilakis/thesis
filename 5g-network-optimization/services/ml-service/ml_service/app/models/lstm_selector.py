@@ -103,13 +103,14 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
 
     def predict(self, features: dict) -> dict:
         """Predict using the trained LSTM model with thread safety."""
+        prepared = self._prepare_features_for_model(features)
         with self._model_lock:
             if self.model is None or self.classes_ is None:
                 return {
                     "antenna_id": FALLBACK_ANTENNA_ID,
                     "confidence": FALLBACK_CONFIDENCE,
                 }
-            X = np.array([[features[name] for name in self.feature_names]], dtype=float)
+            X = np.array([[prepared[name] for name in self.feature_names]], dtype=float)
             if self.scaler:
                 X = self.scaler.transform(X)
             X = X.reshape((1, 1, len(self.feature_names)))

@@ -57,9 +57,10 @@ def test_scaler_persistence(tmp_path):
     data = _tiny_dataset()
     model = LightGBMSelector()
     model.train(data)
-    sample_features = model.extract_features(data[0])
+    prepared = model._prepare_features_for_model(model.extract_features(data[0]))
+    model._ensure_feature_defaults(prepared)
     baseline = model.scaler.transform(
-        [[sample_features[name] for name in model.feature_names]]
+        [[prepared[name] for name in model.feature_names]]
     )[0]
 
     path = tmp_path / "model.joblib"
@@ -71,7 +72,7 @@ def test_scaler_persistence(tmp_path):
     loaded = LightGBMSelector()
     assert loaded.load(path)
     loaded_features = loaded.scaler.transform(
-        [[sample_features[name] for name in loaded.feature_names]]
+        [[prepared[name] for name in loaded.feature_names]]
     )[0]
 
     assert np.allclose(baseline, loaded_features)

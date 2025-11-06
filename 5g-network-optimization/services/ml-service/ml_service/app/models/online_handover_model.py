@@ -37,7 +37,8 @@ class OnlineHandoverModel(AntennaSelector):
     def _build_dataset(self, training_data: list) -> tuple[np.ndarray, np.ndarray]:
         X, y = [], []
         for sample in training_data:
-            features = self.extract_features(sample)
+            extracted = self.extract_features(sample)
+            features = self._prepare_features_for_model(extracted)
             X.append([features[name] for name in self.feature_names])
             y.append(sample.get("optimal_antenna"))
         return np.array(X, dtype=float), np.array(y)
@@ -67,6 +68,7 @@ class OnlineHandoverModel(AntennaSelector):
         This method is thread-safe and acquires the model lock during update.
         """
         features = self.extract_features(sample)
+        features = self._prepare_features_for_model(features)
         label = sample.get("optimal_antenna")
         if label is None:
             return

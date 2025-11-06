@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 import logging
 
-from ml_service.app.config.feature_specs import validate_feature_ranges
+from ml_service.app.config.feature_specs import sanitize_feature_ranges, validate_feature_ranges
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,7 @@ class BaseModelMixin:
         X, y = [], []
         for sample in training_data:
             features = self.extract_features(sample)
+            sanitize_feature_ranges(features)
             validate_feature_ranges(features)
             # Ensure service_type (if present) is encoded as numeric so the
             # feature vector can be converted to float. Preserve other
@@ -61,11 +62,13 @@ class BaseModelMixin:
         Raises:
             ValueError: If required features are missing
         """
-        missing_features = set(self.feature_names) - set(features.keys())
+        optional_features = getattr(self, "optional_feature_names", set())
+        missing_features = set(self.feature_names) - set(features.keys()) - set(optional_features)
         if missing_features:
             raise ValueError(f"Missing required features: {missing_features}")
 
         # Ensure feature values fall within configured bounds
+        sanitize_feature_ranges(features)
         validate_feature_ranges(features)
     
     def get_prediction_with_fallback(
@@ -84,6 +87,19 @@ class BaseModelMixin:
         Returns:
             Dictionary with antenna_id and confidence
         """
+        optional_features = getattr(self, "optional_feature_names", set())
+        missing_required = set(self.feature_names) - set(features.keys()) - set(optional_features)
+        if missing_required:
+            logger.error(
+                "Prediction skipped due to missing required features for UE %s: %s. Using fallback.",
+                features.get("ue_id", "unknown"),
+                sorted(missing_required),
+            )
+            return {
+                "antenna_id": fallback_antenna,
+                "confidence": fallback_confidence
+            }
+
         try:
             return self.predict(features)
         except ValueError as exc:

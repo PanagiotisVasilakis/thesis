@@ -6,7 +6,21 @@ from typing import Iterable
 import os
 
 import pandas as pd
-from feast import FeatureStore
+
+try:
+    from feast import FeatureStore  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - exercised in environments without Feast
+    class FeatureStore:  # type: ignore
+        """Minimal stand-in used when Feast is not installed."""
+
+        def __init__(self, path: str) -> None:
+            self.path = path
+
+        def ingest(self, *args, **kwargs):  # noqa: D401 - intentionally raises
+            raise RuntimeError("Feast FeatureStore is not available in this environment")
+
+        def get_historical_features(self, *args, **kwargs):  # noqa: D401 - intentionally raises
+            raise RuntimeError("Feast FeatureStore is not available in this environment")
 
 from mlops.feast_repo.constants import UE_METRIC_FEATURE_NAMES
 

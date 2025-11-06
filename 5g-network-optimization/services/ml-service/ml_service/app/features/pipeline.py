@@ -11,6 +11,7 @@ from ..config.constants import (
     DEFAULT_FALLBACK_SINR,
     DEFAULT_FALLBACK_RSRQ,
 )
+from ..config.feature_specs import sanitize_feature_ranges
 from ..utils.feature_cache import _cached_direction_to_unit, _cached_signal_extraction
 
 __all__ = [
@@ -339,6 +340,7 @@ def build_model_features(
         feature_names = feature_names + new_names
 
     apply_feature_transforms(features)
+    sanitize_feature_ranges(features)
 
     return features, current_count, feature_names
 

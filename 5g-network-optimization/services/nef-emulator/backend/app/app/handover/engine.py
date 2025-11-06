@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Optional
 
 import logging
 import requests
+from jose import jwt
 from requests import RequestException
 
 from ..monitoring import metrics
@@ -84,6 +86,29 @@ class HandoverEngine:
             self._auto = True
             self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
 
+        # --- ML service authentication ---
+        self._ml_username = (
+            os.getenv("ML_SERVICE_USERNAME")
+            or os.getenv("ML_AUTH_USERNAME")
+            or os.getenv("ML_SERVICE_USER")
+        )
+        self._ml_password = (
+            os.getenv("ML_SERVICE_PASSWORD")
+            or os.getenv("ML_AUTH_PASSWORD")
+            or os.getenv("ML_SERVICE_PASS")
+        )
+        self._ml_access_token: Optional[str] = None
+        self._ml_refresh_token: Optional[str] = None
+        self._ml_token_expiry: float = 0.0
+        self._ml_auth_lock = threading.Lock()
+        self._ml_credentials_warned = False
+        try:
+            self._token_refresh_skew = float(os.getenv("ML_TOKEN_REFRESH_SKEW", "15"))
+        except ValueError:
+            self._token_refresh_skew = 15.0
+        self._last_ml_error_reason: Optional[str] = None
+        self._last_ml_http_status: Optional[int] = None
+
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
         if self._auto:
@@ -132,6 +157,9 @@ class HandoverEngine:
                 if simplified:
                     ue_data["observed_qos"] = simplified
         logger = getattr(self.state_mgr, "logger", self.logger)
+        self._last_ml_error_reason = None
+        self._last_ml_http_status = None
+
         if self.use_local_ml and self.model:
             try:
                 features = self.model.extract_features(ue_data)
@@ -146,6 +174,7 @@ class HandoverEngine:
                 return {"antenna_id": pred, "confidence": None}
             except Exception as exc:  # noqa: BLE001 - log and fall back
                 logger.exception("Local ML prediction failed", exc_info=exc)
+                self._last_ml_error_reason = "local_ml_error"
                 return None
 
         # Use the QoS-aware prediction endpoint so the response may include
@@ -160,7 +189,30 @@ class HandoverEngine:
                 # Best-effort logging; don't fail the request if formatting fails
                 pass
 
-            resp = requests.post(url, json=ue_data, timeout=5)
+            headers = self._get_ml_headers()
+            request_kwargs = {"json": ue_data, "timeout": 5}
+            if headers:
+                request_kwargs["headers"] = headers
+            resp = requests.post(url, **request_kwargs)
+            status = getattr(resp, "status_code", None)
+            if status == 401 and headers:
+                headers = self._get_ml_headers(force_refresh=True)
+                if headers:
+                    resp = requests.post(url, json=ue_data, headers=headers, timeout=5)
+                    status = getattr(resp, "status_code", None)
+
+            if status is not None and 400 <= status < 600:
+                category = "ml_http_4xx" if status < 500 else "ml_http_5xx"
+                self._last_ml_error_reason = category
+                self._last_ml_http_status = int(status)
+                try:
+                    logger.warning(
+                        "ML service returned status %s for UE %s", status, ue_id
+                    )
+                except Exception:
+                    pass
+                return None
+
             # For test Double-wrapped response object we rely on its
             # raise_for_status()/json() methods being available.
             resp.raise_for_status()
@@ -172,14 +224,20 @@ class HandoverEngine:
                 "confidence": data.get("confidence"),
                 "qos_compliance": data.get("qos_compliance"),
             }
+        except RequestException as exc:
+            self._last_ml_error_reason = "ml_service_unavailable"
+            logger.exception("Remote ML request failed", exc_info=exc)
+            return None
         except Exception as exc:  # noqa: BLE001 - capture any ML service error
+            if self._last_ml_error_reason is None:
+                self._last_ml_error_reason = "ml_service_unavailable"
             logger.exception("Remote ML request failed", exc_info=exc)
             return None
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
         fv = self.state_mgr.get_feature_vector(ue_id)
         current = fv["connected_to"]
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
         
         # Prepare serving cell metrics
         serving_rsrp = fv["neighbor_rsrp_dbm"][current]
@@ -203,6 +261,103 @@ class HandoverEngine:
             if self.rule.check(serving_metrics, target_metrics, now):
                 return aid
         return None
+
+    # ------------------------------------------------------------------
+
+    def _get_ml_headers(self, *, force_refresh: bool = False) -> dict[str, str]:
+        if not self._ml_username or not self._ml_password:
+            if not self._ml_credentials_warned:
+                self.logger.warning(
+                    "ML service credentials are not configured; remote predictions will"
+                    " require manual authentication."
+                )
+                self._ml_credentials_warned = True
+            return {}
+
+        with self._ml_auth_lock:
+            now = time.time()
+            if (
+                self._ml_access_token
+                and not force_refresh
+                and now < (self._ml_token_expiry - self._token_refresh_skew)
+            ):
+                return {"Authorization": f"Bearer {self._ml_access_token}"}
+
+            if self._ml_refresh_token and not force_refresh:
+                if self._refresh_ml_token():
+                    return {"Authorization": f"Bearer {self._ml_access_token}"}
+
+            if self._login_ml():
+                return {"Authorization": f"Bearer {self._ml_access_token}"}
+
+            return {}
+
+    def _login_ml(self) -> bool:
+        login_url = f"{self.ml_service_url.rstrip('/')}/api/login"
+        payload = {
+            "username": self._ml_username,
+            "password": self._ml_password,
+        }
+        try:
+            resp = requests.post(login_url, json=payload, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.warning("ML service login failed: %s", exc)
+            self._ml_access_token = None
+            self._ml_refresh_token = None
+            self._ml_token_expiry = 0.0
+            return False
+
+        return self._store_ml_tokens(data)
+
+    def _refresh_ml_token(self) -> bool:
+        refresh_url = f"{self.ml_service_url.rstrip('/')}/api/refresh"
+        payload = {"refresh_token": self._ml_refresh_token}
+        try:
+            resp = requests.post(refresh_url, json=payload, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as exc:  # noqa: BLE001
+            self.logger.info("ML token refresh failed: %s", exc)
+            self._ml_refresh_token = None
+            self._ml_access_token = None
+            self._ml_token_expiry = 0.0
+            return False
+
+        return self._store_ml_tokens(data)
+
+    def _store_ml_tokens(self, data: dict) -> bool:
+        token = data.get("access_token")
+        if not token:
+            self.logger.warning("ML authentication response missing access_token")
+            self._ml_access_token = None
+            self._ml_token_expiry = 0.0
+            return False
+
+        self._ml_access_token = str(token)
+        refresh_token = data.get("refresh_token")
+        self._ml_refresh_token = str(refresh_token) if refresh_token else None
+        expires_in = data.get("expires_in")
+        self._ml_token_expiry = self._decode_token_expiry(self._ml_access_token, expires_in)
+        return True
+
+    @staticmethod
+    def _decode_token_expiry(token: str, expires_in: Optional[float]) -> float:
+        now = time.time()
+        if isinstance(expires_in, (int, float)) and expires_in > 0:
+            return now + float(expires_in)
+
+        try:
+            claims = jwt.get_unverified_claims(token)
+            exp = claims.get("exp")
+            if isinstance(exp, (int, float)):
+                return float(exp)
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Fallback: refresh again in five minutes
+        return now + 300.0
 
     # ------------------------------------------------------------------
 
@@ -239,9 +394,13 @@ class HandoverEngine:
             
             if result is None:
                 decision_log["ml_available"] = False
-                decision_log["fallback_reason"] = "ml_service_unavailable"
+                fallback_reason = self._last_ml_error_reason or "ml_service_unavailable"
+                decision_log["fallback_reason"] = fallback_reason
+                if self._last_ml_http_status is not None:
+                    decision_log["ml_status_code"] = self._last_ml_http_status
                 decision_log["fallback_to_a3"] = True
-                self._record_fallback_metrics(None, "ml_service_unavailable")
+                metrics.HANDOVER_FALLBACKS.inc()
+                self._record_fallback_metrics(None, fallback_reason)
                 target = None
             else:
                 decision_log["ml_available"] = True
@@ -451,7 +610,18 @@ class HandoverEngine:
         endpoint = f"{self.ml_service_url.rstrip('/')}/api/qos-feedback"
         try:
             self.logger.debug("Posting QoS feedback to %s: %s", endpoint, payload)
-            response = requests.post(endpoint, json=payload, timeout=3)
+            headers = self._get_ml_headers()
+            request_kwargs = {"json": payload, "timeout": 3}
+            if headers:
+                request_kwargs["headers"] = headers
+            response = requests.post(endpoint, **request_kwargs)
+            status = getattr(response, "status_code", None)
+            if status == 401 and headers:
+                headers = self._get_ml_headers(force_refresh=True)
+                if headers:
+                    response = requests.post(
+                        endpoint, json=payload, headers=headers, timeout=3
+                    )
             response.raise_for_status()
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("QoS feedback POST failed: %s", exc)

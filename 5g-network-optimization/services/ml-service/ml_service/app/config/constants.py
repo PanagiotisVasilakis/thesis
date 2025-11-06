@@ -166,6 +166,23 @@ DEFAULT_TEST_FEATURES = {
     "best_sinr_diff": 0.0,
     "best_rsrq_diff": 0.0,
     "altitude": 0.0,
+    "service_type": "default",
+    "service_type_label": "default",
+    "service_priority": 5,
+    "latency_requirement_ms": 50.0,
+    "throughput_requirement_mbps": 100.0,
+    "jitter_ms": 5.0,
+    "reliability_pct": 99.0,
+    "latency_ms": 50.0,
+    "throughput_mbps": 100.0,
+    "packet_loss_rate": 0.0,
+    "observed_latency_ms": 50.0,
+    "observed_throughput_mbps": 100.0,
+    "observed_jitter_ms": 5.0,
+    "observed_packet_loss_rate": 0.0,
+    "latency_delta_ms": 0.0,
+    "throughput_delta_mbps": 0.0,
+    "reliability_delta_pct": 1.0,
 }
 
 DEFAULT_SYNTHETIC_DATA_GRID_SIZE = 1000

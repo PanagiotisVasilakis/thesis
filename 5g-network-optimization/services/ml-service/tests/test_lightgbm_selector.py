@@ -1,3 +1,5 @@
+import pytest
+
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.models.antenna_selector import (
     FALLBACK_ANTENNA_ID,
@@ -120,7 +122,5 @@ def test_predict_unfitted_returns_default():
 
     result = model.predict(features)
 
-    assert result == {
-        "antenna_id": FALLBACK_ANTENNA_ID,
-        "confidence": FALLBACK_CONFIDENCE,
-    }
+    assert result["antenna_id"] == FALLBACK_ANTENNA_ID
+    assert result["confidence"] == pytest.approx(FALLBACK_CONFIDENCE)

@@ -17,7 +17,7 @@ try:  # pragma: no cover - exercised indirectly when Feast is available
     from feast.types import Float32, String, ValueType
 
     FEAST_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover - executed during local tests
+except (ModuleNotFoundError, ImportError):  # pragma: no cover - executed during local tests
     FEAST_AVAILABLE = False
 
     class _FeastTypePlaceholder:

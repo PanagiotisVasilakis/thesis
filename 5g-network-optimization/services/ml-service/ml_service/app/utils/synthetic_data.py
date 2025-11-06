@@ -1,8 +1,107 @@
 """Utilities for generating synthetic training data."""
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from .mobility_metrics import MobilityMetricTracker
+from ..core.qos import DEFAULT_SERVICE_PRESETS
+
+
+_QOS_SERVICE_TYPES = tuple(DEFAULT_SERVICE_PRESETS.keys())
+
+
+def _safe_clip(value: float, minimum: float, maximum: float) -> float:
+    """Return ``value`` clipped to ``[minimum, maximum]``."""
+    return float(np.clip(value, minimum, maximum))
+
+
+def _generate_qos_features() -> dict[str, Any]:
+    """Create QoS requirement and observation fields for a synthetic sample."""
+
+    service_type = str(np.random.choice(_QOS_SERVICE_TYPES))
+    preset = DEFAULT_SERVICE_PRESETS.get(service_type, DEFAULT_SERVICE_PRESETS["default"])
+
+    priority = int(np.clip(np.random.normal(preset.get("service_priority", 5), 1.0), 1, 10))
+
+    latency_req = _safe_clip(
+        np.random.normal(
+            preset.get("latency_requirement_ms", 100.0),
+            0.1 * max(1.0, preset.get("latency_requirement_ms", 100.0)) + 5.0,
+        ),
+        0.0,
+        500.0,
+    )
+    throughput_req = _safe_clip(
+        np.random.normal(preset.get("throughput_requirement_mbps", 50.0), 0.15 * max(1.0, preset.get("throughput_requirement_mbps", 50.0)) + 2.0),
+        0.0,
+        100000.0,
+    )
+    reliability_req = _safe_clip(
+        np.random.normal(preset.get("reliability_pct", 99.0), 0.5),
+        0.0,
+        100.0,
+    )
+    jitter_req = _safe_clip(
+        np.random.normal(preset.get("jitter_ms", 10.0), 2.0),
+        0.0,
+        1000.0,
+    )
+
+    latency_obs = _safe_clip(
+        np.random.normal(
+            latency_req * np.random.uniform(0.9, 1.2),
+            max(1.0, latency_req * 0.1),
+        ),
+        0.0,
+        500.0,
+    )
+    throughput_obs = _safe_clip(
+        np.random.normal(
+            max(1.0, throughput_req * np.random.uniform(0.8, 1.1)),
+            max(0.5, throughput_req * 0.15 + 1.0),
+        ),
+        0.0,
+        10000.0,
+    )
+    jitter_obs = _safe_clip(
+        np.random.normal(jitter_req * np.random.uniform(0.8, 1.2), 2.0),
+        0.0,
+        200.0,
+    )
+    packet_loss = _safe_clip(np.random.normal(1.5, 1.0), 0.0, 20.0)
+    reliability_obs = max(0.0, 100.0 - packet_loss)
+
+    latency_delta = float(np.clip(latency_obs - latency_req, -500.0, 500.0))
+    throughput_delta = float(np.clip(throughput_obs - throughput_req, -10000.0, 10000.0))
+    reliability_delta = reliability_obs - reliability_req
+
+    observed_qos = {
+        "latency_ms": latency_obs,
+        "throughput_mbps": throughput_obs,
+        "jitter_ms": jitter_obs,
+        "packet_loss_rate": packet_loss,
+    }
+
+    return {
+        "service_type": service_type,
+        "service_type_label": service_type,
+        "service_priority": priority,
+        "latency_requirement_ms": latency_req,
+        "throughput_requirement_mbps": throughput_req,
+        "reliability_pct": reliability_req,
+        "jitter_ms": jitter_req,
+        "latency_ms": latency_obs,
+        "throughput_mbps": throughput_obs,
+        "packet_loss_rate": packet_loss,
+        "observed_latency_ms": latency_obs,
+        "observed_throughput_mbps": throughput_obs,
+        "observed_jitter_ms": jitter_obs,
+        "observed_packet_loss_rate": packet_loss,
+        "latency_delta_ms": latency_delta,
+        "throughput_delta_mbps": throughput_delta,
+        "reliability_delta_pct": reliability_delta,
+        "observed_qos": observed_qos,
+        "observed_qos_summary": {"latest": observed_qos},
+    }
 
 
 def _generate_antenna_positions(num_antennas: int) -> dict:
@@ -123,6 +222,9 @@ def generate_synthetic_training_data(
             "rf_metrics": rf_metrics,
             "optimal_antenna": closest_antenna,
         }
+
+        qos_features = _generate_qos_features()
+        sample.update(qos_features)
 
         data.append(sample)
 

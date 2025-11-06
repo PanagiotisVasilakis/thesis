@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict
+import math
 import yaml
 
 # Default path to the feature specification file
@@ -84,3 +85,45 @@ def validate_feature_ranges(features: Dict[str, Any]) -> None:
             violations.append(f"{name}>{spec['max']}")
     if violations:
         raise ValueError("Out-of-range feature values: " + ", ".join(violations))
+
+
+def sanitize_feature_ranges(features: Dict[str, Any]) -> Dict[str, Any]:
+    """Clamp feature values to configured numeric ranges in-place.
+
+    Non-numeric features and those without range specifications are left
+    untouched. This helper primarily protects downstream validation by
+    ensuring values fall within the expected bounds when minor telemetry
+    noise or simulation drift pushes them outside the training envelope.
+    """
+
+    for name, spec in FEATURE_SPECS.items():
+        if name not in features or "categories" in spec:
+            continue
+
+        value = features[name]
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            continue
+
+        if not math.isfinite(numeric):
+            if "max" in spec:
+                numeric = spec["max"]
+            elif "min" in spec:
+                numeric = spec["min"]
+            else:
+                continue
+
+        if "min" in spec and numeric < spec["min"]:
+            numeric = spec["min"]
+        if "max" in spec and numeric > spec["max"]:
+            numeric = spec["max"]
+
+        if isinstance(value, int) and not isinstance(value, bool):
+            adjusted = int(round(numeric))
+        else:
+            adjusted = numeric
+
+        features[name] = adjusted
+
+    return features

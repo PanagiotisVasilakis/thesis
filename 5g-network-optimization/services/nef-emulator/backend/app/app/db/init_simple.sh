@@ -1,31 +1,47 @@
 #!/bin/bash
 
 set -a # automatically export all variables
-source .env
+source .env 2>/dev/null || true
 set +a
 
-PORT=$NGINX_HTTPS
-URL=https://$DOMAIN
+# Use HTTP for local Docker network (no TLS issues)
+# Override with NEF_SCHEME/NEF_PORT environment variables if needed
+SCHEME=${NEF_SCHEME:-http}
+PORT=${NEF_PORT:-${NGINX_HTTP:-8080}}
+DOMAIN=${DOMAIN:-localhost}
+URL="${SCHEME}://${DOMAIN}"
 
-TOKEN=$(curl -k -X 'POST' \
+echo "Initializing NEF topology at ${URL}:${PORT}"
+echo "Using credentials: ${FIRST_SUPERUSER:-admin@my-email.com}"
+
+# Authenticate and get token (remove -k flag since we're using HTTP)
+LOGIN_RESPONSE=$(curl -sS -X 'POST' \
   "${URL}:${PORT}/api/v1/login/access-token" \
   -H 'accept: application/json' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-urlencode "username=${FIRST_SUPERUSER}" \
-  --data-urlencode "password=${FIRST_SUPERUSER_PASSWORD}" \
-  -d "grant_type=&scope=&client_id=&client_secret=" \
-  | jq -r '.access_token')
+  --data-urlencode "username=${FIRST_SUPERUSER:-admin@my-email.com}" \
+  --data-urlencode "password=${FIRST_SUPERUSER_PASSWORD:-pass}" \
+  -d "grant_type=&scope=&client_id=&client_secret=")
 
-printf $TOKEN
+TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.access_token // empty')
+
+if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+    echo "ERROR: Failed to authenticate with NEF emulator"
+    echo "Response: $LOGIN_RESPONSE"
+    exit 1
+fi
+
+echo "✅ Authentication successful"
+echo "Token: ${TOKEN:0:20}..."
 
 
 printf '\n==================================================\n'
 printf 'Initializing Paths for admin...'
 printf '\n==================================================\n'
 
+echo "Creating Path 1: NCSRD Library..."
 
-
-curl -k -X 'POST' \
+PATH1_RESPONSE=$(curl -sS -X 'POST' \
   "${URL}:${PORT}/api/v1/paths" \
   -H 'accept: application/json' \
   -H "Authorization: Bearer ${TOKEN}" \

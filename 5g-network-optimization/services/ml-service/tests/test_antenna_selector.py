@@ -113,10 +113,8 @@ def test_train_metrics_and_prediction_flow(tmp_path):
     # Simulate untrained state
     model.model = object()
     default_pred = model.predict(sample_features)
-    assert default_pred == {
-        "antenna_id": FALLBACK_ANTENNA_ID,
-        "confidence": FALLBACK_CONFIDENCE,
-    }
+    assert default_pred["antenna_id"] == FALLBACK_ANTENNA_ID
+    assert default_pred["confidence"] == pytest.approx(FALLBACK_CONFIDENCE)
 
     model._initialize_model()
     metrics = model.train(data)
@@ -184,7 +182,8 @@ def test_predict_with_mock_and_persistence(tmp_path):
     }
 
     result = model.predict(features)
-    assert result == {"antenna_id": "mock_ant", "confidence": 0.8}
+    assert result["antenna_id"] == "mock_ant"
+    assert result["confidence"] == pytest.approx(0.8)
 
     path = tmp_path / "mock.joblib"
     assert model.save(path)
@@ -196,14 +195,22 @@ def test_predict_with_mock_and_persistence(tmp_path):
     assert loaded.predict(features) == result
 
 
-def test_predict_rejects_out_of_range():
+def test_predict_sanitizes_out_of_range():
     model = LightGBMSelector()
-    model.model = DummyModel()
+
+    class RecordingModel(DummyModel):
+        def predict_proba(self, X):
+            self.last_input = X
+            return super().predict_proba(X)
+
+    model.model = RecordingModel()
     features = antenna_selector.DEFAULT_TEST_FEATURES.copy()
     features["latitude"] = -5  # below configured min
 
-    with pytest.raises(ValueError):
-        model.predict(features)
+    result = model.predict(features)
+    assert result["antenna_id"] == "mock_ant"
+    latitude_index = model.feature_names.index("latitude")
+    assert model.model.last_input[0][latitude_index] == pytest.approx(0.0)
 
 
 def test_extract_features_neighbor_padding():
@@ -299,10 +306,8 @@ def test_default_prediction_unfitted_model(tmp_path, caplog):
     caplog.set_level(logging.WARNING)
     prediction = model.predict(features)
 
-    assert prediction == {
-        "antenna_id": FALLBACK_ANTENNA_ID,
-        "confidence": FALLBACK_CONFIDENCE,
-    }
+    assert prediction["antenna_id"] == FALLBACK_ANTENNA_ID
+    assert prediction["confidence"] == pytest.approx(FALLBACK_CONFIDENCE)
 
     assert any(
         "default antenna" in rec.getMessage().lower() and "u1" in rec.getMessage()
