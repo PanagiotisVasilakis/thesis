@@ -5,6 +5,8 @@
 **Assessment**: ⚠️ **MOSTLY STRONG - Some Areas Need Attention**  
 **File**: This guide
 
+> **New:** The defence run-book now lives in [`END_TO_END_DEMO.md`](END_TO_END_DEMO.md). Use that playbook for the live ML vs A3 walk-through, then return here for risk assessment, mitigation plans, and extended scenarios.
+
 ---
 
 ## 🔍 HONEST ASSESSMENT FIRST

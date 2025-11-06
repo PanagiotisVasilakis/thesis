@@ -61,6 +61,22 @@ This creates: 2 paths, 1 gNB, 4 cells, 3 UEs
 
 ---
 
+## End-to-End Demonstration (ML vs A3)
+
+For the live defence “show”, follow the detailed checklist in [`END_TO_END_DEMO.md`](END_TO_END_DEMO.md). The high-level flow is:
+
+1. **Stage the model** – copy the LightGBM bundle from `output/` into `services/ml-service/ml_service/app/models/`.
+2. **Launch the stack** – run `COMPOSE_PROFILES=ml ML_LOCAL=ml docker compose up -d` and verify the NEF (`:8080`), ML service (`:5050`), and Prometheus (`:9090`) health endpoints.
+3. **Seed topology** – execute `services/nef-emulator/backend/app/app/db/init_simple_http.sh` to register the multi-antenna layout and sample UEs.
+4. **Start UE loops** – authenticate with the NEF and POST to `/api/v1/ue_movement/start-loop` for the three sample SUPIs.
+5. **Collect metrics** – use `curl --data-urlencode "query=nef_handover_fallback_service_total" http://localhost:9090/api/v1/query` to confirm `ml_http_5xx` fallbacks. Temporarily flip `ML_SERVICE_PASSWORD` to trigger `ml_http_4xx`, then restore it.
+6. **Baseline with A3** – restart the stack with `ML_HANDOVER_ENABLED=0`, repeat the topology/loop steps, and record the same Prometheus queries.
+7. **Optional automation** – `./scripts/run_comparison.sh 10` produces side-by-side KPIs and presentation-grade plots.
+
+Each step above links to concrete commands (and cleanup actions) in the dedicated playbook.
+
+---
+
 ## Generate Synthetic Data
 
 ```bash

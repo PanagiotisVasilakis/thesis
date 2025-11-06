@@ -1,7 +1,7 @@
 # 🎓 START HERE - Thesis Project Guide
 ## 5G Network Optimization with ML-based Handover
 
-**Last Updated**: November 3, 2025  
+**Last Updated**: November 6, 2025  
 **Status**: Production-Ready + Thesis-Ready  
 **Quality**: ⭐⭐⭐⭐⭐ (5/5)
 
@@ -35,55 +35,19 @@ A complete **5G Network Optimization system** demonstrating how **Machine Learni
 #### ...Generate Thesis Results
 → **[docs/RESULTS_GENERATION_CHECKLIST.md](docs/RESULTS_GENERATION_CHECKLIST.md)** (3-4 hours)
 
-#### ...Understand What Was Implemented
-→ **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** (15 minutes)
-
-#### ...See What to Do Next
-→ **[IMPLEMENTATION_PRIORITIES.md](IMPLEMENTATION_PRIORITIES.md)** (5 minutes)
+#### ...Understand What Was Implemented / What Comes Next
+→ **[docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md)** (10 minutes)
 
 #### ...Browse All Documentation
 → **[docs/README.md](docs/README.md)** or **[docs/INDEX.md](docs/INDEX.md)** (5 minutes)
 
 ---
 
-## 📊 Recent Updates (November 3, 2025)
+## 📊 Latest Updates
 
-### ✅ IMPLEMENTED: Ping-Pong Prevention (Critical Item #1)
-
-**Most critical thesis feature now complete!**
-
-The ML service now includes intelligent ping-pong prevention that:
-- ✅ Prevents rapid handover oscillations (A→B→A→B)
-- ✅ Tracks per-UE handover history
-- ✅ Enforces minimum intervals between handovers
-- ✅ Detects and prevents ping-pong patterns
-- ✅ Provides quantifiable metrics via Prometheus
-
-**Impact**: Can now prove ML reduces ping-pong by **70-85%** vs A3!
-
-**Details**: [docs/PING_PONG_PREVENTION.md](docs/PING_PONG_PREVENTION.md)
-
----
-
-### ✅ IMPLEMENTED: ML vs A3 Comparison Tool (Critical Item #2)
-
-**Automated thesis results generation now available!**
-
-One-command tool that:
-- ✅ Runs sequential ML and A3 experiments
-- ✅ Collects comprehensive metrics from Prometheus
-- ✅ Generates 8 publication-quality visualizations
-- ✅ Exports CSV and text reports
-- ✅ Fully automated workflow (~25 minutes)
-
-**Usage**: 
-```bash
-./scripts/run_comparison.sh 10
-```
-
-**Impact**: One command generates **all** thesis comparison results!
-
-**Details**: [docs/ML_VS_A3_COMPARISON_TOOL.md](docs/ML_VS_A3_COMPARISON_TOOL.md)
+- **Live status**: See [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) for the active roadmap, validation checklist, and next steps.
+- **Historical snapshot**: The intensive November 3 documentation push (ping-pong prevention, comparison tooling, experiment automation) is preserved under [docs/history/2025-11-03/README.md](docs/history/2025-11-03/README.md).
+- Feature guides remain in [docs/PING_PONG_PREVENTION.md](docs/PING_PONG_PREVENTION.md) and [docs/ML_VS_A3_COMPARISON_TOOL.md](docs/ML_VS_A3_COMPARISON_TOOL.md) for quick reference.
 
 ---
 
@@ -97,8 +61,7 @@ One-command tool that:
 │
 ├─ 🏃 Quick Access
 │  ├─ docs/QUICK_START.md           ← Essential commands (10 min)
-│  ├─ IMPLEMENTATION_PRIORITIES.md   ← What to do next (5 min)
-│  └─ IMPLEMENTATION_SUMMARY.md      ← What was just implemented (15 min)
+│  └─ docs/IMPLEMENTATION_TRACKER.md ← Current status + next steps (10 min)
 │
 ├─ 📖 Complete Guides
 │  ├─ docs/COMPLETE_DEPLOYMENT_GUIDE.md    ← Full setup guide (90 min)
@@ -228,8 +191,8 @@ curl -X POST http://localhost:5050/api/predict \
 - Full Implementation: 57-83 hours (All 5 phases)
 
 **Read More**:
-- **Quick Summary**: [🔄_QOS_INTEGRATION_ROADMAP.md](🔄_QOS_INTEGRATION_ROADMAP.md) (5 min)
-- **Full Plan**: [QOS_INTEGRATION_PLAN.md](QOS_INTEGRATION_PLAN.md) (20 min)
+- **Quick Summary**: [docs/history/2025-11-03/🔄_QOS_INTEGRATION_ROADMAP.md](docs/history/2025-11-03/🔄_QOS_INTEGRATION_ROADMAP.md) (5 min, archived)
+- **Full Plan**: [docs/history/2025-11-03/QOS_INTEGRATION_PLAN.md](docs/history/2025-11-03/QOS_INTEGRATION_PLAN.md) (20 min, archived)
 
 **When to Implement**:
 - ✅ Before thesis defense if you want exceptional QoS claims
@@ -320,8 +283,8 @@ START_HERE.md (you are here)
     ├──> COMPLETE_DEPLOYMENT_GUIDE.md (if you want to understand everything)
     │       └──> Deep dive → Full knowledge → Thesis results
     │
-    ├──> IMPLEMENTATION_PRIORITIES.md (if you want to know what's next)
-    │       └──> Prioritized list → Choose roadmap → Start implementing
+   ├──> docs/IMPLEMENTATION_TRACKER.md (if you want status and next steps)
+   │       └──> Current progress → Validation checklist → Pick next action
     │
     └──> PING_PONG_PREVENTION.md (if you want to understand the new feature)
             └──> How it works → Configure → Demonstrate → Thesis proof
@@ -550,11 +513,11 @@ Metrics, testing, and comparative analysis tools
 
 ### Right Now (5 minutes)
 1. Read this document completely ✓
-2. Open [IMPLEMENTATION_PRIORITIES.md](IMPLEMENTATION_PRIORITIES.md)
-3. Decide on your roadmap (1-week, 2-week, or 3-week)
+2. Open [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md)
+3. Decide on your roadmap (use the tracker priorities section)
 
 ### Today (2-4 hours)
-4. Review [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)
+4. Review the **Delivered Work** section in [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md)
 5. Read [docs/PING_PONG_PREVENTION.md](docs/PING_PONG_PREVENTION.md)
 6. Test ping-pong implementation:
    ```bash
@@ -677,7 +640,7 @@ Based on the codebase analysis:
 - ~10-15 hours for full experimental validation
 - **Total: ~20-25 hours to excellent thesis**
 
-**Recommendation**: Follow the 1-week roadmap in [IMPLEMENTATION_PRIORITIES.md](IMPLEMENTATION_PRIORITIES.md)
+**Recommendation**: Follow the 1-week roadmap outlined in [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md)
 
 ---
 
@@ -692,8 +655,7 @@ Based on the codebase analysis:
 | [RESULTS_GENERATION_CHECKLIST.md](docs/RESULTS_GENERATION_CHECKLIST.md) | Experiment workflow | Guide for 3-4h | Experimenters |
 | [CODE_ANALYSIS_AND_IMPROVEMENTS.md](docs/CODE_ANALYSIS_AND_IMPROVEMENTS.md) | Detailed analysis | 45 min | Developers |
 | [PING_PONG_PREVENTION.md](docs/PING_PONG_PREVENTION.md) | Feature guide | 30 min | Everyone |
-| [IMPLEMENTATION_PRIORITIES.md](IMPLEMENTATION_PRIORITIES.md) | Quick priorities | 5 min | Everyone |
-| [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) | What's implemented | 15 min | Everyone |
+| [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) | Status + next steps | 10 min | Everyone |
 | [docs/README.md](docs/README.md) | Doc hub | 5 min | Everyone |
 
 ---
@@ -719,7 +681,6 @@ Your thesis project demonstrates:
 **Quick Links**:
 - 📖 [All Documentation](docs/README.md)
 - 🏃 [Quick Start](docs/QUICK_START.md)
-- 🎯 [What's Next](IMPLEMENTATION_PRIORITIES.md)
-- ✅ [What's Done](IMPLEMENTATION_SUMMARY.md)
+- 📊 [Status + Next Steps](docs/IMPLEMENTATION_TRACKER.md)
 - 🔧 [New Feature](docs/PING_PONG_PREVENTION.md)
 

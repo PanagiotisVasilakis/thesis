@@ -1,7 +1,7 @@
 # Documentation Link Graph
 
-- Total Markdown files: 34
-- Total intra-doc links: 17
+- Total Markdown files: 31
+- Total intra-doc links: 14
 
 ## Nodes
 - `5g-network-optimization/deployment/kubernetes/README.md` — Kubernetes Deployment Guide
@@ -19,12 +19,9 @@
 - `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_loss_of_connectivity.md` — Functional Tests for NEF Emulator / Northbound APIs
 - `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_ue_reachability.md` — Functional Tests for NEF Emulator / Northbound APIs
 - `CI-CD_reports/README.md` — CI-CD Reports
-- `QWEN.md` — 5G Network Optimization Thesis - Project Context
-- `QWEN_refined.md` — 5G Network Optimization Thesis - Project Context
+- `docs/history/2025-11-03/QWEN.md` — Thesis Project Context: 5G Network Optimization with ML-based Handover
 - `README.md` — 5G Network Optimization Thesis
-- `Table of Contents.md` — (no title)
 - `artifacts/docs_link_graph.md` — Documentation Link Graph
-- `docs/THESIS_SUMMARY.md` — Thesis Project Summary
 - `docs/feature_ranges_and_alerts.md` — Feature Ranges and Data Drift Alerts
 - `docs/feature_transforms.md` — Feature Transformation Registry
 - `docs/integration/nef_ml_integration.md` — NEF ↔ ML Service Integration Blueprint
@@ -53,9 +50,6 @@
 - `README.md` → `5g-network-optimization/services/ml-service/README.md`
 - `README.md` → `docs/qos/synthetic_qos_dataset.md`
 - `README.md` → `docs/feature_transforms.md`
-- `docs/THESIS_SUMMARY.md` → `5g-network-optimization/leftover_docks/GETTING_STARTED.md`
-- `docs/THESIS_SUMMARY.md` → `5g-network-optimization/monitoring/README.md`
-- `docs/THESIS_SUMMARY.md` → `5g-network-optimization/services/nef-emulator/docs/antenna_and_path_loss.md`
 - `docs/qos/qos_solution_architecture.md` → `docs/integration/nef_ml_integration.md`
 
 ## Orphan docs (no inbound links)
@@ -67,12 +61,9 @@
 - `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_loss_of_connectivity.md` — Functional Tests for NEF Emulator / Northbound APIs
 - `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_ue_reachability.md` — Functional Tests for NEF Emulator / Northbound APIs
 - `CI-CD_reports/README.md` — CI-CD Reports
-- `QWEN.md` — 5G Network Optimization Thesis - Project Context
-- `QWEN_refined.md` — 5G Network Optimization Thesis - Project Context
+- `docs/history/2025-11-03/QWEN.md` — Thesis Project Context: 5G Network Optimization with ML-based Handover
 - `README.md` — 5G Network Optimization Thesis
-- `Table of Contents.md` — (no title)
 - `artifacts/docs_link_graph.md` — Documentation Link Graph
-- `docs/THESIS_SUMMARY.md` — Thesis Project Summary
 - `docs/feature_ranges_and_alerts.md` — Feature Ranges and Data Drift Alerts
 - `docs/mobility_metric_tracker.md` — MobilityMetricTracker Algorithm
 - `docs/qos/configuration.md` — QoS Configuration Overrides
@@ -86,4 +77,3 @@
 
 ## Duplicate top-level headings
 - **Functional Tests for NEF Emulator / Northbound APIs**: `5g-network-optimization/services/nef-emulator/docs/test_plan/AsSessionWithQoS/test_description.md`, `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_location_reporting.md`, `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_loss_of_connectivity.md`, `5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_ue_reachability.md`
-- **5G Network Optimization Thesis - Project Context**: `QWEN.md`, `QWEN_refined.md`

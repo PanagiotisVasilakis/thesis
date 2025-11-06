@@ -48,6 +48,8 @@ This tool automates the complete process of running comparative experiments betw
 
 ## Quick Start
 
+> **New:** For a handheld demo without automation, follow [`END_TO_END_DEMO.md`](END_TO_END_DEMO.md). The comparison tool below wraps the same workflow into a repeatable script.
+
 ### One-Command Thesis Results
 
 ```bash

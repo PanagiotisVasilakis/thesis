@@ -6,6 +6,8 @@ Use this page as the entry point for the repository documentation. The sections 
 
 - **[docs/README.md](README.md)** – **START HERE**: Documentation overview and navigation guide
 - **[QUICK_START.md](QUICK_START.md)** – Essential commands and quick reference for running the system end-to-end
+- **[END_TO_END_DEMO.md](END_TO_END_DEMO.md)** – Live defence playbook covering ML vs A3 runs, Prometheus evidence, and cleanup
+- **[docs/IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md)** – Live status, next steps, and validation checklist
 - **[COMPLETE_DEPLOYMENT_GUIDE.md](COMPLETE_DEPLOYMENT_GUIDE.md)** – Comprehensive step-by-step guide from installation to generating thesis results
 - **[THESIS_ABSTRACT.md](THESIS_ABSTRACT.md)** – Research overview, problem statement, and contributions
 - **[RESULTS_GENERATION_CHECKLIST.md](RESULTS_GENERATION_CHECKLIST.md)** – Systematic workflow for generating thesis results
@@ -19,9 +21,10 @@ Use this page as the entry point for the repository documentation. The sections 
 - **[CONFIDENCE_CALIBRATION.md](CONFIDENCE_CALIBRATION.md)** – **NEW FEATURE**: ML probability calibration for better QoS decisions
 - **[THESIS_CLAIMS_VALIDATION.md](THESIS_CLAIMS_VALIDATION.md)** – **NEW TESTS**: Automated validation of all thesis claims
 - **[THESIS_DEMONSTRATIONS.md](THESIS_DEMONSTRATIONS.md)** – **CRITICAL**: Live defense demonstrations with honest assessment
-- **[⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md](⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md)** – **MUST READ**: Truthful evaluation and mitigation strategies
+- **[⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md (Archived)](history/2025-11-03/⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md)** – Truthful evaluation and mitigation strategies captured during the November 3 push
 - [`README.md`](../README.md) – repository overview, environment variables, and high-level system description
-- [`IMPLEMENTATION_SUMMARY.md`](../IMPLEMENTATION_SUMMARY.md) – Summary of ping-pong prevention implementation
+- [`docs/IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) – Live status, next steps, and validation checklist
+- [`docs/history/2025-11-03/README.md`](history/2025-11-03/README.md) – Archive index for November 3 summary documents and celebration reports
 
 ## Services
 
@@ -31,7 +34,7 @@ Use this page as the entry point for the repository documentation. The sections 
 ## Configuration & QoS
 
 - [`docs/architecture/qos.md`](architecture/qos.md) – **Canonical reference for QoS flows, admission control, metrics, configuration, feature store integration, validation architecture, data drift monitoring, and feature transforms.**
-- [`QOS_INTEGRATION_PLAN.md`](../QOS_INTEGRATION_PLAN.md) – **ROADMAP**: 5-phase plan for full QoS integration with real metrics, compliance engine, and closed-loop adaptation
+- [`QOS_INTEGRATION_PLAN.md (Archived)`](history/2025-11-03/QOS_INTEGRATION_PLAN.md) – **ROADMAP**: 5-phase plan for full QoS integration with real metrics, compliance engine, and closed-loop adaptation
 - [`QOS_MODEL_PERFORMANCE.md`](QOS_MODEL_PERFORMANCE.md) – **RESULTS**: Latest QoS-aware training run, feature importances, and retraining workflow guidance
 
 ## Observability
@@ -60,6 +63,6 @@ Use this page as the entry point for the repository documentation. The sections 
 
 - **All QoS-related documentation is consolidated in [`docs/architecture/qos.md`](architecture/qos.md).** This single comprehensive document supersedes all previous QoS design notes and covers flows, configuration, metrics, validation, feature stores, and testing.
 - When adding or updating QoS features, update `docs/architecture/qos.md` to keep it accurate and complete.
-- Archived or exploratory documents live under `docs/_archive/`. Tombstone headers explain why each file was retired; consult them if you need historical context.
+- Archived or exploratory documents live under `docs/history/` and `docs/_archive/`. Tombstone headers explain why each file was retired; consult them if you need historical context.
 
 

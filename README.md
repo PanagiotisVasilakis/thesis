@@ -2,7 +2,7 @@
 
 This repository contains the code and configuration for optimizing 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a machine learning service.  All implementation lives in the [`5g-network-optimization`](5g-network-optimization/) directory.
 
-**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md).
+**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. The defence-ready walkthrough lives in [`docs/END_TO_END_DEMO.md`](docs/END_TO_END_DEMO.md). QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md). Implementation status and next actions are tracked in [`docs/IMPLEMENTATION_TRACKER.md`](docs/IMPLEMENTATION_TRACKER.md).
 
 ## Project Overview
 

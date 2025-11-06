@@ -88,14 +88,9 @@
       "title": "CI-CD Reports",
       "links": []
     },
-    "QWEN.md": {
-      "path": "QWEN.md",
-      "title": "5G Network Optimization Thesis - Project Context",
-      "links": []
-    },
-    "QWEN_refined.md": {
-      "path": "QWEN_refined.md",
-      "title": "5G Network Optimization Thesis - Project Context",
+    "docs/history/2025-11-03/QWEN.md": {
+      "path": "docs/history/2025-11-03/QWEN.md",
+      "title": "Thesis Project Context: 5G Network Optimization with ML-based Handover",
       "links": []
     },
     "README.md": {
@@ -109,24 +104,10 @@
         "docs/feature_transforms.md"
       ]
     },
-    "Table of Contents.md": {
-      "path": "Table of Contents.md",
-      "title": "(no title)",
-      "links": []
-    },
     "artifacts/docs_link_graph.md": {
       "path": "artifacts/docs_link_graph.md",
       "title": "Documentation Link Graph",
       "links": []
-    },
-    "docs/THESIS_SUMMARY.md": {
-      "path": "docs/THESIS_SUMMARY.md",
-      "title": "Thesis Project Summary",
-      "links": [
-        "5g-network-optimization/leftover_docks/GETTING_STARTED.md",
-        "5g-network-optimization/monitoring/README.md",
-        "5g-network-optimization/services/nef-emulator/docs/antenna_and_path_loss.md"
-      ]
     },
     "docs/feature_ranges_and_alerts.md": {
       "path": "docs/feature_ranges_and_alerts.md",
@@ -250,18 +231,6 @@
       "docs/feature_transforms.md"
     ],
     [
-      "docs/THESIS_SUMMARY.md",
-      "5g-network-optimization/leftover_docks/GETTING_STARTED.md"
-    ],
-    [
-      "docs/THESIS_SUMMARY.md",
-      "5g-network-optimization/monitoring/README.md"
-    ],
-    [
-      "docs/THESIS_SUMMARY.md",
-      "5g-network-optimization/services/nef-emulator/docs/antenna_and_path_loss.md"
-    ],
-    [
       "docs/qos/qos_solution_architecture.md",
       "docs/integration/nef_ml_integration.md"
     ]
@@ -275,12 +244,9 @@
     "5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_loss_of_connectivity.md",
     "5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_ue_reachability.md",
     "CI-CD_reports/README.md",
-    "QWEN.md",
-    "QWEN_refined.md",
+    "docs/history/2025-11-03/QWEN.md",
     "README.md",
-    "Table of Contents.md",
     "artifacts/docs_link_graph.md",
-    "docs/THESIS_SUMMARY.md",
     "docs/feature_ranges_and_alerts.md",
     "docs/mobility_metric_tracker.md",
     "docs/qos/configuration.md",
@@ -298,10 +264,6 @@
       "5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_location_reporting.md",
       "5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_loss_of_connectivity.md",
       "5g-network-optimization/services/nef-emulator/docs/test_plan/MonitoringEvent API/test_description_ue_reachability.md"
-    ],
-    "5G Network Optimization Thesis - Project Context": [
-      "QWEN.md",
-      "QWEN_refined.md"
     ]
   }
 }
