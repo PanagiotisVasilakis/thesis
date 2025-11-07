@@ -21,10 +21,9 @@ Use this page as the entry point for the repository documentation. The sections 
 - **[CONFIDENCE_CALIBRATION.md](CONFIDENCE_CALIBRATION.md)** – **NEW FEATURE**: ML probability calibration for better QoS decisions
 - **[THESIS_CLAIMS_VALIDATION.md](THESIS_CLAIMS_VALIDATION.md)** – **NEW TESTS**: Automated validation of all thesis claims
 - **[THESIS_DEMONSTRATIONS.md](THESIS_DEMONSTRATIONS.md)** – **CRITICAL**: Live defense demonstrations with honest assessment
-- **[⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md (Archived)](history/2025-11-03/⚠️_HONEST_ASSESSMENT_AND_RECOMMENDATIONS.md)** – Truthful evaluation and mitigation strategies captured during the November 3 push
 - [`README.md`](../README.md) – repository overview, environment variables, and high-level system description
 - [`docs/IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) – Live status, next steps, and validation checklist
-- [`docs/history/2025-11-03/README.md`](history/2025-11-03/README.md) – Archive index for November 3 summary documents and celebration reports
+- [`docs/history/2025-11-07/nef_emulator_email_cleanup.md`](history/2025-11-07/nef_emulator_email_cleanup.md) – Current archive note covering the NEF cleanup and removal of dormant email/reset flows
 
 ## Services
 
@@ -34,7 +33,7 @@ Use this page as the entry point for the repository documentation. The sections 
 ## Configuration & QoS
 
 - [`docs/architecture/qos.md`](architecture/qos.md) – **Canonical reference for QoS flows, admission control, metrics, configuration, feature store integration, validation architecture, data drift monitoring, and feature transforms.**
-- [`QOS_INTEGRATION_PLAN.md (Archived)`](history/2025-11-03/QOS_INTEGRATION_PLAN.md) – **ROADMAP**: 5-phase plan for full QoS integration with real metrics, compliance engine, and closed-loop adaptation
+- [`history/2025-11-07/qos_summary.md`](history/2025-11-07/qos_summary.md) – Historical QoS architecture snapshot captured during the November 7 cleanup
 - [`QOS_MODEL_PERFORMANCE.md`](QOS_MODEL_PERFORMANCE.md) – **RESULTS**: Latest QoS-aware training run, feature importances, and retraining workflow guidance
 
 ## Observability

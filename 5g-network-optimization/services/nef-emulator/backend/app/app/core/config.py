@@ -78,33 +78,6 @@ class Settings(BaseSettings):
     # ----- ML Service -----
     ML_SERVICE_URL: str = "http://ml-service:5050"
 
-    # ----- Email -----
-    SMTP_TLS: bool = True
-    SMTP_PORT: Optional[int] = None
-    SMTP_HOST: Optional[str] = None
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[EmailStr] = None
-    EMAILS_FROM_NAME: Optional[str] = None
-
-    @validator("EMAILS_FROM_NAME", pre=True)
-    def get_project_name(
-        cls, v: Optional[str], values: Dict[str, Any]
-    ) -> str:
-        return v or values.get("PROJECT_NAME")
-
-    EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 48
-    EMAIL_TEMPLATES_DIR: str = "/app/app/email-templates/build"
-    EMAILS_ENABLED: bool = False
-
-    @validator("EMAILS_ENABLED", pre=True)
-    def get_emails_enabled(cls, v: bool, values: Dict[str, Any]) -> bool:
-        return bool(
-            values.get("SMTP_HOST")
-            and values.get("SMTP_PORT")
-            and values.get("EMAILS_FROM_EMAIL")
-        )
-
     # ----- User Management -----
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str

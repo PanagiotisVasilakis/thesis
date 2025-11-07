@@ -7,3 +7,5 @@ mlops/feast_repo/data/*
 .venv
 thesis_venv/
 .DS_Store
+.github/copilot-instructions.md
+docs/

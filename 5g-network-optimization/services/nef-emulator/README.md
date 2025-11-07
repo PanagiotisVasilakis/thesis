@@ -88,11 +88,6 @@ CAPIF_HTTP_PORT=8080
 CAPIF_HTTPS_PORT=443
 EXTERNAL_NET=true
 
-# Optional mail (comment out to disable)
-SMTP_HOST=
-SMTP_PORT=
-EMAILS_FROM_EMAIL=
-
 # Observability
 LOG_LEVEL=info
 LOG_FILE=
@@ -270,7 +265,6 @@ Refer to `docs/UI.md` for library details (CoreUI, Leaflet, DataTables, Toastr, 
 | `ML_CONFIDENCE_THRESHOLD` | ➖ | `0.5` | Minimum confidence accepted from ML responses |
 | `A3_HYSTERESIS_DB`, `A3_TTT_S` | ➖ | `2.0`, `0.0` | Parameters for the fallback A3 rule |
 | `NOISE_FLOOR_DBM`, `RESOURCE_BLOCKS` | ➖ | `-100`, `50` | RF calculations inside `NetworkStateManager` |
-| `SMTP_*`, `EMAILS_FROM_EMAIL` | ➖ | – | Enable transactional email support |
 | `LOG_LEVEL`, `LOG_FILE` | ➖ | `info`, _blank_ | Structured logging configuration |
 | `DOCKER_IMAGE_BACKEND`, `TAG` | ➖ | `nef-emulator-backend`, `local` | Image naming overrides for Compose |
 | `INSTALL_DEV`, `INSTALL_JUPYTER` | ➖ | `true` / `false` | Build args used in `Dockerfile.backend` |

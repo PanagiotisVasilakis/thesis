@@ -1,21 +1,25 @@
+import json
+import logging
 from datetime import datetime
-import logging, requests, json
-from app.core.constants import DEFAULT_TIMEOUT
-
-logger = logging.getLogger(__name__)
 from typing import Any, Dict
+
+import requests
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from fastapi.exceptions import HTTPException
-from sqlalchemy.orm.session import Session
-from app import models, schemas, crud
-from app.api import deps
-from app.schemas import monitoringevent, UserPlaneNotificationData
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy.orm.session import Session
+
+from app import crud, models, schemas
+from app.api import deps
 from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
 from app.api.api_v1.state_manager import state_manager
+from app.core.config import settings
+from app.core.constants import DEFAULT_TIMEOUT
+from app.schemas import UserPlaneNotificationData, monitoringevent
+
+logger = logging.getLogger(__name__)
 try:
     from evolved5g.sdk import CAPIFLogger
 except (ImportError, AttributeError):
@@ -209,7 +213,7 @@ def create_scenario(
     """
     Import the scenario
     """
-    err = {}
+    errors: Dict[str, str] = {}
     
     gNBs = scenario_in.gNBs
     cells = scenario_in.cells
@@ -223,7 +227,7 @@ def create_scenario(
         gNB = crud.gnb.get_gNB_id(db=db, id=gNB_in.gNB_id)
         if gNB:
             logger.error("ERROR: gNB with id %s already exists", gNB_in.gNB_id)
-            err.update({f"{gNB_in.name}" : f"ERROR: gNB with id {gNB_in.gNB_id} already exists"})
+            errors[gNB_in.name] = f"ERROR: gNB with id {gNB_in.gNB_id} already exists"
         else:
             gNB = crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=current_user.id)
 
@@ -231,7 +235,7 @@ def create_scenario(
         cell = crud.cell.get_Cell_id(db=db, id=cell_in.cell_id)
         if cell:
             logger.error("ERROR: Cell with id %s already exists", cell_in.cell_id)
-            err.update({f"{cell_in.name}" : f"ERROR: Cell with id {cell_in.cell_id} already exists"})
+            errors[cell_in.name] = f"ERROR: Cell with id {cell_in.cell_id} already exists"
             crud.cell.remove_all_by_owner(db=db, owner_id=current_user.id)
         else:
             cell = crud.cell.create_with_owner(db=db, obj_in=cell_in, owner_id=current_user.id)
@@ -240,7 +244,7 @@ def create_scenario(
         ue = crud.ue.get_supi(db=db, supi=ue_in.supi)
         if ue:
             logger.error("ERROR: UE with supi %s already exists", ue_in.supi)
-            err.update({f"{ue.name}" : f"ERROR: UE with supi {ue_in.supi} already exists"})
+            errors[ue.name] = f"ERROR: UE with supi {ue_in.supi} already exists"
         else:
             ue = crud.ue.create_with_owner(db=db, obj_in=ue_in, owner_id=current_user.id)
 
@@ -250,14 +254,19 @@ def create_scenario(
         path = crud.path.get_description(db=db, description = path_in.description)
         if path:
             logger.error("ERROR: Path with description '%s' already exists", path_in.description)
-            err.update({f"{path_in.description}" : f"ERROR: Path with description \'{path_in.description}\' already exists"})
+            errors[path_in.description] = (
+                f"ERROR: Path with description '{path_in.description}' already exists"
+            )
         else:
             path = crud.path.create_with_owner(db=db, obj_in=path_in, owner_id=current_user.id)
             crud.points.create(db=db, obj_in=path_in, path_id=path.id) 
             
             for ue_path in ue_path_association:
                 if retrieve_ue_state(ue_path.supi, current_user.id):
-                    err.update(f"UE with SUPI {ue_path.supi} is currently moving. You are not allowed to edit UE's path while it's moving")
+                    errors[ue_path.supi] = (
+                        "UE is currently moving. You are not allowed to edit"
+                        " the UE's path while it's moving"
+                    )
                 else:
                     #Assign the coordinates
                     UE = crud.ue.get_supi(db=db, supi=ue_path.supi)
@@ -276,10 +285,9 @@ def create_scenario(
                     
                     crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
     
-    if bool(err) == True:
-        raise HTTPException(status_code=409, detail=err)
-    else:
-        return ""
+    if errors:
+        raise HTTPException(status_code=409, detail=errors)
+    return ""
 
 class callback(BaseModel):
     callbackurl: str

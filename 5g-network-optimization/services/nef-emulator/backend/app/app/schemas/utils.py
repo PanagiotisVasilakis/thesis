@@ -1,6 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from typing import List
+
+from pydantic import BaseModel
+
 from app import schemas
-from typing import List, Optional
 
 class scenario(BaseModel):
     gNBs: List[schemas.gNBCreate]

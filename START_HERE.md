@@ -46,7 +46,7 @@ A complete **5G Network Optimization system** demonstrating how **Machine Learni
 ## 📊 Latest Updates
 
 - **Live status**: See [docs/IMPLEMENTATION_TRACKER.md](docs/IMPLEMENTATION_TRACKER.md) for the active roadmap, validation checklist, and next steps.
-- **Historical snapshot**: The intensive November 3 documentation push (ping-pong prevention, comparison tooling, experiment automation) is preserved under [docs/history/2025-11-03/README.md](docs/history/2025-11-03/README.md).
+- **Historical snapshot**: Recent cleanup notes and QoS context live under [docs/history/2025-11-07/](docs/history/2025-11-07/), including the NEF cleanup log and QoS architecture summary.
 - Feature guides remain in [docs/PING_PONG_PREVENTION.md](docs/PING_PONG_PREVENTION.md) and [docs/ML_VS_A3_COMPARISON_TOOL.md](docs/ML_VS_A3_COMPARISON_TOOL.md) for quick reference.
 
 ---
@@ -191,8 +191,8 @@ curl -X POST http://localhost:5050/api/predict \
 - Full Implementation: 57-83 hours (All 5 phases)
 
 **Read More**:
-- **Quick Summary**: [docs/history/2025-11-03/🔄_QOS_INTEGRATION_ROADMAP.md](docs/history/2025-11-03/🔄_QOS_INTEGRATION_ROADMAP.md) (5 min, archived)
-- **Full Plan**: [docs/history/2025-11-03/QOS_INTEGRATION_PLAN.md](docs/history/2025-11-03/QOS_INTEGRATION_PLAN.md) (20 min, archived)
+- **Quick Summary**: Section below distills the roadmap; see `docs/history/2025-11-07/qos_summary.md` for additional narrative context.
+- **Full Plan**: Implementation workstreams are tracked in [docs/architecture/qos.md](docs/architecture/qos.md) and the supporting calibration notes in [docs/CONFIDENCE_CALIBRATION.md](docs/CONFIDENCE_CALIBRATION.md).
 
 **When to Implement**:
 - ✅ Before thesis defense if you want exceptional QoS claims

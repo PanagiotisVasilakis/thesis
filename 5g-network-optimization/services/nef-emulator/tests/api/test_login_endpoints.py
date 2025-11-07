@@ -1,6 +1,4 @@
-from app.core import security
 from app import crud
-from app.api import deps
 import importlib.util
 import os
 import sys
@@ -26,7 +24,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.testclient import TestClient as FastAPITestClient
 from httpx import ASGITransport
-from pydantic import BaseModel
 
 
 class TestClient(FastAPITestClient):
@@ -34,14 +31,6 @@ class TestClient(FastAPITestClient):
         super().__init__(transport.app, **kwargs)
 
 # Stub external dependencies before importing the application
-sys.modules.setdefault("emails", types.ModuleType("emails"))
-sys.modules.setdefault("emails.message", types.ModuleType("emails.message"))
-tmpl_mod = types.ModuleType("emails.template")
-tmpl_mod.JinjaTemplate = lambda x: x
-sys.modules.setdefault("emails.template", tmpl_mod)
-sys.modules["emails"].Message = lambda *a, **k: SimpleNamespace(
-    send=lambda **kw: None)
-
 openssl = types.ModuleType("OpenSSL")
 openssl.crypto = SimpleNamespace(
     FILETYPE_PEM=None,
@@ -90,17 +79,6 @@ spec_login = importlib.util.spec_from_file_location(
     "login_endpoints", login_path)
 login_endpoints = importlib.util.module_from_spec(spec_login)
 spec_login.loader.exec_module(login_endpoints)
-
-# Fix mismatched response models
-
-
-class SimpleMsg(BaseModel):
-    msg: str
-
-
-for route in login_endpoints.router.routes:
-    if route.name in {"recover_password", "reset_password"}:
-        route.response_model = SimpleMsg
 
 # Build FastAPI app with dependency overrides
 app = FastAPI()
@@ -165,85 +143,6 @@ def test_login_access_token_inactive_user(monkeypatch):
     client = TestClient(transport=ASGITransport(app=app))
     response = client.post("/api/v1/login/access-token",
                            data={"username": "user@example.com", "password": "secret"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Inactive user"
-
-
-def test_recover_password(monkeypatch):
-    user = FakeUser(email="user@example.com")
-    monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
-    monkeypatch.setattr(
-        login_endpoints, "generate_password_reset_token", lambda *a, **k: "tok")
-    monkeypatch.setattr(
-        login_endpoints, "send_reset_password_email", lambda **kw: None)
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/password-recovery/user@example.com")
-    assert response.status_code == 200
-    assert response.json() == {"msg": "Password recovery email sent"}
-
-
-def test_recover_password_user_not_found(monkeypatch):
-    monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: None)
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/password-recovery/none@example.com")
-    assert response.status_code == 404
-    assert response.json()[
-        "detail"] == "The user with this username does not exist in the system."
-
-
-def test_reset_password(monkeypatch):
-    user = FakeUser(email="user@example.com",
-                    hashed_password="old", is_active=True)
-    monkeypatch.setattr(
-        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
-    monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
-    monkeypatch.setattr(login_endpoints, "get_password_hash",
-                        lambda pw: f"hashed-{pw}")
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/reset-password/",
-                           json={"token": "tok", "new_password": "new"})
-    assert response.status_code == 200
-    assert response.json() == {"msg": "Password updated successfully"}
-    assert user.hashed_password == "hashed-new"
-
-
-def test_reset_password_invalid_token(monkeypatch):
-    monkeypatch.setattr(
-        login_endpoints, "verify_password_reset_token", lambda token: None)
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/reset-password/",
-                           json={"token": "bad", "new_password": "x"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid token"
-
-
-def test_reset_password_user_not_found(monkeypatch):
-    monkeypatch.setattr(
-        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
-    monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: None)
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/reset-password/",
-                           json={"token": "tok", "new_password": "pass"})
-    assert response.status_code == 404
-    assert response.json()[
-        "detail"] == "The user with this username does not exist in the system."
-
-
-def test_reset_password_inactive_user(monkeypatch):
-    user = FakeUser(email="user@example.com", is_active=False)
-    monkeypatch.setattr(
-        login_endpoints, "verify_password_reset_token", lambda token: "user@example.com")
-    monkeypatch.setattr(crud.user, "get_by_email", lambda db, email: user)
-    monkeypatch.setattr(crud.user, "is_active", lambda u: False)
-
-    client = TestClient(transport=ASGITransport(app=app))
-    response = client.post("/api/v1/reset-password/",
-                           json={"token": "tok", "new_password": "pass"})
     assert response.status_code == 400
     assert response.json()["detail"] == "Inactive user"
 
