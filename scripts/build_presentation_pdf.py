@@ -4,10 +4,13 @@ from pathlib import Path
 from typing import List
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SERVICES_ROOT = REPO_ROOT / "5g-network-optimization" / "services"
+NETWORK_OPT_ROOT = REPO_ROOT / "5g-network-optimization"
+SERVICES_ROOT = NETWORK_OPT_ROOT / "services"
 
-if str(SERVICES_ROOT) not in sys.path:
-    sys.path.insert(0, str(SERVICES_ROOT))
+for path in (NETWORK_OPT_ROOT, SERVICES_ROOT):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from services.logging_config import configure_logging
 
@@ -21,7 +24,7 @@ from reportlab.pdfgen import canvas
 def find_assets(directory: Path, extensions: List[str]) -> List[Path]:
     assets = []
     for ext in extensions:
-        assets.extend(sorted(directory.glob(f"*.{ext}")))
+        assets.extend(sorted(directory.rglob(f"*.{ext}")))
     return assets
 
 

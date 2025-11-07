@@ -87,7 +87,9 @@ def validate_feature_ranges(features: Dict[str, Any]) -> None:
         raise ValueError("Out-of-range feature values: " + ", ".join(violations))
 
 
-def sanitize_feature_ranges(features: Dict[str, Any]) -> Dict[str, Any]:
+def sanitize_feature_ranges(
+    features: Dict[str, Any], *, clamp_out_of_range: bool = True
+) -> Dict[str, Any]:
     """Clamp feature values to configured numeric ranges in-place.
 
     Non-numeric features and those without range specifications are left
@@ -114,16 +116,26 @@ def sanitize_feature_ranges(features: Dict[str, Any]) -> Dict[str, Any]:
             else:
                 continue
 
-        if "min" in spec and numeric < spec["min"]:
+            if isinstance(value, int) and not isinstance(value, bool):
+                features[name] = int(round(numeric))
+            else:
+                features[name] = numeric
+            continue
+
+        below_min = "min" in spec and numeric < spec["min"]
+        above_max = "max" in spec and numeric > spec["max"]
+
+        if not clamp_out_of_range and (below_min or above_max):
+            continue
+
+        if below_min:
             numeric = spec["min"]
-        if "max" in spec and numeric > spec["max"]:
+        elif above_max:
             numeric = spec["max"]
 
         if isinstance(value, int) and not isinstance(value, bool):
-            adjusted = int(round(numeric))
+            features[name] = int(round(numeric))
         else:
-            adjusted = numeric
-
-        features[name] = adjusted
+            features[name] = numeric
 
     return features

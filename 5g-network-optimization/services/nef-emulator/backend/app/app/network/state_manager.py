@@ -47,6 +47,7 @@ class NetworkStateManager:
         self.ue_states = {}  # supi -> {'position': (x, y, z), 'speed': v,
         # 'connected_to': ant_id, 'trajectory': [...]}
         self.antenna_list = {}  # ant_id -> AntennaModel instance
+        self._antenna_aliases: Dict[str, str] = {}
         self.handover_history = []  # list of {ue_id, from, to, timestamp}
         self.logger = logging.getLogger("NetworkStateManager")
         # Default noise floor in dBm (tunable)
@@ -87,7 +88,8 @@ class NetworkStateManager:
 
         x, y, z = state["position"]
         speed = state.get("speed", 0.0)
-        connected = state.get("connected_to")
+        connected = self.resolve_antenna_id(state.get("connected_to"))
+        state["connected_to"] = connected
 
         # RSRP in dBm for each antenna
         rsrp_dbm = {
@@ -124,7 +126,9 @@ class NetworkStateManager:
         # Calculate current load per antenna as number of connected UEs
         antenna_loads = {aid: 0 for aid in self.antenna_list}
         for u_state in self.ue_states.values():
-            conn = u_state.get("connected_to")
+            conn = self.resolve_antenna_id(u_state.get("connected_to"))
+            if conn != u_state.get("connected_to"):
+                u_state["connected_to"] = conn
             if conn in antenna_loads:
                 antenna_loads[conn] += 1
         antenna_loads = {aid: antenna_loads[aid] for aid, _ in ordered}
@@ -192,23 +196,27 @@ class NetworkStateManager:
         state = self.ue_states.get(ue_id)
         if not state:
             raise KeyError(f"UE {ue_id} not found")
-        prev = state.get("connected_to")
-        if target_antenna_id not in self.antenna_list:
+        prev = self.resolve_antenna_id(state.get("connected_to"))
+        if prev != state.get("connected_to"):
+            state["connected_to"] = prev
+
+        resolved_target = self.resolve_antenna_id(target_antenna_id)
+        if resolved_target not in self.antenna_list:
             raise KeyError(f"Antenna {target_antenna_id} unknown")
 
         # The A3 rule is evaluated by the HandoverEngine when machine learning
         # is disabled. NetworkStateManager simply applies the decision here.
 
-        state["connected_to"] = target_antenna_id
+        state["connected_to"] = resolved_target
 
         ev = {
             "ue_id": ue_id,
             "from": prev,
-            "to": target_antenna_id,
+            "to": resolved_target,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.handover_history.append(ev)
-        self.logger.info(f"Handover for {ue_id}: {prev} → {target_antenna_id}")
+        self.logger.info(f"Handover for {ue_id}: {prev} -> {resolved_target}")
         return ev
 
     def get_position_at_time(self, ue_id, query_time):
@@ -247,3 +255,44 @@ class NetworkStateManager:
 
         # Fallback (shouldn't reach)
         return traj[-1]["position"]
+
+    # ------------------------------------------------------------------
+    # Antenna alias helpers
+    # ------------------------------------------------------------------
+    def register_antenna_alias(self, alias: Optional[str], canonical: Optional[str]) -> None:
+        """Register an alternative identifier for a known antenna."""
+        if alias is None or canonical is None:
+            return
+
+        alias_key = str(alias)
+        canonical_key = str(canonical)
+        if not alias_key:
+            return
+
+        self._antenna_aliases[alias_key] = canonical_key
+        self._antenna_aliases[alias_key.lower()] = canonical_key
+
+    def resolve_antenna_id(self, antenna_id: Optional[str]) -> Optional[str]:
+        """Normalise antenna identifiers using registered aliases."""
+        if antenna_id is None:
+            return None
+
+        candidate = str(antenna_id)
+        if candidate in self.antenna_list:
+            return candidate
+
+        alias = self._antenna_aliases.get(candidate)
+        if alias and alias in self.antenna_list:
+            return alias
+
+        lowered = candidate.lower()
+        alias = self._antenna_aliases.get(lowered)
+        if alias and alias in self.antenna_list:
+            return alias
+
+        if lowered.startswith("antenna"):
+            digits = "".join(ch for ch in candidate if ch.isdigit())
+            if digits and digits in self.antenna_list:
+                return digits
+
+        return candidate

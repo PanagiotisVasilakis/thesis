@@ -86,6 +86,10 @@ class A3EventRule:
             a3_condition_met = rsrp_condition and rsrq_condition
 
         if a3_condition_met:
+            if self.ttt.total_seconds() == 0:
+                self._reset()
+                return True
+
             # Start timing if not already started
             if self._event_start_time is None:
                 self._event_start_time = now

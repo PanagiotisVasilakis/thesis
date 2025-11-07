@@ -58,6 +58,7 @@ class HandoverRuntime:
         self._ref_lat: Optional[float] = None
         self._ref_lon: Optional[float] = None
         self._cells_by_key: Dict[str, dict] = {}
+        self._cells_by_alias: Dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Topology management
@@ -86,6 +87,7 @@ class HandoverRuntime:
                 if key in self.state_manager.antenna_list:
                     # Update cache to ensure metadata stays fresh
                     self._cells_by_key[key] = cell
+                    self._register_cell_aliases(cell, key)
                     continue
 
                 position = self._to_local(
@@ -98,6 +100,7 @@ class HandoverRuntime:
                     DEFAULT_TX_POWER_DBM,
                 )
                 self._cells_by_key[key] = cell
+                self._register_cell_aliases(cell, key)
 
     # ------------------------------------------------------------------
     # UE state
@@ -179,7 +182,15 @@ class HandoverRuntime:
         if key is None:
             return None
         with self._lock:
-            return self._cells_by_key.get(key)
+            lookup_key = self.state_manager.resolve_antenna_id(key)
+            if lookup_key in self._cells_by_key:
+                return self._cells_by_key.get(lookup_key)
+
+            alt = self._cells_by_alias.get(str(key)) or self._cells_by_alias.get(str(key).lower())
+            if alt:
+                return self._cells_by_key.get(alt)
+
+            return self._cells_by_key.get(str(key))
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -188,6 +199,35 @@ class HandoverRuntime:
         if cell_id is None:
             return None
         return str(cell_id)
+
+    def _register_cell_aliases(self, cell: dict, canonical: str) -> None:
+        aliases = set()
+        cell_id = cell.get("id")
+        if cell_id is not None:
+            cid = str(cell_id)
+            aliases.update({
+                f"antenna_{cid}",
+                f"antenna-{cid}",
+                f"antenna{cid}",
+                f"cell_{cid}",
+                f"cell{cid}",
+            })
+
+        cell_identifier = cell.get("cell_id")
+        if cell_identifier:
+            cid_str = str(cell_identifier)
+            aliases.update({cid_str, cid_str.lower()})
+
+        name = cell.get("name")
+        if name:
+            name_str = str(name)
+            aliases.update({name_str, name_str.lower()})
+
+        for alias in aliases:
+            if not alias or alias == canonical:
+                continue
+            self._cells_by_alias[alias] = canonical
+            self.state_manager.register_antenna_alias(alias, canonical)
 
     def _to_local(self, lat: Optional[float], lon: Optional[float], altitude: float) -> Tuple[float, float, float]:
         if lat is None or lon is None:

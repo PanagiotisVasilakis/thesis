@@ -44,6 +44,13 @@ def test_apply_handover_decision(nsm):
     assert nsm.handover_history[-1]['ue_id'] == 'ue1'
 
 
+def test_apply_handover_decision_alias(nsm):
+    nsm.register_antenna_alias('antenna_1', 'antA')
+    ev = nsm.apply_handover_decision('ue1', 'antenna_1')
+    assert ev['to'] == 'antA'
+    assert nsm.ue_states['ue1']['connected_to'] == 'antA'
+
+
 def test_unknown_ue(nsm):
     with pytest.raises(KeyError):
         nsm.get_feature_vector('no_such_ue')

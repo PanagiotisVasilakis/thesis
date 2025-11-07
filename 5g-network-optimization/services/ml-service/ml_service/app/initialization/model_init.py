@@ -472,8 +472,45 @@ class ModelManager:
         bool
             ``True`` if the model became ready before the timeout.
         """
+        if cls._init_event.wait(timeout):
+            return True
 
-        return cls._init_event.wait(timeout)
+        logger = logging.getLogger(__name__)
+
+        with cls._lock:
+            thread = cls._init_thread
+
+        if thread and thread.is_alive():
+            thread.join(timeout)
+            return cls._init_event.is_set()
+
+        with cls._lock:
+            model_path = cls._last_good_model_path or os.environ.get("MODEL_PATH")
+            previous_model = cls._model_instance
+            previous_path = cls._last_good_model_path
+            model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
+
+        if not cls._init_event.is_set() and model_path:
+            logger.warning(
+                "Model initialization thread not active while awaiting readiness; "
+                "running synchronous initialization"
+            )
+            try:
+                cls._initialize_sync(
+                    model_path,
+                    None,
+                    model_type,
+                    previous_model,
+                    previous_path,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "Synchronous model initialization failed during readiness wait: %s",
+                    exc,
+                )
+                return False
+
+        return cls._init_event.is_set()
 
     @classmethod
     def is_ready(cls) -> bool:

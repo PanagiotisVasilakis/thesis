@@ -16,7 +16,7 @@ class UEBase(BaseModel):
     ip_address_v6: Optional[IPvAnyAddress] = Field(default="0:0:0:0:0:0:0:0", description="String identifying an Ipv6 address. Default value ::1/128 (loopback)")
     mac_address: str = Field(
         default='22-00-00-00-00-00',
-        regex=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
+        pattern=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
     )
     dnn: Optional[str] = Field(default='province1.mnc01.mcc202.gprs', description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
     mcc: Optional[int] = Field(default=202, description="Mobile Country Code (MCC) part of the Public Land Mobile Network (PLMN), comprising 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
@@ -35,7 +35,7 @@ class UECreate(UEBase):
         default="202010000000000",
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
                                                                                              In the current version (v1.1.0) only IMSI is supported""",
-        regex=r'^[0-9]{15,16}$',
+    pattern=r'^[0-9]{15,16}$',
     )
 
 class UEUpdate(UEBase):
@@ -46,7 +46,7 @@ class ue_path(BaseModel):
         default="202010000000000",
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
                                                                                               In the current version (v1.1.0) only IMSI is supported""",
-        regex=r'^[0-9]{15,16}$',
+    pattern=r'^[0-9]{15,16}$',
     )
     path: int
 
@@ -57,7 +57,7 @@ class UE(UEBase):
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
 
                                                                                       In the current version (v1.1.0) only IMSI is supported""",
-        regex=r'^[0-9]{15,16}$',
+    pattern=r'^[0-9]{15,16}$',
     )
     latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)

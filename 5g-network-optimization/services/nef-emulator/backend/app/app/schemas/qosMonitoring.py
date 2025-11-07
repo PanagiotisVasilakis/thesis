@@ -7,7 +7,7 @@ class Snssai(BaseModel):
     sd: Optional[str] = Field(
         default='000001',
         description="This value respresents the Slice Differentiator, in hexadecimal representation.",
-        regex=r'^[0-9a-fA-F]{6}$',
+    pattern=r'^[0-9a-fA-F]{6}$',
     )
 
 class UsageThreshold(BaseModel):
@@ -30,12 +30,12 @@ class QosMonitoringInformation(BaseModel):
     reqQosMonParams: List[RequestedQoSMonitoringParameters] = Field(
         None,
         description="Indicates the requested QoS monitoring parameters to be measured",
-        min_items=1,
+        min_length=1,
     )
     repFreqs: List[ReportingFrequency] = Field(
         None,
         description="Indicates the frequency for the reporting",
-        min_items=1,
+        min_length=1,
     )
     latThreshDl: int = Field(None, description="Threshold in units of milliseconds for downlink packet delay", ge=0)
     latThreshUl: int = Field(None, description="Threshold in units of milliseconds for uplink packet delay", ge=0)
@@ -50,7 +50,7 @@ class AsSessionWithQoSSubscriptionCreate(BaseModel):
     ipv6Addr: Optional[IPvAnyAddress] = Field(default="0:0:0:0:0:0:0:0", description="String identifying an Ipv6 address. Default value ::1/128 (loopback)")
     macAddr: Optional[str] = Field(
         '22-00-00-00-00-00',
-        regex=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
+    pattern=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
     )
     notificationDestination: AnyHttpUrl = Field("http://localhost:80/api/v1/utils/session-with-qos/callback", description="Reference resource (URL) identifying service consumer's endpoint, in order to receive the asynchronous notification. For testing use 'http://localhost:80/api/v1/utils/session-with-qos/callback'") #Default value for development testing
     snssai: Optional[Snssai] = None
@@ -59,7 +59,7 @@ class AsSessionWithQoSSubscriptionCreate(BaseModel):
     altQoSReferences: List[int] = Field(
         None,
         description="Identifies an ordered list of pre-defined QoS information. The lower the index of the array the higher the priority.",
-        min_items=1,
+        min_length=1,
     )
     usageThreshold: Optional[UsageThreshold] = None
     qosMonInfo: Optional[QosMonitoringInformation] = None
@@ -76,9 +76,9 @@ class AccumulatedUsage(UsageThreshold):
     pass
 
 class QoSMonitoringReport(BaseModel):
-    dlDelays: List[int] = Field(None, description="Downlink packet delay", ge=0, min_items=1)
-    ulDelays: List[int] = Field(None, description="Uplink packet delay", ge=0, min_items=1)
-    rtDelays: List[int] = Field(None, description="Round trip packet delay", ge=0, min_items=1)
+    dlDelays: List[int] = Field(None, description="Downlink packet delay", ge=0, min_length=1)
+    ulDelays: List[int] = Field(None, description="Uplink packet delay", ge=0, min_length=1)
+    rtDelays: List[int] = Field(None, description="Round trip packet delay", ge=0, min_length=1)
 
 class UserPlaneEvent(str, Enum):
     gqos = "QOS_GUARANTEED"
@@ -95,4 +95,4 @@ class UserPlaneEventReport(BaseModel):
 
 class UserPlaneNotificationData(BaseModel):
     transaction: AnyHttpUrl = Field("https://myresource.com", description="String identifying the referenced resource created in POST request")
-    eventReports: List[UserPlaneEventReport] = Field(..., description="Contains the reported event and applicable information", min_items=1)
+    eventReports: List[UserPlaneEventReport] = Field(..., description="Contains the reported event and applicable information", min_length=1)

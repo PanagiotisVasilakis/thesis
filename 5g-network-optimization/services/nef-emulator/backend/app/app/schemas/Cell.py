@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Shared properties
 class CellBase(BaseModel):
-    cell_id: str = Field(..., regex=r'^[A-Fa-f0-9]{9}$')
+    cell_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{9}$')
     name: Optional[str] = None
     description: Optional[str] = None
     gNB_id: int = None

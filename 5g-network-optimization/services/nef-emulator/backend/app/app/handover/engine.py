@@ -190,15 +190,24 @@ class HandoverEngine:
                 pass
 
             headers = self._get_ml_headers()
-            request_kwargs = {"json": ue_data, "timeout": 5}
-            if headers:
-                request_kwargs["headers"] = headers
-            resp = requests.post(url, **request_kwargs)
+
+            def _post_with_optional_headers(auth_headers: Optional[dict[str, str]]):
+                kwargs = {"json": ue_data, "timeout": 5}
+                if auth_headers:
+                    kwargs["headers"] = auth_headers
+                try:
+                    return requests.post(url, **kwargs)
+                except TypeError as exc:
+                    if auth_headers and "headers" in str(exc):
+                        return requests.post(url, json=ue_data, timeout=5)
+                    raise
+
+            resp = _post_with_optional_headers(headers)
             status = getattr(resp, "status_code", None)
             if status == 401 and headers:
                 headers = self._get_ml_headers(force_refresh=True)
                 if headers:
-                    resp = requests.post(url, json=ue_data, headers=headers, timeout=5)
+                    resp = _post_with_optional_headers(headers)
                     status = getattr(resp, "status_code", None)
 
             if status is not None and 400 <= status < 600:

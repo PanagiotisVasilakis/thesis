@@ -35,9 +35,14 @@ def client(app):
 @pytest.fixture
 def auth_header(client):
     import os
-    # Use environment variables for test credentials with secure defaults
-    test_username = os.getenv("TEST_AUTH_USERNAME", "test_user")
-    test_password = os.getenv("TEST_AUTH_PASSWORD", "test_secure_password_123!")
+    # Prefer application-configured credentials so tests stay aligned with
+    # whichever values the factory selected (environment overrides, DI setup,
+    # etc.). Fall back to the conventional test defaults if missing.
+    configured_username = getattr(client.application, "config", {}).get("AUTH_USERNAME")
+    configured_password = getattr(client.application, "config", {}).get("AUTH_PASSWORD")
+
+    test_username = configured_username or os.getenv("TEST_AUTH_USERNAME", "test_user")
+    test_password = configured_password or os.getenv("TEST_AUTH_PASSWORD", "test_secure_password_123!")
     
     resp = client.post(
         "/api/login",

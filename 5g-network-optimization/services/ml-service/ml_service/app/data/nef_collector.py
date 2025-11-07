@@ -5,6 +5,8 @@ from datetime import datetime
 
 import asyncio
 import time
+from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..config.constants import (
@@ -65,13 +67,41 @@ def _normalize_qos_payload(
         logger.debug("No QoS requirements returned for UE %s", ue_id)
         return None, None, None
 
+    if is_dataclass(payload):
+        payload = asdict(payload)
+
     if not isinstance(payload, dict):
-        logger.error(
-            "Unexpected QoS payload type for UE %s: %s",
-            ue_id,
-            type(payload).__name__,
-        )
-        return None, None, None
+        coerced: Optional[Dict[str, Any]] = None
+
+        if isinstance(payload, Mapping):
+            coerced = dict(payload)
+        else:
+            for attr in ("model_dump", "dict", "to_dict"):
+                method = getattr(payload, attr, None)
+                if callable(method):
+                    try:
+                        candidate = method()
+                    except Exception:  # pragma: no cover - defensive conversion
+                        continue
+                    if isinstance(candidate, dict):
+                        coerced = candidate
+                        break
+
+            if coerced is None:
+                try:
+                    coerced = dict(payload)  # type: ignore[arg-type]
+                except Exception:  # pragma: no cover - defensive conversion
+                    coerced = None
+
+        if coerced is None:
+            logger.error(
+                "Unexpected QoS payload type for UE %s: %s",
+                ue_id,
+                type(payload).__name__,
+            )
+            return None, None, None
+
+        payload = coerced
 
     def _lookup(keys: List[str], source: Dict[str, Any]) -> Any:
         for key in keys:
@@ -400,8 +430,9 @@ class NEFDataCollector:
         self.nef_url = nef_url
         self.username = username
         self.password = password
-        self.data_dir = data_dir or os.path.join(os.path.dirname(__file__), 'collected_data')
-        os.makedirs(self.data_dir, exist_ok=True)
+        default_dir = data_dir or os.path.join(os.path.dirname(__file__), 'collected_data')
+        self._data_dir = os.path.abspath(default_dir)
+        os.makedirs(self._data_dir, exist_ok=True)
 
         # Set up logger for this collector
         self.logger = logging.getLogger('NEFDataCollector')
@@ -411,7 +442,7 @@ class NEFDataCollector:
 
         self._components = _CollectorComponents(
             logger=self.logger,
-            data_dir=self.data_dir,
+            data_dir=self._data_dir,
             max_ues=max_ues,
             ue_ttl_hours=ttl_hours,
             signal_window_size=SIGNAL_WINDOW_SIZE,
@@ -436,6 +467,19 @@ class NEFDataCollector:
 
         # Track UEs for which QoS data was unavailable to avoid spamming logs
         self._missing_qos_logged: set[str] = set()
+
+    @property
+    def data_dir(self) -> str:
+        return self._data_dir
+
+    @data_dir.setter
+    def data_dir(self, value: str) -> None:
+        """Reconfigure the persistence directory at runtime."""
+        path = os.path.abspath(value)
+        os.makedirs(path, exist_ok=True)
+        self._data_dir = path
+        if hasattr(self, "_components"):
+            self._components.persistence = TrainingDataPersistence(data_dir=path)
 
     def _log_memory_stats(self):
         """Log comprehensive memory usage statistics for optimized tracking dictionaries."""

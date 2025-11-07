@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 
 ALGORITHM = ("HS256", "RS256")
 
+
+def _now_utc() -> datetime:
+    """Return the current UTC time with tzinfo, overridable in tests."""
+    return datetime.utcnow().replace(tzinfo=timezone.utc)
+
 # class OAuth2TwoTokensBearer(OAuth2):
 #     '''
 #     Override OAuth2 class based on FastAPI's OAuth2PasswordBearer to support two tokens bearer to authorise either NEF or CAPIF jtw tokens
@@ -66,9 +71,9 @@ def create_access_token(
     subject: Union[str, Any], expires_delta: timedelta = None
 ) -> str:
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = _now_utc() + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
+        expire = _now_utc() + timedelta(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "sub": str(subject)}

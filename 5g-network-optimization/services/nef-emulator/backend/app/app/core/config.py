@@ -1,17 +1,24 @@
 import secrets
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, List, Optional, Union
+from urllib.parse import quote_plus
 
 from pydantic import (
     AnyHttpUrl,
     EmailStr,
-    PostgresDsn,
-    validator,
+    ValidationInfo,
+    field_validator,
 )
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+
     # ----- API & Auth -----
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = secrets.token_urlsafe(32)
@@ -25,7 +32,7 @@ class Settings(BaseSettings):
     # ----- CORS -----
     BACKEND_CORS_ORIGINS: List[str] = []
 
-    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     def assemble_cors_origins(
         cls, v: Union[str, List[str]]
     ) -> Union[List[str], str]:
@@ -39,7 +46,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "My Awesome Project"
     SENTRY_DSN: Optional[AnyHttpUrl] = None
 
-    @validator("SENTRY_DSN", pre=True)
+    @field_validator("SENTRY_DSN", mode="before")
     def sentry_dsn_can_be_blank(cls, v: Optional[str]) -> Optional[str]:
         return v or None
 
@@ -48,24 +55,29 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
-    SQLALCHEMY_DATABASE_URI: Optional[PostgresDsn] = None
+    SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
-    @validator("SQLALCHEMY_DATABASE_URI", pre=True)
+    @field_validator("SQLALCHEMY_DATABASE_URI", mode="before")
     def assemble_db_connection(
-        cls, v: Optional[str], values: Dict[str, Any]
-    ) -> Any:
-        if isinstance(v, str):
+        cls, v: Optional[str], info: ValidationInfo
+    ) -> Optional[str]:
+        if isinstance(v, str) and v:
             return v
-        db_name = values.get("POSTGRES_DB") or ""
-        if db_name and not db_name.startswith("/"):
-            db_name = f"/{db_name}"
-        return PostgresDsn.build(
-            scheme="postgresql",
-            user=values.get("POSTGRES_USER"),
-            password=values.get("POSTGRES_PASSWORD"),
-            host=values.get("POSTGRES_SERVER"),
-            path=db_name,
-        )
+        values = info.data or {}
+        user = values.get("POSTGRES_USER")
+        password = values.get("POSTGRES_PASSWORD")
+        host = values.get("POSTGRES_SERVER")
+        database = values.get("POSTGRES_DB")
+
+        if not all([user, password, host, database]):
+            return None
+
+        path = f"/{database}" if not str(database).startswith("/") else str(database)
+
+        user_enc = quote_plus(str(user))
+        password_enc = quote_plus(str(password))
+
+        return f"postgresql://{user_enc}:{password_enc}@{host}{path}"
 
     # ----- MongoDB -----
     MONGO_CLIENT: str
@@ -83,12 +95,6 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str
     USERS_OPEN_REGISTRATION: bool = False
     USE_PUBLIC_KEY_VERIFICATION: bool
-
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
 
 settings = Settings()
 

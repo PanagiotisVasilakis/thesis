@@ -49,6 +49,21 @@ def predict(ue_data: dict, model: Any | None = None):
         priority = int(qos.get("service_priority", 5))
         service_type = qos.get("service_type") or "default"
         adaptive_required = adaptive_qos_manager.get_required_confidence(service_type, priority)
+
+        if "qos_compliance" in result:
+            compliance = result.get("qos_compliance") or {}
+            try:
+                metrics.track_qos_compliance(
+                    service_type,
+                    compliance.get("service_priority_ok", True),
+                    compliance.get("violations", []),
+                    observed=observed_metrics,
+                )
+                metrics.ADAPTIVE_CONFIDENCE.labels(service_type=service_type).set(adaptive_required)
+            except Exception:
+                pass
+            return result, features
+
         compliance, violations = evaluate_qos_compliance(
             qos_context=qos,
             observed=observed_metrics,

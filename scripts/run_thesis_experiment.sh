@@ -377,6 +377,29 @@ wait_for_service "http://localhost:8080/docs" "NEF Emulator" || exit 1
 wait_for_service "http://localhost:5050/api/health" "ML Service" || exit 1
 wait_for_service "http://localhost:9090/-/healthy" "Prometheus" || exit 1
 
+# Ensure the ML model finished its background initialization before
+# attempting any predictions; the health endpoint flips to OK first, so we
+# poll /api/model-health until it reports ready=true.
+MODEL_READY_MAX_ATTEMPTS=90
+MODEL_READY_DELAY=5
+attempt=0
+while [ $attempt -lt $MODEL_READY_MAX_ATTEMPTS ]; do
+    ready=$(curl -s http://localhost:5050/api/model-health | jq -r '.ready // false' 2>/dev/null || echo "false")
+    if [ "$ready" = "true" ]; then
+        log "ML model reports ready"
+        break
+    fi
+    attempt=$((attempt + 1))
+    sleep $MODEL_READY_DELAY
+done
+
+if [ "$ready" != "true" ]; then
+    error "ML model failed to report ready after $((MODEL_READY_MAX_ATTEMPTS * MODEL_READY_DELAY)) seconds"
+    docker compose -f "$COMPOSE_FILE" logs ml-service >> "$OUTPUT_DIR/logs/ml_model_wait_failure.log" 2>&1 || true
+    docker compose -f "$COMPOSE_FILE" down > /dev/null 2>&1 || true
+    exit 1
+fi
+
 log "All services ready"
 
 # Initialize network topology

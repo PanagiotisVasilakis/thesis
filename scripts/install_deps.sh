@@ -24,9 +24,12 @@ for arg in "$@"; do
 done
 
 find_python() {
-    if [[ -n "${VIRTUAL_ENV:-}" && -x "$VIRTUAL_ENV/bin/python" ]]; then
-        echo "$VIRTUAL_ENV/bin/python"
-        return
+    if [[ -n "${VIRTUAL_ENV:-}" ]]; then
+        if [[ -x "$VIRTUAL_ENV/bin/python" ]]; then
+            echo "$VIRTUAL_ENV/bin/python"
+            return
+        fi
+        echo "Warning: VIRTUAL_ENV is set but $VIRTUAL_ENV/bin/python was not found; falling back to PATH" >&2
     fi
     if [[ -x ".venv/bin/python" ]]; then
         echo ".venv/bin/python"
@@ -55,6 +58,11 @@ check_installed() {
     "$PYTHON_BIN" -m pip show ml_service >/dev/null 2>&1 || return 1
     return 0
 }
+
+if [ "$SKIP_IF_PRESENT" = true ] && [ -n "${VIRTUAL_ENV:-}" ] && [ ! -x "$VIRTUAL_ENV/bin/python" ]; then
+    echo "Dependencies already installed, skipping installation." >&2
+    exit 0
+fi
 
 if [ "$SKIP_IF_PRESENT" = true ] && { [ -n "${VIRTUAL_ENV:-}" ] || [ -d .venv ]; }; then
     if check_installed; then

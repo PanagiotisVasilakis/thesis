@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Shared properties
 class gNBBase(BaseModel):
-    gNB_id: str = Field(..., regex=r'^[A-Fa-f0-9]{6}$')
+    gNB_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{6}$')
     name: Optional[str] = None
     description: Optional[str] = None
     location: Optional[str] = None

@@ -37,7 +37,7 @@ class BaseModelMixin:
         X, y = [], []
         for sample in training_data:
             features = self.extract_features(sample)
-            sanitize_feature_ranges(features)
+            sanitize_feature_ranges(features, clamp_out_of_range=False)
             validate_feature_ranges(features)
             # Ensure service_type (if present) is encoded as numeric so the
             # feature vector can be converted to float. Preserve other
@@ -68,7 +68,7 @@ class BaseModelMixin:
             raise ValueError(f"Missing required features: {missing_features}")
 
         # Ensure feature values fall within configured bounds
-        sanitize_feature_ranges(features)
+        sanitize_feature_ranges(features, clamp_out_of_range=False)
         validate_feature_ranges(features)
     
     def get_prediction_with_fallback(

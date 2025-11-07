@@ -136,4 +136,3 @@ def test_collector_handles_nef_api_error(caplog: pytest.LogCaptureFixture) -> No
 
     assert result is None
     assert "service unavailable" in caplog.text
-

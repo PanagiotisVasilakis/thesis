@@ -1,4 +1,4 @@
-import logging, json
+import logging, json, sys
 from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.core.config import settings
@@ -75,3 +75,10 @@ def init_db(db: Session) -> None:
             crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
     
     return
+
+
+# Ensure ``app.db.init_db`` resolves when monkeypatched tests import via the
+# package attribute.
+_parent_pkg = sys.modules.get("app.db")
+if _parent_pkg is not None and not hasattr(_parent_pkg, "init_db"):
+    setattr(_parent_pkg, "init_db", sys.modules[__name__])

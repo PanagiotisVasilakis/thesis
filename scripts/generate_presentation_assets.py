@@ -24,13 +24,16 @@ matplotlib.use("Agg")
 # Configure import paths so that local service packages are available
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SERVICES_ROOT = REPO_ROOT / "5g-network-optimization" / "services"
+NETWORK_OPT_ROOT = REPO_ROOT / "5g-network-optimization"
+SERVICES_ROOT = NETWORK_OPT_ROOT / "services"
 ML_SERVICE_ROOT = SERVICES_ROOT / "ml-service"
-NEF_APP_ROOT = SERVICES_ROOT / "nef-emulator" / "backend" / "app" / "app"
+NEF_APP_PARENT = SERVICES_ROOT / "nef-emulator" / "backend" / "app"
 
-for path in (SERVICES_ROOT, ML_SERVICE_ROOT, NEF_APP_ROOT):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+# Insert parent directories so implicit namespace packages resolve correctly.
+for path in (NETWORK_OPT_ROOT, SERVICES_ROOT, ML_SERVICE_ROOT, NEF_APP_PARENT):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from services.logging_config import configure_logging
 
