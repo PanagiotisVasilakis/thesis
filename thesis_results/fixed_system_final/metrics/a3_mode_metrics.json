@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-11-12T11:22:40Z",
+  "metrics": {
+    "total_handovers": {"status":"success","data":{"resultType":"vector","result":[{"metric":{},"value":[1762946560.104,"23"]}]}}
+,
+    "failed_handovers": {"status":"success","data":{"resultType":"vector","result":[]}}
+,
+    "qos_compliance_ok": {"status":"success","data":{"resultType":"vector","result":[]}}
+,
+    "qos_compliance_failed": {"status":"success","data":{"resultType":"vector","result":[]}}
+,
+    "qos_compliance_by_service": {"status":"success","data":{"resultType":"vector","result":[]}}
+,
+    "qos_failures_by_service": {"status":"success","data":{"resultType":"vector","result":[]}}
+,
+    "p95_latency_ms": {"status":"success","data":{"resultType":"vector","result":[{"metric":{"endpoint":"/metrics","instance":"nef-emulator:80","job":"nef_emulator","method":"GET"},"value":[1762946560.377,"8.57142857142857"]},{"metric":{"endpoint":"/api/v1/gNBs","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"NaN"]},{"metric":{"endpoint":"/api/v1/Cells","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"4.8"]},{"metric":{"endpoint":"/api/v1/UEs","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"4.8"]},{"metric":{"endpoint":"/api/v1/UEs/associate/path","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"23.5"]},{"metric":{"endpoint":"/api/v1/paths","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"NaN"]},{"metric":{"endpoint":"/api/v1/ue_movement/start-loop","instance":"nef-emulator:80","job":"nef_emulator","method":"POST"},"value":[1762946560.377,"NaN"]}]},"infos":["PromQL info: input to histogram_quantile needed to be fixed for monotonicity (see https://prometheus.io/docs/prometheus/latest/querying/functions/#histogram_quantile) (1:26)"]}
+
+  }
+}

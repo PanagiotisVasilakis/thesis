@@ -2,13 +2,18 @@
 
 import os
 import logging
+from collections import Counter
+
+import lightgbm as lgb
+import numpy as np
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
+
 from .antenna_selector import AntennaSelector
 from .base_model_mixin import BaseModelMixin
-import lightgbm as lgb
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.calibration import CalibratedClassifierCV
-import numpy as np
+from ..utils.exception_handler import ModelError
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +90,36 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
             X_arr, y_arr, validation_split
         )
 
+        # Compute class distribution and weights for imbalance protection
+        class_counts = Counter(y_arr)
+        classes = np.array(sorted(class_counts.keys()))
+        min_count = min(class_counts.values()) if class_counts else 0
+        max_count = max(class_counts.values()) if class_counts else 0
+        imbalance_ratio = float(max_count / min_count) if min_count else float("inf")
+
+        if imbalance_ratio > 2.0:
+            logger.warning(
+                "High class imbalance detected during training: %.2f | distribution=%s",
+                imbalance_ratio,
+                dict(class_counts),
+            )
+
+        if len(classes) < 2:
+            raise ModelError(
+                "Training data must contain at least two classes, got %d" % len(classes)
+            )
+
+        if len(classes) > 0:
+            weights = compute_class_weight(
+                class_weight="balanced",
+                classes=classes,
+                y=y_arr,
+            )
+            class_weights = {str(cls): float(weight) for cls, weight in zip(classes, weights)}
+            self.model.set_params(class_weight=class_weights)
+        else:
+            class_weights = {}
+
         eval_set = [(X_val, y_val)] if X_val is not None else None
         fit_params = {}
         if eval_set:
@@ -135,7 +170,21 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                         logger.info("Skipping calibration: no validation data")
                     elif len(X_val) < 30:
                         logger.info(f"Skipping calibration: insufficient validation samples ({len(X_val)} < 30)")
-            
+
+            # Detect collapsed predictors by inspecting training predictions
+            train_predictions = self.model.predict(X_arr)
+            unique_predictions = len({str(pred) for pred in train_predictions})
+            expected_classes = len(classes) if len(classes) else unique_predictions
+            diversity_threshold = max(1, int(np.ceil(expected_classes * 0.75)))
+
+            if unique_predictions < diversity_threshold:
+                msg = (
+                    "Model collapse detected: only %d unique predictions (threshold=%d, classes=%d)"
+                    % (unique_predictions, diversity_threshold, expected_classes)
+                )
+                logger.error(msg)
+                raise ModelError(msg)
+
             metrics = {
                 "samples": len(X_arr),
                 "classes": len(set(y_arr)),
@@ -146,7 +195,12 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                     )
                 },
                 "confidence_calibrated": self.calibrated_model is not None,
-                "calibration_method": self.calibration_method if self.calibrated_model else None
+                "calibration_method": self.calibration_method if self.calibrated_model else None,
+                "class_distribution": {str(cls): int(count) for cls, count in class_counts.items()},
+                "class_weights": class_weights,
+                "imbalance_ratio": imbalance_ratio,
+                "unique_predictions": unique_predictions,
+                "collapse_threshold": diversity_threshold,
             }
 
             if eval_set:

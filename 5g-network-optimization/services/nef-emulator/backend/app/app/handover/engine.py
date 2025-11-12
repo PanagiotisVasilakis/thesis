@@ -494,18 +494,88 @@ class HandoverEngine:
             target = self._select_rule(ue_id)
             decision_log["a3_target"] = target
 
-        decision_log["final_target"] = target
+        resolved_current = self.state_mgr.resolve_antenna_id(decision_log.get("current_antenna"))
+        resolved_target = self.state_mgr.resolve_antenna_id(target) if target else None
+
+        decision_log["final_target"] = resolved_target or target
         decision_log["handover_triggered"] = target is not None
-        
+
         # Log structured JSON for thesis analysis
         self.logger.info(f"HANDOVER_DECISION: {json.dumps(decision_log)}")
-        
+
         if not target:
             decision_log["outcome"] = "no_handover"
             return None
-        
+
+        # COVERAGE LOSS DETECTION: Check if UE has moved outside current cell
+        coverage_loss_detected = False
+        if resolved_current and fv:
+            ue_lat = fv.get("latitude")
+            ue_lon = fv.get("longitude")
+            
+            if ue_lat is not None and ue_lon is not None:
+                current_cell = self.state_mgr.get_cell(resolved_current)
+                
+                if current_cell:
+                    try:
+                        from ml_service.app.config.cells import haversine_distance
+                        
+                        distance_to_current = haversine_distance(
+                            float(ue_lat), float(ue_lon),
+                            float(current_cell.latitude), float(current_cell.longitude)
+                        )
+                        
+                        # Allow 1.5x radius before declaring coverage loss
+                        max_coverage = float(current_cell.radius) * 1.5
+                        
+                        if distance_to_current > max_coverage:
+                            coverage_loss_detected = True
+                            decision_log["coverage_loss"] = True
+                            decision_log["distance_to_current_cell"] = distance_to_current
+                            decision_log["max_coverage_distance"] = max_coverage
+                            
+                            self.logger.warning(
+                                f"Coverage loss detected for UE {ue_id}: "
+                                f"{distance_to_current:.0f}m from current cell "
+                                f"(max: {max_coverage:.0f}m)"
+                            )
+                            
+                            # If ML/A3 didn't suggest a different cell, find nearest
+                            if not target or resolved_target == resolved_current:
+                                nearest_cell = self._find_nearest_cell((ue_lat, ue_lon))
+                                if nearest_cell and nearest_cell != resolved_current:
+                                    self.logger.info(
+                                        f"Forcing handover to nearest cell: {nearest_cell}"
+                                    )
+                                    target = nearest_cell
+                                    resolved_target = self.state_mgr.resolve_antenna_id(nearest_cell)
+                                    decision_log["forced_handover"] = True
+                                    decision_log["fallback_reason"] = "coverage_loss"
+                                    decision_log["final_target"] = resolved_target or target
+                                    metrics.COVERAGE_LOSS_HANDOVERS.inc()
+                                    metrics.HANDOVER_DECISIONS.labels(decision="forced_coverage_loss").inc()
+                    except ImportError:
+                        self.logger.debug("Cell config unavailable for coverage check")
+                    except Exception as exc:  # noqa: BLE001
+                        self.logger.debug("Coverage check failed: %s", exc)
+
+        # Check if already connected (only if no coverage loss)
+        if resolved_target is not None and resolved_target == resolved_current:
+            if not coverage_loss_detected:
+                decision_log["handover_triggered"] = False
+                decision_log["outcome"] = "already_connected"
+                self.logger.info(f"HANDOVER_SKIPPED: {json.dumps(decision_log)}")
+                return None
+            # If coverage loss was detected, proceed with handover even if target == current
+
         # Apply handover and capture result
         handover_result = self.state_mgr.apply_handover_decision(ue_id, target)
+        if handover_result is None:
+            decision_log["handover_triggered"] = False
+            decision_log["outcome"] = "already_connected"
+            self.logger.info(f"HANDOVER_SKIPPED: {json.dumps(decision_log)}")
+            return None
+        
         decision_log["outcome"] = "applied"
         decision_log["handover_result"] = handover_result
         
@@ -634,3 +704,40 @@ class HandoverEngine:
             response.raise_for_status()
         except Exception as exc:  # noqa: BLE001
             self.logger.warning("QoS feedback POST failed: %s", exc)
+
+    def _find_nearest_cell(self, ue_position: tuple[float, float]) -> Optional[str]:
+        """Find nearest cell to UE position based on configured cell locations.
+        
+        Args:
+            ue_position: Tuple of (latitude, longitude)
+            
+        Returns:
+            Antenna ID of nearest cell, or None if position invalid
+        """
+        if ue_position[0] is None or ue_position[1] is None:
+            return None
+        
+        try:
+            from ml_service.app.config.cells import CELL_CONFIGS, haversine_distance
+        except ImportError:
+            self.logger.warning("Cell configuration not available for distance calculation")
+            return None
+        
+        nearest_cell = None
+        min_distance = float('inf')
+        
+        for antenna_id, config in CELL_CONFIGS.items():
+            try:
+                distance = haversine_distance(
+                    ue_position[0], ue_position[1],
+                    config["latitude"], config["longitude"]
+                )
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_cell = antenna_id
+            except (KeyError, TypeError, ValueError) as exc:
+                self.logger.debug("Failed to compute distance to %s: %s", antenna_id, exc)
+                continue
+        
+        return nearest_cell

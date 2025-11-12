@@ -1,4 +1,5 @@
-from typing import Any, List
+from typing import Any, List, Optional
+from ipaddress import ip_address
 from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -8,8 +9,55 @@ from app import crud, models, schemas
 from app.api import deps
 from app.api.api_v1.endpoints.utils import retrieve_ue_state
 from app.api.api_v1.endpoints.paths import get_random_point
+from app.tools.distance import check_distance
+
+try:
+    from app.handover.runtime import runtime as handover_runtime
+except ModuleNotFoundError:  # pragma: no cover - fallback for tests
+    class _FallbackRuntime:
+        ensure_topology = staticmethod(lambda *args, **kwargs: None)
+        upsert_ue_state = staticmethod(lambda *args, **kwargs: None)
+
+    handover_runtime = _FallbackRuntime()  # type: ignore[assignment]
 
 router = APIRouter()
+
+
+def _sync_handover_runtime(
+    db: Session,
+    owner_id: int,
+    supi: str,
+    payload: dict,
+) -> None:
+    """Push the latest UE snapshot into the shared handover runtime."""
+
+    latitude = payload.get("latitude")
+    longitude = payload.get("longitude")
+
+    if latitude is None or longitude is None:
+        return
+
+    try:
+        cells = crud.cell.get_multi_by_owner(db=db, owner_id=owner_id, skip=0, limit=200)
+    except Exception:
+        cells = []
+
+    json_cells = jsonable_encoder(cells) if cells else []
+    if json_cells:
+        handover_runtime.ensure_topology(json_cells)
+        nearest = check_distance(latitude, longitude, json_cells)
+        candidate_id: Optional[int] = nearest.get("id") if nearest else None
+    else:
+        candidate_id = None
+
+    handover_runtime.upsert_ue_state(
+        supi,
+        float(latitude),
+        float(longitude),
+        payload.get("speed"),
+        payload.get("Cell_id"),
+        candidate_id,
+    )
 
 
 @router.get("", response_model=List[schemas.UEhex])
@@ -55,15 +103,18 @@ def create_UE(
     Create new UE.
     """
     #Validate Unique ids
+    ipv4_obj = item_in.ip_address_v4 if not isinstance(item_in.ip_address_v4, str) else ip_address(item_in.ip_address_v4)
+    ipv6_obj = item_in.ip_address_v6 if not isinstance(item_in.ip_address_v6, str) else ip_address(item_in.ip_address_v6)
+
     if crud.ue.get_supi(db=db, supi=item_in.supi):
         raise HTTPException(
             status_code=409, detail=f"UE with supi {item_in.supi} already exists")
-    elif crud.ue.get_ipv4(db=db, ipv4=str(item_in.ip_address_v4), owner_id=current_user.id):
+    elif crud.ue.get_ipv4(db=db, ipv4=str(ipv4_obj), owner_id=current_user.id):
         raise HTTPException(
-            status_code=409, detail=f"UE with ipv4 {str(item_in.ip_address_v4)} already exists")
-    elif crud.ue.get_ipv6(db=db, ipv6=str(item_in.ip_address_v6.exploded), owner_id=current_user.id):
+            status_code=409, detail=f"UE with ipv4 {str(ipv4_obj)} already exists")
+    elif crud.ue.get_ipv6(db=db, ipv6=str(getattr(ipv6_obj, "exploded", ipv6_obj)), owner_id=current_user.id):
         raise HTTPException(
-            status_code=409, detail=f"UE with ipv6 {str(item_in.ip_address_v6)} already exists")
+            status_code=409, detail=f"UE with ipv6 {str(ipv6_obj)} already exists")
     elif crud.ue.get_mac(db=db, mac=str(item_in.mac_address), owner_id=current_user.id):
         raise HTTPException(
             status_code=409, detail=f"UE with mac {str(item_in.mac_address)} already exists")
@@ -72,14 +123,19 @@ def create_UE(
             status_code=409, detail=f"UE with external id {str(item_in.mac_address)} already exists")
 
     json_data = jsonable_encoder(item_in)
-    json_data['ip_address_v4'] = str(item_in.ip_address_v4)
-    json_data['ip_address_v6'] = str(item_in.ip_address_v6.exploded)
-    json_data['Cell_id'] = None
+    db_payload = dict(json_data)
+    db_payload['ip_address_v4'] = str(ipv4_obj)
+    db_payload['ip_address_v6'] = str(getattr(ipv6_obj, "exploded", ipv6_obj))
+    db_payload['Cell_id'] = None
 
-    UE = crud.ue.create_with_owner(db=db, obj_in=json_data, owner_id=current_user.id)
-    json_data.update({"path_id" : 0})
+    UE = crud.ue.create_with_owner(db=db, obj_in=db_payload, owner_id=current_user.id)
 
-    return json_data
+    response_data = dict(db_payload)
+    response_data.update({"supi": item_in.supi, "path_id": 0, "gNB_id": None})
+
+    _sync_handover_runtime(db, current_user.id, item_in.supi, response_data)
+
+    return response_data
 
 
 @router.put("/{supi}", response_model=schemas.UE)
@@ -99,8 +155,10 @@ def update_UE(
     if not crud.user.is_superuser(current_user) and (UE.owner_id != current_user.id):
         raise HTTPException(status_code=400, detail="Not enough permissions")
 
-    ipv4_str = str(item_in.ip_address_v4)
-    ipv6_str = item_in.ip_address_v6.exploded
+    ipv4_obj = item_in.ip_address_v4 if not isinstance(item_in.ip_address_v4, str) else ip_address(item_in.ip_address_v4)
+    ipv6_obj = item_in.ip_address_v6 if not isinstance(item_in.ip_address_v6, str) else ip_address(item_in.ip_address_v6)
+    ipv4_str = str(ipv4_obj)
+    ipv6_str = str(getattr(ipv6_obj, "exploded", ipv6_obj))
 
     if (UE.ip_address_v4 != ipv4_str) and crud.ue.get_ipv4(db=db, ipv4=ipv4_str, owner_id=current_user.id):
         raise HTTPException(
@@ -116,13 +174,23 @@ def update_UE(
             status_code=409, detail=f"This external id {item_in.mac_address} already exists")
 
     json_data = jsonable_encoder(item_in)
-    json_data['ip_address_v4'] = str(item_in.ip_address_v4)
-    json_data['ip_address_v6'] = str(item_in.ip_address_v6.exploded)
+    db_payload = dict(json_data)
+    db_payload['ip_address_v4'] = ipv4_str
+    db_payload['ip_address_v6'] = ipv6_str
 
-    UE = crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
-    json_data.update({"supi": supi, "path_id" : UE.path_id})
+    UE = crud.ue.update(db=db, db_obj=UE, obj_in=db_payload)
 
-    return json_data
+    response_data = dict(db_payload)
+    response_data.update({
+        "supi": supi,
+        "path_id": UE.path_id,
+        "gNB_id": getattr(UE.Cell, "gNB_id", None),
+        "Cell_id": UE.Cell_id,
+    })
+
+    _sync_handover_runtime(db, current_user.id, supi, response_data)
+
+    return response_data
 
 
 @router.get("/{supi}", response_model=schemas.UE)

@@ -1,0 +1,1 @@
+Coverage map illustrating which antenna serves each location using a dummy antenna selector model.

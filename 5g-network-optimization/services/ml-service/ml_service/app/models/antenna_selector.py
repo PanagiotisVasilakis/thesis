@@ -49,6 +49,7 @@ from ..utils.resource_manager import (
 )
 from .async_model_operations import AsyncModelInterface, get_async_model_manager
 from ..monitoring import metrics
+from ..config.cells import CELL_CONFIGS, get_cell_config, haversine_distance
 from ..initialization.model_version import MODEL_VERSION
 
 FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
@@ -93,6 +94,16 @@ DEFAULT_TEST_FEATURES = {
     "environment": 0.0,
     "rsrp_stddev": 0.0,
     "sinr_stddev": 0.0,
+    "stability": 0.5,
+    "latency_pressure_ratio": 0.0,
+    "throughput_headroom_ratio": 0.0,
+    "reliability_pressure_ratio": 0.0,
+    "sla_pressure": 0.0,
+    "rf_load_std": 0.0,
+    "top2_rsrp_gap": 0.0,
+    "top2_sinr_gap": 0.0,
+    "optimal_score_margin": 0.0,
+    "connected_signal_rank": 1.0,
     "rsrp_current": -90,
     "sinr_current": 10,
     "rsrq_current": -10,
@@ -408,6 +419,9 @@ class AntennaSelector(AsyncModelInterface):
         self.pingpong_window_s = float(os.getenv("PINGPONG_WINDOW_S", "10.0"))
         self.pingpong_confidence_boost = float(os.getenv("PINGPONG_CONFIDENCE_BOOST", "0.9"))
 
+        # Track recent predictions for diversity monitoring
+        self._prediction_history: list[str] = []
+
         # Try to load existing model
         try:
             if model_path and os.path.exists(model_path):
@@ -694,12 +708,108 @@ class AntennaSelector(AsyncModelInterface):
             result.setdefault("anti_pingpong_applied", False)
             return result
         
+        predicted_antenna = str(result["antenna_id"])
+        confidence = float(result.get("confidence", 0.0))
+
+        # --------------------------------------------------------------
+        # Geographic validation and override if prediction is implausible
+        # --------------------------------------------------------------
+        ue_lat = prepared.get("latitude")
+        ue_lon = prepared.get("longitude")
+
+        if isinstance(ue_lat, (int, float)) and isinstance(ue_lon, (int, float)):
+            cell_config = get_cell_config(predicted_antenna)
+            if cell_config:
+                try:
+                    distance = haversine_distance(
+                        float(ue_lat),
+                        float(ue_lon),
+                        float(cell_config["latitude"]),
+                        float(cell_config["longitude"]),
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Failed geographic check for %s: %s", predicted_antenna, exc)
+                    distance = None
+
+                if distance is not None:
+                    max_distance = float(cell_config["radius_meters"]) * float(
+                        cell_config.get("max_distance_multiplier", 2.0)
+                    )
+
+                    if distance > max_distance:
+                        # Find nearest configured cell to fall back to
+                        nearest_id = None
+                        nearest_distance = None
+                        for antenna_id, config in CELL_CONFIGS.items():
+                            try:
+                                dist = haversine_distance(
+                                    float(ue_lat),
+                                    float(ue_lon),
+                                    float(config["latitude"]),
+                                    float(config["longitude"]),
+                                )
+                            except Exception:  # noqa: BLE001
+                                continue
+
+                            if nearest_distance is None or dist < nearest_distance:
+                                nearest_distance = dist
+                                nearest_id = antenna_id
+
+                        if nearest_id:
+                            logger.warning(
+                                "Geographic override: UE %s predicted %s at %.0fm (> %.0fm); overriding to %s",
+                                ue_id,
+                                predicted_antenna,
+                                distance,
+                                max_distance,
+                                nearest_id,
+                            )
+
+                            metrics.GEOGRAPHIC_OVERRIDES.inc()
+                            result["fallback_reason"] = "geographic_override"
+                            result["ml_prediction"] = predicted_antenna
+                            result["distance_to_ml_prediction"] = float(distance)
+                            if nearest_distance is not None:
+                                result["distance_to_fallback"] = float(nearest_distance)
+
+                            predicted_antenna = nearest_id
+                            confidence = 1.0
+                            result["antenna_id"] = nearest_id
+                            result["confidence"] = confidence
+
+        # --------------------------------------------------------------
+        # Diversity monitoring for collapse detection in production
+        # --------------------------------------------------------------
+        self._prediction_history.append(predicted_antenna)
+        if len(self._prediction_history) > 100:
+            self._prediction_history.pop(0)
+
+        if len(self._prediction_history) >= 50:
+            window = self._prediction_history[-50:]
+            unique_predictions = len(set(window))
+            diversity_ratio = unique_predictions / 50.0
+
+            if diversity_ratio < 0.3:
+                logger.error(
+                    "ML diversity warning for UE %s: only %d unique predictions in last 50 (%.1f%%)",
+                    ue_id,
+                    unique_predictions,
+                    diversity_ratio * 100,
+                )
+                metrics.LOW_DIVERSITY_WARNINGS.inc()
+                result.setdefault("warnings", []).append(
+                    {
+                        "type": "low_diversity",
+                        "unique_predictions": unique_predictions,
+                        "window": 50,
+                        "diversity_ratio": diversity_ratio,
+                    }
+                )
+
         # ==================================================================
         # PING-PONG PREVENTION LOGIC (Critical for Thesis)
         # ==================================================================
         current_cell = prepared.get("connected_to")
-        predicted_antenna = result["antenna_id"]
-        confidence = result["confidence"]
         timestamp = time.time()
         
         # Track handover state and get metrics

@@ -567,7 +567,30 @@ class _RealBackgroundTasks(threading.Thread):
                 delta = now_ts - last_ts
                 candidate_change = current_key != candidate_key
                 candidate_missing = candidate_key is None and current_key is not None
-                should_eval = (candidate_change or candidate_missing) and (last_candidate != candidate_key or delta >= HANDOVER_REEVALUATION_SECONDS)
+                should_eval = (candidate_change or candidate_missing) and (
+                    last_candidate != candidate_key or delta >= HANDOVER_REEVALUATION_SECONDS
+                )
+
+                logger.debug(
+                    "HANDOVER_EVAL_GUARD supi=%s candidate_change=%s candidate_missing=%s delta=%.2f threshold=%.2f last_candidate=%s should_eval=%s",
+                    supi,
+                    candidate_change,
+                    candidate_missing,
+                    delta,
+                    HANDOVER_REEVALUATION_SECONDS,
+                    last_candidate,
+                    should_eval,
+                )
+                if not should_eval and (candidate_change or candidate_missing):
+                    logger.info(
+                        "UE %s deferred handover evaluation; delta=%.2f threshold=%.2f last_candidate=%s current=%s candidate=%s",
+                        supi,
+                        delta,
+                        HANDOVER_REEVALUATION_SECONDS,
+                        last_candidate,
+                        current_key,
+                        candidate_key,
+                    )
 
                 decision = None
                 target_key = None
@@ -610,6 +633,12 @@ class _RealBackgroundTasks(threading.Thread):
                             logger.warning("UE %s handover target %s missing from topology", supi, target_key)
                     else:
                         metrics.HANDOVER_DECISIONS.labels(outcome="none").inc()
+                        logger.info(
+                            "UE %s ML engine returned no handover target; current=%s candidate=%s",
+                            supi,
+                            current_key,
+                            candidate_key,
+                        )
                 else:
                     handover_meta.setdefault("last_eval", {"candidate": candidate_key, "timestamp": now_ts, "decision": None})
 

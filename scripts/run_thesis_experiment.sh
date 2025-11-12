@@ -281,6 +281,37 @@ stop_all_ues() {
     done
 }
 
+dump_nef_cells_snapshot() {
+    local output_file="$1"
+    if [ -z "$output_file" ]; then
+        warn "dump_nef_cells_snapshot called without output file"
+        return 1
+    fi
+
+    if ! ensure_nef_token; then
+        warn "Skipping NEF cells snapshot: authentication unavailable"
+        return 1
+    fi
+
+    local response
+    if ! response=$(curl -sS -H "Authorization: Bearer ${NEF_TOKEN}" -H 'accept: application/json' "${NEF_API_BASE}/Cells?skip=0&limit=200"); then
+        warn "Failed to fetch NEF cells snapshot"
+        return 1
+    fi
+
+    if command -v jq >/dev/null 2>&1; then
+        if ! printf '%s' "$response" | jq '.' > "$output_file" 2>/dev/null; then
+            warn "jq failed to format NEF cells snapshot; writing raw payload"
+            printf '%s\n' "$response" > "$output_file"
+        fi
+    else
+        printf '%s\n' "$response" > "$output_file"
+    fi
+
+    log "Captured NEF cells snapshot -> $output_file"
+    return 0
+}
+
 # ============================================================================
 # Pre-flight Checks
 # ============================================================================
@@ -414,6 +445,8 @@ if [ -f "$NEF_INIT_SCRIPT" ]; then
     
     if bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/ml_topology_init.log" 2>&1; then
         log "✅ Topology initialized successfully"
+        dump_nef_cells_snapshot "$OUTPUT_DIR/logs/a3_cells_snapshot.json" || true
+        dump_nef_cells_snapshot "$OUTPUT_DIR/logs/ml_cells_snapshot.json" || true
     else
         error "❌ Topology initialization failed! Cannot proceed without network elements."
         error "Check logs: $OUTPUT_DIR/logs/ml_topology_init.log"
@@ -614,9 +647,13 @@ log "Generating comparative visualizations..."
 
 # Use the Python comparison tool to generate visualizations
 if [ -f "$SCRIPT_DIR/compare_ml_vs_a3_visual.py" ]; then
+    PINGPONG_WINDOW_SECONDS=${PINGPONG_WINDOW_SECONDS:-90}
     python3 "$SCRIPT_DIR/compare_ml_vs_a3_visual.py" \
         --ml-metrics "$OUTPUT_DIR/metrics/ml_mode_metrics.json" \
+        --ml-log "$OUTPUT_DIR/logs/ml_mode_docker.log" \
         --a3-metrics "$OUTPUT_DIR/metrics/a3_mode_metrics.json" \
+        --a3-log "$OUTPUT_DIR/logs/a3_mode_docker.log" \
+        --pingpong-window "$PINGPONG_WINDOW_SECONDS" \
         --output "$OUTPUT_DIR" > "$OUTPUT_DIR/logs/visualization.log" 2>&1 || {
         warn "Visualization generation encountered issues (check logs)"
     }

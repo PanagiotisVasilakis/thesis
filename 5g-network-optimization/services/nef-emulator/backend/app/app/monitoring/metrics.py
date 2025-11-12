@@ -33,6 +33,13 @@ HANDOVER_COMPLIANCE = Counter(
     registry=REGISTRY,
 )
 
+# Phase 7: Coverage loss handovers
+COVERAGE_LOSS_HANDOVERS = Counter(
+    'nef_coverage_loss_handovers_total',
+    'Number of handovers forced by coverage loss detection',
+    registry=REGISTRY,
+)
+
 # Observe request processing time for each endpoint
 REQUEST_DURATION = Histogram(
     'nef_request_duration_seconds',

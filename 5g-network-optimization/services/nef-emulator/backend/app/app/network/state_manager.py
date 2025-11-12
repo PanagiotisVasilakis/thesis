@@ -50,6 +50,8 @@ class NetworkStateManager:
         self._antenna_aliases: Dict[str, str] = {}
         self.handover_history = []  # list of {ue_id, from, to, timestamp}
         self.logger = logging.getLogger("NetworkStateManager")
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = True
         # Default noise floor in dBm (tunable)
         self.noise_floor_dbm = -100.0
         env_noise = os.getenv("NOISE_FLOOR_DBM")
@@ -77,6 +79,7 @@ class NetworkStateManager:
         # QoS monitoring (Phase 1.1 / 1.2): track observed latency/jitter/throughput/loss
         self.qos_monitor = QoSMonitor()
         self.qos_simulator = QoSSimulator()
+        self._cell_lookup = None
 
     def get_feature_vector(self, ue_id):
         """
@@ -201,6 +204,10 @@ class NetworkStateManager:
             state["connected_to"] = prev
 
         resolved_target = self.resolve_antenna_id(target_antenna_id)
+        if resolved_target == prev:
+            self.logger.info("Handover for %s skipped; already connected to %s", ue_id, resolved_target)
+            return None
+
         if resolved_target not in self.antenna_list:
             raise KeyError(f"Antenna {target_antenna_id} unknown")
 
@@ -218,6 +225,22 @@ class NetworkStateManager:
         self.handover_history.append(ev)
         self.logger.info(f"Handover for {ue_id}: {prev} -> {resolved_target}")
         return ev
+
+    # ------------------------------------------------------------------
+    # Cell metadata helpers
+    # ------------------------------------------------------------------
+    def register_cell_lookup(self, lookup_fn):
+        """Allow external runtimes to provide cell metadata lookup."""
+        self._cell_lookup = lookup_fn
+
+    def get_cell(self, cell_key):
+        """Return cell metadata if a lookup hook has been registered."""
+        if self._cell_lookup is None or cell_key is None:
+            return None
+        try:
+            return self._cell_lookup(cell_key)
+        except Exception:  # noqa: BLE001 - defensive guard
+            return None
 
     def get_position_at_time(self, ue_id, query_time):
         """

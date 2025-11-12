@@ -7,6 +7,7 @@ from collections import deque
 from ..utils.mobility_metrics import MobilityMetricTracker
 from ..utils.memory_managed_dict import UETrackingDict
 from ..features import pipeline
+from ..utils.antenna_selection import select_optimal_antenna
 
 
 class FeatureExtractor:
@@ -38,17 +39,9 @@ class FeatureExtractor:
         return pipeline.extract_environment_features(feature_vector)
     
     def determine_optimal_antenna(self, rf_metrics: Dict[str, Dict[str, float]]) -> str:
-        """Determine the optimal antenna based on RF metrics.
-        
-        Uses a simple heuristic: highest RSRP, with SINR as tiebreaker.
-        
-        Args:
-            rf_metrics: RF metrics per antenna
-            
-        Returns:
-            ID of the optimal antenna
-        """
-        return pipeline.determine_optimal_antenna(rf_metrics)
+        """Determine the optimal antenna using shared QoS-aware heuristics."""
+        winner, _ = select_optimal_antenna(rf_metrics)
+        return winner
 
 
 class HandoverTracker:

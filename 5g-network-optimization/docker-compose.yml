@@ -39,6 +39,7 @@ services:
       - SERVER_HOST=http://localhost
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
+      - ML_HANDOVER_ENABLED=${ML_HANDOVER_ENABLED:-1}
       - ML_LOCAL=${ML_LOCAL:-0}
     networks:
       - 5g-network
@@ -76,7 +77,6 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
     depends_on:
       - nef-emulator
-      - ml-service
     networks:
       - 5g-network
   

@@ -21,9 +21,15 @@ def check_distance(UE_lat, UE_long, cells):
     current_cell_dist = float("inf")
 
     for cell in cells:
-        dist = distance(UE_lat, UE_long, cell.get("latitude"), cell.get("longitude"))
+        lat = cell.get("latitude")
+        lon = cell.get("longitude")
+        radius = cell.get("radius")
+        if lat is None or lon is None or radius is None:
+            continue
+
+        dist = distance(UE_lat, UE_long, lat, lon)
         # logging.critical(f"Distance = {dist} meters from Cell {cell.get('description')}") 
-        if (dist <= cell.get("radius")):
+        if dist <= radius:
             if (dist < current_cell_dist):
                 current_cell_dist = dist
                 current_cell = cell

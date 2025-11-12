@@ -71,6 +71,38 @@ PREDICTION_CONFIDENCE = Gauge(
     registry=REGISTRY,
 )
 
+GEOGRAPHIC_OVERRIDES = Counter(
+    'ml_geographic_overrides_total',
+    'Number of geographic overrides applied to ML predictions',
+    registry=REGISTRY,
+)
+
+LOW_DIVERSITY_WARNINGS = Counter(
+    'ml_low_diversity_warnings_total',
+    'Number of low-diversity warnings emitted by the predictor',
+    registry=REGISTRY,
+)
+
+# Phase 7: Model Health Metrics
+MODEL_HEALTH_SCORE = Gauge(
+    'ml_model_health_score',
+    'Composite health score (0-1) based on diversity, accuracy, fallback rate',
+    registry=REGISTRY,
+)
+
+PREDICTION_DIVERSITY_RATIO = Gauge(
+    'ml_prediction_diversity_ratio',
+    'Ratio of unique predictions in last N samples',
+    registry=REGISTRY,
+)
+
+PREDICTION_DISTRIBUTION = Gauge(
+    'ml_prediction_distribution_percent',
+    'Percentage of predictions per antenna class',
+    ['antenna_id'],
+    registry=REGISTRY,
+)
+
 # Track model training
 MODEL_TRAINING_DURATION = Histogram(
     'ml_model_training_duration_seconds',
@@ -270,6 +302,66 @@ def store_feature_importance(feature_importance: Dict[str, float], path: str | N
             json.dump(feature_importance, f)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to store feature importance: %s", exc)
+
+
+def update_model_health(
+    diversity_ratio: float,
+    fallback_rate: float = 0.0,
+    geographic_override_rate: float = 0.0,
+) -> float:
+    """Calculate and update composite model health score.
+    
+    Health score is a weighted average of three components:
+    - Diversity: want >0.4 (40% unique predictions)
+    - Fallback rate: want <0.1 (10% fallback to default)
+    - Geographic override rate: want <0.05 (5% geographic overrides)
+    
+    Parameters
+    ----------
+    diversity_ratio:
+        Ratio of unique predictions in recent window (0.0-1.0)
+    fallback_rate:
+        Rate of fallback predictions (0.0-1.0)
+    geographic_override_rate:
+        Rate of geographic overrides (0.0-1.0)
+    
+    Returns
+    -------
+    float:
+        Composite health score (0.0-1.0), where 1.0 is perfect health
+    """
+    # Diversity: want >0.4 (40%)
+    diversity_score = min(diversity_ratio / 0.4, 1.0) if diversity_ratio >= 0 else 0.0
+    
+    # Fallback rate: want <0.1 (10%)
+    fallback_score = max(1.0 - fallback_rate / 0.1, 0.0) if fallback_rate <= 1.0 else 0.0
+    
+    # Geographic override: want <0.05 (5%)
+    geo_score = max(1.0 - geographic_override_rate / 0.05, 0.0) if geographic_override_rate <= 1.0 else 0.0
+    
+    # Weighted average (diversity is most important)
+    health = 0.5 * diversity_score + 0.3 * fallback_score + 0.2 * geo_score
+    
+    MODEL_HEALTH_SCORE.set(health)
+    return health
+
+
+def update_prediction_distribution(prediction_counts: Dict[str, int]) -> None:
+    """Update prediction distribution metrics.
+    
+    Parameters
+    ----------
+    prediction_counts:
+        Mapping of antenna_id to prediction count
+    """
+    total = sum(prediction_counts.values())
+    if total == 0:
+        return
+    
+    for antenna_id, count in prediction_counts.items():
+        percentage = (count / total) * 100.0
+        PREDICTION_DISTRIBUTION.labels(antenna_id=antenna_id).set(percentage)
+
 
 
 def track_training(

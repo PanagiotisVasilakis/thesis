@@ -29,4 +29,4 @@ scrape_configs:
   - job_name: "nef_emulator"
     metrics_path: /metrics
     static_configs:
-      - targets: ["nef-emulator:8080"]
+      - targets: ["nef-emulator:80"]

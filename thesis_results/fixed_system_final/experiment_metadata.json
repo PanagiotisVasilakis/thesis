@@ -1,0 +1,15 @@
+{
+  "experiment_name": "fixed_system_final",
+  "duration_minutes": 10,
+  "start_time": "2025-11-12T11:01:54Z",
+  "repository": "https://github.com/PanagiotisVasilakis/thesis.git",
+  "commit": "d8fb90e1dd5e19498ffff05da6d4e2eee4ff281a",
+  "docker_compose": "/Users/pvasilakis/thesis/5g-network-optimization/docker-compose.yml",
+  "end_time": "2025-11-12T11:23:01Z",
+  "status": "complete",
+  "output_files": {
+    "visualizations": 7,
+    "metrics": 5,
+    "logs": 10
+  }
+}

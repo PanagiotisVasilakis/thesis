@@ -1,6 +1,7 @@
 # services/nef-emulator/backend/app/app/api/api_v1/endpoints/ml_api.py
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 try:
     from app.handover.runtime import runtime
@@ -23,6 +24,25 @@ if runtime is None:
 else:
     state_mgr = runtime.state_manager
     engine = runtime.engine
+
+
+class ModeRequest(BaseModel):
+    use_ml: bool
+
+
+@router.get("/mode")
+def get_mode():
+    """Return the current handover mode for observability tools."""
+    return {"mode": "ml" if engine.use_ml else "a3", "use_ml": engine.use_ml}
+
+
+@router.post("/mode")
+def set_mode(payload: ModeRequest):
+    """Toggle the handover engine between ML and A3 modes."""
+    engine.use_ml = bool(payload.use_ml)
+    if hasattr(engine, "_auto"):
+        engine._auto = False
+    return {"mode": "ml" if engine.use_ml else "a3", "use_ml": engine.use_ml}
 
 @router.get("/state/{ue_id}")
 def get_feature_vector(ue_id: str):

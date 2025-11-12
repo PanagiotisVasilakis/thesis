@@ -9,6 +9,7 @@ models so that UE movement updates can feed the ML handover engine.
 
 from __future__ import annotations
 
+import logging
 import math
 import threading
 from datetime import datetime, timezone
@@ -59,6 +60,9 @@ class HandoverRuntime:
         self._ref_lon: Optional[float] = None
         self._cells_by_key: Dict[str, dict] = {}
         self._cells_by_alias: Dict[str, str] = {}
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        self.logger.propagate = True
 
     # ------------------------------------------------------------------
     # Topology management
@@ -75,6 +79,7 @@ class HandoverRuntime:
         with self._lock:
             cells_list = list(cells)
             if not cells_list:
+                self.logger.debug("ensure_topology invoked with no cells; antenna_list_size=%s", len(self.state_manager.antenna_list))
                 return
 
             if self._ref_lat is None or self._ref_lon is None:
@@ -82,12 +87,37 @@ class HandoverRuntime:
                 self._ref_lat = first.get("latitude") or 0.0
                 self._ref_lon = first.get("longitude") or 0.0
 
+            self.logger.debug(
+                "ensure_topology received %d cells; ref_lat=%s ref_lon=%s",
+                len(cells_list),
+                self._ref_lat,
+                self._ref_lon,
+            )
             for cell in cells_list:
                 key = self._cell_key(cell.get("id"))
+                if key is None:
+                    self.logger.warning(
+                        "ensure_topology skipping cell without primary id: %s",
+                        cell,
+                    )
+                else:
+                    self.logger.debug(
+                        "ensure_topology evaluating cell id=%s cell_id=%s name=%s",
+                        key,
+                        cell.get("cell_id"),
+                        cell.get("name"),
+                    )
                 if key in self.state_manager.antenna_list:
                     # Update cache to ensure metadata stays fresh
                     self._cells_by_key[key] = cell
+                    before_aliases = len(self._cells_by_alias)
                     self._register_cell_aliases(cell, key)
+                    after_aliases = len(self._cells_by_alias)
+                    self.logger.debug(
+                        "ensure_topology refreshed existing antenna entry id=%s alias_delta=%s",
+                        key,
+                        after_aliases - before_aliases,
+                    )
                     continue
 
                 position = self._to_local(
@@ -100,7 +130,22 @@ class HandoverRuntime:
                     DEFAULT_TX_POWER_DBM,
                 )
                 self._cells_by_key[key] = cell
+                before_aliases = len(self._cells_by_alias)
                 self._register_cell_aliases(cell, key)
+                after_aliases = len(self._cells_by_alias)
+                self.logger.debug(
+                    "ensure_topology registered antenna id=%s position=%s total_antennas=%d alias_delta=%s",
+                    key,
+                    position,
+                    len(self.state_manager.antenna_list),
+                    after_aliases - before_aliases,
+                )
+            self.state_manager.register_cell_lookup(self.get_cell_by_key)
+            self.logger.info(
+                "ensure_topology complete; antenna_list_size=%d aliases=%d",
+                len(self.state_manager.antenna_list),
+                len(self._cells_by_alias),
+            )
 
     # ------------------------------------------------------------------
     # UE state
@@ -223,11 +268,25 @@ class HandoverRuntime:
             name_str = str(name)
             aliases.update({name_str, name_str.lower()})
 
+        new_aliases = []
         for alias in aliases:
             if not alias or alias == canonical:
                 continue
+            previous = self._cells_by_alias.get(alias)
             self._cells_by_alias[alias] = canonical
             self.state_manager.register_antenna_alias(alias, canonical)
+            if previous != canonical:
+                new_aliases.append(alias)
+        if new_aliases:
+            preview = ", ".join(sorted(new_aliases)[:5])
+            if len(new_aliases) > 5:
+                preview = f"{preview}, ..."
+            self.logger.info(
+                "registered aliases for antenna %s; count=%d sample=[%s]",
+                canonical,
+                len(new_aliases),
+                preview,
+            )
 
     def _to_local(self, lat: Optional[float], lon: Optional[float], altitude: float) -> Tuple[float, float, float]:
         if lat is None or lon is None:

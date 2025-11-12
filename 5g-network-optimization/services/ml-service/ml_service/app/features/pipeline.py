@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple, List
 import threading
+import math
 
 from .transform_registry import apply_feature_transforms
 from ..config.constants import (
@@ -21,6 +22,15 @@ __all__ = [
     "determine_optimal_antenna",
     "build_model_features",
 ]
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def extract_rf_features(feature_vector: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
@@ -263,11 +273,17 @@ def build_model_features(
     current_antenna = data.get("connected_to")
     rsrp_curr, sinr_curr, rsrq_curr = _current_signal(current_antenna, rf_metrics)
 
+    stability_val = data.get("stability")
+    if not isinstance(stability_val, (int, float)):
+        stability_val = 1.0 / (1.0 + abs(mobility["heading_change_rate"]) + abs(mobility["path_curvature"]))
+    stability = max(0.0, min(1.0, float(stability_val)))
+
     features: Dict[str, Any] = {
         "latitude": latitude,
         "longitude": longitude,
         "altitude": altitude,
         **mobility,
+        "stability": stability,
         "cell_load": env.get("cell_load", 0) or 0,
         "handover_count": handover_count,
         "time_since_handover": time_since_handover,
@@ -321,6 +337,104 @@ def build_model_features(
             "best_rsrp_diff": best_rsrp - rsrp_curr,
             "best_sinr_diff": best_sinr - sinr_curr,
             "best_rsrq_diff": best_rsrq - rsrq_curr,
+        }
+    )
+
+    latency_req = _safe_float(data.get("latency_requirement_ms"))
+    latency_obs = _safe_float(data.get("latency_ms"))
+    latency_delta = _safe_float(data.get("latency_delta_ms"))
+    throughput_req = _safe_float(data.get("throughput_requirement_mbps"))
+    throughput_obs = _safe_float(data.get("throughput_mbps"))
+    throughput_delta = _safe_float(data.get("throughput_delta_mbps"))
+    reliability_req = _safe_float(data.get("reliability_pct"))
+    reliability_delta = _safe_float(data.get("reliability_delta_pct"))
+
+    if latency_delta is None and latency_obs is not None and latency_req is not None:
+        latency_delta = latency_obs - latency_req
+    if throughput_delta is None and throughput_obs is not None and throughput_req is not None:
+        throughput_delta = throughput_obs - throughput_req
+    if reliability_delta is None:
+        reliability_delta = 0.0
+
+    def _ratio(delta: Optional[float], reference: Optional[float]) -> float:
+        if delta is None or reference in (None, 0):
+            return 0.0
+        return float(delta / max(reference, 1e-6))
+
+    latency_pressure_ratio = _ratio(latency_delta, latency_req)
+    throughput_headroom_ratio = _ratio(throughput_delta, throughput_req)
+    reliability_pressure_ratio = _ratio(reliability_delta, reliability_req)
+
+    features.update(
+        {
+            "latency_pressure_ratio": latency_pressure_ratio,
+            "throughput_headroom_ratio": throughput_headroom_ratio,
+            "reliability_pressure_ratio": reliability_pressure_ratio,
+            "sla_pressure": (
+                max(0.0, latency_pressure_ratio)
+                + max(0.0, -throughput_headroom_ratio)
+                + max(0.0, -reliability_pressure_ratio)
+            ),
+        }
+    )
+
+    loads = [float(vals.get("cell_load")) for vals in rf_metrics.values() if isinstance(vals.get("cell_load"), (int, float))]
+    if loads:
+        mean_load = sum(loads) / len(loads)
+        load_variance = sum((val - mean_load) ** 2 for val in loads) / len(loads)
+        load_std = math.sqrt(load_variance)
+    else:
+        load_std = 0.0
+
+    rsrp_values = [float(vals.get("rsrp")) for vals in rf_metrics.values() if isinstance(vals.get("rsrp"), (int, float))]
+    if len(rsrp_values) >= 2:
+        rsrp_sorted = sorted(rsrp_values, reverse=True)
+        top2_rsrp_gap = rsrp_sorted[0] - rsrp_sorted[1]
+    else:
+        top2_rsrp_gap = 0.0
+
+    sinr_values = [float(vals.get("sinr")) for vals in rf_metrics.values() if isinstance(vals.get("sinr"), (int, float))]
+    if len(sinr_values) >= 2:
+        sinr_sorted = sorted(sinr_values, reverse=True)
+        top2_sinr_gap = sinr_sorted[0] - sinr_sorted[1]
+    else:
+        top2_sinr_gap = 0.0
+
+    features.update(
+        {
+            "rf_load_std": load_std,
+            "top2_rsrp_gap": top2_rsrp_gap,
+            "top2_sinr_gap": top2_sinr_gap,
+        }
+    )
+
+    selection_scores = data.get("antenna_selection_scores")
+    optimal_score_margin = data.get("optimal_score_margin")
+    if not isinstance(optimal_score_margin, (int, float)) and isinstance(selection_scores, dict):
+        ordered_scores = sorted(selection_scores.items(), key=lambda item: item[1], reverse=True)
+        if len(ordered_scores) >= 2:
+            optimal_score_margin = float(ordered_scores[0][1] - ordered_scores[1][1])
+        elif ordered_scores:
+            optimal_score_margin = float(ordered_scores[0][1])
+        else:
+            optimal_score_margin = 0.0
+    if not isinstance(optimal_score_margin, (int, float)):
+        optimal_score_margin = 0.0
+
+    connected_rank = data.get("connected_signal_rank")
+    if not isinstance(connected_rank, (int, float)) and isinstance(selection_scores, dict):
+        ordered_scores = sorted(selection_scores.items(), key=lambda item: item[1], reverse=True)
+        connected_rank = next(
+            (idx + 1 for idx, (aid, _) in enumerate(ordered_scores) if aid == current_antenna),
+            float(len(ordered_scores)) if ordered_scores else 1.0,
+        )
+    if not isinstance(connected_rank, (int, float)):
+        connected_rank = 1.0
+
+    features.update(
+        {
+            "optimal_score_margin": float(optimal_score_margin),
+            "connected_signal_rank": float(connected_rank),
         }
     )
 

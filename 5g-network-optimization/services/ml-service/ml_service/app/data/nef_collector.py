@@ -40,6 +40,7 @@ from .feature_extractor import (
     MobilityProcessor,
 )
 from .persistence import TrainingDataPersistence
+from ..utils.antenna_selection import select_optimal_antenna
 
 SIGNAL_WINDOW_SIZE = env_constants.SIGNAL_WINDOW_SIZE
 POSITION_WINDOW_SIZE = env_constants.POSITION_WINDOW_SIZE
@@ -255,11 +256,6 @@ class _CollectorComponents:
         timestamp: float,
     ) -> Dict[str, Any]:
         rf_metrics = self.feature_extractor.extract_rf_features(feature_vector or {})
-        optimal_antenna = (
-            self.feature_extractor.determine_optimal_antenna(rf_metrics)
-            if rf_metrics
-            else connected_cell_id
-        )
 
         env_features = self.feature_extractor.extract_environment_features(feature_vector or {})
         cell_load = self._to_float(env_features.get("cell_load"))
@@ -295,6 +291,30 @@ class _CollectorComponents:
             latitude if isinstance(latitude, (int, float)) else 0.0,
             longitude if isinstance(longitude, (int, float)) else 0.0,
             speed,
+        )
+
+        stability = float(1.0 / (1.0 + heading_change_rate + path_curvature))
+
+        qos_payload = qos_requirements or {}
+        optimal_antenna, antenna_scores = select_optimal_antenna(
+            rf_metrics if rf_metrics else {connected_cell_id: serving_metrics},
+            qos_requirements=qos_payload,
+            service_type=service_type,
+            service_priority=service_priority,
+            stability=stability,
+            signal_trend=signal_trend,
+        )
+        if not optimal_antenna:
+            optimal_antenna = connected_cell_id
+
+        score_items = sorted(antenna_scores.items(), key=lambda item: item[1], reverse=True)
+        if len(score_items) >= 2:
+            score_margin = float(score_items[0][1] - score_items[1][1])
+        else:
+            score_margin = 0.0
+        connected_rank = next(
+            (idx + 1 for idx, (aid, _) in enumerate(score_items) if aid == connected_cell_id),
+            float(len(score_items)) if score_items else 1.0,
         )
 
         handover_count, time_since_handover = self.handover_tracker.update_handover_state(
@@ -351,7 +371,11 @@ class _CollectorComponents:
             "rf_metrics": rf_metrics,
             "service_type": service_type,
             "service_priority": service_priority,
-            "qos_requirements": qos_requirements,
+            "qos_requirements": qos_payload,
+            "stability": stability,
+            "antenna_selection_scores": {k: float(v) for k, v in antenna_scores.items()},
+            "optimal_score_margin": score_margin,
+            "connected_signal_rank": float(connected_rank),
         }
 
         return sample

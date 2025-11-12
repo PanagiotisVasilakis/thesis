@@ -29,6 +29,8 @@ class UEBase(BaseModel):
         ),
     )
     speed: Speed = Field(default="LOW", description="This value describes UE's speed. Possible values are \"STATIONARY\" (e.g, IoT device), \"LOW(e.g, pedestrian)\" and \"HIGH (e.g., vehicle)\"")
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
 
 class UECreate(UEBase):
     supi: str = Field(
@@ -59,8 +61,6 @@ class UE(UEBase):
                                                                                       In the current version (v1.1.0) only IMSI is supported""",
     pattern=r'^[0-9]{15,16}$',
     )
-    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
-    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     path_id: Optional[int]
     gNB_id: Optional[int]
     Cell_id: Optional[int]
