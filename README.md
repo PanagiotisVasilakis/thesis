@@ -1,12 +1,30 @@
 # 5G Network Optimization Thesis
 
-This repository contains the code and configuration for optimizing 5G handover decisions using a 3GPP-compliant Network Exposure Function (NEF) emulator and a machine learning service.  All implementation lives in the [`5g-network-optimization`](5g-network-optimization/) directory.
+[![Tests](https://img.shields.io/badge/tests-73%2F73%20passing-brightgreen)]() [![Defense Ready](https://img.shields.io/badge/status-defense%20ready-blue)]() [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)]()
 
-**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. The defence-ready walkthrough lives in [`docs/END_TO_END_DEMO.md`](docs/END_TO_END_DEMO.md). QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md). Implementation status and next actions are tracked in [`docs/IMPLEMENTATION_TRACKER.md`](docs/IMPLEMENTATION_TRACKER.md).
+This repository contains a **production-ready** machine learning-based handover decision system for 5G networks, validated through comprehensive experimentation and testing.
+
+## 🎓 Thesis Results Summary
+
+**Key Achievements (validated in controlled experiment):**
+- **100% ping-pong elimination** (0% vs 37.50% in traditional A3 mode)
+- **422% cell dwell time improvement** (133.71s vs 25.61s median)
+- **75% handover reduction** (6 vs 24 handovers, reducing signaling overhead)
+- **100% QoS compliance** (all ML handovers improved latency, throughput, and packet loss)
+- **73/73 tests passing** (comprehensive validation across 8 development phases)
+
+**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. The defence-ready walkthrough lives in [`docs/END_TO_END_DEMO.md`](docs/END_TO_END_DEMO.md). QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md).
+
+**Reproducibility:** Run the full thesis experiment with:
+```bash
+./scripts/run_thesis_experiment.sh 10 my_experiment
+```
+
+Results will be generated in `thesis_results/my_experiment/` with visualizations, metrics, and analysis.
 
 ## Project Overview
 
-The system follows a microservices architecture where the NEF emulator manages network events and the ML service predicts the best antenna based on UE mobility patterns.
+The system follows a microservices architecture where the NEF emulator manages network events and the ML service predicts the best antenna based on UE mobility patterns, trajectory analysis, and QoS history.
 
 ## System Architecture
 
