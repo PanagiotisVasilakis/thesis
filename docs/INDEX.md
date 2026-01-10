@@ -1,67 +1,46 @@
 # Documentation Index
 
-Use this page as the entry point for the repository documentation. The sections below group the most relevant guides by topic and highlight the canonical sources to consult first.
+Central documentation hub for the 5G Network Optimization Thesis project.
 
-## Getting Started
+## Quick Links
 
-- **[docs/README.md](README.md)** – **START HERE**: Documentation overview and navigation guide
-- **[QUICK_START.md](QUICK_START.md)** – Essential commands and quick reference for running the system end-to-end
-- **[END_TO_END_DEMO.md](END_TO_END_DEMO.md)** – Live defence playbook covering ML vs A3 runs, Prometheus evidence, and cleanup
-- **[docs/IMPLEMENTATION_TRACKER.md](IMPLEMENTATION_TRACKER.md)** – Live status, next steps, and validation checklist
-- **[COMPLETE_DEPLOYMENT_GUIDE.md](COMPLETE_DEPLOYMENT_GUIDE.md)** – Comprehensive step-by-step guide from installation to generating thesis results
-- **[THESIS_ABSTRACT.md](THESIS_ABSTRACT.md)** – Research overview, problem statement, and contributions
-- **[RESULTS_GENERATION_CHECKLIST.md](RESULTS_GENERATION_CHECKLIST.md)** – Systematic workflow for generating thesis results
-- **[CODE_ANALYSIS_AND_IMPROVEMENTS.md](CODE_ANALYSIS_AND_IMPROVEMENTS.md)** – Professional code review with improvement recommendations for thesis
-- **[PING_PONG_PREVENTION.md](PING_PONG_PREVENTION.md)** – **NEW FEATURE**: ML ping-pong prevention implementation and thesis demonstration
-- **[ML_VS_A3_COMPARISON_TOOL.md](ML_VS_A3_COMPARISON_TOOL.md)** – **NEW TOOL**: Automated comparative experiment runner and visualization generator
-- **[AUTOMATED_EXPERIMENT_RUNNER.md](AUTOMATED_EXPERIMENT_RUNNER.md)** – **NEW TOOL**: Comprehensive thesis-grade experiment automation with full audit trail
-- **[HANDOVER_HISTORY_ANALYZER.md](HANDOVER_HISTORY_ANALYZER.md)** – **NEW TOOL**: Deep handover pattern analysis and behavioral insights
-- **[MULTI_ANTENNA_TESTING.md](MULTI_ANTENNA_TESTING.md)** – **NEW TESTS**: Comprehensive multi-antenna scenario validation (15+ tests)
-- **[ENHANCED_LOGGING.md](ENHANCED_LOGGING.md)** – **NEW FEATURE**: JSON-structured handover decision logging for thesis analysis
-- **[CONFIDENCE_CALIBRATION.md](CONFIDENCE_CALIBRATION.md)** – **NEW FEATURE**: ML probability calibration for better QoS decisions
-- **[THESIS_CLAIMS_VALIDATION.md](THESIS_CLAIMS_VALIDATION.md)** – **NEW TESTS**: Automated validation of all thesis claims
-- **[THESIS_DEMONSTRATIONS.md](THESIS_DEMONSTRATIONS.md)** – **CRITICAL**: Live defense demonstrations with honest assessment
-- [`README.md`](../README.md) – repository overview, environment variables, and high-level system description
-- [`docs/IMPLEMENTATION_TRACKER.md`](IMPLEMENTATION_TRACKER.md) – Live status, next steps, and validation checklist
-- [`docs/history/2025-11-07/nef_emulator_email_cleanup.md`](history/2025-11-07/nef_emulator_email_cleanup.md) – Current archive note covering the NEF cleanup and removal of dormant email/reset flows
+| Guide | Purpose | Time |
+|-------|---------|------|
+| [QUICK_START.md](QUICK_START.md) | Essential commands to run the system | 10 min |
+| [experiments.md](experiments.md) | Running ML vs A3 comparative experiments | 30 min |
+| [production-deployment.md](production-deployment.md) | Real-world deployment & ML vs A3 analysis | 15 min |
+| [COMPLETE_DEPLOYMENT_GUIDE.md](COMPLETE_DEPLOYMENT_GUIDE.md) | Full deployment from scratch | 90 min |
 
-## Services
+## Architecture & Features
 
-- [`services/nef-emulator/README.md`](../5g-network-optimization/services/nef-emulator/README.md) – NEF emulator architecture, APIs, and configuration knobs.
-- [`services/ml-service/README.md`](../5g-network-optimization/services/ml-service/README.md) – ML service routes, authentication, rate limiting, and deployment guidance.
+- [architecture/qos.md](architecture/qos.md) - QoS system architecture, flows, and configuration
+- [PING_PONG_PREVENTION.md](PING_PONG_PREVENTION.md) - Three-layer ping-pong prevention mechanism
+- [qos/synthetic_qos_dataset.md](qos/synthetic_qos_dataset.md) - Synthetic data generator (eMBB, URLLC, mMTC)
 
-## Configuration & QoS
+## Thesis Materials
 
-- [`docs/architecture/qos.md`](architecture/qos.md) – **Canonical reference for QoS flows, admission control, metrics, configuration, feature store integration, validation architecture, data drift monitoring, and feature transforms.**
-- [`history/2025-11-07/qos_summary.md`](history/2025-11-07/qos_summary.md) – Historical QoS architecture snapshot captured during the November 7 cleanup
-- [`QOS_MODEL_PERFORMANCE.md`](QOS_MODEL_PERFORMANCE.md) – **RESULTS**: Latest QoS-aware training run, feature importances, and retraining workflow guidance
+- [THESIS_ABSTRACT.md](THESIS_ABSTRACT.md) - Research overview, problem statement, and contributions
+- [THESIS_CLAIMS_VALIDATION.md](THESIS_CLAIMS_VALIDATION.md) - Automated validation tests for thesis claims
 
-## Observability
+## Testing & Demos
 
-- [`5g-network-optimization/monitoring/README.md`](../5g-network-optimization/monitoring/README.md) – Prometheus and Grafana configuration, scrape targets, and dashboards.
-- Grafana dashboards: `5g-network-optimization/monitoring/grafana/dashboards/` (import into Grafana for a ready-made ML service view).
+- [MULTI_ANTENNA_TESTING.md](MULTI_ANTENNA_TESTING.md) - Multi-antenna scenario validation tests
+- [END_TO_END_DEMO.md](END_TO_END_DEMO.md) - Live defence demonstration playbook
+- [QOS_MODEL_PERFORMANCE.md](QOS_MODEL_PERFORMANCE.md) - QoS-aware training results
+
+## Service Documentation
+
+- [ML Service README](../5g-network-optimization/services/ml-service/README.md) - ML service API and configuration
+- [NEF Emulator README](../5g-network-optimization/services/nef-emulator/README.md) - NEF emulator architecture and APIs
+- [Monitoring README](../5g-network-optimization/monitoring/README.md) - Prometheus/Grafana setup
+- [MLOps README](../mlops/README.md) - Feature store and training pipeline
 
 ## Deployment
 
-- [`5g-network-optimization/docker-compose.yml`](../5g-network-optimization/docker-compose.yml) – Compose stack that runs NEF, ML service, Prometheus, and Grafana.
-- [`5g-network-optimization/deployment/kubernetes/README.md`](../5g-network-optimization/deployment/kubernetes/README.md) – Kubernetes manifests and tips for running the stack in a cluster.
-<!-- legacy overview removed; see README and this index instead -->
+- [Kubernetes Guide](../5g-network-optimization/deployment/kubernetes/README.md) - K8s manifests
+- [docker-compose.yml](../5g-network-optimization/docker-compose.yml) - Local development stack
 
-## ML & Data Pipeline
+## Main Project
 
-- [`mlops/README.md`](../mlops/README.md) – QoS data collectors, Feast feature store layout, and training workflow.
-- [`docs/qos/synthetic_qos_dataset.md`](qos/synthetic_qos_dataset.md) – Synthetic dataset schema and sampling profiles with academic references.
-
-## Testing & Tooling
-
-- [`scripts/setup_tests.sh`](../scripts/setup_tests.sh) – Bootstrap script to install dependencies and run pytest with coverage.
-- [`tests/README.md`](../tests/README.md) – Test suite layout and prerequisites.
-- QoS-specific tests: `services/ml-service/ml_service/tests/` and `tests/mlops/test_qos_feature_ranges.py` provide regression coverage for QoS data paths.
-
-## Contributing & Documentation Hygiene
-
-- **All QoS-related documentation is consolidated in [`docs/architecture/qos.md`](architecture/qos.md).** This single comprehensive document supersedes all previous QoS design notes and covers flows, configuration, metrics, validation, feature stores, and testing.
-- When adding or updating QoS features, update `docs/architecture/qos.md` to keep it accurate and complete.
-- Archived or exploratory documents live under `docs/history/` and `docs/_archive/`. Tombstone headers explain why each file was retired; consult them if you need historical context.
-
-
+- [Project README](../README.md) - Project overview, installation, environment variables
+- [SYSTEM_STATUS.md](../SYSTEM_STATUS.md) - Current system state and experiment results
