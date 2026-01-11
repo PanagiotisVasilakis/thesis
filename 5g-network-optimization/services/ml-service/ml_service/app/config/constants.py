@@ -23,6 +23,19 @@ DEFAULT_N_ESTIMATORS = 100
 DEFAULT_LIGHTGBM_MAX_DEPTH = 10
 DEFAULT_LIGHTGBM_RANDOM_STATE = 42
 
+# Prediction Diversity Monitoring (prevents model collapse)
+DEFAULT_PREDICTION_HISTORY_LIMIT = 100  # Max predictions to track
+DEFAULT_DIVERSITY_WINDOW_SIZE = 50       # Window for diversity check
+DEFAULT_DIVERSITY_MIN_RATIO = 0.3        # Min unique predictions ratio
+
+# Training Validation Thresholds
+DEFAULT_MIN_TRAINING_SAMPLES = 100       # Minimum samples required
+DEFAULT_MIN_TRAINING_CLASSES = 2         # Minimum unique classes
+DEFAULT_MAX_CLASS_IMBALANCE_RATIO = 10.0 # Max ratio between largest/smallest class
+
+# Ping-Pong Prevention Thresholds
+DEFAULT_IMMEDIATE_RETURN_CONFIDENCE = 0.95  # Confidence needed to override immediate return
+
 # Circuit Breaker Configuration
 DEFAULT_CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5
 DEFAULT_CIRCUIT_BREAKER_RECOVERY_TIMEOUT = 60.0

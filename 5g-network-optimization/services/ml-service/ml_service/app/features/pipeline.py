@@ -14,6 +14,7 @@ from ..config.constants import (
 )
 from ..config.feature_specs import sanitize_feature_ranges
 from ..utils.feature_cache import _cached_direction_to_unit, _cached_signal_extraction
+from ..utils.type_helpers import safe_float_or_none
 
 __all__ = [
     "extract_rf_features",
@@ -24,13 +25,7 @@ __all__ = [
 ]
 
 
-def _safe_float(value: Any) -> Optional[float]:
-    try:
-        if value is None:
-            return None
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+# Note: _safe_float is now imported from utils.type_helpers as safe_float_or_none
 
 
 def extract_rf_features(feature_vector: Dict[str, Any]) -> Dict[str, Dict[str, float]]:
@@ -340,14 +335,14 @@ def build_model_features(
         }
     )
 
-    latency_req = _safe_float(data.get("latency_requirement_ms"))
-    latency_obs = _safe_float(data.get("latency_ms"))
-    latency_delta = _safe_float(data.get("latency_delta_ms"))
-    throughput_req = _safe_float(data.get("throughput_requirement_mbps"))
-    throughput_obs = _safe_float(data.get("throughput_mbps"))
-    throughput_delta = _safe_float(data.get("throughput_delta_mbps"))
-    reliability_req = _safe_float(data.get("reliability_pct"))
-    reliability_delta = _safe_float(data.get("reliability_delta_pct"))
+    latency_req = safe_float_or_none(data.get("latency_requirement_ms"))
+    latency_obs = safe_float_or_none(data.get("latency_ms"))
+    latency_delta = safe_float_or_none(data.get("latency_delta_ms"))
+    throughput_req = safe_float_or_none(data.get("throughput_requirement_mbps"))
+    throughput_obs = safe_float_or_none(data.get("throughput_mbps"))
+    throughput_delta = safe_float_or_none(data.get("throughput_delta_mbps"))
+    reliability_req = safe_float_or_none(data.get("reliability_pct"))
+    reliability_delta = safe_float_or_none(data.get("reliability_delta_pct"))
 
     if latency_delta is None and latency_obs is not None and latency_req is not None:
         latency_delta = latency_obs - latency_req

@@ -34,6 +34,12 @@ from ..config.constants import (
     DEFAULT_FALLBACK_RSRQ,
     DEFAULT_LIGHTGBM_MAX_DEPTH,
     DEFAULT_LIGHTGBM_RANDOM_STATE,
+    DEFAULT_PREDICTION_HISTORY_LIMIT,
+    DEFAULT_DIVERSITY_WINDOW_SIZE,
+    DEFAULT_DIVERSITY_MIN_RATIO,
+    DEFAULT_MIN_TRAINING_SAMPLES,
+    DEFAULT_MIN_TRAINING_CLASSES,
+    DEFAULT_IMMEDIATE_RETURN_CONFIDENCE,
     env_constants,
 )
 from ..config.feature_specs import sanitize_feature_ranges, validate_feature_ranges
@@ -47,7 +53,10 @@ from ..utils.resource_manager import (
     global_resource_manager,
     ResourceType
 )
+from ..utils.type_helpers import safe_float
 from .async_model_operations import AsyncModelInterface, get_async_model_manager
+from .ping_pong_prevention import PingPongPrevention
+from .qos_bias import QoSBiasManager
 from ..monitoring import metrics
 from ..config.cells import CELL_CONFIGS, get_cell_config, haversine_distance
 from ..initialization.model_version import MODEL_VERSION
@@ -196,11 +205,11 @@ class AntennaSelector(AsyncModelInterface):
 
     @staticmethod
     def _safe_float(value: Any, fallback: float) -> float:
-        """Return ``value`` as float with ``fallback`` on failure."""
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return float(fallback)
+        """Return ``value`` as float with ``fallback`` on failure.
+        
+        Note: Delegates to shared utils.type_helpers.safe_float.
+        """
+        return safe_float(value, fallback)
 
     def _apply_qos_defaults(self, features: Dict[str, Any]) -> None:
         """Ensure QoS-related features exist and remain numerically consistent."""
@@ -418,6 +427,21 @@ class AntennaSelector(AsyncModelInterface):
         self.max_handovers_per_minute = int(os.getenv("MAX_HANDOVERS_PER_MINUTE", "3"))
         self.pingpong_window_s = float(os.getenv("PINGPONG_WINDOW_S", "10.0"))
         self.pingpong_confidence_boost = float(os.getenv("PINGPONG_CONFIDENCE_BOOST", "0.9"))
+        
+        # Modular components for ping-pong prevention and QoS bias
+        # These encapsulate the logic for better testing and extensibility
+        self.ping_pong_prevention = PingPongPrevention(
+            min_interval_s=self.min_handover_interval_s,
+            max_per_minute=self.max_handovers_per_minute,
+            window_s=self.pingpong_window_s,
+            confidence_boost=self.pingpong_confidence_boost,
+        )
+        self.qos_bias_manager = QoSBiasManager(
+            enabled=self.qos_bias_enabled,
+            min_samples=self.qos_bias_min_samples,
+            success_threshold=self.qos_bias_success_threshold,
+            min_multiplier=self.qos_bias_min_multiplier,
+        )
 
         # Track recent predictions for diversity monitoring
         self._prediction_history: list[str] = []
@@ -525,11 +549,9 @@ class AntennaSelector(AsyncModelInterface):
             if "jitter_ms" not in features:
                 features["jitter_ms"] = float(data.get("jitter_ms", 0.0) or 0.0)
 
-            def _safe_float(value: Any, fallback: float = 0.0) -> float:
-                try:
-                    return float(value)
-                except (TypeError, ValueError):
-                    return float(fallback)
+            # Using shared safe_float from type_helpers
+            def _safe_float_local(value: Any, fallback: float = 0.0) -> float:
+                return safe_float(value, fallback)
 
             observed_raw = data.get("observed_qos")
             if not isinstance(observed_raw, dict):
@@ -539,19 +561,19 @@ class AntennaSelector(AsyncModelInterface):
 
             observed_raw = observed_raw if isinstance(observed_raw, dict) else {}
 
-            obs_latency = _safe_float(
+            obs_latency = _safe_float_local(
                 observed_raw.get("latency_ms"),
                 fallback=features.get("latency_ms", qos.get("latency_requirement_ms", 0.0)) or 0.0,
             )
-            obs_throughput = _safe_float(
+            obs_throughput = _safe_float_local(
                 observed_raw.get("throughput_mbps"),
                 fallback=features.get("throughput_mbps", qos.get("throughput_requirement_mbps", 0.0)) or 0.0,
             )
-            obs_jitter = _safe_float(
+            obs_jitter = _safe_float_local(
                 observed_raw.get("jitter_ms"),
                 fallback=features.get("jitter_ms", 0.0) or 0.0,
             )
-            obs_loss = _safe_float(
+            obs_loss = _safe_float_local(
                 observed_raw.get("packet_loss_rate"),
                 fallback=features.get("packet_loss_rate", 0.0) or 0.0,
             )
@@ -593,6 +615,9 @@ class AntennaSelector(AsyncModelInterface):
 
     def predict(self, features):
         """Predict the optimal antenna for the UE with ping-pong prevention."""
+        # Start timing for feature extraction stage
+        _stage_start = time.time()
+        
         prepared = self._prepare_features_for_model(features)
         self._ensure_feature_defaults(prepared)
         sanitize_feature_ranges(prepared)
@@ -621,6 +646,11 @@ class AntennaSelector(AsyncModelInterface):
         service_type_label = prepared.get("service_type_label") or prepared.get("service_type") or "default"
         if isinstance(service_type_label, (int, float)):
             service_type_label = str(service_type_label)
+        
+        # Record feature extraction latency (includes all preparation work)
+        metrics.PREDICTION_STAGE_LATENCY.labels(stage='feature_extraction').observe(
+            time.time() - _stage_start
+        )
 
         fallback_payload = {
             "antenna_id": FALLBACK_ANTENNA_ID,
@@ -690,12 +720,19 @@ class AntennaSelector(AsyncModelInterface):
         
         # Use safe execution with fallback
         ue_id = prepared.get("ue_id", "unknown")
+        
+        # Start timing for model inference stage
+        _inference_start = time.time()
         result = safe_execute(
             _perform_prediction,
             context=f"Model prediction for UE {ue_id}",
             default_return=fallback_payload,
             exceptions=(lgb.basic.LightGBMError, NotFittedError, Exception),
             logger_name="AntennaSelector"
+        )
+        # Record model inference latency
+        metrics.PREDICTION_STAGE_LATENCY.labels(stage='model_inference').observe(
+            time.time() - _inference_start
         )
 
         fallback_used = bool(result.pop("_fallback_marker", False))
@@ -706,6 +743,9 @@ class AntennaSelector(AsyncModelInterface):
                 ue_id,
             )
             result.setdefault("anti_pingpong_applied", False)
+            # Record zero time for ping-pong stage when using fallback
+            # (ensures consistent metric cardinality)
+            metrics.PREDICTION_STAGE_LATENCY.labels(stage='ping_pong_check').observe(0.0)
             return result
         
         predicted_antenna = str(result["antenna_id"])
@@ -781,15 +821,15 @@ class AntennaSelector(AsyncModelInterface):
         # Diversity monitoring for collapse detection in production
         # --------------------------------------------------------------
         self._prediction_history.append(predicted_antenna)
-        if len(self._prediction_history) > 100:
+        if len(self._prediction_history) > DEFAULT_PREDICTION_HISTORY_LIMIT:
             self._prediction_history.pop(0)
 
-        if len(self._prediction_history) >= 50:
-            window = self._prediction_history[-50:]
+        if len(self._prediction_history) >= DEFAULT_DIVERSITY_WINDOW_SIZE:
+            window = self._prediction_history[-DEFAULT_DIVERSITY_WINDOW_SIZE:]
             unique_predictions = len(set(window))
-            diversity_ratio = unique_predictions / 50.0
+            diversity_ratio = unique_predictions / float(DEFAULT_DIVERSITY_WINDOW_SIZE)
 
-            if diversity_ratio < 0.3:
+            if diversity_ratio < DEFAULT_DIVERSITY_MIN_RATIO:
                 logger.error(
                     "ML diversity warning for UE %s: only %d unique predictions in last 50 (%.1f%%)",
                     ue_id,
@@ -801,7 +841,7 @@ class AntennaSelector(AsyncModelInterface):
                     {
                         "type": "low_diversity",
                         "unique_predictions": unique_predictions,
-                        "window": 50,
+                        "window": DEFAULT_DIVERSITY_WINDOW_SIZE,
                         "diversity_ratio": diversity_ratio,
                     }
                 )
@@ -809,6 +849,9 @@ class AntennaSelector(AsyncModelInterface):
         # ==================================================================
         # PING-PONG PREVENTION LOGIC (Critical for Thesis)
         # ==================================================================
+        # Start timing for ping-pong check stage
+        _pingpong_start = time.time()
+        
         current_cell = prepared.get("connected_to")
         timestamp = time.time()
         
@@ -861,7 +904,7 @@ class AntennaSelector(AsyncModelInterface):
                         f"trying to return to {predicted_antenna} within {self.pingpong_window_s}s"
                     )
                     # Require high confidence to return to recent cell
-                    if confidence < 0.95:
+                    if confidence < DEFAULT_IMMEDIATE_RETURN_CONFIDENCE:
                         predicted_antenna = current_cell
                         confidence = 1.0
                         suppression_reason = "immediate_return"
@@ -889,6 +932,11 @@ class AntennaSelector(AsyncModelInterface):
         # Record handover interval for analytics
         if current_cell and time_since_last != float("inf") and time_since_last > 0:
             metrics.HANDOVER_INTERVAL.observe(time_since_last)
+        
+        # Record ping-pong check latency
+        metrics.PREDICTION_STAGE_LATENCY.labels(stage='ping_pong_check').observe(
+            time.time() - _pingpong_start
+        )
         
         # Add handover tracking metadata to result when applicable
         if current_cell:
@@ -1005,9 +1053,54 @@ class AntennaSelector(AsyncModelInterface):
         This method acquires the model lock to ensure that no concurrent
         prediction is performed while the estimator object is being
         replaced by a newly-trained one.
+        
+        Raises:
+            ValueError: If training data is invalid (too few samples, missing
+                labels, insufficient class diversity).
         """
+        # ================================================================
+        # TRAINING DATA VALIDATION (Production-Critical)
+        # ================================================================
         if not training_data:
             raise ValueError("Training data cannot be empty")
+        
+        # Check minimum sample count
+        if len(training_data) < DEFAULT_MIN_TRAINING_SAMPLES:
+            raise ValueError(
+                f"Insufficient training samples: {len(training_data)} < "
+                f"{DEFAULT_MIN_TRAINING_SAMPLES} minimum required"
+            )
+        
+        # Extract and validate labels
+        labels = []
+        missing_label_indices = []
+        for i, sample in enumerate(training_data):
+            label = sample.get("optimal_antenna")
+            if label is None:
+                missing_label_indices.append(i)
+            labels.append(label)
+        
+        if missing_label_indices:
+            raise ValueError(
+                f"{len(missing_label_indices)} samples missing 'optimal_antenna' label "
+                f"(first 5 indices: {missing_label_indices[:5]})"
+            )
+        
+        # Check class diversity
+        unique_labels = set(labels)
+        if len(unique_labels) < DEFAULT_MIN_TRAINING_CLASSES:
+            raise ValueError(
+                f"Insufficient class diversity: {len(unique_labels)} unique classes, "
+                f"need at least {DEFAULT_MIN_TRAINING_CLASSES}"
+            )
+        
+        # Log class distribution for debugging
+        from collections import Counter
+        label_counts = Counter(labels)
+        logger.info(
+            "Training data validation passed: %d samples, %d classes, distribution: %s",
+            len(training_data), len(unique_labels), dict(label_counts)
+        )
         
         # Extract features and labels from training data
         X = []

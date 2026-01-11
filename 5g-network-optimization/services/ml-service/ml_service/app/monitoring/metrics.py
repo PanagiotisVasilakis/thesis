@@ -55,6 +55,16 @@ PREDICTION_LATENCY = Histogram(
     registry=REGISTRY,
 )
 
+# Track latency per prediction stage (for URLLC bottleneck identification)
+# Stages: feature_extraction, model_inference, ping_pong_check, qos_validation
+PREDICTION_STAGE_LATENCY = Histogram(
+    'ml_prediction_stage_latency_seconds',
+    'Latency breakdown by prediction stage',
+    ['stage'],  # feature_extraction, model_inference, ping_pong_check, qos_validation
+    buckets=[0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25],
+    registry=REGISTRY,
+)
+
 # Track prediction outcomes
 ANTENNA_PREDICTIONS = Counter(
     'ml_antenna_predictions_total',
