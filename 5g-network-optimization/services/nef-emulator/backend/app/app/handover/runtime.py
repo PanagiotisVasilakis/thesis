@@ -220,8 +220,48 @@ class HandoverRuntime:
     # Decision helpers
     # ------------------------------------------------------------------
     def decide_handover(self, supi: str):
+        """Make handover decision without blocking other threads during HTTP call.
+        
+        Uses Read-Copy-Update pattern:
+        1. Read feature vector under lock (fast)
+        2. Release lock for HTTP call to ML service (can take 5+ seconds)
+        3. Re-acquire lock to apply decision (fast)
+        
+        This prevents other UE movement threads from being blocked while
+        waiting for ML service responses.
+        """
+        # Step 1: Read feature vector under lock
         with self._lock:
-            return self.engine.decide_and_apply(supi)
+            try:
+                fv = self.state_manager.get_feature_vector(supi)
+            except KeyError:
+                self.logger.warning("UE %s not found for handover decision", supi)
+                return None
+            current_cell = fv.get("connected_to")
+        
+        # Step 2: Make HTTP call OUTSIDE lock (can take 5+ seconds)
+        # This allows other threads to proceed with their state updates
+        decision = self.engine.decide_with_features(supi, fv)
+        
+        # Step 3: Apply decision if still valid
+        if decision is None:
+            return None
+        
+        with self._lock:
+            # Verify state hasn't changed significantly during HTTP call
+            try:
+                current_fv = self.state_manager.get_feature_vector(supi)
+                if current_fv.get("connected_to") != current_cell:
+                    self.logger.info(
+                        "UE %s cell changed during ML call (%s -> %s), skipping apply",
+                        supi, current_cell, current_fv.get("connected_to")
+                    )
+                    return None  # State changed, let caller retry on next iteration
+            except KeyError:
+                self.logger.warning("UE %s removed during ML call", supi)
+                return None  # UE was removed
+            
+            return self.engine.apply_decision(supi, decision, fv)
 
     def get_cell_by_key(self, key: Optional[str]) -> Optional[dict]:
         if key is None:

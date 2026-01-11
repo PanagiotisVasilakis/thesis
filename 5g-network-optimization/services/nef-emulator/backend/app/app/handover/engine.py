@@ -272,6 +272,222 @@ class HandoverEngine:
         return None
 
     # ------------------------------------------------------------------
+    # Lock-free decision methods (for use with pre-computed feature vectors)
+    # ------------------------------------------------------------------
+    
+    def decide_with_features(self, ue_id: str, fv: dict) -> Optional[dict]:
+        """Make ML/A3 decision using pre-computed feature vector.
+        
+        This method is designed to be called WITHOUT holding the runtime lock,
+        as it makes HTTP calls to the ML service that can take 5+ seconds.
+        
+        Args:
+            ue_id: UE identifier
+            fv: Pre-computed feature vector from get_feature_vector()
+            
+        Returns:
+            Decision dict with 'antenna_id' and metadata, or None
+        """
+        self._update_mode()
+        
+        if self.use_ml:
+            result = self._select_ml_with_features(ue_id, fv)
+            if result is None:
+                # ML unavailable, fallback to A3 rule
+                target = self._select_rule_with_features(ue_id, fv)
+                if target:
+                    return {"antenna_id": target, "source": "a3_fallback"}
+                return None
+            return result
+        else:
+            target = self._select_rule_with_features(ue_id, fv)
+            if target:
+                return {"antenna_id": target, "source": "a3_rule"}
+            return None
+    
+    def _select_ml_with_features(self, ue_id: str, fv: dict) -> Optional[dict]:
+        """Make ML prediction using pre-computed features (no state_mgr access).
+        
+        This is a lock-free version of _select_ml that uses the provided
+        feature vector instead of reading from state_manager.
+        """
+        # Build RF metrics from feature vector
+        rf_metrics = {}
+        for aid in fv.get("neighbor_rsrp_dbm", {}):
+            metrics_dict = {
+                "rsrp": fv["neighbor_rsrp_dbm"][aid],
+                "sinr": fv.get("neighbor_sinrs", {}).get(aid, 0),
+            }
+            rsrq_map = fv.get("neighbor_rsrqs")
+            if rsrq_map and aid in rsrq_map:
+                metrics_dict["rsrq"] = rsrq_map[aid]
+            rf_metrics[aid] = metrics_dict
+        
+        ue_data = {
+            "ue_id": ue_id,
+            "latitude": fv.get("latitude", 0),
+            "longitude": fv.get("longitude", 0),
+            "altitude": fv.get("altitude"),
+            "speed": fv.get("speed", 0.0),
+            "direction": (0, 0, 0),
+            "connected_to": fv.get("connected_to"),
+            "rf_metrics": rf_metrics,
+        }
+        
+        # Add observed QoS if present
+        observed_qos = fv.get("observed_qos")
+        if isinstance(observed_qos, dict):
+            latest = observed_qos.get("latest") or {}
+            if isinstance(latest, dict):
+                simplified = {
+                    key: latest.get(key)
+                    for key in ("latency_ms", "jitter_ms", "throughput_mbps", "packet_loss_rate")
+                    if latest.get(key) is not None
+                }
+                if simplified:
+                    ue_data["observed_qos"] = simplified
+        
+        logger = getattr(self.state_mgr, "logger", self.logger)
+        self._last_ml_error_reason = None
+        self._last_ml_http_status = None
+        
+        # Handle local ML model
+        if self.use_local_ml and self.model:
+            try:
+                features = self.model.extract_features(ue_data)
+                pred = self.model.predict(features)
+                if isinstance(pred, dict):
+                    return {
+                        "antenna_id": pred.get("antenna_id") or pred.get("predicted_antenna"),
+                        "confidence": pred.get("confidence"),
+                        "qos_compliance": pred.get("qos_compliance"),
+                        "source": "ml_local",
+                    }
+                return {"antenna_id": pred, "confidence": None, "source": "ml_local"}
+            except Exception as exc:
+                logger.exception("Local ML prediction failed", exc_info=exc)
+                self._last_ml_error_reason = "local_ml_error"
+                return None
+        
+        # Make remote ML HTTP call (this is the slow part)
+        url = f"{self.ml_service_url.rstrip('/')}/api/predict-with-qos"
+        try:
+            logger.debug("HandoverEngine POST to ML URL: %s", url)
+            logger.debug("HandoverEngine UE payload: %s", ue_data)
+            
+            headers = self._get_ml_headers()
+            
+            def _post_with_optional_headers(auth_headers):
+                kwargs = {"json": ue_data, "timeout": 5}
+                if auth_headers:
+                    kwargs["headers"] = auth_headers
+                try:
+                    return requests.post(url, **kwargs)
+                except TypeError as exc:
+                    if auth_headers and "headers" in str(exc):
+                        return requests.post(url, json=ue_data, timeout=5)
+                    raise
+            
+            resp = _post_with_optional_headers(headers)
+            status = getattr(resp, "status_code", None)
+            if status == 401 and headers:
+                headers = self._get_ml_headers(force_refresh=True)
+                if headers:
+                    resp = _post_with_optional_headers(headers)
+                    status = getattr(resp, "status_code", None)
+            
+            if status is not None and 400 <= status < 600:
+                category = "ml_http_4xx" if status < 500 else "ml_http_5xx"
+                self._last_ml_error_reason = category
+                self._last_ml_http_status = int(status)
+                logger.warning("ML service returned status %s for UE %s", status, ue_id)
+                return None
+            
+            resp.raise_for_status()
+            data = resp.json()
+            logger.debug("HandoverEngine ML response data: %s", data)
+            return {
+                "antenna_id": data.get("predicted_antenna") or data.get("antenna_id"),
+                "confidence": data.get("confidence"),
+                "qos_compliance": data.get("qos_compliance"),
+                "source": "ml_remote",
+            }
+        except RequestException as exc:
+            self._last_ml_error_reason = "ml_service_unavailable"
+            logger.exception("Remote ML request failed", exc_info=exc)
+            return None
+        except Exception as exc:
+            if self._last_ml_error_reason is None:
+                self._last_ml_error_reason = "ml_service_unavailable"
+            logger.exception("Remote ML request failed", exc_info=exc)
+            return None
+    
+    def _select_rule_with_features(self, ue_id: str, fv: dict) -> Optional[str]:
+        """Make A3 rule decision using pre-computed features (no state_mgr access)."""
+        current = fv.get("connected_to")
+        if not current:
+            return None
+        
+        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        rsrp_map = fv.get("neighbor_rsrp_dbm", {})
+        rsrq_map = fv.get("neighbor_rsrqs", {})
+        
+        if current not in rsrp_map:
+            return None
+        
+        serving_rsrp = rsrp_map[current]
+        serving_rsrq = rsrq_map.get(current)
+        serving_metrics = {"rsrp": serving_rsrp, "rsrq": serving_rsrq} if serving_rsrq else serving_rsrp
+        
+        for aid, rsrp in rsrp_map.items():
+            if aid == current:
+                continue
+            
+            neighbor_rsrq = rsrq_map.get(aid)
+            target_metrics = {"rsrp": rsrp, "rsrq": neighbor_rsrq} if neighbor_rsrq else rsrp
+            
+            if self.rule.check(serving_metrics, target_metrics, now):
+                return aid
+        
+        return None
+    
+    def apply_decision(self, ue_id: str, decision: dict, fv: dict) -> Optional[dict]:
+        """Apply a pre-computed handover decision to UE state.
+        
+        This should be called while holding the runtime lock to ensure
+        atomic state updates.
+        
+        Args:
+            ue_id: UE identifier
+            decision: Decision dict from decide_with_features()
+            fv: Original feature vector (for validation)
+            
+        Returns:
+            Handover result dict, or None if no handover needed
+        """
+        target = decision.get("antenna_id")
+        if target is None:
+            return None
+        
+        current = fv.get("connected_to")
+        resolved_target = self.state_mgr.resolve_antenna_id(target)
+        resolved_current = self.state_mgr.resolve_antenna_id(current)
+        
+        if resolved_target is not None and resolved_target == resolved_current:
+            return None  # Already connected, no handover needed
+        
+        # Apply the handover
+        result = self.state_mgr.apply_handover_decision(ue_id, target)
+        
+        if result:
+            self.logger.info(
+                "Handover applied for UE %s: %s -> %s (source: %s)",
+                ue_id, current, target, decision.get("source", "unknown")
+            )
+        
+        return result
+
+    # ------------------------------------------------------------------
 
     def _get_ml_headers(self, *, force_refresh: bool = False) -> dict[str, str]:
         if not self._ml_username or not self._ml_password:
