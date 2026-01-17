@@ -37,10 +37,10 @@ def mock_generate_mobility_pattern(req):
 
         return points
     except ValueError as e:
-        logger.error(f"ValueError: {e}")
+        logger.error("ValueError: %s", e)
         return None
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error("Error: %s", e)
         return None
 
 

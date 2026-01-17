@@ -23,6 +23,59 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for tests
 router = APIRouter()
 
 
+def enrich_ues_with_cell_info(ues: list, json_ues: list) -> list:
+    """Enrich UE JSON representations with cell and gNB information.
+    
+    Adds cell_id_hex and gNB_id to each UE JSON object based on the
+    corresponding UE ORM object's Cell relationship.
+    
+    Args:
+        ues: List of UE ORM objects (with Cell relationship)
+        json_ues: List of UE JSON-encoded dictionaries
+        
+    Returns:
+        Enriched json_ues list (modified in-place, also returned)
+    """
+    # Build lookup: Cell_id -> (cell_id_hex, gNB_id)
+    cell_lookup = {}
+    for ue_obj in ues:
+        if ue_obj.Cell_id is not None and ue_obj.Cell_id not in cell_lookup:
+            cell_lookup[ue_obj.Cell_id] = (
+                ue_obj.Cell.cell_id if ue_obj.Cell else None,
+                ue_obj.Cell.gNB_id if ue_obj.Cell else None
+            )
+    
+    # Enrich JSON objects using O(n) lookup
+    for json_ue in json_ues:
+        cell_id = json_ue.get('Cell_id')
+        if cell_id is not None and cell_id in cell_lookup:
+            cell_id_hex, gnb_id = cell_lookup[cell_id]
+            json_ue['cell_id_hex'] = cell_id_hex
+            json_ue['gNB_id'] = gnb_id
+        else:
+            json_ue['cell_id_hex'] = None
+            json_ue['gNB_id'] = None
+    
+    return json_ues
+
+
+def add_gnb_id_to_ue_json(ue_obj, json_ue: dict) -> dict:
+    """Add gNB_id to a single UE JSON object based on Cell relationship.
+    
+    Args:
+        ue_obj: UE ORM object with Cell relationship
+        json_ue: UE JSON-encoded dictionary
+        
+    Returns:
+        Modified json_ue dict (modified in-place, also returned)
+    """
+    if ue_obj.Cell_id is not None and ue_obj.Cell:
+        json_ue['gNB_id'] = ue_obj.Cell.gNB_id
+    else:
+        json_ue['gNB_id'] = None
+    return json_ue
+
+
 def _sync_handover_runtime(
     db: Session,
     owner_id: int,
@@ -39,7 +92,7 @@ def _sync_handover_runtime(
 
     try:
         cells = crud.cell.get_multi_by_owner(db=db, owner_id=owner_id, skip=0, limit=200)
-    except Exception:
+    except Exception:  # noqa: BLE001 - defensive fallback
         cells = []
 
     json_cells = jsonable_encoder(cells) if cells else []
@@ -77,17 +130,7 @@ def read_UEs(
             db=db, owner_id=current_user.id, skip=skip, limit=limit
         )
     json_UEs = jsonable_encoder(UEs)
-
-    for json_UE in json_UEs:
-        for UE in UEs:
-            if UE.Cell_id == json_UE.get('Cell_id'):
-                if UE.Cell_id != None:
-                    json_UE.update({"cell_id_hex": UE.Cell.cell_id})
-                    json_UE.update({"gNB_id" : UE.Cell.gNB_id})
-                else:
-                    json_UE.update({"cell_id_hex": None})
-                    json_UE.update({"gNB_id" : None})
-
+    enrich_ues_with_cell_info(UEs, json_UEs)
 
     return json_UEs
 
@@ -211,10 +254,7 @@ def read_UE(
         raise HTTPException(status_code=400, detail="Not enough permissions")
 
     json_UE = jsonable_encoder(UE)
-    if UE.Cell_id != None:
-        json_UE.update({"gNB_id" : UE.Cell.gNB_id})
-    else:
-        json_UE.update({"gNB_id" : None})
+    add_gnb_id_to_ue_json(UE, json_UE)
 
     return json_UE
 
@@ -240,10 +280,7 @@ def delete_UE(
             status_code=400, detail=f"UE with SUPI {supi} is currently moving. You are not allowed to remove a UE while it's moving")
     else:
         json_UE = jsonable_encoder(UE)
-        if UE.Cell_id != None:
-            json_UE.update({"gNB_id" : UE.Cell.gNB_id})
-        else:
-            json_UE.update({"gNB_id" : None})
+        add_gnb_id_to_ue_json(UE, json_UE)
 
         crud.ue.remove_supi(db=db, supi=supi)
         return json_UE
@@ -277,20 +314,13 @@ def read_gNB_id(
     for cell in cells:
         UEs = crud.ue.get_by_Cell(db=db, cell_id=cell.id)
         json_UEs = jsonable_encoder(UEs)
-        for json_UE in json_UEs:
-            for UE in UEs:
-                if UE.Cell_id == json_UE.get('Cell_id'):
-                    if UE.Cell_id != None:
-                        json_UE.update({"gNB_id" : UE.Cell.gNB_id})
-                    else:
-                        json_UE.update({"gNB_id" : None})
+        for json_UE, UE in zip(json_UEs, UEs):
+            add_gnb_id_to_ue_json(UE, json_UE)
         ue_list.extend(json_UEs)
 
     if not ue_list:
         raise HTTPException(
             status_code=404, detail="There are no UEs associated with this gNB")
-    if not crud.user.is_superuser(current_user):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
     return ue_list
 
 
@@ -315,23 +345,15 @@ def read_UE_Cell(
         raise HTTPException(
             status_code=404, detail=f"Cell with id {cell_id} not found")
     if not crud.user.is_superuser(current_user) and (cell.owner_id != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+        raise HTTPException(status_code=403, detail="Not enough permissions")
 
     UEs = crud.ue.get_by_Cell(db=db, cell_id=cell.id)
     if not UEs:
         raise HTTPException(
             status_code=404, detail="There are no UEs associated with this cell")
-    if not crud.user.is_superuser(current_user):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
-
     json_UEs = jsonable_encoder(UEs)
-    for json_UE in json_UEs:
-        for UE in UEs:
-            if UE.Cell_id == json_UE.get('Cell_id'):
-                if UE.Cell_id != None:
-                    json_UE.update({"gNB_id" : UE.Cell.gNB_id})
-                else:
-                    json_UE.update({"gNB_id" : None})
+    for json_UE, UE in zip(json_UEs, UEs):
+        add_gnb_id_to_ue_json(UE, json_UE)
 
     return json_UEs
 

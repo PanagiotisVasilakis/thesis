@@ -34,7 +34,7 @@ import argparse
 import json
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -549,7 +549,7 @@ def main() -> int:
 
         # Persist consolidated JSON summary for downstream tooling.
         summary_payload: Dict[str, Any] = {
-            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "per_service": per_service.to_dict(orient="records") if not per_service.empty else [],
             "violations": violation_summary.to_dict(orient="records") if not violation_summary.empty else [],
             "top_violation_metrics": report.top_violation_reasons(),

@@ -9,7 +9,7 @@ from app import models, schemas
 from app.api import deps
 from app.crud import crud_mongo, user, ue
 from app.db.session import client
-from .utils import add_notifications, ccf_logs
+from .utils import add_notifications, ccf_logs, log_to_capif, log_error_to_capif
 from .qosInformation import qos_reference_match
 
 router = APIRouter()
@@ -36,32 +36,14 @@ async def read_active_subscriptions(
 
     #Check if there are any active subscriptions
     if not retrieved_docs:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "There are no active subscriptions"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "There are no active subscriptions"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=404, detail="There are no active subscriptions")
     
     http_response = JSONResponse(content=retrieved_docs, status_code=200)
     await add_notifications(http_request, http_response, False)
 
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-    except TypeError as error:
-        logging.error(f"Error: {error}")
-    except AttributeError as error:
-            logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_as_session_with_qos.json", token_payload)
 
     return http_response
 
@@ -112,17 +94,9 @@ async def create_subscription(
     #Currently only EVENT_TRIGGERED is supported
     fiveG_qi = qos_reference_match(item_in.qosReference)
     if fiveG_qi.get('type') == 'GBR' or fiveG_qi.get('type') == 'DC-GBR':
-        if (json_request['qosMonInfo'] == None) or (json_request['qosMonInfo']['repFreqs'] == None):
-            #CAPIF Core Function Logging Service
-            try:
-                json_response = {}
-                json_response.update({"response" : "Please enter a value in repFreqs field"})
-                json_response.update({"status_code" : "400"})
-                await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-            except TypeError as error:
-                logging.error(f"Error: {error}")
-            except AttributeError as error:
-                logging.error(f"Error: {error}")
+        if (json_request['qosMonInfo'] is None) or (json_request['qosMonInfo']['repFreqs'] is None):
+            error_response = JSONResponse(content={"detail": "Please enter a value in repFreqs field"}, status_code=400)
+            await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
             raise HTTPException(status_code=400, detail="Please enter a value in repFreqs field")
     
     #Ensure that the user sends only one of the ipv4, ipv6, macAddr fields
@@ -151,17 +125,9 @@ async def create_subscription(
         raise HTTPException(status_code=409, detail="UE not found")
 
     if doc and (doc.get("owner_id") == current_user.id):
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : f"Subscription for UE with {selected_id} ({error_var}) already exists"})
-            json_response.update({"status_code" : "409"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
-        raise HTTPException(status_code=409, detail=f"Subscription for UE with {selected_id} ({error_var}) already exists")
+        error_msg = f"Subscription for UE with {selected_id} ({error_var}) already exists"
+        await log_error_to_capif(http_request, error_msg, 409, "service_as_session_with_qos.json", token_payload)
+        raise HTTPException(status_code=409, detail=error_msg)
     
     #Create the document in mongodb
 
@@ -197,17 +163,7 @@ async def create_subscription(
     http_response = JSONResponse(content=updated_doc, status_code=201, headers=response_header)
     await add_notifications(http_request, http_response, False)
     
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-    except TypeError as error:
-        logging.error(f"Error: {error}")
-    except AttributeError as error:
-            logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_as_session_with_qos.json", token_payload)
 
     return http_response
 
@@ -232,31 +188,15 @@ async def read_subscription(
 
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+    except Exception:  # noqa: BLE001 - catch invalid UUID format
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
     
-    #Check if the document exists
+    # Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -266,17 +206,7 @@ async def read_subscription(
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
     await add_notifications(http_request, http_response, False)
     
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-    except TypeError as error:
-            logging.error(f"Error: {error}")
-    except AttributeError as error:
-        logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_as_session_with_qos.json", token_payload)
     
     return http_response
 
@@ -303,30 +233,14 @@ async def update_subscription(
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     except Exception as ex:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
     
     #Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -342,17 +256,7 @@ async def update_subscription(
     http_response = JSONResponse(content=updated_doc, status_code=200)
     await add_notifications(http_request, http_response, False)
 
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-    except TypeError as error:
-        logging.error(f"Error: {error}")
-    except AttributeError as error:
-            logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_as_session_with_qos.json", token_payload)
 
     return http_response
 
@@ -378,31 +282,15 @@ async def delete_subscription(
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     except Exception as ex:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a vvalid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
 
 
     #Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -412,17 +300,7 @@ async def delete_subscription(
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
     await add_notifications(http_request, http_response, False)
 
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, http_response, "service_as_session_with_qos.json", token_payload.get("sub"))
-    except TypeError as error:
-        logging.error(f"Error: {error}")
-    except AttributeError as error:
-            logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_as_session_with_qos.json", token_payload)
 
     return http_response
 
@@ -440,7 +318,7 @@ def send_qos_gnb(qos_reference, db, ue):
 
     retrieved_doc = crud_mongo.read_gNB_qosprofile(db, 'QoSProfile', ue.Cell.gNB.gNB_id, qos_reference)
     if retrieved_doc:
-        logging.critical(f'This QoS Profile already exists for {ue.Cell.gNB.gNB_id}')
+        logging.info('QoS Profile already exists for gNB %s', ue.Cell.gNB.gNB_id)
         return
 
     #Create a new QoS Profile in NG_RAN

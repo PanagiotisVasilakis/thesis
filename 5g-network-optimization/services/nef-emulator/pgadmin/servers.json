@@ -4,7 +4,6 @@
            "Name": "db",
            "Group": "Servers",
            "Port": 5432,
-           "Username": "postgres",
            "Host": "db",
            "SSLMode": "prefer",
            "MaintenanceDB": "postgres"

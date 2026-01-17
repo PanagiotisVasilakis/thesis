@@ -1,3 +1,4 @@
+import threading
 import time
 from threading import Timer
 
@@ -6,7 +7,7 @@ class TimerError(Exception):
     """A custom exception used to report errors in use of Timer class"""
 
 
-class SequencialTimer:
+class SequentialTimer:
     def __init__(
         self,
         text="Elapsed time: {:0.4f} seconds",
@@ -50,9 +51,15 @@ class SequencialTimer:
         return elapsed_time
 
 
-class RepeatedTimer(object):
+class RepeatedTimer:
+    """Timer that repeatedly executes a function at specified intervals.
+    
+    Thread-safe implementation with proper locking to prevent race conditions.
+    """
+    
     def __init__(self, interval, function, *args, **kwargs):
         self._timer = None
+        self._lock = threading.Lock()
         self.interval = interval
         self.function = function
         self.args = args
@@ -61,16 +68,21 @@ class RepeatedTimer(object):
         self.start()
 
     def _run(self):
-        self.is_running = False
+        with self._lock:
+            self.is_running = False
         self.start()
         self.function(*self.args, **self.kwargs)
 
     def start(self):
-        if not self.is_running:
-            self._timer = Timer(self.interval, self._run)
-            self._timer.start()
-            self.is_running = True
+        with self._lock:
+            if not self.is_running:
+                self._timer = Timer(self.interval, self._run)
+                self._timer.daemon = True  # Allow process to exit even if timer is running
+                self._timer.start()
+                self.is_running = True
 
     def stop(self):
-        self._timer.cancel()
-        self.is_running = False
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+            self.is_running = False

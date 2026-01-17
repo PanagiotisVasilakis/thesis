@@ -61,10 +61,10 @@ class HandoverHistoryAnalyzer:
         if history_file:
             with open(history_file) as f:
                 self.history = json.load(f)
-            logger.info(f"Loaded {len(self.history)} handover events from {history_file}")
+            logger.info("Loaded %d handover events from %s", len(self.history), history_file)
         elif history_data:
             self.history = history_data
-            logger.info(f"Loaded {len(self.history)} handover events from data")
+            logger.info("Loaded %d handover events from data", len(self.history))
         else:
             self.history = []
             logger.warning("No handover history provided")
@@ -361,7 +361,7 @@ class HandoverVisualizer:
     def __init__(self, output_dir: str = "output/handover_analysis"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Visualization output: {self.output_dir}")
+        logger.info("Visualization output: %s", self.output_dir)
     
     def plot_handover_timeline(self, df: pd.DataFrame) -> Path:
         """Plot handover events over time.
@@ -414,7 +414,7 @@ class HandoverVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Generated timeline: {output_path}")
+        logger.info("Generated timeline: %s", output_path)
         return output_path
     
     def plot_transition_matrix(self, df: pd.DataFrame) -> Path:
@@ -454,7 +454,7 @@ class HandoverVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Generated transition matrix: {output_path}")
+        logger.info("Generated transition matrix: %s", output_path)
         return output_path
     
     def plot_dwell_time_distribution(self, dwell_stats: Dict) -> Path:
@@ -534,7 +534,7 @@ class HandoverVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Generated dwell time distribution: {output_path}")
+        logger.info("Generated dwell time distribution: %s", output_path)
         return output_path
     
     def plot_pingpong_analysis(self, pingpong_stats: Dict) -> Path:
@@ -617,7 +617,7 @@ class HandoverVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Generated ping-pong analysis: {output_path}")
+        logger.info("Generated ping-pong analysis: %s", output_path)
         return output_path
     
     def plot_handover_rate_over_time(self, rate_data: pd.DataFrame) -> Path:
@@ -654,7 +654,7 @@ class HandoverVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Generated rate timeline: {output_path}")
+        logger.info("Generated rate timeline: %s", output_path)
         return output_path
     
     def generate_all_visualizations(self, analyzer: HandoverHistoryAnalyzer) -> List[Path]:
@@ -697,7 +697,7 @@ class HandoverVisualizer:
             if rate_plot:
                 plots.append(rate_plot)
         
-        logger.info(f"Generated {len(plots)} visualizations")
+        logger.info("Generated %d visualizations", len(plots))
         return plots
 
 
@@ -890,7 +890,7 @@ Report complete. Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         with open(output_path, 'w') as f:
             f.write(report)
         
-        logger.info(f"Generated comparison report: {output_path}")
+        logger.info("Generated comparison report: %s", output_path)
         return output_path
 
 
@@ -942,8 +942,8 @@ Examples:
         with open(args.a3) as f:
             a3_history = json.load(f)
         
-        logger.info(f"ML history: {len(ml_history)} events")
-        logger.info(f"A3 history: {len(a3_history)} events")
+        logger.info("ML history: %d events", len(ml_history))
+        logger.info("A3 history: %d events", len(a3_history))
         
         # Create comparative analyzer
         comp_analyzer = ComparativeAnalyzer(ml_history, a3_history)
@@ -972,8 +972,8 @@ Examples:
             ml_plots = ml_viz.generate_all_visualizations(comp_analyzer.ml_analyzer)
             a3_plots = a3_viz.generate_all_visualizations(comp_analyzer.a3_analyzer)
             
-            logger.info(f"Generated {len(ml_plots)} ML visualizations")
-            logger.info(f"Generated {len(a3_plots)} A3 visualizations")
+            logger.info("Generated %d ML visualizations", len(ml_plots))
+            logger.info("Generated %d A3 visualizations", len(a3_plots))
         
         # Print comparison report
         with open(report_path) as f:
@@ -982,16 +982,16 @@ Examples:
         logger.info("=" * 70)
         logger.info(" Comparative Analysis Complete")
         logger.info("=" * 70)
-        logger.info(f"Report: {report_path}")
-        logger.info(f"Output directory: {output_dir}")
+        logger.info("Report: %s", report_path)
+        logger.info("Output directory: %s", output_dir)
     
     elif args.input:
         # Single history analysis mode
         logger.info("=" * 70)
         logger.info(" Handover History Analysis")
         logger.info("=" * 70)
-        logger.info(f"Input: {args.input}")
-        logger.info(f"Output: {output_dir}")
+        logger.info("Input: %s", args.input)
+        logger.info("Output: %s", output_dir)
         
         # Create analyzer
         analyzer = HandoverHistoryAnalyzer(args.input)
@@ -1004,7 +1004,7 @@ Examples:
         with open(summary_path, 'w') as f:
             json.dump(summary, f, indent=2, default=str)
         
-        logger.info(f"Summary saved: {summary_path}")
+        logger.info("Summary saved: %s", summary_path)
         
         # Print key metrics
         print("\n" + "=" * 70)
@@ -1085,7 +1085,7 @@ Failed Handovers: {summary['problematic_patterns']['failed_handover_count']}
 
 """)
         
-        logger.info(f"Text report saved: {report_path}")
+        logger.info("Text report saved: %s", report_path)
     
     else:
         parser.print_help()
@@ -1103,6 +1103,6 @@ if __name__ == '__main__':
         logger.info("\nAnalysis interrupted by user")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Analysis failed: {e}", exc_info=True)
+        logger.error("Analysis failed: %s", e, exc_info=True)
         sys.exit(1)
 

@@ -7,31 +7,15 @@ from backend.app.app.network.state_manager import NetworkStateManager
 from backend.app.app.handover.engine import HandoverEngine
 from backend.app.app.handover.a3_rule import A3EventRule
 
-
-class DummyAntenna:
-    def __init__(self, rsrp):
-        self._rsrp = rsrp
-
-    def rsrp_dbm(self, pos):
-        return self._rsrp
-
-
-def patch_time(monkeypatch, times):
-    import backend.app.app.handover.engine as eng
-    it = iter(times)
-
-    class FakeDT(datetime):
-        @classmethod
-        def utcnow(cls):
-            return next(it)
-    monkeypatch.setattr(eng, 'datetime', FakeDT)
+# Import shared fixtures from conftest
+from tests.conftest import DummyAntenna, patch_handover_time
 
 
 def test_a3_handover_trigger(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=0.5),
              base + timedelta(seconds=1.1), base + timedelta(seconds=1.1)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     n = NetworkStateManager()
     n.antenna_list = {'A': DummyAntenna(-80), 'B': DummyAntenna(-76)}
@@ -54,7 +38,7 @@ def test_a3_timer_reset(monkeypatch):
              base + timedelta(seconds=1.0),
              base + timedelta(seconds=2.2),
              base + timedelta(seconds=2.2)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     n = NetworkStateManager()
     antB = DummyAntenna(-76)

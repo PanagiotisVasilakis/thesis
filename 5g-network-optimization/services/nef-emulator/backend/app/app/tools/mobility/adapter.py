@@ -4,7 +4,7 @@
 import os
 import json
 import logging
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any
 from datetime import datetime
 
 # Import mobility models

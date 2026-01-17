@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.sqltypes import String
 
 from app.crud.base import CRUDBase
 from app.models.gNB import gNB
@@ -39,33 +38,11 @@ class CRUD_gNB(CRUDBase[gNB, gNBCreate, gNBUpdate]):
 
     def remove_by_gNB_id(self, db: Session, *, id: str) -> gNB:
         obj = db.query(self.model).filter(gNB.gNB_id == id).first()
+        if obj is None:
+            return None
         db.delete(obj)
         db.commit()
         return obj
-### Get gNB of specifc Cell
 
-    # def get_by_Cell(
-    #     self, db: Session, *, gNB_Cell: int, skip: int = 0, limit: int = 100
-    # ) -> List[gNB]:
-    #     return (
-    #         db.query(self.model)
-    #         .filter(gNB.gNB_Cells == gNB_Cell)
-    #         .offset(skip)
-    #         .limit(limit)
-    #         .all()
-    #     )
-
-### Get gNB of specifc UE
-
-    # def get_by_UE(
-    #     self, db: Session, *, gNB_UE: int, skip: int = 0, limit: int = 100
-    # ) -> List[gNB]:
-    #     return (
-    #         db.query(self.model)
-    #         .filter(gNB.gNB_UEs == gNB_UE)
-    #         .offset(skip)
-    #         .limit(limit)
-    #         .all()
-    #     )
 
 gnb = CRUD_gNB(gNB)

@@ -1,7 +1,7 @@
 # mobility_models/nef_adapter.py
 import json
 from .models import LinearMobilityModel, LShapedMobilityModel
-from ..network.state_manager import NetworkStateManager
+
 
 def generate_nef_path_points(model_type, **kwargs):
     # choose the right class
@@ -12,10 +12,12 @@ def generate_nef_path_points(model_type, **kwargs):
     model = cls(**{k: v for k, v in kwargs.items() if k in cls.__init__.__code__.co_varnames})
     traj = model.generate_trajectory(kwargs['duration'], kwargs.get('time_step', 1.0))
     # convert into NEF JSON shape
+    # Note: position tuple is (x, y, z) which maps to (longitude, latitude, altitude)
+    # in geographic coordinates
     points = [
       {
-        'latitude': p['position'][0],
-        'longitude': p['position'][1],
+        'latitude': p['position'][1],
+        'longitude': p['position'][0],
         'description': f"{model_type}_{i}"
       } for i, p in enumerate(traj)
     ]

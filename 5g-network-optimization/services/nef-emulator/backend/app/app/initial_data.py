@@ -43,25 +43,25 @@ def init() -> None:
 
 
 def capif_nef_connector():
-    """
-
-    """
+    """Connect to CAPIF and register NEF as a provider."""
     try:
-        capif_connector = CAPIFProviderConnector(certificates_folder="app/core/certificates",
-                                                capif_host=settings.CAPIF_HOST,
-                                                capif_http_port=settings.CAPIF_HTTP_PORT,
-                                                capif_https_port=settings.CAPIF_HTTPS_PORT,
-                                                capif_netapp_username="test_nef01",
-                                                capif_netapp_password="test_netapp_password",
-                                                description= "test_app_description",
-                                                csr_common_name="apfExpapfoser1502",
-                                                csr_organizational_unit="test_app_ou",
-                                                csr_organization="test_app_o",
-                                                crs_locality="Madrid",
-                                                csr_state_or_province_name="Madrid",
-                                                csr_country_name="ES",
-                                                csr_email_address="test@example.com"
-                                             )
+        # All CAPIF credentials from environment variables (with defaults for backward compat)
+        capif_connector = CAPIFProviderConnector(
+            certificates_folder="app/core/certificates",
+            capif_host=settings.CAPIF_HOST,
+            capif_http_port=settings.CAPIF_HTTP_PORT,
+            capif_https_port=settings.CAPIF_HTTPS_PORT,
+            capif_netapp_username=os.getenv("CAPIF_NETAPP_USERNAME", "test_nef01"),
+            capif_netapp_password=os.getenv("CAPIF_NETAPP_PASSWORD", "test_netapp_password"),
+            description=os.getenv("CAPIF_APP_DESCRIPTION", "NEF Emulator"),
+            csr_common_name=os.getenv("CAPIF_CSR_COMMON_NAME", "apfExpapfoser1502"),
+            csr_organizational_unit=os.getenv("CAPIF_CSR_OU", "NEF"),
+            csr_organization=os.getenv("CAPIF_CSR_ORG", "5G-Network-Optimization"),
+            crs_locality=os.getenv("CAPIF_CSR_LOCALITY", "Madrid"),
+            csr_state_or_province_name=os.getenv("CAPIF_CSR_STATE", "Madrid"),
+            csr_country_name=os.getenv("CAPIF_CSR_COUNTRY", "ES"),
+            csr_email_address=os.getenv("CAPIF_CSR_EMAIL", "admin@nef.local"),
+        )
                                                 
 
         capif_connector.register_and_onboard_provider()
@@ -71,75 +71,111 @@ def capif_nef_connector():
         return True
     except requests.exceptions.HTTPError as err:
         if err.response.status_code == 409:
-            logger.error(f'"Http Error:", {err.response.json()}')
+            logger.error("Http Error: %s", err.response.json())
         return False
     except requests.exceptions.ConnectionError as err:
-        logger.error(f'"Error Connecting:", {err}')    
+        logger.error("Error Connecting: %s", err)
         return False
     except requests.exceptions.Timeout as err:
-        logger.error(f'"Timeout Error:", {err}')
+        logger.error("Timeout Error: %s", err)
         return False
     except requests.exceptions.RequestException as err:
-        logger.error(f'"Error:", {err}')
+        logger.error("Request Error: %s", err)
         return False
     
+# Module-level cache for prepared service descriptions (avoids modifying source files)
+_SERVICE_DESCRIPTIONS: dict = {}
+
+
+def _prepare_aef_profile(json_data: dict) -> dict:
+    """Apply environment-based AEF profile configuration.
+    
+    Modifies the aefProfiles in the given JSON structure based on
+    PRODUCTION environment variable.
+    
+    Args:
+        json_data: The parsed service description JSON.
+        
+    Returns:
+        Modified JSON data (modified in-place, also returned for convenience).
+    """
+    is_production = os.environ.get("PRODUCTION", "").lower() == "true"
+    
+    if is_production:
+        json_data["aefProfiles"][0]["domainName"] = os.environ.get("DOMAIN_NAME", "")
+        json_data["aefProfiles"][0].pop("interfaceDescriptions", None)
+    else:
+        nginx_host = os.environ.get("NGINX_HOST", "localhost")
+        nginx_https = os.environ.get("NGINX_HTTPS", "443")
+        try:
+            nginx_port = int(nginx_https)
+        except (ValueError, TypeError):
+            nginx_port = 443
+            
+        json_data["aefProfiles"][0]["interfaceDescriptions"] = [{
+            "ipv4Addr": nginx_host,
+            "port": nginx_port,
+            "securityMethods": ["OAUTH"]
+        }]
+        json_data["aefProfiles"][0].pop("domainName", None)
+    
+    return json_data
+
+
+def get_service_description(service_name: str) -> dict:
+    """Get a prepared service description by name.
+    
+    Args:
+        service_name: Either "monitoring_event" or "as_session_with_qos".
+        
+    Returns:
+        The prepared service description dict.
+        
+    Raises:
+        KeyError: If service descriptions haven't been initialized.
+    """
+    if not _SERVICE_DESCRIPTIONS:
+        capif_service_description()
+    return _SERVICE_DESCRIPTIONS.get(service_name, {})
+
+
 def capif_service_description() -> None:
-
+    """Prepare CAPIF service descriptions in memory.
+    
+    Reads the base JSON templates and applies environment-specific
+    modifications. Results are stored in _SERVICE_DESCRIPTIONS for
+    later retrieval - source files are NOT modified.
+    """
+    global _SERVICE_DESCRIPTIONS
+    
+    base_path = os.path.join(
+        os.path.dirname(__file__), 
+        'core', 'capif_files'
+    )
+    
+    services = {
+        "monitoring_event": "service_monitoring_event.json",
+        "as_session_with_qos": "service_as_session_with_qos.json"
+    }
+    
     try:
-        ###MonitoringEvent 
-        with open('app/core/capif_files/service_monitoring_event.json', 'r') as file:
-            json_data = json.load(file)
-
-        if os.environ.get("PRODUCTION") == "true":
-            json_data["aefProfiles"][0].update({"domainName": os.environ.get("DOMAIN_NAME")})
-            json_data["aefProfiles"][0].pop("interfaceDescriptions", None)
-            updated_json_str = json.dumps(json_data)
-        else:
-            json_data["aefProfiles"][0].update({
-                                                    "interfaceDescriptions": [{
-                                                        "ipv4Addr": os.environ.get('NGINX_HOST'),
-                                                        "port": int(os.environ.get('NGINX_HTTPS')),
-                                                        "securityMethods": ["OAUTH"]
-                                                    }]
-                                                })
-            json_data["aefProfiles"][0].pop("domainName", None)
-            updated_json_str = json.dumps(json_data)
-
-        with open('app/core/capif_files/service_monitoring_event.json', 'w') as file:
-            file.write(updated_json_str)
-
-        ###AsSessionWithQoS
-        with open('app/core/capif_files/service_as_session_with_qos.json', 'r') as file:
-            json_data = json.load(file)
-
- 
-        if os.environ.get("PRODUCTION") == "true":
-            json_data["aefProfiles"][0].update({"domainName": os.environ.get("DOMAIN_NAME")})
-            json_data["aefProfiles"][0].pop("interfaceDescriptions", None)
-
-            updated_json_str = json.dumps(json_data)
-        else:
-            json_data["aefProfiles"][0].update({
-                                                    "interfaceDescriptions": [{
-                                                        "ipv4Addr": os.environ.get('NGINX_HOST'),
-                                                        "port": int(os.environ.get('NGINX_HTTPS')),
-                                                        "securityMethods": ["OAUTH"]
-                                                    }]
-                                                })
-            json_data["aefProfiles"][0].pop("domainName", None)
-            updated_json_str = json.dumps(json_data)
-
-        with open('app/core/capif_files/service_as_session_with_qos.json', 'w') as file:
-            file.write(updated_json_str)
-
-        logger.info("Service description files successfully updated!!!")
-
-    except FileNotFoundError:
-        logger.error("File not found. Please provide the correct JSON file path.")
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON format. Please ensure the service description file is correctly formatted.")
-    except Exception as e:
-        logger.error("An error occurred: %s", str(e))
+        for service_key, filename in services.items():
+            filepath = os.path.join(base_path, filename)
+            with open(filepath, 'r') as file:
+                json_data = json.load(file)
+            
+            # Prepare the service description in memory (no file write)
+            _prepare_aef_profile(json_data)
+            _SERVICE_DESCRIPTIONS[service_key] = json_data
+            
+        logger.info("Service descriptions prepared in memory successfully")
+        
+    except FileNotFoundError as e:
+        logger.error("Service description file not found: %s", e)
+    except json.JSONDecodeError as e:
+        logger.error("Invalid JSON in service description file: %s", e)
+    except (KeyError, IndexError) as e:
+        logger.error("Malformed service description structure: %s", e)
 
 def main() -> None:
     logger.info("Creating initial data")

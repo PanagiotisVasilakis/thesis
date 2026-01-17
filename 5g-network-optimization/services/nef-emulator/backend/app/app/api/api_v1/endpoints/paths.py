@@ -10,13 +10,22 @@ from app.api import deps
 router = APIRouter()
 
 def get_random_point(db: Session, path_id: int):
-
+    """Get a random point from a path.
+    
+    Args:
+        db: Database session
+        path_id: ID of the path to get point from
+        
+    Returns:
+        Random point dict with latitude/longitude, or None if no points exist
+    """
     points = crud.points.get_points(db=db, path_id=path_id)
     points_json = jsonable_encoder(points)
 
-    #Get the random index (this index should be within the range of points' list)
-    random_index = random.randrange(0, len(points_json))
+    if not points_json:
+        return None
 
+    random_index = random.randrange(0, len(points_json))
     return points_json[random_index]
 
 @router.get("", response_model=List[schemas.Paths])
@@ -38,15 +47,20 @@ def read_paths(
 
     item_json = jsonable_encoder(paths)
     
+    # Build a lookup dict for O(1) access instead of O(n²) nested loop
+    path_by_id = {path.id: path for path in paths}
+    
     for json_path in item_json:
-        for path in paths:
-            if path.id == json_path.get('id'):
-                json_path["start_point"] = {}
-                json_path["end_point"] = {}
-                json_path["start_point"]["latitude"] = path.start_lat
-                json_path["start_point"]["longitude"] = path.start_long
-                json_path["end_point"]["latitude"] = path.end_lat
-                json_path["end_point"]["longitude"] = path.end_long
+        path = path_by_id.get(json_path.get('id'))
+        if path:
+            json_path["start_point"] = {
+                "latitude": path.start_lat,
+                "longitude": path.start_long
+            }
+            json_path["end_point"] = {
+                "latitude": path.end_lat,
+                "longitude": path.end_long
+            }
 
     return item_json
 

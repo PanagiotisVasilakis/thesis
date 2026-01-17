@@ -22,6 +22,15 @@ class HandoverEngine:
     """Decide and apply handovers using the A3 rule or an external
     ML service."""
 
+    # HTTP request timeout (seconds) for ML service calls
+    HTTP_TIMEOUT_SECONDS = 5
+    # Shorter timeout for non-critical feedback calls
+    HTTP_FEEDBACK_TIMEOUT_SECONDS = 3
+    # Default token expiry fallback (seconds)
+    DEFAULT_TOKEN_EXPIRY_SECONDS = 300
+    # Coverage margin factor (1.5x = allow 50% beyond cell radius)
+    COVERAGE_MARGIN_FACTOR = 1.5
+
     def __init__(
         self,
         state_mgr: NetworkStateManager,
@@ -119,134 +128,18 @@ class HandoverEngine:
     # ------------------------------------------------------------------
 
     def _select_ml(self, ue_id: str) -> Optional[dict]:
+        """Make ML prediction for the given UE.
+        
+        This method fetches the feature vector from state_manager and delegates
+        to _select_ml_with_features for the actual ML prediction logic.
+        """
         fv = self.state_mgr.get_feature_vector(ue_id)
-        rf_metrics = {}
-        for aid in fv["neighbor_rsrp_dbm"]:
-            metrics_dict = {
-                "rsrp": fv["neighbor_rsrp_dbm"][aid],
-                "sinr": fv["neighbor_sinrs"][aid],
-            }
-            rsrq_map = fv.get("neighbor_rsrqs")
-            if rsrq_map and aid in rsrq_map:
-                metrics_dict["rsrq"] = rsrq_map[aid]
-            rf_metrics[aid] = metrics_dict
-        ue_data = {
-            "ue_id": ue_id,
-            "latitude": fv["latitude"],
-            "longitude": fv["longitude"],
-            "altitude": fv.get("altitude"),
-            "speed": fv.get("speed", 0.0),
-            "direction": (0, 0, 0),
-            "connected_to": fv["connected_to"],
-            "rf_metrics": rf_metrics,
-        }
-        observed_qos = fv.get("observed_qos")
-        if isinstance(observed_qos, dict):
-            latest = observed_qos.get("latest") or {}
-            if isinstance(latest, dict):
-                simplified = {
-                    key: latest.get(key)
-                    for key in (
-                        "latency_ms",
-                        "jitter_ms",
-                        "throughput_mbps",
-                        "packet_loss_rate",
-                    )
-                    if latest.get(key) is not None
-                }
-                if simplified:
-                    ue_data["observed_qos"] = simplified
-        logger = getattr(self.state_mgr, "logger", self.logger)
-        self._last_ml_error_reason = None
-        self._last_ml_http_status = None
-
-        if self.use_local_ml and self.model:
-            try:
-                features = self.model.extract_features(ue_data)
-                pred = self.model.predict(features)
-                if isinstance(pred, dict):
-                    return {
-                        "antenna_id": pred.get("antenna_id")
-                        or pred.get("predicted_antenna"),
-                        "confidence": pred.get("confidence"),
-                        "qos_compliance": pred.get("qos_compliance"),
-                    }
-                return {"antenna_id": pred, "confidence": None}
-            except Exception as exc:  # noqa: BLE001 - log and fall back
-                logger.exception("Local ML prediction failed", exc_info=exc)
-                self._last_ml_error_reason = "local_ml_error"
-                return None
-
-        # Use the QoS-aware prediction endpoint so the response may include
-        # structured `qos_compliance` information used by the handover engine.
-        url = f"{self.ml_service_url.rstrip('/')}/api/predict-with-qos"
-        try:
-            # Debug: record the UE payload and response for integration test
-            try:
-                logger.debug("HandoverEngine POST to ML URL: %s", url)
-                logger.debug("HandoverEngine UE payload: %s", ue_data)
-            except Exception:
-                # Best-effort logging; don't fail the request if formatting fails
-                pass
-
-            headers = self._get_ml_headers()
-
-            def _post_with_optional_headers(auth_headers: Optional[dict[str, str]]):
-                kwargs = {"json": ue_data, "timeout": 5}
-                if auth_headers:
-                    kwargs["headers"] = auth_headers
-                try:
-                    return requests.post(url, **kwargs)
-                except TypeError as exc:
-                    if auth_headers and "headers" in str(exc):
-                        return requests.post(url, json=ue_data, timeout=5)
-                    raise
-
-            resp = _post_with_optional_headers(headers)
-            status = getattr(resp, "status_code", None)
-            if status == 401 and headers:
-                headers = self._get_ml_headers(force_refresh=True)
-                if headers:
-                    resp = _post_with_optional_headers(headers)
-                    status = getattr(resp, "status_code", None)
-
-            if status is not None and 400 <= status < 600:
-                category = "ml_http_4xx" if status < 500 else "ml_http_5xx"
-                self._last_ml_error_reason = category
-                self._last_ml_http_status = int(status)
-                try:
-                    logger.warning(
-                        "ML service returned status %s for UE %s", status, ue_id
-                    )
-                except Exception:
-                    pass
-                return None
-
-            # For test Double-wrapped response object we rely on its
-            # raise_for_status()/json() methods being available.
-            resp.raise_for_status()
-            data = resp.json()
-            logger.debug("HandoverEngine ML response data: %s", data)
-            return {
-                "antenna_id": data.get("predicted_antenna")
-                or data.get("antenna_id"),
-                "confidence": data.get("confidence"),
-                "qos_compliance": data.get("qos_compliance"),
-            }
-        except RequestException as exc:
-            self._last_ml_error_reason = "ml_service_unavailable"
-            logger.exception("Remote ML request failed", exc_info=exc)
-            return None
-        except Exception as exc:  # noqa: BLE001 - capture any ML service error
-            if self._last_ml_error_reason is None:
-                self._last_ml_error_reason = "ml_service_unavailable"
-            logger.exception("Remote ML request failed", exc_info=exc)
-            return None
+        return self._select_ml_with_features(ue_id, fv)
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
         fv = self.state_mgr.get_feature_vector(ue_id)
         current = fv["connected_to"]
-        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
         
         # Prepare serving cell metrics
         serving_rsrp = fv["neighbor_rsrp_dbm"][current]
@@ -428,7 +321,7 @@ class HandoverEngine:
         if not current:
             return None
         
-        now = datetime.utcnow().replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
         rsrp_map = fv.get("neighbor_rsrp_dbm", {})
         rsrq_map = fv.get("neighbor_rsrqs", {})
         
@@ -717,7 +610,7 @@ class HandoverEngine:
         decision_log["handover_triggered"] = target is not None
 
         # Log structured JSON for thesis analysis
-        self.logger.info(f"HANDOVER_DECISION: {json.dumps(decision_log)}")
+        self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
 
         if not target:
             decision_log["outcome"] = "no_handover"
@@ -751,9 +644,8 @@ class HandoverEngine:
                             decision_log["max_coverage_distance"] = max_coverage
                             
                             self.logger.warning(
-                                f"Coverage loss detected for UE {ue_id}: "
-                                f"{distance_to_current:.0f}m from current cell "
-                                f"(max: {max_coverage:.0f}m)"
+                                "Coverage loss detected for UE %s: %dm from current cell (max: %dm)",
+                                ue_id, int(distance_to_current), int(max_coverage)
                             )
                             
                             # If ML/A3 didn't suggest a different cell, find nearest
@@ -761,7 +653,7 @@ class HandoverEngine:
                                 nearest_cell = self._find_nearest_cell((ue_lat, ue_lon))
                                 if nearest_cell and nearest_cell != resolved_current:
                                     self.logger.info(
-                                        f"Forcing handover to nearest cell: {nearest_cell}"
+                                        "Forcing handover to nearest cell: %s", nearest_cell
                                     )
                                     target = nearest_cell
                                     resolved_target = self.state_mgr.resolve_antenna_id(nearest_cell)
@@ -780,7 +672,7 @@ class HandoverEngine:
             if not coverage_loss_detected:
                 decision_log["handover_triggered"] = False
                 decision_log["outcome"] = "already_connected"
-                self.logger.info(f"HANDOVER_SKIPPED: {json.dumps(decision_log)}")
+                self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
                 return None
             # If coverage loss was detected, proceed with handover even if target == current
 
@@ -789,14 +681,14 @@ class HandoverEngine:
         if handover_result is None:
             decision_log["handover_triggered"] = False
             decision_log["outcome"] = "already_connected"
-            self.logger.info(f"HANDOVER_SKIPPED: {json.dumps(decision_log)}")
+            self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
             return None
         
         decision_log["outcome"] = "applied"
         decision_log["handover_result"] = handover_result
         
         # Final log with complete decision trace
-        self.logger.info(f"HANDOVER_APPLIED: {json.dumps(decision_log)}")
+        self.logger.info("HANDOVER_APPLIED: %s", json.dumps(decision_log))
  
         try:
             self._send_qos_feedback(ue_id, decision_log, fv)

@@ -197,12 +197,13 @@ class BaseScenario(ABC):
     """
     
     def __init__(self, 
-                 nef_url: str = "http://localhost:8080",
-                 username: str = "admin@my-email.com",
-                 password: str = "pass"):
-        self.nef_url = nef_url
-        self.username = username
-        self.password = password
+                 nef_url: str = None,
+                 username: str = None,
+                 password: str = None):
+        import os
+        self.nef_url = nef_url or os.environ.get("NEF_URL", "http://localhost:8080")
+        self.username = username or os.environ.get("NEF_USERNAME", "admin@my-email.com")
+        self.password = password or os.environ.get("NEF_PASSWORD", "pass")
         self.token: Optional[str] = None
         
         self.cells: List[CellConfig] = []

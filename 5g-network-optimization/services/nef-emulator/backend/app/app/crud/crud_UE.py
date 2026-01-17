@@ -83,15 +83,15 @@ class CRUD_UE(CRUDBase[UE, UECreate, UEUpdate]):
     def update_coordinates(
         self, db: Session, *, lat: float, long: float, db_obj: UE
     ) -> UE:
-        setattr(db_obj, 'latitude', lat)
-        setattr(db_obj, 'longitude', long)
+        db_obj.latitude = lat
+        db_obj.longitude = long
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
         return db_obj
 
     def remove_supi(self, db: Session, *, supi: str) -> UE:
-        logger.info(f"removing supi {supi}")
+        logger.info("removing supi %s", supi)
         obj = db.query(self.model).filter(UE.supi == supi).first()
         logger.info("Done")
         logger.debug(obj)

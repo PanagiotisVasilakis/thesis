@@ -5,10 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Shared properties
 class gNBBase(BaseModel):
-    gNB_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{6}$')
-    name: Optional[str] = None
-    description: Optional[str] = None
-    location: Optional[str] = None
+    """Base schema for gNB (5G base station) entities."""
+    gNB_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{6}$', description="Unique 6-character hex identifier for the gNB")
+    name: Optional[str] = Field(default=None, description="Human-readable name for the gNB")
+    description: Optional[str] = Field(default=None, description="Optional description of the gNB")
+    location: Optional[str] = Field(default=None, description="Physical location description")
 
 # Properties to receive on item creation
 class gNBCreate(gNBBase):

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 from app import schemas
 
-class scenario(BaseModel):
+class Scenario(BaseModel):
     gNBs: List[schemas.gNBCreate]
     cells: List[schemas.CellCreate]
     UEs: List[schemas.UECreate]

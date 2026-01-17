@@ -108,12 +108,3 @@ def read_qos_active_rules(
 
     retrieved_doc.pop("_id", None)
     return JSONResponse(content=retrieved_doc, status_code=200)
-
-
-
-
-    
-    
-    
-
-

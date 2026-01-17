@@ -1,14 +1,14 @@
 import math
 import numpy as np
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class MobilityModel:
     """Base class for mobility models from 3GPP TR 38.901 Section 7.6."""
 
     def __init__(self, ue_id, start_time=None, mobility_params=None, seed=None):
         self.ue_id = ue_id
-        self.start_time = start_time or datetime.now()
+        self.start_time = start_time or datetime.now(timezone.utc)
         self.mobility_params = mobility_params or {}
         self.current_position = None
         self.trajectory = []

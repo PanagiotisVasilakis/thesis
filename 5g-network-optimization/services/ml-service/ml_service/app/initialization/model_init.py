@@ -201,7 +201,8 @@ class ModelManager:
                 metrics = model.train(training_data)
 
             logger.info(
-                f"Model trained successfully with {metrics.get('samples')} samples"
+                "Model trained successfully with %s samples",
+                metrics.get('samples')
             )
 
             if model_path:
@@ -211,7 +212,7 @@ class ModelManager:
                     metrics=metrics,
                     version=MODEL_VERSION,
                 )
-                logger.info(f"Model saved to {model_path}")
+                logger.info("Model saved to %s", model_path)
 
             with cls._lock:
                 cls._model_instance = model

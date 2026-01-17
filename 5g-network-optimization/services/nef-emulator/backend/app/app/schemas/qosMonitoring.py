@@ -45,16 +45,16 @@ class QosMonitoringInformation(BaseModel):
 
 
 class AsSessionWithQoSSubscriptionCreate(BaseModel):
-    #Remember, when you actually trying to access the database through CRUD methods you need to typecast the pydantic types to strings, int etc.
-    ipv4Addr: Optional[IPvAnyAddress] = Field(default='10.0.0.0', description="String identifying an Ipv4 address")
-    ipv6Addr: Optional[IPvAnyAddress] = Field(default="0:0:0:0:0:0:0:0", description="String identifying an Ipv6 address. Default value ::1/128 (loopback)")
+    """QoS Session subscription creation schema."""
+    ipv4Addr: Optional[IPvAnyAddress] = Field(default=None, description="String identifying an Ipv4 address")
+    ipv6Addr: Optional[IPvAnyAddress] = Field(default=None, description="String identifying an Ipv6 address")
     macAddr: Optional[str] = Field(
-        '22-00-00-00-00-00',
+        default=None,
     pattern=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
     )
-    notificationDestination: AnyHttpUrl = Field("http://localhost:80/api/v1/utils/session-with-qos/callback", description="Reference resource (URL) identifying service consumer's endpoint, in order to receive the asynchronous notification. For testing use 'http://localhost:80/api/v1/utils/session-with-qos/callback'") #Default value for development testing
+    notificationDestination: AnyHttpUrl = Field(..., description="Reference resource (URL) identifying service consumer's endpoint, in order to receive the asynchronous notification.")
     snssai: Optional[Snssai] = None
-    dnn: Optional[str] = Field("province1.mnc01.mcc202.gprs", description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
+    dnn: Optional[str] = Field(default=None, description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
     qosReference: int = Field(default=9, description="Identifies a pre-defined QoS Information", ge=1, le=90)
     altQoSReferences: List[int] = Field(
         None,
@@ -66,7 +66,7 @@ class AsSessionWithQoSSubscriptionCreate(BaseModel):
 
 
 class AsSessionWithQoSSubscription(AsSessionWithQoSSubscriptionCreate):
-    link: Optional[AnyHttpUrl] = Field("https://myresource.com", description="String identifying a referenced resource. This is also returned as a location header in 201 Created Response")
+    link: Optional[AnyHttpUrl] = Field(default=None, description="String identifying a referenced resource. This is also returned as a location header in 201 Created Response")
     
     model_config = ConfigDict(from_attributes=True)
 

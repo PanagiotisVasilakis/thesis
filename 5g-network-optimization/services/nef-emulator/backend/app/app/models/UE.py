@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class UE(Base):
+    __tablename__ = "ue"
+    
     # id for db/primary key
     id = Column(Integer, primary_key=True, index=True)
 

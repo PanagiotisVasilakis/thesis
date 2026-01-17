@@ -45,10 +45,11 @@ def test_apply_handover_decision(nsm):
 
 
 def test_apply_handover_decision_alias(nsm):
-    nsm.register_antenna_alias('antenna_1', 'antA')
-    ev = nsm.apply_handover_decision('ue1', 'antenna_1')
-    assert ev['to'] == 'antA'
-    assert nsm.ue_states['ue1']['connected_to'] == 'antA'
+    # Register alias for antB (UE is currently connected to antA)
+    nsm.register_antenna_alias('antenna_2', 'antB')
+    ev = nsm.apply_handover_decision('ue1', 'antenna_2')
+    assert ev['to'] == 'antB'
+    assert nsm.ue_states['ue1']['connected_to'] == 'antB'
 
 
 def test_unknown_ue(nsm):

@@ -35,10 +35,10 @@ def test_check_distance():
     assert dist_mod.check_distance(1.0, 1.0, cells) is None
 
 
-def test_sequencial_timer(monkeypatch):
+def test_sequential_timer(monkeypatch):
     tvals = iter([0.0, 1.5])
     monkeypatch.setattr(timer_mod.time, "perf_counter", lambda: next(tvals))
-    timer = timer_mod.SequencialTimer(logger=None)
+    timer = timer_mod.SequentialTimer(logger=None)
     timer.start()
     elapsed = timer.stop()
     assert pytest.approx(elapsed, rel=1e-6) == 1.5

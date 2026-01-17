@@ -1,13 +1,14 @@
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
-from pydantic import BaseModel, confloat, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # Shared properties | used for request body in endpoint/items.py
 #We can declare a UserBase model that serves as a base for our other models. And then we can make subclasses of that model that inherit its attributes
 class Point(BaseModel):
-    latitude: confloat(ge=-90, le=90)
-    longitude: confloat(ge=-180, le=180)
+    """Geographic point with latitude and longitude."""
+    latitude: Annotated[float, Field(ge=-90, le=90, description="Latitude in degrees")]
+    longitude: Annotated[float, Field(ge=-180, le=180, description="Longitude in degrees")]
 
 class PathBase(BaseModel):
     description: Optional[str] = None

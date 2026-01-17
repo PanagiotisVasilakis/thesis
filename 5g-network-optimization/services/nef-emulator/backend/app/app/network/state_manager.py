@@ -223,7 +223,7 @@ class NetworkStateManager:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         self.handover_history.append(ev)
-        self.logger.info(f"Handover for {ue_id}: {prev} -> {resolved_target}")
+        self.logger.info("Handover for %s: %s -> %s", ue_id, prev, resolved_target)
         return ev
 
     # ------------------------------------------------------------------

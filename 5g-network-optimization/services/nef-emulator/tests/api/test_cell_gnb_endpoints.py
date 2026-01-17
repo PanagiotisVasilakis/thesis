@@ -2,13 +2,8 @@ import types
 from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient as FastAPITestClient
+from conftest import TestClient
 from httpx import ASGITransport
-
-
-class TestClient(FastAPITestClient):
-    def __init__(self, *, transport: ASGITransport, **kwargs):
-        super().__init__(transport.app, **kwargs)
 
 
 def _setup_client(monkeypatch, user=None):

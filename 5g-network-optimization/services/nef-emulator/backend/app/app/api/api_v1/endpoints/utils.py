@@ -42,7 +42,6 @@ except (ImportError, AttributeError):
 
         def save_log(self, api_invoker_id: str, log_entries: list):
             return True
-from app.core.config import settings
 
 
 class CCFLogRequest(BaseModel):
@@ -108,7 +107,68 @@ async def ccf_logs(input_request: Request, output_response: dict, service_api_de
     except Exception as ex:  # pragma: no cover - defensive
         logging.critical(ex)
         logging.critical("Potential cause of failure: CAPIF Core Function is not deployed or unreachable")
+
+
+async def log_to_capif(
+    http_request: Request,
+    http_response: JSONResponse,
+    service_file: str,
+    token_payload: dict
+) -> None:
+    """
+    Helper function to log API calls to CAPIF Core Function.
     
+    Consolidates the repetitive CAPIF logging pattern used across multiple endpoints.
+    
+    Args:
+        http_request: The incoming HTTP request
+        http_response: The outgoing HTTP response
+        service_file: The service API description JSON filename (e.g., "service_monitoring_event.json")
+        token_payload: The JWT token payload containing the subscriber ID
+    """
+    try:
+        response = http_response.body.decode("utf-8")
+        json_response = {
+            "response": response,
+            "status_code": str(http_response.status_code)
+        }
+        await ccf_logs(http_request, json_response, service_file, token_payload.get("sub"))
+    except TypeError as error:
+        logging.warning("CAPIF logging TypeError: %s", error)
+    except AttributeError as error:
+        logging.warning("CAPIF logging AttributeError: %s", error)
+
+
+async def log_error_to_capif(
+    http_request: Request,
+    error_message: str,
+    status_code: int,
+    service_file: str,
+    token_payload: dict
+) -> None:
+    """Log an error response to CAPIF before raising an HTTPException.
+    
+    This helper consolidates the repetitive pattern of logging error
+    responses to CAPIF. Use this when you need to log an error before
+    raising HTTPException.
+    
+    Args:
+        http_request: The incoming HTTP request
+        error_message: The error message to log
+        status_code: The HTTP status code
+        service_file: The service API description JSON filename
+        token_payload: The JWT token payload containing the subscriber ID
+    """
+    try:
+        json_response = {
+            "response": error_message,
+            "status_code": str(status_code)
+        }
+        invoker_id = token_payload.get("sub") if token_payload else None
+        await ccf_logs(http_request, json_response, service_file, invoker_id)
+    except (TypeError, AttributeError) as error:
+        logging.warning("CAPIF error logging failed: %s", error)
+
 
 # Runtime state is stored in the shared StateManager instance
 
@@ -149,7 +209,7 @@ async def add_notifications(request: Request, response: JSONResponse, is_notific
     
 router = APIRouter()
 
-@router.get("/export/scenario", response_model=schemas.scenario)
+@router.get("/export/scenario", response_model=schemas.Scenario)
 def get_scenario(
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user)
@@ -169,20 +229,26 @@ def get_scenario(
     json_path = jsonable_encoder(paths)
     ue_path_association = []
 
+    # Build a lookup dict for O(1) access instead of O(n²) nested loop
+    path_by_id = {path.id: path for path in paths}
+    
     for item_json in json_path:
-        for path in paths:
-            if path.id == item_json.get('id'):
-                item_json["start_point"] = {}
-                item_json["end_point"] = {}
-                item_json["start_point"]["latitude"] = path.start_lat
-                item_json["start_point"]["longitude"] = path.start_long
-                item_json["end_point"]["latitude"] = path.end_lat
-                item_json["end_point"]["longitude"] = path.end_long
-                item_json["id"] = path.id
-                points = crud.points.get_points(db=db, path_id=path.id)
-                item_json["points"] = []
-                for obj in jsonable_encoder(points):
-                    item_json["points"].append({'latitude' : obj.get('latitude'), 'longitude' : obj.get('longitude')})
+        path = path_by_id.get(item_json.get('id'))
+        if path:
+            item_json["start_point"] = {
+                "latitude": path.start_lat,
+                "longitude": path.start_long
+            }
+            item_json["end_point"] = {
+                "latitude": path.end_lat,
+                "longitude": path.end_long
+            }
+            item_json["id"] = path.id
+            points = crud.points.get_points(db=db, path_id=path.id)
+            item_json["points"] = [
+                {'latitude': obj.get('latitude'), 'longitude': obj.get('longitude')}
+                for obj in jsonable_encoder(points)
+            ]
 
     for ue in UEs:
         if ue.path_id:
@@ -190,9 +256,6 @@ def get_scenario(
             json_ue_path_association["supi"] = ue.supi
             json_ue_path_association["path"] = ue.path_id
             ue_path_association.append(json_ue_path_association)
-         
-    logging.critical(ue_path_association)
-    logging.critical(json_UEs)
 
     export_json = {
         "gNBs" : json_gNBs,
@@ -206,7 +269,7 @@ def get_scenario(
 
 @router.post("/import/scenario")
 def create_scenario(
-    scenario_in: schemas.scenario,
+    scenario_in: schemas.Scenario,
     db: Session = Depends(deps.get_db),
     current_user: models.User = Depends(deps.get_current_active_user), 
 ) -> Any:
@@ -221,7 +284,8 @@ def create_scenario(
     paths = scenario_in.paths
     ue_path_association = scenario_in.ue_path_association
 
-    db.execute('TRUNCATE TABLE cell, gnb, monitoring, path, points, ue RESTART IDENTITY')
+    from sqlalchemy import text
+    db.execute(text('TRUNCATE TABLE cell, gnb, monitoring, path, points, ue RESTART IDENTITY'))
     
     for gNB_in in gNBs:
         gNB = crud.gnb.get_gNB_id(db=db, id=gNB_in.gNB_id)

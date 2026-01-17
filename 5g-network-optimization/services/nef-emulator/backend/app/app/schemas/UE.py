@@ -1,6 +1,6 @@
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, ConfigDict, IPvAnyAddress, confloat
+from pydantic import BaseModel, ConfigDict, IPvAnyAddress
 from pydantic.fields import Field
 
 class Speed(str, Enum):

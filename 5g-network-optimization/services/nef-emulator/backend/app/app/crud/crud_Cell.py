@@ -2,7 +2,6 @@ from typing import List
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import text
 
 from app.crud.base import CRUDBase
 from app.models.Cell import Cell
@@ -45,19 +44,11 @@ class CRUD_Cell(CRUDBase[Cell, CellCreate, CellUpdate]):
     
     def remove_by_cell_id(self, db: Session, *, cell_id: str) -> Cell:
         obj = db.query(self.model).filter(Cell.cell_id == cell_id).first()
+        if obj is None:
+            return None
         db.delete(obj)
         db.commit()
         return obj
 
-    # def get_by_UE(
-    #     self, db: Session, *, Cell_UEs: int, skip: int = 0, limit: int = 100
-    # ) -> List[Cell]:
-    #     return (
-    #         db.query(self.model)
-    #         .filter(Cell.Cell_UEs == Cell_UEs)
-    #         .offset(skip)
-    #         .limit(limit)
-    #         .all()
-    #     )
 
 cell = CRUD_Cell(Cell)

@@ -74,7 +74,7 @@ def load_module(monkeypatch):
 
     class TimerError(Exception):
         pass
-    timer_mod.SequencialTimer = DummySeqTimer
+    timer_mod.SequentialTimer = DummySeqTimer
     timer_mod.RepeatedTimer = DummyRT
     timer_mod.TimerError = TimerError
     tools_pkg.monitoring_callbacks = mc_mod

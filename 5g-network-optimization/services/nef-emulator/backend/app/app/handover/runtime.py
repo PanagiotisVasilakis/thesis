@@ -18,7 +18,7 @@ from typing import Dict, Iterable, Optional, Tuple
 try:  # pragma: no cover - optional dependency in container image
     from antenna_models.models import MacroCellModel as _AntennaModel  # type: ignore
 except ImportError:  # pragma: no cover - fallback when antenna_models is unavailable
-    import math
+    # Note: math already imported at line 13
 
     class _AntennaModel:
         """Lightweight antenna abstraction used when rf_models package is absent."""
@@ -44,9 +44,16 @@ from app.network.state_manager import NetworkStateManager
 EARTH_RADIUS_M = 6_371_000.0
 DEFAULT_CELL_ALTITUDE_M = 25.0
 DEFAULT_UE_ALTITUDE_M = 1.5
-DEFAULT_CARRIER_HZ = 3.5e9
-DEFAULT_TX_POWER_DBM = 40.0
-TRAJECTORY_LIMIT = 900  # keep ~15 minutes of 1 Hz samples
+
+# Network configuration defaults - can be overridden via environment variables
+import os
+DEFAULT_CARRIER_HZ = float(os.environ.get("DEFAULT_CARRIER_HZ", 3.5e9))
+DEFAULT_TX_POWER_DBM = float(os.environ.get("DEFAULT_TX_POWER_DBM", 40.0))
+TRAJECTORY_LIMIT = int(os.environ.get("TRAJECTORY_LIMIT", 900))  # keep ~15 minutes of 1 Hz samples
+
+# Speed mapping constants (m/s)
+HIGH_SPEED_MPS = 10.0  # Vehicular speed
+LOW_SPEED_MPS = 1.0    # Walking speed
 
 
 class HandoverRuntime:
@@ -350,9 +357,9 @@ class HandoverRuntime:
             return 0.0
         label = speed_label.strip().upper()
         if label == "HIGH":
-            return 10.0
+            return HIGH_SPEED_MPS
         if label == "LOW":
-            return 1.0
+            return LOW_SPEED_MPS
         try:
             return float(label)
         except (TypeError, ValueError):

@@ -6,7 +6,7 @@ import asyncio
 from pydantic import ValidationError
 
 from . import api_bp
-from .decorators import require_auth, require_roles
+from .decorators import require_auth, require_roles, handle_model_errors
 from ..api_lib import load_model, predict as predict_ue, train as train_model
 from ..data.nef_collector import NEFDataCollector
 from ..clients.nef_client import NEFClient, NEFClientError
@@ -124,20 +124,14 @@ def refresh_token():
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
+@handle_model_errors("Prediction")
 def predict():
     """Make antenna selection prediction based on UE data."""
     req = request.validated_data  # type: ignore[attr-defined]
 
-    try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        request_payload = req.model_dump(exclude_none=True)
-        result, features = predict_ue(request_payload, model=model)
-    except (ValueError, TypeError, KeyError) as exc:
-        # Handle specific model-related errors
-        raise ModelError(f"Prediction failed: {exc}") from exc
-    except FileNotFoundError as exc:
-        # Handle missing model file
-        raise ModelError(f"Model file not found: {exc}") from exc
+    model = load_model(current_app.config["MODEL_PATH"])
+    request_payload = req.model_dump(exclude_none=True)
+    result, features = predict_ue(request_payload, model=model)
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
@@ -160,20 +154,14 @@ def predict():
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequestWithQoS)
+@handle_model_errors("Prediction")
 def predict_with_qos():
     """Make antenna selection prediction considering QoS requirements."""
     req = request.validated_data  # type: ignore[attr-defined]
 
-    try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        request_payload = req.model_dump(exclude_none=True)
-        result, features = predict_ue(request_payload, model=model)
-    except (ValueError, TypeError, KeyError) as exc:
-        # Handle specific model-related errors
-        raise ModelError(f"Prediction failed: {exc}") from exc
-    except FileNotFoundError as exc:
-        # Handle missing model file
-        raise ModelError(f"Model file not found: {exc}") from exc
+    model = load_model(current_app.config["MODEL_PATH"])
+    request_payload = req.model_dump(exclude_none=True)
+    result, features = predict_ue(request_payload, model=model)
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
@@ -193,7 +181,7 @@ def predict_with_qos():
 @api_bp.route("/qos-feedback", methods=["POST"])
 @require_auth
 @require_roles("predict", "admin", "nef")
-@limiter.limit("120/minute")
+@limiter.limit(limit_for("feedback"))
 @validate_content_type("application/json")
 @validate_request_size(1)
 @validate_json_input(QoSFeedbackRequest)
@@ -222,8 +210,8 @@ def qos_feedback():
     outcome = "success" if payload.success else "failure"
     try:
         QOS_FEEDBACK_EVENTS.labels(service_type=payload.service_type, outcome=outcome).inc()
-    except Exception:
-        pass
+    except Exception as exc:
+        current_app.logger.debug("Failed to increment QoS feedback metric: %s", exc)
 
     adaptive_required = adaptive_qos_manager.get_required_confidence(
         payload.service_type,
@@ -232,8 +220,8 @@ def qos_feedback():
 
     try:
         ADAPTIVE_CONFIDENCE.labels(service_type=payload.service_type).set(adaptive_required)
-    except Exception:
-        pass
+    except Exception as exc:
+        current_app.logger.debug("Failed to set adaptive confidence metric: %s", exc)
 
     return jsonify(
         {
@@ -250,26 +238,15 @@ def qos_feedback():
 @validate_content_type("application/json")
 @validate_request_size(5)  # 5MB max for prediction requests
 @validate_json_input(PredictionRequest)
+@handle_model_errors("Async prediction")
 async def predict_async():
     """Make async antenna selection prediction based on UE data."""
     req = request.validated_data  # type: ignore[attr-defined]
 
-    try:
-        model = load_model(current_app.config["MODEL_PATH"])
-
-        # Extract features for async prediction
-        request_payload = req.model_dump(exclude_none=True)
-        features = model.extract_features(request_payload)
-
-        # Use async prediction
-        result = await model.predict_async(features)
-
-    except (ValueError, TypeError, KeyError) as exc:
-        # Handle specific model-related errors
-        raise ModelError(f"Async prediction failed: {exc}") from exc
-    except FileNotFoundError as exc:
-        # Handle missing model file
-        raise ModelError(f"Model file not found: {exc}") from exc
+    model = load_model(current_app.config["MODEL_PATH"])
+    request_payload = req.model_dump(exclude_none=True)
+    features = model.extract_features(request_payload)
+    result = await model.predict_async(features)
 
     track_prediction(result["antenna_id"], result["confidence"])
     if hasattr(current_app, "metrics_collector"):
@@ -293,34 +270,26 @@ async def predict_async():
 @validate_content_type("application/json")
 @validate_request_size(50)  # 50MB max for training data
 @validate_json_input(TrainingSample, allow_list=True)
+@handle_model_errors("Training")
 def train():
     """Train the model with provided data."""
     validated_samples = request.validated_data  # type: ignore[attr-defined]
     samples = [sample.model_dump(exclude_none=True) for sample in validated_samples]
 
-    try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        start = time.time()
-        metrics = train_model(samples, model=model)
-        duration = time.time() - start
-    except (ValueError, TypeError, KeyError) as exc:
-        # Handle specific training errors
-        raise ModelError(f"Training failed: {exc}") from exc
-    except FileNotFoundError as exc:
-        # Handle missing model file
-        raise ModelError(f"Model file not found: {exc}") from exc
-    except MemoryError as exc:
-        # Handle out of memory errors during training
-        raise ModelError(f"Insufficient memory for training: {exc}") from exc
+    model = load_model(current_app.config["MODEL_PATH"])
+    start = time.time()
+    training_metrics = train_model(samples, model=model)
+    duration = time.time() - start
+
     track_training(
         duration,
-        metrics.get("samples", 0),
-        metrics.get("val_accuracy"),
-        metrics.get("feature_importance"),
+        training_metrics.get("samples", 0),
+        training_metrics.get("val_accuracy"),
+        training_metrics.get("feature_importance"),
     )
-    ModelManager.save_active_model(metrics)
+    ModelManager.save_active_model(training_metrics)
 
-    return jsonify({"status": "success", "metrics": metrics})
+    return jsonify({"status": "success", "metrics": training_metrics})
 
 
 @api_bp.route("/train-async", methods=["POST"])
@@ -330,35 +299,26 @@ def train():
 @validate_content_type("application/json")
 @validate_request_size(50)  # 50MB max for training data
 @validate_json_input(TrainingSample, allow_list=True)
+@handle_model_errors("Async training")
 async def train_async():
     """Train the model asynchronously with provided data."""
     validated_samples = request.validated_data  # type: ignore[attr-defined]
     samples = [sample.model_dump(exclude_none=True) for sample in validated_samples]
 
-    try:
-        model = load_model(current_app.config["MODEL_PATH"])
-        start = time.time()
-        
-        # Use async training
-        metrics = await model.train_async(samples)
-        duration = time.time() - start
-        
-    except (ValueError, TypeError, KeyError) as exc:
-        # Handle specific training errors
-        raise ModelError(f"Async training failed: {exc}") from exc
-    except FileNotFoundError as exc:
-        # Handle missing model file
-        raise ModelError(f"Model file not found: {exc}") from exc
-    except MemoryError as exc:
-        # Handle out of memory errors during training
-        raise ModelError(f"Insufficient memory for async training: {exc}") from exc
-        
-    track_training(
-        duration, metrics.get("samples", 0), metrics.get("val_accuracy")
-    )
-    ModelManager.save_active_model(metrics)
+    model = load_model(current_app.config["MODEL_PATH"])
+    start = time.time()
+    training_metrics = await model.train_async(samples)
+    duration = time.time() - start
 
-    return jsonify({"status": "success", "metrics": metrics, "async": True})
+    track_training(
+        duration,
+        training_metrics.get("samples", 0),
+        training_metrics.get("val_accuracy"),
+        training_metrics.get("feature_importance"),
+    )
+    ModelManager.save_active_model(training_metrics)
+
+    return jsonify({"status": "success", "metrics": training_metrics, "async": True})
 
 
 @api_bp.route("/nef-status", methods=["GET"])

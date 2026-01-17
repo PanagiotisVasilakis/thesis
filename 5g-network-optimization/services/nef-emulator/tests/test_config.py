@@ -1,6 +1,8 @@
 import importlib
 import sys
 
+from tests.conftest import TEST_ADMIN_EMAIL, TEST_PASSWORD
+
 ENV = {
     "SERVER_NAME": "test",
     "SERVER_HOST": "localhost",
@@ -12,8 +14,8 @@ ENV = {
     "CAPIF_HOST": "localhost",
     "CAPIF_HTTP_PORT": "8080",
     "CAPIF_HTTPS_PORT": "8443",
-    "FIRST_SUPERUSER": "admin@example.com",
-    "FIRST_SUPERUSER_PASSWORD": "pass",
+    "FIRST_SUPERUSER": TEST_ADMIN_EMAIL,
+    "FIRST_SUPERUSER_PASSWORD": TEST_PASSWORD,
     "USE_PUBLIC_KEY_VERIFICATION": "0",
     "BACKEND_CORS_ORIGINS": "[\"http://localhost\", \"http://example.com\"]",
 }

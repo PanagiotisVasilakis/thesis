@@ -422,6 +422,7 @@ class SmartCityDowntownScenario(BaseScenario):
 def main():
     """Deploy the Smart City Downtown scenario."""
     import argparse
+    import os
     from pathlib import Path
     
     parser = argparse.ArgumentParser(
@@ -429,7 +430,7 @@ def main():
     )
     parser.add_argument(
         "--nef-url", 
-        default="http://localhost:8080",
+        default=os.environ.get("NEF_URL", "http://localhost:8080"),
         help="NEF emulator URL"
     )
     parser.add_argument(

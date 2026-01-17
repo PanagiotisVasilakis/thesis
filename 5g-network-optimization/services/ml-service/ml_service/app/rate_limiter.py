@@ -8,17 +8,21 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 
-def _identity_key() -> str:
-    """Return a rate-limit key combining authenticated user and IP."""
-    user = getattr(g, "user", None)
-    if user:
-        ip = request.headers.get("X-Forwarded-For")
-        client_ip = ip.split(",")[0].strip() if ip else get_remote_address()
-        return f"user:{user}@{client_ip}"
+def _get_client_ip() -> str:
+    """Extract client IP from X-Forwarded-For header or fall back to remote address."""
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return f"ip:{forwarded.split(',')[0].strip()}"
-    return f"ip:{get_remote_address()}"
+        return forwarded.split(",")[0].strip()
+    return get_remote_address()
+
+
+def _identity_key() -> str:
+    """Return a rate-limit key combining authenticated user and IP."""
+    client_ip = _get_client_ip()
+    user = getattr(g, "user", None)
+    if user:
+        return f"user:{user}@{client_ip}"
+    return f"ip:{client_ip}"
 
 
 limiter = Limiter(key_func=_identity_key, headers_enabled=True)

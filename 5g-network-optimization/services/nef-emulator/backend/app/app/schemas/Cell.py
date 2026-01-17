@@ -5,13 +5,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Shared properties
 class CellBase(BaseModel):
-    cell_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{9}$')
-    name: Optional[str] = None
-    description: Optional[str] = None
-    gNB_id: int = None
-    latitude: float = Field(..., ge=-90, le=90)
-    longitude: float = Field(..., ge=-180, le=180)
-    radius: float
+    """Base schema for Cell entities."""
+    cell_id: str = Field(..., pattern=r'^[A-Fa-f0-9]{9}$', description="Unique 9-character hex identifier for the cell")
+    name: Optional[str] = Field(default=None, description="Human-readable name for the cell")
+    description: Optional[str] = Field(default=None, description="Optional description of the cell")
+    gNB_id: Optional[int] = Field(default=None, description="ID of the parent gNB")
+    latitude: float = Field(..., ge=-90, le=90, description="Latitude coordinate in degrees")
+    longitude: float = Field(..., ge=-180, le=180, description="Longitude coordinate in degrees")
+    radius: float = Field(..., description="Cell coverage radius in meters")
     
     
 # Properties to receive on item creation

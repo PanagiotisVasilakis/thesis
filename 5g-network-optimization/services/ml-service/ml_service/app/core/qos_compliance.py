@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from .qos import _coerce_float
 
-def _as_float(value: Any, fallback: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return float(fallback)
+
+# Alias for backward compatibility (was _as_float)
+_as_float = _coerce_float
 
 
 def _confidence_threshold(priority: int) -> float:
@@ -121,5 +120,3 @@ def evaluate_qos_compliance(*,
     }
 
     return compliance, violations
-
-

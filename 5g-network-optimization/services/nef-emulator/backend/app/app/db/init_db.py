@@ -1,10 +1,14 @@
-import logging, json, sys
+import json
+import logging
+import os
+import sys
+
 from sqlalchemy.orm import Session
 from app import crud, schemas
 from app.core.config import settings
 from app.db import base  # noqa: F401
 from app.db.base_class import Base  # noqa
-from app.db.session import *
+from app.db.session import engine
 from fastapi.encoders import jsonable_encoder
 from app.api.api_v1.endpoints.paths import get_random_point
 # make sure all SQL Alchemy models are imported (app.db.base) before initializing DB
@@ -36,18 +40,26 @@ def init_db(db: Session) -> None:
     #     )
     #     user = crud.user.create(db, obj_in=user_in) 
 
+    # Use path relative to this file or from environment
+    scenario_path = os.environ.get(
+        'NEF_SCENARIO_PATH',
+        os.path.join(os.path.dirname(__file__), 'basic_scenario.json')
+    )
     try:
-        with open('/app/app/db/basic_scenario.json', 'r') as file:
+        with open(scenario_path, 'r') as file:
             scenario_in = json.load(file)
-            gNBs = scenario_in.get("gNBs")
-            cells = scenario_in.get("cells")
-            ues = scenario_in.get("UEs")
-            paths = scenario_in.get("paths")
-            ue_path_association = scenario_in.get("ue_path_association")
+            gNBs = scenario_in.get("gNBs", [])
+            cells = scenario_in.get("cells", [])
+            ues = scenario_in.get("UEs", [])
+            paths = scenario_in.get("paths", [])
+            ue_path_association = scenario_in.get("ue_path_association", [])
     except FileNotFoundError:
-        logging.debug("File not found. Please make sure the file exists and check the file path.")
-   
-    db.execute('TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY')
+        logging.warning("Scenario file not found. Please make sure the file exists and check the file path.")
+        return  # Exit early - cannot proceed without scenario data
+
+    # Use SQLAlchemy text() wrapper for raw SQL (safer than raw string)
+    from sqlalchemy import text
+    db.execute(text('TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY CASCADE'))
     
     for gNB_in in gNBs:
         gNB = crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=user.id)

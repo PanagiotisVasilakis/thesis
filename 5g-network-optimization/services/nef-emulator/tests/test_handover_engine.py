@@ -7,32 +7,14 @@ from backend.app.app.handover.engine import HandoverEngine
 from backend.app.app.network.state_manager import NetworkStateManager
 from backend.app.app.monitoring import metrics
 
-
-class DummyAntenna:
-    def __init__(self, rsrp):
-        self._rsrp = rsrp
-
-    def rsrp_dbm(self, pos):
-        return self._rsrp
-
-
-def patch_time(monkeypatch, times):
-    import backend.app.app.handover.engine as eng
-
-    it = iter(times)
-
-    class FakeDT(datetime):
-        @classmethod
-        def utcnow(cls):
-            return next(it)
-
-    monkeypatch.setattr(eng, "datetime", FakeDT)
+# Import shared fixtures from conftest (#59, #96)
+from tests.conftest import DummyAntenna, patch_handover_time
 
 
 def test_rule_based_handover(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=1.1)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     nsm = NetworkStateManager()
     nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}
@@ -47,7 +29,7 @@ def test_rule_based_handover(monkeypatch):
 def test_rule_based_handover_already_connected(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=1.1)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     nsm = NetworkStateManager()
     # UE is already connected to the best antenna ('B')
@@ -61,7 +43,7 @@ def test_rule_based_handover_already_connected(monkeypatch):
 def test_rule_based_handover_no_eligible_antennas(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=1.1)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     nsm = NetworkStateManager()
     # Only one antenna, so no eligible neighbors
@@ -75,7 +57,7 @@ def test_rule_based_handover_no_eligible_antennas(monkeypatch):
 def test_rule_based_handover_invalid_ue(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=1.1)]
-    patch_time(monkeypatch, times)
+    patch_handover_time(monkeypatch, times)
 
     nsm = NetworkStateManager()
     nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-76)}

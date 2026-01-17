@@ -769,8 +769,9 @@ def load_metrics_payload(path: str, mode: str) -> Dict[str, Any]:
 class PrometheusClient:
     """Client for querying Prometheus metrics."""
     
-    def __init__(self, url: str = "http://localhost:9090"):
-        self.url = url.rstrip('/')
+    def __init__(self, url: str = None):
+        import os
+        self.url = (url or os.environ.get("PROMETHEUS_URL", "http://localhost:9090")).rstrip('/')
         self.session = requests.Session()
     
     def query(self, query: str) -> Dict:
@@ -784,7 +785,7 @@ class PrometheusClient:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.error(f"Prometheus query failed: {e}")
+            logger.error("Prometheus query failed: %s", e)
             return {'status': 'error', 'data': {'result': []}}
     
     def query_range(self, query: str, start: float, end: float, step: int = 60) -> Dict:
@@ -803,7 +804,7 @@ class PrometheusClient:
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
-            logger.error(f"Prometheus range query failed: {e}")
+            logger.error("Prometheus range query failed: %s", e)
             return {'status': 'error', 'data': {'result': []}}
     
     def extract_value(self, result: Dict, default: float = 0.0) -> float:
@@ -844,8 +845,9 @@ class PrometheusClient:
 class MetricsCollector:
     """Collects metrics from both ML and A3 modes."""
     
-    def __init__(self, prometheus_url: str = "http://localhost:9090"):
-        self.prom = PrometheusClient(prometheus_url)
+    def __init__(self, prometheus_url: str = None):
+        import os
+        self.prom = PrometheusClient(prometheus_url or os.environ.get("PROMETHEUS_URL", "http://localhost:9090"))
     
     def collect_instant_metrics(self) -> Dict:
         """Collect current instant metrics."""
@@ -961,7 +963,7 @@ class ComparisonVisualizer:
     def __init__(self, output_dir: str = "thesis_results/comparison"):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Output directory: {self.output_dir}")
+        logger.info("Output directory: %s", self.output_dir)
     
     def generate_all_visualizations(
         self,
@@ -1003,7 +1005,7 @@ class ComparisonVisualizer:
         if ml_timeseries:
             plots.append(self._plot_timeseries_comparison(ml_timeseries, a3_timeseries))
         
-        logger.info(f"Generated {len(plots)} visualization files")
+        logger.info("Generated %d visualization files", len(plots))
         return [p for p in plots if p]  # Filter out None values
 
     def export_per_ue_report(self, ml: Dict, a3: Dict) -> Optional[Path]:
@@ -1036,7 +1038,7 @@ class ComparisonVisualizer:
 
         output_path = self.output_dir / "per_ue_handover_breakdown.csv"
         df.to_csv(output_path, index=False)
-        logger.info(f"Exported per-UE breakdown: {output_path}")
+        logger.info("Exported per-UE breakdown: %s", output_path)
         return output_path
 
     def export_skip_reason_report(self, ml: Dict) -> Optional[Path]:
@@ -1057,7 +1059,7 @@ class ComparisonVisualizer:
         df = pd.DataFrame(rows)
         output_path = self.output_dir / "ml_skipped_by_outcome.csv"
         df.to_csv(output_path, index=False)
-        logger.info(f"Exported skip-outcome breakdown: {output_path}")
+        logger.info("Exported skip-outcome breakdown: %s", output_path)
         return output_path
     
     def _plot_success_rates(self, ml: Dict, a3: Dict) -> Path:
@@ -1116,7 +1118,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created success rate comparison: {output_path}")
+        logger.info("Created success rate comparison: %s", output_path)
         return output_path
     
     def _plot_pingpong_comparison(self, ml: Dict, a3: Dict) -> Path:
@@ -1198,7 +1200,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created ping-pong comparison: {output_path}")
+        logger.info("Created ping-pong comparison: %s", output_path)
         return output_path
     
     def _plot_qos_compliance(self, ml: Dict, a3: Dict) -> Path:
@@ -1268,7 +1270,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
 
-        logger.info(f"Created QoS metrics comparison: {output_path}")
+        logger.info("Created QoS metrics comparison: %s", output_path)
         return output_path
 
     def _plot_qos_violations(self, ml: Dict, a3: Dict) -> Path:
@@ -1325,7 +1327,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
 
-        logger.info(f"Created QoS violation visualization: {output_path}")
+        logger.info("Created QoS violation visualization: %s", output_path)
         return output_path
     
     def _plot_handover_intervals(self, ml: Dict, a3: Dict) -> Path:
@@ -1375,7 +1377,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created handover interval comparison: {output_path}")
+        logger.info("Created handover interval comparison: %s", output_path)
         return output_path
     
     def _plot_suppression_breakdown(self, ml: Dict) -> Path:
@@ -1438,7 +1440,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created suppression breakdown: {output_path}")
+        logger.info("Created suppression breakdown: %s", output_path)
         return output_path
     
     def _plot_confidence_metrics(self, ml: Dict) -> Path:
@@ -1473,7 +1475,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created confidence metrics: {output_path}")
+        logger.info("Created confidence metrics: %s", output_path)
         return output_path
     
     def _plot_comprehensive_comparison(self, ml: Dict, a3: Dict) -> Path:
@@ -1612,7 +1614,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created comprehensive comparison: {output_path}")
+        logger.info("Created comprehensive comparison: %s", output_path)
         return output_path
     
     def _plot_timeseries_comparison(self, ml_ts: Dict, a3_ts: Optional[Dict]) -> Path:
@@ -1656,7 +1658,7 @@ class ComparisonVisualizer:
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
         
-        logger.info(f"Created time series comparison: {output_path}")
+        logger.info("Created time series comparison: %s", output_path)
         return output_path
     
     def export_csv_report(self, ml: Dict, a3: Dict) -> Path:
@@ -1831,7 +1833,7 @@ class ComparisonVisualizer:
         output_path = self.output_dir / "comparison_metrics.csv"
         df.to_csv(output_path, index=False)
         
-        logger.info(f"Exported CSV report: {output_path}")
+        logger.info("Exported CSV report: %s", output_path)
         return output_path
     
     def generate_text_summary(self, ml: Dict, a3: Dict) -> Path:
@@ -2090,7 +2092,7 @@ Report complete. Visualizations saved to: {self.output_dir}
         with open(output_path, 'w') as f:
             f.write(report)
         
-        logger.info(f"Generated text summary: {output_path}")
+        logger.info("Generated text summary: %s", output_path)
         return output_path
 
 
@@ -2126,11 +2128,11 @@ class ExperimentRunner:
         self._initialize_topology()
         
         # Start UE movement
-        logger.info(f"Starting {self.ue_count} UEs...")
+        logger.info("Starting %d UEs...", self.ue_count)
         self._start_ue_movement()
         
         # Run experiment
-        logger.info(f"Running experiment for {self.duration} minutes...")
+        logger.info("Running experiment for %d minutes...", self.duration)
         time.sleep(self.duration * 60)
         
         # Collect metrics
@@ -2171,11 +2173,11 @@ class ExperimentRunner:
         self._initialize_topology()
         
         # Start UE movement (same pattern as ML)
-        logger.info(f"Starting {self.ue_count} UEs...")
+        logger.info("Starting %d UEs...", self.ue_count)
         self._start_ue_movement()
         
         # Run experiment (same duration)
-        logger.info(f"Running experiment for {self.duration} minutes...")
+        logger.info("Running experiment for %d minutes...", self.duration)
         time.sleep(self.duration * 60)
         
         # Collect metrics
@@ -2196,7 +2198,7 @@ class ExperimentRunner:
         cmd = ['docker', 'compose', '-f', str(self.compose_path), 'up', '-d']
         result = subprocess.run(cmd, env=env, capture_output=True, text=True)
         if result.returncode != 0:
-            logger.error(f"Failed to start system: {result.stderr}")
+            logger.error("Failed to start system: %s", result.stderr)
             raise RuntimeError("Docker Compose failed to start")
     
     def _stop_system(self):
@@ -2212,7 +2214,7 @@ class ExperimentRunner:
         )
         
         if not init_script.exists():
-            logger.warning(f"Init script not found: {init_script}")
+            logger.warning("Init script not found: %s", init_script)
             logger.warning("Skipping topology initialization")
             return
         
@@ -2236,32 +2238,41 @@ class ExperimentRunner:
             if result.returncode == 0:
                 logger.info("Topology initialized successfully")
             else:
-                logger.warning(f"Init script returned code {result.returncode}")
-                logger.debug(f"Script output: {result.stdout}")
+                logger.warning("Init script returned code %d", result.returncode)
+                logger.debug("Script output: %s", result.stdout)
         except subprocess.TimeoutExpired:
             logger.warning("Init script timed out, continuing anyway")
         except Exception as e:
-            logger.warning(f"Could not run init script: {e}")
+            logger.warning("Could not run init script: %s", e)
     
     def _start_ue_movement(self):
         """Start UE movement via NEF API."""
         # Try to start UE movement via API (best effort)
-        ue_ids = ['202010000000001', '202010000000002', '202010000000003']
+        # UE IDs can be configured via environment variable (JSON array)
+        default_ue_ids = ['202010000000001', '202010000000002', '202010000000003']
+        ue_ids_str = os.environ.get("UE_IDS")
+        if ue_ids_str:
+            try:
+                ue_ids = json.loads(ue_ids_str)
+            except json.JSONDecodeError:
+                ue_ids = default_ue_ids
+        else:
+            ue_ids = default_ue_ids
         speeds = [5.0, 10.0, 15.0]
         
         for ue_id, speed in zip(ue_ids, speeds):
             try:
                 resp = requests.post(
-                    f"http://localhost:8080/api/v1/ue_movement/start",
+                    os.environ.get("NEF_URL", "http://localhost:8080") + "/api/v1/ue_movement/start",
                     json={"supi": ue_id, "speed": speed},
                     timeout=5
                 )
                 if resp.status_code == 200:
-                    logger.info(f"Started UE {ue_id} at {speed} m/s")
+                    logger.info("Started UE %s at %s m/s", ue_id, speed)
                 else:
-                    logger.debug(f"Could not start UE {ue_id}: {resp.status_code}")
+                    logger.debug("Could not start UE %s: %s", ue_id, resp.status_code)
             except Exception as e:
-                logger.debug(f"UE movement start failed for {ue_id}: {e}")
+                logger.debug("UE movement start failed for %s: %s", ue_id, e)
 
 
 def main():
@@ -2288,8 +2299,8 @@ Examples:
                        help='Experiment duration in minutes per mode (default: 10)')
     parser.add_argument('--output', type=str, default='thesis_results/comparison',
                        help='Output directory for results (default: thesis_results/comparison)')
-    parser.add_argument('--prometheus-url', type=str, default='http://localhost:9090',
-                       help='Prometheus URL (default: http://localhost:9090)')
+    parser.add_argument('--prometheus-url', type=str, default=os.environ.get("PROMETHEUS_URL", "http://localhost:9090"),
+                       help='Prometheus URL (default: http://localhost:9090 or PROMETHEUS_URL env var)')
     parser.add_argument('--docker-compose', type=str,
                        default='5g-network-optimization/docker-compose.yml',
                        help='Path to docker-compose.yml')
@@ -2316,7 +2327,7 @@ Examples:
     a3_timeseries = None
     if args.data_only and args.input:
         # Load existing data
-        logger.info(f"Loading data from {args.input}")
+        logger.info("Loading data from %s", args.input)
         with open(args.input) as f:
             data = json.load(f)
         ml_section = normalize_metrics_payload(data['ml_mode'], mode='ml')
@@ -2328,12 +2339,12 @@ Examples:
     
     elif args.ml_metrics and args.a3_metrics:
         # Load separate metric files
-        logger.info(f"Loading ML metrics from {args.ml_metrics}")
+        logger.info("Loading ML metrics from %s", args.ml_metrics)
         ml_data = load_metrics_payload(args.ml_metrics, mode='ml')
         ml_metrics = ml_data.get('instant', {})
         ml_timeseries = ml_data.get('timeseries')
         
-        logger.info(f"Loading A3 metrics from {args.a3_metrics}")
+        logger.info("Loading A3 metrics from %s", args.a3_metrics)
         a3_data = load_metrics_payload(args.a3_metrics, mode='a3')
         a3_metrics = a3_data.get('instant', {})
         a3_timeseries = a3_data.get('timeseries')
@@ -2343,9 +2354,9 @@ Examples:
         logger.info("=" * 70)
         logger.info(" ML vs A3 Comparative Experiment")
         logger.info("=" * 70)
-        logger.info(f"Duration: {args.duration} minutes per mode")
-        logger.info(f"Total time: ~{args.duration * 2 + 5} minutes")
-        logger.info(f"Output: {output_dir}")
+        logger.info("Duration: %d minutes per mode", args.duration)
+        logger.info("Total time: ~%d minutes", args.duration * 2 + 5)
+        logger.info("Output: %s", output_dir)
         logger.info("=" * 70)
         
         # Create experiment runner
@@ -2363,7 +2374,7 @@ Examples:
         ml_output = output_dir / "ml_mode_metrics.json"
         with open(ml_output, 'w') as f:
             json.dump(ml_data, f, indent=2)
-        logger.info(f"Saved ML metrics: {ml_output}")
+        logger.info("Saved ML metrics: %s", ml_output)
         
         # Wait between experiments
         logger.info("Waiting 30 seconds before A3 experiment...")
@@ -2378,7 +2389,7 @@ Examples:
         a3_output = output_dir / "a3_mode_metrics.json"
         with open(a3_output, 'w') as f:
             json.dump(a3_data, f, indent=2)
-        logger.info(f"Saved A3 metrics: {a3_output}")
+        logger.info("Saved A3 metrics: %s", a3_output)
         
         # Save combined data
         combined_output = output_dir / "combined_metrics.json"
@@ -2392,7 +2403,7 @@ Examples:
                     'docker_compose': args.docker_compose
                 }
             }, f, indent=2)
-        logger.info(f"Saved combined metrics: {combined_output}")
+        logger.info("Saved combined metrics: %s", combined_output)
     
     pingpong_window = max(5.0, float(args.pingpong_window))
 
@@ -2444,14 +2455,14 @@ Examples:
     logger.info("=" * 70)
     logger.info("Comparison Complete!")
     logger.info("=" * 70)
-    logger.info(f"Output directory: {output_dir}")
-    logger.info(f"Visualizations: {len(plots)} PNG files")
-    logger.info(f"CSV report: {csv_path}")
+    logger.info("Output directory: %s", output_dir)
+    logger.info("Visualizations: %d PNG files", len(plots))
+    logger.info("CSV report: %s", csv_path)
     if per_ue_csv:
-        logger.info(f"Per-UE report: {per_ue_csv}")
+        logger.info("Per-UE report: %s", per_ue_csv)
     if skip_reason_csv:
-        logger.info(f"Skip reason report: {skip_reason_csv}")
-    logger.info(f"Text summary: {summary_path}")
+        logger.info("Skip reason report: %s", skip_reason_csv)
+    logger.info("Text summary: %s", summary_path)
     logger.info("=" * 70)
     
     # Print quick summary to console
@@ -2481,6 +2492,6 @@ if __name__ == "__main__":
         logger.info("\nExperiment interrupted by user")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Experiment failed: {e}", exc_info=True)
+        logger.error("Experiment failed: %s", e, exc_info=True)
         sys.exit(1)
 

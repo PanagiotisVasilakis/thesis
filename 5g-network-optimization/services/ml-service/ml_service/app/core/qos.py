@@ -83,27 +83,15 @@ def qos_from_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         "jitter_ms": float(preset.get("jitter_ms", 0.0)),
     }
 
-    # Override if explicit values provided
+    # Override if explicit values provided using safe coercion
     if "service_priority" in payload:
-        try:
-            qos["service_priority"] = int(payload["service_priority"])
-        except Exception:
-            pass
+        qos["service_priority"] = int(_coerce_float(payload["service_priority"], qos["service_priority"]))
     if "latency_requirement_ms" in payload:
-        try:
-            qos["latency_requirement_ms"] = float(payload["latency_requirement_ms"])
-        except Exception:
-            pass
+        qos["latency_requirement_ms"] = _coerce_float(payload["latency_requirement_ms"], qos["latency_requirement_ms"])
     if "throughput_requirement_mbps" in payload:
-        try:
-            qos["throughput_requirement_mbps"] = float(payload["throughput_requirement_mbps"])
-        except Exception:
-            pass
+        qos["throughput_requirement_mbps"] = _coerce_float(payload["throughput_requirement_mbps"], qos["throughput_requirement_mbps"])
     if "reliability_pct" in payload:
-        try:
-            qos["reliability_pct"] = float(payload["reliability_pct"])
-        except Exception:
-            pass
+        qos["reliability_pct"] = _coerce_float(payload["reliability_pct"], qos["reliability_pct"])
 
     req_overrides = payload.get("qos_requirements")
     if isinstance(req_overrides, dict):

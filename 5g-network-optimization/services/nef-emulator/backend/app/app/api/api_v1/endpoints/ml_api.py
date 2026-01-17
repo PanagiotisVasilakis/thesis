@@ -13,7 +13,6 @@ except ImportError:  # pragma: no cover - fallback for test stubs
 from app.monitoring import metrics
 
 router = APIRouter(
-    prefix="/ml",
     tags=["ml-service"]
 )
 
@@ -40,8 +39,11 @@ def get_mode():
 def set_mode(payload: ModeRequest):
     """Toggle the handover engine between ML and A3 modes."""
     engine.use_ml = bool(payload.use_ml)
-    if hasattr(engine, "_auto"):
+    # Disable auto mode when manually setting mode
+    try:
         engine._auto = False
+    except AttributeError:
+        pass  # _auto may not exist in all engine implementations
     return {"mode": "ml" if engine.use_ml else "a3", "use_ml": engine.use_ml}
 
 @router.get("/state/{ue_id}")

@@ -1,7 +1,19 @@
 import math
 
-def distance(lat1, lon1, lat2, lon2): #Haversine formula: determines the great-circle distance between two points on a sphere given their longitudes and latitudes.
-    R = 6371e3
+# Earth's mean radius in meters (used in Haversine formula)
+EARTH_RADIUS_METERS = 6371e3
+
+
+def distance(lat1, lon1, lat2, lon2):
+    """Calculate great-circle distance using Haversine formula.
+    
+    Determines the distance between two points on Earth given their
+    longitudes and latitudes.
+    
+    Returns:
+        Distance in meters.
+    """
+    R = EARTH_RADIUS_METERS
     φ1 = lat1 * math.pi / 180  # φ, λ in radians
     φ2 = lat2 * math.pi / 180
     Δλ = (lon2 - lon1) * math.pi / 180
@@ -15,8 +27,17 @@ def distance(lat1, lon1, lat2, lon2): #Haversine formula: determines the great-c
     return d
 
 def check_distance(UE_lat, UE_long, cells):
+    """Find the closest cell that covers the UE's position.
     
-    # logging.info(f"Current cell {current_cell}") 
+    Args:
+        UE_lat: UE's latitude in degrees.
+        UE_long: UE's longitude in degrees.
+        cells: List of cell dictionaries with 'latitude', 'longitude', 'radius' keys.
+    
+    Returns:
+        The closest cell dict if UE is within any cell's radius, None otherwise.
+        Returns None when UE is outside all cell coverage areas (out of coverage).
+    """
     current_cell = None      
     current_cell_dist = float("inf")
 
@@ -28,13 +49,9 @@ def check_distance(UE_lat, UE_long, cells):
             continue
 
         dist = distance(UE_lat, UE_long, lat, lon)
-        # logging.critical(f"Distance = {dist} meters from Cell {cell.get('description')}") 
         if dist <= radius:
-            if (dist < current_cell_dist):
+            if dist < current_cell_dist:
                 current_cell_dist = dist
                 current_cell = cell
     
     return current_cell
-        
-
-    

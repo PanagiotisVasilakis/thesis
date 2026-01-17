@@ -8,7 +8,7 @@ from app.crud import crud_mongo, user, ue
 from app.api import deps
 from app import tools
 from app.db.session import client
-from app.api.api_v1.endpoints.utils import add_notifications, ccf_logs
+from app.api.api_v1.endpoints.utils import add_notifications, ccf_logs, log_to_capif
 from .ue_movement import retrieve_ue_state, retrieve_ue
 import logging
 
@@ -47,17 +47,7 @@ async def read_active_subscriptions(
     if retrieved_docs:
         http_response = JSONResponse(content=retrieved_docs, status_code=200)
         await add_notifications(http_request, http_response, False)
-        #CAPIF Core Function Logging Service
-        try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
 
         return http_response
     else:
@@ -113,16 +103,11 @@ async def create_subscription(
 
     UE = ue.get_externalId(db=db, externalId=str(item_in.externalId), owner_id=current_user.id)
     if not UE: 
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "UE with this external identifier doesn't exist"})
-            json_response.update({"status_code" : "409"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(
+            content={"detail": "UE with this external identifier doesn't exist"},
+            status_code=409
+        )
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=409, detail="UE with this external identifier doesn't exist")
     
     
@@ -141,7 +126,7 @@ async def create_subscription(
             gnb_id_hex = retrieve_ue(UE.supi).get("gnb_id_hex")
             json_compatible_item_data["locationInfo"] = {'cellId' : cell_id_hex, 'gNBId' : gnb_id_hex}
         else:
-            if UE.Cell != None:
+            if UE.Cell is not None:
                 json_compatible_item_data["locationInfo"] = {'cellId' : UE.Cell.cell_id, 'gNBId' : UE.Cell.gNB.gNB_id}
             else:
                 json_compatible_item_data["locationInfo"] = {'cellId' : None, 'gNBId' : None}
@@ -151,15 +136,11 @@ async def create_subscription(
         
         #CAPIF Core Function Logging Service
         try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
         except TypeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
         except AttributeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
         
         return http_response 
     #Subscription
@@ -168,15 +149,14 @@ async def create_subscription(
         #Check if subscription with externalid exists
         if crud_mongo.read_by_multiple_pairs(db_mongo, db_collection, externalId = item_in.externalId, monitoringType = item_in.monitoringType):
             #CAPIF Core Function Logging Service
+            error_response = JSONResponse(
+                content={"detail": f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"},
+                status_code=409
+            )
             try:
-                json_response = {}
-                json_response.update({"response" : f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"})
-                json_response.update({"status_code" : "409"})
-                await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-            except TypeError as error:
-                logging.critical(f"Error: {error}")
-            except AttributeError as error:
-                logging.error(f"Error: {error}")
+                await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
+            except (TypeError, AttributeError) as error:
+                logging.error("Error: %s", error)
             raise HTTPException(status_code=409, detail=f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}")
    
         json_data = jsonable_encoder(item_in.model_dump(exclude_unset=True))
@@ -201,51 +181,43 @@ async def create_subscription(
         
         #CAPIF Core Function Logging Service
         try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
         except TypeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
         except AttributeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
         
         return http_response
     elif (item_in.monitoringType == "LOSS_OF_CONNECTIVITY" or item_in.monitoringType == "UE_REACHABILITY") and item_in.maximumNumberOfReports == 1:
 
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "\"maximumNumberOfReports\" should be greater than 1 in case of LOSS_OF_CONNECTIVITY event"})
-            json_response.update({"status_code" : "403"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
-        return JSONResponse(content=jsonable_encoder(
-            {
+        error_response = JSONResponse(
+            content=jsonable_encoder({
                 "title" : "The requested parameters are out of range",
                 "invalidParams" : {
                     "param" : "maximumNumberOfReports",
-                    "reason" : "\"maximumNumberOfReports\" should be greater than 1 in case of LOSS_OF_CONNECTIVITY event"
+                    "reason" : '"maximumNumberOfReports" should be greater than 1 in case of LOSS_OF_CONNECTIVITY event'
                 }
-            }
-        ), status_code=403)
+            }),
+            status_code=403
+        )
+        #CAPIF Core Function Logging Service
+        try:
+            await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
+        except (TypeError, AttributeError) as error:
+            logging.error("Error: %s", error)
+        return error_response
     elif (item_in.monitoringType == "LOSS_OF_CONNECTIVITY" or item_in.monitoringType == "UE_REACHABILITY") and item_in.maximumNumberOfReports > 1:
         #Check if subscription with externalid && monitoringType exists
         if crud_mongo.read_by_multiple_pairs(db_mongo, db_collection, externalId = item_in.externalId, monitoringType = item_in.monitoringType):
             #CAPIF Core Function Logging Service
+            error_response = JSONResponse(
+                content={"detail": f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"},
+                status_code=409
+            )
             try:
-                json_response = {}
-                json_response.update({"response" : f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}"})
-                json_response.update({"status_code" : "409"})
-                await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-            except TypeError as error:
-                logging.critical(f"Error: {error}")
-            except AttributeError as error:
-                logging.error(f"Error: {error}")
+                await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
+            except (TypeError, AttributeError) as error:
+                logging.error("Error: %s", error)
             raise HTTPException(status_code=409, detail=f"There is already an active subscription for UE with external id {item_in.externalId} - Monitoring Type = {item_in.monitoringType}")
    
         json_data = jsonable_encoder(item_in.model_dump(exclude_unset=True))
@@ -270,15 +242,11 @@ async def create_subscription(
         
         #CAPIF Core Function Logging Service
         try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
+            await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
         except TypeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
         except AttributeError as error:
-            logging.error(f"Error: {error}")
+            logging.error("Error: %s", error)
 
         return http_response
 
@@ -306,30 +274,14 @@ async def update_subscription(
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     except Exception as ex:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
     
     #Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -348,18 +300,7 @@ async def update_subscription(
 
         http_response = JSONResponse(content=updated_doc, status_code=200)
         await add_notifications(http_request, http_response, False)
-
-        #CAPIF Core Function Logging Service
-        try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
 
         return http_response
     else:
@@ -389,29 +330,14 @@ async def read_subscription(
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     except Exception as ex:
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
     
     #Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -424,18 +350,7 @@ async def read_subscription(
         http_response = JSONResponse(content=retrieved_doc, status_code=200)
 
         await add_notifications(http_request, http_response, False)
-        
-        #CAPIF Core Function Logging Service
-        try:
-            response = http_response.body.decode("utf-8")
-            json_response = {}
-            json_response.update({"response" : response})
-            json_response.update({"status_code" : str(http_response.status_code)})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.error(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
 
         return http_response
     else:
@@ -464,29 +379,14 @@ async def delete_subscription(
     try:
         retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
     except Exception as ex:
-        try:
-            json_response = {}
-            json_response.update({"response" : "Please enter a valid uuid (24-character hex string)"})
-            json_response.update({"status_code" : "400"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
     
     #Check if the document exists
     if not retrieved_doc:
-        #CAPIF Core Function Logging Service
-        try:
-            json_response = {}
-            json_response.update({"response" : "Subscription not found"})
-            json_response.update({"status_code" : "404"})
-            await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-        except TypeError as error:
-            logging.critical(f"Error: {error}")
-        except AttributeError as error:
-            logging.error(f"Error: {error}")
+        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
+        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
         raise HTTPException(status_code=404, detail="Subscription not found")
     #If the document exists then validate the owner
     if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
@@ -497,20 +397,6 @@ async def delete_subscription(
 
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
     await add_notifications(http_request, http_response, False)
-
-    #CAPIF Core Function Logging Service
-    try:
-        response = http_response.body.decode("utf-8")
-        json_response = {}
-        json_response.update({"response" : response})
-        json_response.update({"status_code" : str(http_response.status_code)})
-        await ccf_logs(http_request, json_response, "service_monitoring_event.json", token_payload.get("sub"))
-    except TypeError as error:
-        logging.error(f"Error: {error}")
-    except AttributeError as error:
-            logging.error(f"Error: {error}")
+    await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
 
     return http_response
-    
-    
-    

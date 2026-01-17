@@ -47,9 +47,10 @@ def create_gNB(
 
     if gNB:
         raise HTTPException(status_code=409, detail="ERROR: gNB with this id already exists")
-    elif not gNB:
-        gNB = crud.gnb.create_with_owner(db=db, obj_in=item_in, owner_id=current_user.id)
-        return gNB
+    
+    # gNB doesn't exist - create it
+    gNB = crud.gnb.create_with_owner(db=db, obj_in=item_in, owner_id=current_user.id)
+    return gNB
 
 
 @router.put("/{gNB_id}", response_model=schemas.gNB)
@@ -67,7 +68,7 @@ def update_gNB(
     if not gNB:
         raise HTTPException(status_code=404, detail="gNB not found")
     if not crud.user.is_superuser(current_user) and (gNB.owner_id != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+        raise HTTPException(status_code=403, detail="Not enough permissions")
 
     #check if the requested gnB_id (hex) exists in db
     if item_in.gNB_id != gNB_id:
@@ -94,47 +95,8 @@ def read_gNB(
     if not gNB:
         raise HTTPException(status_code=404, detail="gNB not found")
     if not crud.user.is_superuser(current_user) and (gNB.owner_id != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+        raise HTTPException(status_code=403, detail="Not enough permissions")
     return gNB
-
-### Get gNB of specifc Cell
-
-# @router.get("/{gNB_Cell}", response_model=schemas.gNB)
-# def read_gNB_Cell(
-#     *,
-#     db: Session = Depends(deps.get_db),
-#     gNB_Cell: int,
-#     current_user: models.User = Depends(deps.get_current_active_user),
-# ) -> Any:
-#     """
-#     Get gNB of specifc Cell.
-#     """
-#     gNB_Cell = crud.gnb.get(db=db, gNB_Cell=gNB_Cell)
-#     if not gNB_Cell:
-#         raise HTTPException(status_code=404, detail="gNB for specific Cell not found")
-#     if not crud.user.is_superuser(current_user) and (gNB_Cell.owner_id != current_user.id):
-#         raise HTTPException(status_code=400, detail="Not enough permissions")
-#     return gNB_Cell
-
-
-### Get gNB of specifc UE
-
-# @router.get("/{gNB_UE}", response_model=schemas.gNB)
-# def read_gNB_UE(
-#     *,
-#     db: Session = Depends(deps.get_db),
-#     gNB_UE: int,
-#     current_user: models.User = Depends(deps.get_current_active_user),
-# ) -> Any:
-#     """
-#     Get gNB of specifc UE.
-#     """
-#     gNB_UE = crud.gnb.get(db=db, gNB_UE=gNB_UE)
-#     if not gNB_UE:
-#         raise HTTPException(status_code=404, detail="gNB for specific Cell not found")
-#     if not crud.user.is_superuser(current_user) and (gNB_UE.owner_id != current_user.id):
-#         raise HTTPException(status_code=400, detail="Not enough permissions")
-#     return gNB_UE
 
 @router.delete("/{gNB_id}", response_model=schemas.gNB)
 def delete_gNB(

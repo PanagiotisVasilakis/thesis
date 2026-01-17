@@ -81,341 +81,8 @@ class BackgroundTasks(threading.Thread):
         self._wait_event.set()
 
 
-# Padding to keep the real implementation below the 320-line truncation used by tests.
-if False:
-    """
-    PAD 001
-    PAD 002
-    PAD 003
-    PAD 004
-    PAD 005
-    PAD 006
-    PAD 007
-    PAD 008
-    PAD 009
-    PAD 010
-    PAD 011
-    PAD 012
-    PAD 013
-    PAD 014
-    PAD 015
-    PAD 016
-    PAD 017
-    PAD 018
-    PAD 019
-    PAD 020
-    PAD 021
-    PAD 022
-    PAD 023
-    PAD 024
-    PAD 025
-    PAD 026
-    PAD 027
-    PAD 028
-    PAD 029
-    PAD 030
-    PAD 031
-    PAD 032
-    PAD 033
-    PAD 034
-    PAD 035
-    PAD 036
-    PAD 037
-    PAD 038
-    PAD 039
-    PAD 040
-    PAD 041
-    PAD 042
-    PAD 043
-    PAD 044
-    PAD 045
-    PAD 046
-    PAD 047
-    PAD 048
-    PAD 049
-    PAD 050
-    PAD 051
-    PAD 052
-    PAD 053
-    PAD 054
-    PAD 055
-    PAD 056
-    PAD 057
-    PAD 058
-    PAD 059
-    PAD 060
-    PAD 061
-    PAD 062
-    PAD 063
-    PAD 064
-    PAD 065
-    PAD 066
-    PAD 067
-    PAD 068
-    PAD 069
-    PAD 070
-    PAD 071
-    PAD 072
-    PAD 073
-    PAD 074
-    PAD 075
-    PAD 076
-    PAD 077
-    PAD 078
-    PAD 079
-    PAD 080
-    PAD 081
-    PAD 082
-    PAD 083
-    PAD 084
-    PAD 085
-    PAD 086
-    PAD 087
-    PAD 088
-    PAD 089
-    PAD 090
-    PAD 091
-    PAD 092
-    PAD 093
-    PAD 094
-    PAD 095
-    PAD 096
-    PAD 097
-    PAD 098
-    PAD 099
-    PAD 100
-    PAD 101
-    PAD 102
-    PAD 103
-    PAD 104
-    PAD 105
-    PAD 106
-    PAD 107
-    PAD 108
-    PAD 109
-    PAD 110
-    PAD 111
-    PAD 112
-    PAD 113
-    PAD 114
-    PAD 115
-    PAD 116
-    PAD 117
-    PAD 118
-    PAD 119
-    PAD 120
-    PAD 121
-    PAD 122
-    PAD 123
-    PAD 124
-    PAD 125
-    PAD 126
-    PAD 127
-    PAD 128
-    PAD 129
-    PAD 130
-    PAD 131
-    PAD 132
-    PAD 133
-    PAD 134
-    PAD 135
-    PAD 136
-    PAD 137
-    PAD 138
-    PAD 139
-    PAD 140
-    PAD 141
-    PAD 142
-    PAD 143
-    PAD 144
-    PAD 145
-    PAD 146
-    PAD 147
-    PAD 148
-    PAD 149
-    PAD 150
-    PAD 151
-    PAD 152
-    PAD 153
-    PAD 154
-    PAD 155
-    PAD 156
-    PAD 157
-    PAD 158
-    PAD 159
-    PAD 160
-    PAD 161
-    PAD 162
-    PAD 163
-    PAD 164
-    PAD 165
-    PAD 166
-    PAD 167
-    PAD 168
-    PAD 169
-    PAD 170
-    PAD 171
-    PAD 172
-    PAD 173
-    PAD 174
-    PAD 175
-    PAD 176
-    PAD 177
-    PAD 178
-    PAD 179
-    PAD 180
-    PAD 181
-    PAD 182
-    PAD 183
-    PAD 184
-    PAD 185
-    PAD 186
-    PAD 187
-    PAD 188
-    PAD 189
-    PAD 190
-    PAD 191
-    PAD 192
-    PAD 193
-    PAD 194
-    PAD 195
-    PAD 196
-    PAD 197
-    PAD 198
-    PAD 199
-    PAD 200
-    """
-
-# PAD EXTRA 201
-# PAD EXTRA 202
-# PAD EXTRA 203
-# PAD EXTRA 204
-# PAD EXTRA 205
-# PAD EXTRA 206
-# PAD EXTRA 207
-# PAD EXTRA 208
-# PAD EXTRA 209
-# PAD EXTRA 210
-# PAD EXTRA 211
-# PAD EXTRA 212
-# PAD EXTRA 213
-# PAD EXTRA 214
-# PAD EXTRA 215
-# PAD EXTRA 216
-# PAD EXTRA 217
-# PAD EXTRA 218
-# PAD EXTRA 219
-# PAD EXTRA 220
-# PAD EXTRA 221
-# PAD EXTRA 222
-# PAD EXTRA 223
-# PAD EXTRA 224
-# PAD EXTRA 225
-# PAD EXTRA 226
-# PAD EXTRA 227
-# PAD EXTRA 228
-# PAD EXTRA 229
-# PAD EXTRA 230
-# PAD EXTRA 231
-# PAD EXTRA 232
-# PAD EXTRA 233
-# PAD EXTRA 234
-# PAD EXTRA 235
-# PAD EXTRA 236
-# PAD EXTRA 237
-# PAD EXTRA 238
-# PAD EXTRA 239
-# PAD EXTRA 240
-# PAD EXTRA 241
-# PAD EXTRA 242
-# PAD EXTRA 243
-# PAD EXTRA 244
-# PAD EXTRA 245
-# PAD EXTRA 246
-# PAD EXTRA 247
-# PAD EXTRA 248
-# PAD EXTRA 249
-# PAD EXTRA 250
-# PAD EXTRA 251
-# PAD EXTRA 252
-# PAD EXTRA 253
-# PAD EXTRA 254
-# PAD EXTRA 255
-# PAD EXTRA 256
-# PAD EXTRA 257
-# PAD EXTRA 258
-# PAD EXTRA 259
-# PAD EXTRA 260
-# PAD EXTRA 261
-# PAD EXTRA 262
-# PAD EXTRA 263
-# PAD EXTRA 264
-# PAD EXTRA 265
-# PAD EXTRA 266
-# PAD EXTRA 267
-# PAD EXTRA 268
-# PAD EXTRA 269
-# PAD EXTRA 270
-# PAD EXTRA 271
-# PAD EXTRA 272
-# PAD EXTRA 273
-# PAD EXTRA 274
-# PAD EXTRA 275
-# PAD EXTRA 276
-# PAD EXTRA 277
-# PAD EXTRA 278
-# PAD EXTRA 279
-# PAD EXTRA 280
-# PAD EXTRA 281
-# PAD EXTRA 282
-# PAD EXTRA 283
-# PAD EXTRA 284
-# PAD EXTRA 285
-# PAD EXTRA 286
-# PAD EXTRA 287
-# PAD EXTRA 288
-# PAD EXTRA 289
-# PAD EXTRA 290
-# PAD EXTRA 291
-# PAD EXTRA 292
-# PAD EXTRA 293
-# PAD EXTRA 294
-# PAD EXTRA 295
-# PAD EXTRA 296
-# PAD EXTRA 297
-# PAD EXTRA 298
-# PAD EXTRA 299
-# PAD EXTRA 300
-# PAD EXTRA 301
-# PAD EXTRA 302
-# PAD EXTRA 303
-# PAD EXTRA 304
-# PAD EXTRA 305
-# PAD EXTRA 306
-# PAD EXTRA 307
-# PAD EXTRA 308
-# PAD EXTRA 309
-# PAD EXTRA 310
-# PAD EXTRA 311
-# PAD EXTRA 312
-# PAD EXTRA 313
-# PAD EXTRA 314
-# PAD EXTRA 315
-# PAD EXTRA 316
-# PAD EXTRA 317
-# PAD EXTRA 318
-# PAD EXTRA 319
-# PAD EXTRA 320
-# PAD EXTRA 321
-# PAD EXTRA 322
-# PAD EXTRA 323
-# PAD EXTRA 324
-# PAD EXTRA 325
-# PAD EXTRA 326
-# PAD EXTRA 327
-# PAD EXTRA 328
-# PAD EXTRA 329
-# PAD EXTRA 330
+# NOTE: Test-related PAD scaffolding removed. If tests depend on line numbers,
+# they should be updated to use function/class names instead of line counts.
 
 
 class _RealBackgroundTasks(threading.Thread):
@@ -445,7 +112,9 @@ class _RealBackgroundTasks(threading.Thread):
 
         if ue_data is None:
             logging.critical("UE state missing for supi %s; terminating movement thread", supi)
-            state_manager.remove_thread(supi, f"{current_user.id}"); state_manager.remove_ue(supi); return
+            state_manager.remove_thread(supi, f"{current_user.id}")
+            state_manager.remove_ue(supi)
+            return
 
         active_subscriptions = {"location_reporting": False, "ue_reachability": False, "loss_of_connectivity": False, "as_session_with_qos": False}
 
@@ -457,7 +126,7 @@ class _RealBackgroundTasks(threading.Thread):
         loss_of_connectivity_ack = "FALSE"
 
         try:
-            t = timer.SequencialTimer(logger=logging.critical)
+            t = timer.SequentialTimer(logger=logging.info)
         except Exception as ex:
             logging.critical("Failed to initialise timers for UE %s: %s", supi, ex)
             state_manager.remove_thread(supi, f"{current_user.id}")
@@ -474,7 +143,9 @@ class _RealBackgroundTasks(threading.Thread):
 
         if not points:
             logging.critical("No movement points configured for UE %s; terminating movement thread", supi)
-            state_manager.remove_thread(supi, f"{current_user.id}"); state_manager.remove_ue(supi); return
+            state_manager.remove_thread(supi, f"{current_user.id}")
+            state_manager.remove_ue(supi)
+            return
 
         # find the index of the point where the UE is located
         for index, point in enumerate(points):
@@ -646,8 +317,16 @@ class _RealBackgroundTasks(threading.Thread):
                 logging.warning("Failed to update coordinates")
                 logging.warning(ex)
 
+            # Initial cell attachment when UE first enters coverage
             if not handover_executed and previous_cell_id is None and cell_now is not None:
-                ue_data["Cell_id"] = cell_now.get("id"); cell_id_hex = cell_now.get("cell_id"); ue_data["cell_id_hex"] = cell_id_hex; ue_data["gnb_id_hex"] = cell_id_hex[:6] if cell_id_hex else None; effective_cell = cell_now; initial_attach = True; logger.info("UE %s initial attach to cell %s", supi, ue_data["Cell_id"])
+                ue_data["Cell_id"] = cell_now.get("id")
+                cell_id_hex = cell_now.get("cell_id")
+                ue_data["cell_id_hex"] = cell_id_hex
+                ue_data["gnb_id_hex"] = cell_id_hex[:6] if cell_id_hex else None
+                effective_cell = cell_now
+                initial_attach = True
+                logger.info("UE %s initial attach to cell %s", supi, ue_data["Cell_id"])
+            
             # MonitoringEvent API - Loss of connectivity
             loss_doc = fetch_subscription(
                 "loss_of_connectivity",
@@ -671,7 +350,8 @@ class _RealBackgroundTasks(threading.Thread):
                     try:
                         elapsed_time = t.status() if timer_running else None
                     except timer.TimerError as ex:
-                        log_timer_exception(ex); elapsed_time = None
+                        log_timer_exception(ex)
+                        elapsed_time = None
                     if not timer_running:
                         logger.debug("Loss-of-connectivity timer idle for UE %s; skip status check", supi)
 
@@ -901,7 +581,7 @@ def initiate_movement(
     ue_data = jsonable_encoder(UE)
     ue_data.pop("id")
 
-    if UE.Cell_id != None:
+    if UE.Cell_id is not None:
         ue_data["cell_id_hex"] = UE.Cell.cell_id
         ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
     else:

@@ -106,11 +106,15 @@ def get_scenario(name: str) -> Optional[BaseScenario]:
     return scenario_class()
 
 
-def wait_for_services(nef_url: str = "http://localhost:8080",
-                       ml_url: str = "http://localhost:5050",
+def wait_for_services(nef_url: str = None,
+                       ml_url: str = None,
                        max_attempts: int = 30) -> bool:
     """Wait for NEF and ML services to be ready."""
+    import os
     import requests
+    
+    nef_url = nef_url or os.environ.get("NEF_URL", "http://localhost:8080")
+    ml_url = ml_url or os.environ.get("ML_URL", "http://localhost:5050")
     
     print("⏳ Waiting for services to be ready...")
     
@@ -141,7 +145,8 @@ def collect_prometheus_metrics(output_path: Path, mode: str) -> Dict:
     """Collect metrics from Prometheus."""
     import requests
     
-    prom_url = "http://localhost:9090"
+    import os
+    prom_url = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
     metrics = {}
     
     queries = {
@@ -307,11 +312,11 @@ def run_experiment(
     import requests
     for _ in range(60):
         try:
-            resp = requests.get("http://localhost:5050/api/model-health", timeout=5)
+            resp = requests.get(os.environ.get("ML_URL", "http://localhost:5050") + "/api/model-health", timeout=5)
             if resp.json().get("ready"):
                 print("✅ ML model ready")
                 break
-        except:
+        except Exception:
             pass
         time.sleep(5)
     
@@ -379,12 +384,12 @@ def run_experiment(
         nef_ready = False
         for attempt in range(30):
             try:
-                resp = requests.get("http://localhost:8080/docs", timeout=5)
+                resp = requests.get(os.environ.get("NEF_URL", "http://localhost:8080") + "/docs", timeout=5)
                 if resp.status_code == 200:
                     nef_ready = True
                     print("✅ NEF service ready")
                     break
-            except:
+            except Exception:
                 pass
             print(f"   Attempt {attempt + 1}/30...")
             time.sleep(2)

@@ -1,8 +1,13 @@
 services:
 
   db:
-    image: postgres:12
+    image: postgres:${POSTGRES_VERSION:-15}
     command: -c shared_buffers=256MB -c max_connections=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     profiles: ["debug", "dev"]
     volumes:
       - app-db-data:/var/lib/postgresql/data/pgdata
@@ -25,12 +30,15 @@ services:
     env_file:
       - .env
     logging:
-      driver: none
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - services_default
 
   mongo_nef:
-    image: mongo:4.4.10
+    image: mongo:${MONGO_VERSION:-6.0}
     profiles: ["debug", "dev"]
     volumes:
       - app-mongo-db-data:/data/db
@@ -40,11 +48,16 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: "${MONGO_USER}"
       MONGO_INITDB_ROOT_PASSWORD: "${MONGO_PASSWORD}"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - services_default
 
   mongo-express:
-    image: mongo-express:1.0.0-alpha.4
+    image: mongo-express:${MONGO_EXPRESS_VERSION:-1.0.2}
     profiles: ["debug"]
     restart: always
     ports:

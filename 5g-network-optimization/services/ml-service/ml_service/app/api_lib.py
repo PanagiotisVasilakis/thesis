@@ -23,7 +23,7 @@ def load_model(
     return ModelManager.get_instance(model_path, neighbor_count=neighbor_count)
 
 
-def predict(ue_data: dict, model: Any | None = None):
+def predict(ue_data: dict, model: Any | None = None) -> tuple[dict, dict]:
     """Return prediction for ``ue_data`` using the provided model."""
     mdl = model or load_model()
     features = mdl.extract_features(ue_data)
@@ -60,8 +60,8 @@ def predict(ue_data: dict, model: Any | None = None):
                     observed=observed_metrics,
                 )
                 metrics.ADAPTIVE_CONFIDENCE.labels(service_type=service_type).set(adaptive_required)
-            except Exception:
-                pass
+            except Exception as exc:
+                metrics.logger.debug("Failed to track QoS metrics: %s", exc)
             return result, features
 
         compliance, violations = evaluate_qos_compliance(
@@ -80,9 +80,10 @@ def predict(ue_data: dict, model: Any | None = None):
         )
         try:
             metrics.ADAPTIVE_CONFIDENCE.labels(service_type=service_type).set(adaptive_required)
-        except Exception:
-            pass
-    except Exception:
+        except Exception as exc:
+            metrics.logger.debug("QoS compliance tracking failed: %s", exc)
+    except Exception as exc:
+        metrics.logger.debug("QoS evaluation failed, using defaults: %s", exc)
         result.setdefault("qos_compliance", {"service_priority_ok": True, "details": {}})
     return result, features
 
@@ -95,5 +96,5 @@ def train(
 ) -> dict:
     """Train ``model`` with ``data`` and return training metrics."""
     mdl = model or load_model(neighbor_count=neighbor_count)
-    metrics = mdl.train(data)
-    return metrics
+    training_metrics = mdl.train(data)
+    return training_metrics

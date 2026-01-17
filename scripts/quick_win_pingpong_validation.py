@@ -9,6 +9,7 @@ ML should suppress handovers; A3 should ping-pong.
 """
 
 import sys
+import os
 import time
 import requests
 import json
@@ -18,7 +19,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 # Configuration
-NEF_BASE_URL = "http://localhost:8080"
+NEF_BASE_URL = os.environ.get("NEF_URL", "http://localhost:8080")
 API_PREFIX = f"{NEF_BASE_URL}/api/v1"
 ML_API_PREFIX = f"{API_PREFIX}/ml/ml"
 RESULTS_DIR = Path(__file__).parent.parent / "thesis_results" / "pingpong_validation"
@@ -56,8 +57,8 @@ class PingPongValidator:
             response = requests.post(
                 f"{API_PREFIX}/login/access-token",
                 data={
-                    "username": "admin@my-email.com",
-                    "password": "pass"
+                    "username": os.environ.get("NEF_USERNAME", "admin@my-email.com"),
+                    "password": os.environ.get("NEF_PASSWORD", "pass")
                 }
             )
             response.raise_for_status()
@@ -236,8 +237,6 @@ class PingPongValidator:
         except Exception as e:
             self.log(f"⚠ Error creating UE (may already exist): {e}")
             return ue_data
-
-        return ue_data
     
     def oscillate_ue(
         self,
