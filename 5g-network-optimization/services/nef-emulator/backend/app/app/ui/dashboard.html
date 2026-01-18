@@ -50,55 +50,72 @@
 
       <div class="body flex-grow-1 px-3">
         <div class="container-lg">
+
+          <!-- Welcome Panel for New Users -->
+          <div class="alert alert-info alert-dismissible fade show mb-4" role="alert" id="welcome-panel">
+            <h5 class="alert-heading"><i class="icon ion-md-information-circle me-2"></i>Welcome to NEF Emulator!</h5>
+            <p class="mb-2">This dashboard lets you create and manage your 5G network simulation. Here's how to get started:</p>
+            <ol class="mb-2">
+              <li><strong>Create gNBs</strong> – Add 5G base stations (the radio equipment)</li>
+              <li><strong>Add Cells</strong> – Define coverage areas for each base station</li>
+              <li><strong>Add UEs</strong> – Create mobile devices (User Equipment)</li>
+              <li><strong>Define Paths</strong> – Set movement trajectories for UEs</li>
+              <li><strong>Go to Map</strong> – Start the simulation and watch UEs move!</li>
+            </ol>
+            <hr>
+            <p class="mb-0"><small>💡 Tip: Hover over terms for explanations. Use <strong>Export</strong> to save your scenario.</small></p>
+            <button type="button" class="btn-close" data-coreui-dismiss="alert" aria-label="Close"></button>
+          </div>
+
           <div class="row">
 
             <div class="col-sm-6 col-lg-3">
-              <div class="card card-gNBs mb-4 text-white bg-primary">
+              <div class="card card-gNBs mb-4 text-white bg-primary" data-coreui-toggle="tooltip" data-coreui-placement="bottom" title="gNodeB: 5G base station - the radio equipment that provides wireless coverage">
                 <div class="card-body align-items-start">
                   <div class="d-flex justify-content-between">
                     <i class="icon ion-ios-cellular icon-dashboard"></i>
                     <div class="fs-2 fw-semibold" id="num-gnbs-card">-</div>  
                   </div>
-                  <div>gNBs</div>
+                  <div>gNBs <small class="opacity-75">(Base Stations)</small></div>
                   <div class="spinner-grow spinner-grow-sm text-light" style="display:none;" role="status"><span class="visually-hidden">Loading...</span></div>
                 </div>
               </div>
             </div>
 
             <div class="col-sm-6 col-lg-3">
-              <div class="card card-cells mb-4 text-white bg-info">
+              <div class="card card-cells mb-4 text-white bg-info" data-coreui-toggle="tooltip" data-coreui-placement="bottom" title="Cell: Coverage area served by an antenna. Each gNB can have multiple cells.">
                 <div class="card-body align-items-start">
                   <div class="d-flex justify-content-between">
                     <i class="icon ion-md-wifi icon-dashboard"></i>
                     <div class="fs-2 fw-semibold" id="num-cells-card">-</div>  
                   </div>
-                  <div>Cells</div>
+                  <div>Cells <small class="opacity-75">(Coverage Areas)</small></div>
                   <div class="spinner-grow spinner-grow-sm text-light" style="display:none;" role="status"><span class="visually-hidden">Loading...</span></div>
                 </div>
               </div>
             </div>
 
             <div class="col-sm-6 col-lg-3">
-              <div class="card card-ues mb-4 text-white bg-warning">
+              <div class="card card-ues mb-4 text-white bg-warning" data-coreui-toggle="tooltip" data-coreui-placement="bottom" title="UE (User Equipment): Mobile devices like phones or IoT sensors that connect to the network.">
                 <div class="card-body align-items-start">
                   <div class="d-flex justify-content-between">
                     <i class="icon ion-md-phone-portrait icon-dashboard"></i>
                     <div class="fs-2 fw-semibold" id="num-UEs-card">-</div>  
                   </div>
-                  <div>UEs</div>
+                  <div>UEs <small class="opacity-75">(Mobile Devices)</small></div>
                   <div class="spinner-grow spinner-grow-sm text-light" style="display:none;" role="status"><span class="visually-hidden">Loading...</span></div>
                 </div>
               </div>
             </div>
 
             <div class="col-sm-6 col-lg-3">
-              <div class="card card-paths mb-4 text-white bg-danger">
+              <div class="card card-paths mb-4 text-white bg-danger" data-coreui-toggle="tooltip" data-coreui-placement="bottom" title="Path: Movement trajectory for UE simulation. UEs follow paths during the simulation.">
                 <div class="card-body align-items-start">
                   <div class="d-flex justify-content-between">
                     <i class="icon ion-md-walk icon-dashboard"></i>
                     <div class="fs-2 fw-semibold"  id="num-paths-card">-</div>  
                   </div>
-                  <div>Paths</div>
+                  <div>Paths <small class="opacity-75">(Trajectories)</small></div>
                   <div class="spinner-grow spinner-grow-sm text-light" style="display:none;" role="status"><span class="visually-hidden">Loading...</span></div>
                 </div>
               </div>
