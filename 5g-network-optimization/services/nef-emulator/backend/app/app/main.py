@@ -6,8 +6,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
 
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from app.core.config import settings
@@ -17,7 +15,6 @@ from app.monitoring import metrics
 # Where are we on disk?
 BASE_DIR = Path(__file__).resolve().parent  # .../app/app
 STATIC_DIR = BASE_DIR / "static"
-TEMPLATES_DIR = BASE_DIR / "ui"
 
 # ================================= Main Application - NEF Emulator =================================
 
@@ -26,7 +23,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
 )
 
-# CORS
+# CORS - Allow Kinisis UI to connect
 if settings.BACKEND_CORS_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
@@ -64,56 +61,25 @@ async def add_process_time_header(request: Request, call_next):
     metrics.REQUEST_DURATION.labels(request.method, request.url.path).observe(duration)
     return resp
 
-# ================================= Static Files & Templates =================================
+# ================================= Static Files =================================
 
-# serve static assets at /static
+# serve static assets at /static (scenarios, logos, docs)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# configure Jinja2 templates
-templates = Jinja2Templates(directory=TEMPLATES_DIR)
+# ================================= Health Check =================================
 
-# ================================= UI Routes =================================
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for container orchestration."""
+    return {"status": "healthy", "service": "nef-emulator"}
 
-@app.get("/", response_class=HTMLResponse)
-async def root_redirect():
-    return RedirectResponse("/dashboard")
-
-@app.get("/login", response_class=HTMLResponse)
-async def login(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-@app.get("/register", response_class=HTMLResponse)
-async def register(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
-
-@app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
-
-@app.get("/map", response_class=HTMLResponse)
-async def map_view(request: Request):
-    return templates.TemplateResponse("map.html", {"request": request})
-
-@app.get("/export", response_class=HTMLResponse)
-async def export(request: Request):
-    return templates.TemplateResponse("export.html", {"request": request})
-
-@app.get("/import", response_class=HTMLResponse)
-async def import_view(request: Request):
-    return templates.TemplateResponse("import.html", {"request": request})
-
-@app.get("/analytics", response_class=HTMLResponse)
-async def analytics(request: Request):
-    return templates.TemplateResponse("analytics.html", {"request": request})
-
-@app.get("/err404", response_class=HTMLResponse)
-async def err404(request: Request):
-    return templates.TemplateResponse("404.html", {"request": request})
-
-@app.get("/err401", response_class=HTMLResponse)
-async def err401(request: Request):
-    return templates.TemplateResponse("401.html", {"request": request})
-
-@app.get("/err500", response_class=HTMLResponse)
-async def err500(request: Request):
-    return templates.TemplateResponse("500.html", {"request": request})
+@app.get("/")
+async def root():
+    """Root endpoint with API information."""
+    return {
+        "service": "NEF Emulator API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "redoc": "/redoc",
+        "ui": "Use Kinisis UI (separate frontend)"
+    }
