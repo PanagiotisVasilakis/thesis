@@ -13,7 +13,7 @@ This repository contains a **production-ready** machine learning-based handover 
 - **100% QoS compliance** (all ML handovers improved latency, throughput, and packet loss)
 - **73/73 tests passing** (comprehensive validation across 8 development phases)
 
-**Getting Started:** see [`docs/INDEX.md`](docs/INDEX.md) for prerequisites, quickstart, and navigation. The defence-ready walkthrough lives in [`docs/END_TO_END_DEMO.md`](docs/END_TO_END_DEMO.md). QoS behaviour and admission control are documented in [`docs/architecture/qos.md`](docs/architecture/qos.md).
+**Getting Started:** see [`docs/README.md`](docs/README.md) for prerequisites, quickstart, and navigation. The defence-ready walkthrough is covered in [`docs/THESIS.md`](docs/THESIS.md). QoS behaviour and admission control are documented in [`docs/THESIS.md`](docs/THESIS.md).
 
 **Reproducibility:** Run the full thesis experiment with:
 ```bash
@@ -105,7 +105,7 @@ JSON output preserves the same field names for parity with the CSV schema.
 
 ### Traffic distributions and rationale
 
-Service parameter envelopes align with 3GPP TS 22.261 and TR 38.913 for eMBB/URLLC and 3GPP TS 22.104 for mMTC, while the priority ranges mirror the conversational/mission-critical 5QI groupings from 3GPP TS 23.501 Annex E. By sampling bounded triangular distributions we bias the generator toward the operating points highlighted in those specifications while staying within their recommended minimum/maximum targets. A deeper explanation of the envelopes, trade-offs, and academic references is available in [`docs/qos/synthetic_qos_dataset.md`](docs/qos/synthetic_qos_dataset.md).
+Service parameter envelopes align with 3GPP TS 22.261 and TR 38.913 for eMBB/URLLC and 3GPP TS 22.104 for mMTC, while the priority ranges mirror the conversational/mission-critical 5QI groupings from 3GPP TS 23.501 Annex E. By sampling bounded triangular distributions we bias the generator toward the operating points highlighted in those specifications while staying within their recommended minimum/maximum targets. A deeper explanation of the envelopes, trade-offs, and academic references is available in [`docs/THESIS.md`](docs/THESIS.md).
 
 ### CLI usage
 
@@ -226,7 +226,7 @@ transform names (e.g. `float`, `int`) or fully qualified Python paths such as
 `math.sqrt`.  The registry is also accessible programmatically for custom
 registrations. The path to the configuration file can be overridden using the
 `FEATURE_CONFIG_PATH` environment variable. See
-[`docs/architecture/qos.md`](docs/architecture/qos.md) for details on feature transforms and data drift monitoring.
+[`docs/THESIS.md`](docs/THESIS.md) for details on feature transforms and data drift monitoring.
 
 ## Running the System
 
@@ -390,3 +390,9 @@ The second command collects the generated images and captions under
 - `scripts/install_system_deps.sh` – install OS libraries needed by the services and tests.
 - `scripts/install_deps.sh` – install Python dependencies listed in `requirements.txt` and the `ml_service` package. Pass `--skip-if-present` to bypass installation when a suitable virtual environment already has them.
 - `scripts/run_tests.sh` – run both installation steps and execute the tests with coverage output.
+
+## Additional Resources
+
+- **Operations Manual**: [docs/MANUAL.md](docs/MANUAL.md)
+- **Thesis Details**: [docs/THESIS.md](docs/THESIS.md)
+- **Documentation Home**: [docs/README.md](docs/README.md)
