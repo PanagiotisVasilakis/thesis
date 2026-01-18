@@ -2,15 +2,7 @@
 
 Modern React-based UI for the 5G Network Emulator (NEF).
 
-## Features
-
-- 🗺️ **Interactive Map** - Visualize cells, UEs, and paths with Leaflet
-- 🧠 **ML Control** - Toggle between ML and A3 handover modes
-- 📊 **Analytics** - Compare ML vs A3 performance with charts
-- 📥 **Scenarios** - Load pre-built test scenarios
-- 📤 **Export** - Save configurations and results
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Development
 
@@ -18,53 +10,99 @@ Modern React-based UI for the 5G Network Emulator (NEF).
 # Install dependencies
 npm install
 
-# Start dev server (with API proxy)
+# Start dev server
 npm run dev
 ```
 
 Visit `http://localhost:3000`
 
-### Production
+### Production (Docker)
 
 ```bash
-# Build
-npm run build
-
-# Or use Docker
+# Build and run with Docker
 docker build -t kinisis-ui .
-docker run -p 80:80 kinisis-ui
+docker run -p 3000:80 kinisis-ui
 ```
 
-## API Configuration
+Or add to your existing docker-compose.yml (see `docker-compose.example.yml`)
 
-Set in `.env`:
-```
-VITE_API_URL=/api/v1
-```
+## 📦 Features
 
-For development, API calls are proxied to `https://localhost:4443` (see `vite.config.js`).
+- 🗺️ **Interactive Map** - Leaflet with cells, UEs, and paths
+- 🧠 **ML Control** - Toggle between ML and A3 handover modes
+- 🏛️ **Entity Management** - Full CRUD for gNBs, Cells, UEs, Paths
+- 📊 **Analytics** - Charts comparing ML vs A3 performance
+- 📥 **Scenarios** - Load pre-built or custom test scenarios
+- 📤 **Export** - Download results as CSV/JSON
 
-## Project Structure
+## 🛠️ Tech Stack
+
+- **React 18** + **Vite** - Fast dev and build
+- **Tailwind CSS** - Modern styling
+- **TanStack Table** - Advanced data tables
+- **React-Leaflet** - Map visualization
+- **Recharts** - Analytics charts
+- **Zod** - Form validation
+- **React Hot Toast** - Notifications
+
+## 📁 Project Structure
 
 ```
 src/
-├── api/           # API clients (nefClient, mlClient)
-├── components/    # Reusable React components
-│   ├── Layout/    # Sidebar, Header
-│   ├── Map/       # Map components
-│   ├── Dashboard/ # Stats cards
-│   ├── ML/        # Mode toggle, signal panel
-│   └── Analytics/ # Charts
-├── pages/         # Route pages
-├── hooks/         # Custom hooks
-├── context/       # React context
-└── styles/        # CSS
+├── api/              # API clients (nefClient, mlClient)
+├── components/       # Reusable components
+│   ├── shared/       # DataTable, Modal, Loading, ErrorBoundary
+│   ├── forms/        # Entity forms with validation
+│   ├── Layout/       # Sidebar, Header
+│   ├── Map/          # Map components
+│   ├── ML/           # ML controls and panels
+│   ├── Dashboard/    # Stats cards
+│   └── Analytics/    # Charts
+├── pages/            # Route pages
+│   ├── entities/     # Entity management tabs
+│   └── ...
+└── styles/           # Global CSS
 ```
 
-## Technologies
+## 🔧 Configuration
 
-- React 18 + Vite
-- Tailwind CSS
-- React-Leaflet
-- Recharts
-- Axios
+### Environment Variables
+
+```env
+VITE_API_URL=/api/v1
+```
+
+### API Proxy (Development)
+
+In `vite.config.js`, API calls are proxied to `https://localhost:4443` during development.
+
+### Production
+
+In production (Docker), nginx proxies `/api/*` to the backend service.
+
+## 🐳 Docker
+
+The app uses a multi-stage build:
+1. **Build stage** - Compiles React app with Vite
+2. **Production stage** - Serves static files with Nginx
+
+Health check: `http://localhost:3000/health`
+
+## 📚 Available Routes
+
+| Route | Description |
+|-------|-------------|
+| `/dashboard` | Overview and quick actions |
+| `/entities` | Manage gNBs, Cells, UEs, Paths |
+| `/map` | Interactive network map |
+| `/import` | Load scenarios |
+| `/export` | Export configurations |
+| `/analytics` | Performance charts |
+
+## 🔒 Authentication
+
+Uses JWT tokens stored in localStorage. Login at `/login` (default: admin/admin).
+
+---
+
+**Part of the 5G Network Optimization thesis project**

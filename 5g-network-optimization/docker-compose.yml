@@ -94,6 +94,20 @@ services:
     networks:
       - 5g-network
 
+  kinisis_ui:
+    image: 5g-network-optimization/kinisis-ui:latest
+    build:
+      context: ./services/kinisis_ui
+      dockerfile: Dockerfile
+    ports:
+      - "3001:80"
+    environment:
+      - VITE_API_URL=/api/v1
+    depends_on:
+      - nef-emulator
+    networks:
+      - 5g-network
+
 networks:
   5g-network:
     driver: bridge

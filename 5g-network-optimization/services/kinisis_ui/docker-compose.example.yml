@@ -1,0 +1,27 @@
+# Add to your existing docker-compose.yml
+
+services:
+  # ... existing services (backend, db, ml-service, etc.)
+
+  kinisis-ui:
+    build:
+      context: ./services/kinisis_ui
+      dockerfile: Dockerfile
+    container_name: kinisis-ui
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_API_URL=/api/v1
+    depends_on:
+      - backend
+    networks:
+      - nef-network
+    restart: unless-stopped
+    labels:
+      - "com.kinisis.service=ui"
+      - "com.kinisis.description=React frontend for NEF Emulator"
+
+# Make sure you have the network defined
+networks:
+  nef-network:
+    driver: bridge

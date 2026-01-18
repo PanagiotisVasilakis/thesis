@@ -165,10 +165,38 @@ export default function MapPage() {
                                 }}
                             >
                                 <Popup>
-                                    <strong>{ue.name}</strong><br />
-                                    SUPI: {ue.supi}<br />
-                                    Cell: {ue.cell_id_hex || 'None'}<br />
-                                    Speed: {ue.speed}
+                                    <div className="min-w-[200px]">
+                                        <strong>{ue.name}</strong><br />
+                                        SUPI: {ue.supi}<br />
+                                        Cell: {ue.cell_id_hex || 'None'}<br />
+                                        Speed: {ue.speed}<br />
+                                        <div className="flex gap-2 mt-2">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await startUE(ue.supi);
+                                                    } catch (error) {
+                                                        console.error('Failed to start UE:', error);
+                                                    }
+                                                }}
+                                                className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                                            >
+                                                ▶️ Start
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await stopUE(ue.supi);
+                                                    } catch (error) {
+                                                        console.error('Failed to stop UE:', error);
+                                                    }
+                                                }}
+                                                className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                            >
+                                                ⏹️ Stop
+                                            </button>
+                                        </div>
+                                    </div>
                                 </Popup>
                             </Marker>
                         ))}
