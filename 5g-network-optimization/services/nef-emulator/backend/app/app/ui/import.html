@@ -72,7 +72,43 @@
                 <div>
                   Make sure that you have an <strong>empty database</strong> before importing a new scenario. If you have access to a console, go to the source code folder and run: <code> make db-reset </code>.
                 </div>
-              </div> -->
+              <!-- </div> -->
+          </div>
+        </div>
+
+        <!-- Scenario Selector -->
+        <div class="row mb-3">
+          <div class="col-md-12">
+            <div class="card border-primary">
+              <div class="card-header bg-primary text-white">
+                <i class="icon ion-md-folder me-2"></i>📁 Pre-built Test Scenarios
+              </div>
+              <div class="card-body">
+                <p class="text-muted mb-3">
+                  <small>Select a pre-configured scenario to quickly test different network configurations:</small>
+                </p>
+                <div class="row align-items-center">
+                  <div class="col-md-8">
+                    <select class="form-select" id="scenario-select">
+                      <option value="">-- Select a Scenario --</option>
+                      <option value="ncsrd_campus">🏛️ NCSRD Campus (4 cells, 3 UEs) - Basic demo</option>
+                      <option value="handover_stress">🔥 Handover Stress Test (6 cells, 5 UEs) - ML accuracy test
+                      </option>
+                      <option value="highway">🚗 Highway Fast Handover (4 cells, 6 UEs) - High-speed test</option>
+                      <option value="urban_dense">🏙️ Urban Dense Network (8 cells, 10 UEs) - Load balancing</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <button type="button" class="btn btn-primary" id="load-scenario-btn"
+                      onclick="loadPrebuiltScenario()">
+                      <svg class="icon">
+                        <use xlink:href="static/vendors/@coreui/icons/svg/free.svg#cil-cloud-download"></use>
+                      </svg> Load Scenario
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

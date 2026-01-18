@@ -5,9 +5,9 @@
 // varialbles used for raw data,
 // as they are fetched from the API
 var mymap = null;
-var gNBs  = null;
+var gNBs = null;
 var cells = null;
-var ues   = null;
+var ues = null;
 var paths = null;
 
 var moving_ues = null;
@@ -15,20 +15,20 @@ var moving_ues = null;
 
 // variables used for painting / updating the map
 //  map layer groups
-var cells_lg         = L.layerGroup(),
+var cells_lg = L.layerGroup(),
     cell_coverage_lg = L.layerGroup(),
-    ues_lg           = L.layerGroup(),
-    paths_lg         = L.layerGroup();
+    ues_lg = L.layerGroup(),
+    paths_lg = L.layerGroup();
 //  markers
-var ue_markers   = {};
+var ue_markers = {};
 var cell_markers = {};
-var map_bounds   = [];
+var map_bounds = [];
 
 
 // for UE & map refresh
-var UE_refresh_interval    = null;
+var UE_refresh_interval = null;
 var UE_refresh_sec_default = 1000; // 1 sec
-var UE_refresh_sec         = -1;   // when select = "off" AND disabled = true
+var UE_refresh_sec = -1;   // when select = "off" AND disabled = true
 
 // template for UE buttons
 var ue_btn_tpl = `<button class="btn btn-success btn-sm px-4 mb-1 btn-ue" type="button" id="btn-ue-{{supi}}" data-supi={{supi}} data-running=false>{{name}}</button> `
@@ -36,15 +36,15 @@ var ue_btn_tpl = `<button class="btn btn-success btn-sm px-4 mb-1 btn-ue" type="
 var looping_UEs = 0;
 
 // variables used for events
-var events                  = null;
-var events_datatbl          = null;
-var events_first_fetch      = true;
+var events = null;
+var events_datatbl = null;
+var events_first_fetch = true;
 var latest_event_id_fetched = -1;
 
 // for events & datatables refresh
-var events_refresh_interval    = null;
+var events_refresh_interval = null;
 var events_refresh_sec_default = 5000; // 5 sec
-var events_refresh_sec         = 5000; // 5 sec
+var events_refresh_sec = 5000; // 5 sec
 
 // template for Details buttons
 var detail_btn_tpl = `<button class="btn btn-light" type="button" onclick="show_details_modal({{id}});">
@@ -67,7 +67,7 @@ var paths_painted = [];
 // ===============================================
 //                 Document ready
 // ===============================================
-$( document ).ready(function() {
+$(document).ready(function () {
 
     ui_initialize_map();
 
@@ -78,43 +78,43 @@ $( document ).ready(function() {
 
     // wait for ajax call to UEs endpoint
     // to initialize the UEs data
-    let wait_for_UEs_data = function() {
-      setTimeout(function () {
-        if (ues === null)
-          wait_for_UEs_data();
-        else {
-            // when ready,
-            //  1. get and paint every path per UE
-            //  2. create start/stop buttons
-            for (const ue of ues) {
-
-                // if no path selected, skip map paint and creation of button
-                if (ue.path_id == 0) { continue; }
-
-                // if not already fetched and painted, do so
-                if ( !helper_check_path_is_already_painted( ue.path_id ) ) { 
-                    api_get_specific_path(ue.path_id);
-                    paths_painted[ue.path_id] = true;
-                }
-                ui_generate_loop_btn_for( ue );
-                ui_set_loop_btn_status_for( ue );
-            }
-
-
-            if ( ues.length >0 ) {
-                ui_add_ue_btn_listeners();
-                ui_add_ue_all_btn_listener();
-            }
+    let wait_for_UEs_data = function () {
+        setTimeout(function () {
+            if (ues === null)
+                wait_for_UEs_data();
             else {
-                $('#btn-start-all').removeClass("btn-success").addClass("btn-secondary").attr("disabled",true);
-            }
+                // when ready,
+                //  1. get and paint every path per UE
+                //  2. create start/stop buttons
+                for (const ue of ues) {
 
-            // edge case: UEs with no paths assigned --> disable button
-            if (paths_painted.length == 0) {
-                $('#btn-start-all').removeClass("btn-success").addClass("btn-secondary").attr("disabled",true);
+                    // if no path selected, skip map paint and creation of button
+                    if (ue.path_id == 0) { continue; }
+
+                    // if not already fetched and painted, do so
+                    if (!helper_check_path_is_already_painted(ue.path_id)) {
+                        api_get_specific_path(ue.path_id);
+                        paths_painted[ue.path_id] = true;
+                    }
+                    ui_generate_loop_btn_for(ue);
+                    ui_set_loop_btn_status_for(ue);
+                }
+
+
+                if (ues.length > 0) {
+                    ui_add_ue_btn_listeners();
+                    ui_add_ue_all_btn_listener();
+                }
+                else {
+                    $('#btn-start-all').removeClass("btn-success").addClass("btn-secondary").attr("disabled", true);
+                }
+
+                // edge case: UEs with no paths assigned --> disable button
+                if (paths_painted.length == 0) {
+                    $('#btn-start-all').removeClass("btn-success").addClass("btn-secondary").attr("disabled", true);
+                }
             }
-        }
-      }, 100);
+        }, 100);
     };
     wait_for_UEs_data();
 
@@ -131,11 +131,11 @@ $( document ).ready(function() {
 
     // in case the header-toggle button is pressed,
     // the map container resizes and the map has to invalidateSize()
-    $('#mapid').resize(function(){mymap.invalidateSize()});
+    $('#mapid').resize(function () { mymap.invalidateSize() });
 });
 
-$( window ).resize(function() {
-    $('#mapid').css({"height": window.innerHeight * 0.65} );
+$(window).resize(function () {
+    $('#mapid').css({ "height": window.innerHeight * 0.65 });
 });
 // ===============================================
 
@@ -155,23 +155,23 @@ function start_map_refresh_interval() {
 
     if (UE_refresh_interval == null) {
 
-        if ( UE_refresh_sec == 0 ) {
-            $('.map-reload-select').prop("disabled",false);
+        if (UE_refresh_sec == 0) {
+            $('.map-reload-select').prop("disabled", false);
             return;
         }
 
         // specify the seconds between every interval
-        if ( UE_refresh_sec ==-1 ) { // select is "off" and "disabled"
-             UE_refresh_sec = UE_refresh_sec_default;
+        if (UE_refresh_sec == -1) { // select is "off" and "disabled"
+            UE_refresh_sec = UE_refresh_sec_default;
         }
 
         // start updating
-        UE_refresh_interval = setInterval(function(){ 
+        UE_refresh_interval = setInterval(function () {
             api_get_moving_UEs();
         }, UE_refresh_sec);
 
         // enable the select button
-        $('.map-reload-select').prop("disabled",false);
+        $('.map-reload-select').prop("disabled", false);
         $('.map-reload-select').val(UE_refresh_sec);
     }
 }
@@ -179,22 +179,22 @@ function start_map_refresh_interval() {
 
 function stop_map_refresh_interval() {
     // stop updating every second
-    clearInterval( UE_refresh_interval );
+    clearInterval(UE_refresh_interval);
     UE_refresh_interval = null;
-    
+
     // disable the select button
-    $('.map-reload-select').prop("disabled",true);
+    $('.map-reload-select').prop("disabled", true);
     // UE_refresh_sec = 0;
     // $('.map-reload-select').val(0);
 }
 
 
-function reload_map_refresh_interval( new_option ) {
-    
-    stop_map_refresh_interval();
-    UE_refresh_sec  = new_option;
+function reload_map_refresh_interval(new_option) {
 
-    if (new_option==0) {
+    stop_map_refresh_interval();
+    UE_refresh_sec = new_option;
+
+    if (new_option == 0) {
         // user has choosed 0 / off
         // and wants to stop fetcing UEs...
         return;
@@ -224,7 +224,7 @@ function start_events_refresh_interval() {
     if (events_refresh_interval == null) {
 
         // start updating
-        events_refresh_interval = setInterval(function(){ 
+        events_refresh_interval = setInterval(function () {
             api_get_last_monitoring_events();
         }, events_refresh_sec);
 
@@ -235,19 +235,19 @@ function start_events_refresh_interval() {
 
 function stop_events_refresh_interval() {
     // stop updating every second
-    clearInterval( events_refresh_interval );
+    clearInterval(events_refresh_interval);
     events_refresh_interval = null;
-    
+
     events_refresh_sec = 0;
     $('.events-reload-select').val(0);
 }
 
 
-function reload_events_refresh_interval( new_option ) {
+function reload_events_refresh_interval(new_option) {
     stop_events_refresh_interval();
-    events_refresh_sec  = new_option;
+    events_refresh_sec = new_option;
 
-    if (new_option==0) {
+    if (new_option == 0) {
         // user has choosed 0 / off
         // and wants to stop fetcing new events...
         return;
@@ -270,20 +270,20 @@ function reload_events_refresh_interval( new_option ) {
 function ui_initialize_map() {
 
     // set map height
-    $('#mapid').css({"height": window.innerHeight * 0.65} );
+    $('#mapid').css({ "height": window.innerHeight * 0.65 });
 
     var mbAttr = 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
-                'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+        'Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
         mbUrl = 'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoiZXhhbXBsZXMiLCJhIjoiY2p0MG01MXRqMW45cjQzb2R6b2ptc3J4MSJ9.zA2W0IkI0c6KaAhJfk9bWg';
 
     var osAttr = '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        osUrl  = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+        osUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 
 
-    var grayscale   = L.tileLayer(mbUrl, {id: 'mapbox/light-v9',    tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23}),
-        streets     = L.tileLayer(mbUrl, {id: 'mapbox/streets-v11', tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23}),
-        osm         = L.tileLayer(osUrl, {                          tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23});
+    var grayscale = L.tileLayer(mbUrl, { id: 'mapbox/light-v9', tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23 }),
+        streets = L.tileLayer(mbUrl, { id: 'mapbox/streets-v11', tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23 }),
+        osm = L.tileLayer(osUrl, { tileSize: 512, zoomOffset: -1, attribution: mbAttr, maxZoom: 23 });
 
 
     // map initialization
@@ -294,10 +294,10 @@ function ui_initialize_map() {
 
 
     var baseLayers = {
-            "Grayscale": grayscale,
-            "Streets": streets,
-            'OpenStreetMap': osm
-        };
+        "Grayscale": grayscale,
+        "Streets": streets,
+        'OpenStreetMap': osm
+    };
 
     var overlays = {
         "cells": cells_lg,
@@ -318,32 +318,29 @@ function ui_initialize_map() {
 // on success: paint the UE marks on the map
 // 
 function api_get_UEs() {
-    
+
     var url = app.api_url + '/UEs?skip=0&limit=1000';
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             ues = data;
             ui_map_paint_UEs();
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -356,32 +353,29 @@ function api_get_UEs() {
 // on success: paint the UE marks on the map
 // 
 function api_get_moving_UEs() {
-    
+
     var url = app.api_url + '/ue_movement/state-ues';
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             moving_ues = data;
             ui_map_paint_moving_UEs();
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -402,25 +396,27 @@ function ui_map_paint_UEs() {
         // create markers - this will be executed only once!
         var walk_icon = L.divIcon({
             className: 'emu-pin-box',
-            iconSize: L.point(30,42),
-            iconAnchor: L.point(15,42),
-            popupAnchor: L.point(0,-38),
-            tooltipAnchor: L.point(0,0),
+            iconSize: L.point(30, 42),
+            iconAnchor: L.point(15, 42),
+            popupAnchor: L.point(0, -38),
+            tooltipAnchor: L.point(0, 0),
             html: '<div class="pin-bg pin-bg-walk"></div>\
                    <div class="pin-icon ion-md-walk"></div>'
         });
-        
-        ue_markers[ue.supi] = L.marker([ue.latitude,ue.longitude], {icon: walk_icon}).addTo(mymap)
+
+        ue_markers[ue.supi] = L.marker([ue.latitude, ue.longitude], { icon: walk_icon }).addTo(mymap)
             .bindTooltip(ue.ip_address_v4)
-            .bindPopup("<b>"+ ue.name +"</b><br />"+
-                       // ue.description +"<br />"+
-                       "location: ["  + ue.latitude.toFixed(6) + "," + ue.longitude.toFixed(6) +"]<br />"+
-                       "Cell ID: " + ( (ue.cell_id_hex==null)? "-" : ue.cell_id_hex ) +"<br />"+
-                       "External identifier: " + ue.external_identifier +"<br />"+
-                       "Speed:"+ ue.speed)
+            .bindPopup("<b>" + ue.name + "</b><br />" +
+                // ue.description +"<br />"+
+                "location: [" + ue.latitude.toFixed(6) + "," + ue.longitude.toFixed(6) + "]<br />" +
+                "Cell ID: " + ((ue.cell_id_hex == null) ? "-" : ue.cell_id_hex) + "<br />" +
+                "External identifier: " + ue.external_identifier + "<br />" +
+                "Speed:" + ue.speed + "<br />" +
+                "<button class='btn btn-sm btn-info mt-1' onclick='fetchUESignal(\"" + ue.supi + "\")'>📡 View Signal</button>")
+            .on('click', function () { fetchUESignal(ue.supi); })
             .addTo(ues_lg); // add to layer group
 
-        if ( ue.cell_id_hex==null ) {
+        if (ue.cell_id_hex == null) {
             L.DomUtil.addClass(ue_markers[ue.supi]._icon, 'null-cell');
         } else {
             L.DomUtil.removeClass(ue_markers[ue.supi]._icon, 'null-cell');
@@ -439,19 +435,19 @@ function ui_map_paint_moving_UEs() {
 
     // moving_ues is returned from the backend as a key-value dict
 
-    for(var key in moving_ues) {
-    
+    for (var key in moving_ues) {
+
         var ue = moving_ues[key];
-            
+
         // move existing markers
-        var newLatLng = [ue.latitude,ue.longitude];
+        var newLatLng = [ue.latitude, ue.longitude];
         ue_markers[ue.supi].setLatLng(newLatLng);
-        ue_markers[ue.supi].setPopupContent("<b>"+ ue.name +"</b><br />"+
-                       // ue.description +"<br />"+
-                       "location: ["  + ue.latitude.toFixed(6) + "," + ue.longitude.toFixed(6) +"]<br />"+
-                       "Cell ID: " + ( (ue.cell_id_hex==null)? "-" : ue.cell_id_hex ) +"<br />"+
-                       "External identifier: " + ue.external_identifier +"<br />"+
-                       "Speed:"+ ue.speed);
+        ue_markers[ue.supi].setPopupContent("<b>" + ue.name + "</b><br />" +
+            // ue.description +"<br />"+
+            "location: [" + ue.latitude.toFixed(6) + "," + ue.longitude.toFixed(6) + "]<br />" +
+            "Cell ID: " + ((ue.cell_id_hex == null) ? "-" : ue.cell_id_hex) + "<br />" +
+            "External identifier: " + ue.external_identifier + "<br />" +
+            "Speed:" + ue.speed);
 
 
         // update UE marker color
@@ -463,7 +459,7 @@ function ui_map_paint_moving_UEs() {
             // if this is the case, continue...
             continue;
         } else {
-            if ( ue.cell_id_hex==null ) {
+            if (ue.cell_id_hex == null) {
                 // 'null-cell' class gives a grey color
                 // to UEs that are not connected to a cell
                 L.DomUtil.addClass(temp_icon, 'null-cell');
@@ -480,32 +476,29 @@ function ui_map_paint_moving_UEs() {
 
 
 function api_get_Cells() {
-    
+
     var url = app.api_url + '/Cells?skip=0&limit=1000';
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             cells = data;
             ui_map_paint_Cells();
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -524,38 +517,38 @@ function ui_map_paint_Cells() {
         // create markers
         var cell_icon_5g = L.divIcon({
             className: 'emu-pin-box',
-            iconSize: L.point(30,42),
-            iconAnchor: L.point(15,42),
-            popupAnchor: L.point(0,-38),
-            tooltipAnchor: L.point(0,0),
+            iconSize: L.point(30, 42),
+            iconAnchor: L.point(15, 42),
+            popupAnchor: L.point(0, -38),
+            tooltipAnchor: L.point(0, 0),
             html: '<div class="pin-bg pin-bg-red"></div>\
                    <div class="pin-icon icon ion-md-cellular"></div>\
                    <div class="pin-text">5G</div>',
         });
-        
-        cell_markers[cell.cell_id] = L.marker([cell.latitude,cell.longitude], {icon: cell_icon_5g}).addTo(mymap)
+
+        cell_markers[cell.cell_id] = L.marker([cell.latitude, cell.longitude], { icon: cell_icon_5g }).addTo(mymap)
             .bindTooltip(cell.cell_id)
-            .bindPopup("<b>"+ cell.name +"</b><br />"+ 
-                           cell.description  +"<br />"+
-                           "location: ["  + cell.latitude.toFixed(6) + "," + cell.longitude.toFixed(6) +"]<br />"+
-                           "radius: "  + cell.radius
-                )
+            .bindPopup("<b>" + cell.name + "</b><br />" +
+                cell.description + "<br />" +
+                "location: [" + cell.latitude.toFixed(6) + "," + cell.longitude.toFixed(6) + "]<br />" +
+                "radius: " + cell.radius
+            )
             .addTo(cells_lg); // add to layer group        
-        
-        L.circle([cell.latitude,cell.longitude], cell.radius, {
+
+        L.circle([cell.latitude, cell.longitude], cell.radius, {
             color: 'none',
             fillColor: '#f03',
             fillOpacity: 0.05
         }).addTo(cell_coverage_lg).addTo(mymap);
-        
+
         // keep (lat, long) to later set view of the map
-        map_bounds.push([cell.latitude,cell.longitude]);
+        map_bounds.push([cell.latitude, cell.longitude]);
     }
-    
+
     // if cells where found, map -> set view
-    if ( cells.length >0 ) {
+    if (cells.length > 0) {
         var leaflet_bounds = new L.LatLngBounds(map_bounds);
-        mymap.fitBounds( leaflet_bounds );
+        mymap.fitBounds(leaflet_bounds);
     }
 
 }
@@ -567,33 +560,30 @@ function ui_map_paint_Cells() {
 // Ajax request to get specific Path data
 // on success: paint the Path on the map
 // 
-function api_get_specific_path( id ) {
-    
+function api_get_specific_path(id) {
+
     var url = app.api_url + '/paths/' + id;
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             // paths = data;
             ui_map_paint_path(data);
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -606,9 +596,9 @@ function api_get_specific_path( id ) {
 // Calls a helper function "fix_points_format()"
 // to prepare the data for leaflet.js format
 // 
-function ui_map_paint_path( data ) {
+function ui_map_paint_path(data) {
 
-    var latlng   = fix_points_format( data.points );
+    var latlng = fix_points_format(data.points);
     var polyline = L.polyline(latlng, {
         color: data.color,
         opacity: 0.2
@@ -622,15 +612,15 @@ function ui_map_paint_path( data ) {
 // and returns them with a format appropriate
 // leaflet.js
 // 
-function fix_points_format( datapoints ) {
+function fix_points_format(datapoints) {
 
     // from (array of objects): [{latitude: 37.996095, longitude: 23.818562},{...}]
     // to   (array of arrays) : [[37.996095,23.818562],[...]
 
     var fixed = new Array(datapoints.length);
-    
-    for (i=0 ; i<datapoints.length ; i++) {
-        fixed[i] = [datapoints[i].latitude , datapoints[i].longitude];
+
+    for (i = 0; i < datapoints.length; i++) {
+        fixed[i] = [datapoints[i].latitude, datapoints[i].longitude];
     }
     return fixed;
 }
@@ -642,7 +632,7 @@ function fix_points_format( datapoints ) {
 // Ajax request to START the loop for a UE
 // on success: handle the state of the buttons
 // 
-function api_start_loop( ue ) {
+function api_start_loop(ue) {
 
     var url = app.api_url + '/ue_movement/start-loop';
     var data = {
@@ -651,21 +641,20 @@ function api_start_loop( ue ) {
 
     $.ajax({
         type: 'POST',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        data:         JSON.stringify(data),
-        processData:  false,
-        beforeSend: function() {
+        data: JSON.stringify(data),
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
-            $("#btn-ue-"+ue.supi).data("running",true);
-            $("#btn-ue-"+ue.supi).removeClass('btn-success').addClass('btn-danger');
+            $("#btn-ue-" + ue.supi).data("running", true);
+            $("#btn-ue-" + ue.supi).removeClass('btn-success').addClass('btn-danger');
             looping_UEs++;
 
             if (looping_UEs == ues.length) {
@@ -673,12 +662,10 @@ function api_start_loop( ue ) {
                 $('#btn-start-all').text("Stop all");
             }
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -691,7 +678,7 @@ function api_start_loop( ue ) {
 // on success: handle the state of the buttons
 // and check whether the interval/updating-the-map has to stop
 // 
-function api_stop_loop( ue ) {
+function api_stop_loop(ue) {
 
     var url = app.api_url + '/ue_movement/stop-loop';
     var data = {
@@ -700,21 +687,20 @@ function api_stop_loop( ue ) {
 
     $.ajax({
         type: 'POST',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        data:         JSON.stringify(data),
-        processData:  false,
-        beforeSend: function() {
+        data: JSON.stringify(data),
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
-            $("#btn-ue-"+ue.supi).data("running",false);
-            $("#btn-ue-"+ue.supi).addClass('btn-success').removeClass('btn-danger');
+            $("#btn-ue-" + ue.supi).data("running", false);
+            $("#btn-ue-" + ue.supi).addClass('btn-success').removeClass('btn-danger');
             looping_UEs--;
 
             if (looping_UEs == 0) {
@@ -723,12 +709,10 @@ function api_stop_loop( ue ) {
                 stop_map_refresh_interval();
             }
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -743,8 +727,8 @@ function api_stop_loop( ue ) {
 // It generates HTML based on the button template
 // and adds it to the ue-btn-area
 // 
-function ui_generate_loop_btn_for( ue ) {
-    var html_str = ue_btn_tpl.replaceAll("{{supi}}", ue.supi).replaceAll("{{name}}",ue.name);
+function ui_generate_loop_btn_for(ue) {
+    var html_str = ue_btn_tpl.replaceAll("{{supi}}", ue.supi).replaceAll("{{name}}", ue.name);
     $(".ue-btn-area").append(html_str);
 }
 
@@ -762,38 +746,35 @@ function ui_set_loop_btn_status_for(ue) {
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
         // data:         JSON.stringify(data),
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
-            if ( data.running ) {
-                $('#btn-ue-'+ue.supi).removeClass('btn-success').addClass('btn-danger');
-                $('#btn-ue-'+ue.supi).data("running",data.running);
-                
+            if (data.running) {
+                $('#btn-ue-' + ue.supi).removeClass('btn-success').addClass('btn-danger');
+                $('#btn-ue-' + ue.supi).data("running", data.running);
+
                 looping_UEs++;
                 if (looping_UEs == ues.length) {
                     $('#btn-start-all').removeClass('btn-success').addClass('btn-danger');
                     $('#btn-start-all').text("Stop all");
                 }
-                
+
                 start_map_refresh_interval();
             }
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -805,25 +786,25 @@ function ui_set_loop_btn_status_for(ue) {
 
 // Adds a listener to every start/stop loop UE button
 // 
-function ui_add_ue_btn_listeners(){
-    $('.btn-ue').on('click', function(){
+function ui_add_ue_btn_listeners() {
+    $('.btn-ue').on('click', function () {
 
         curr_supi = $(this).data("supi");
-        
-        if ( $(this).data("running") == false) {
-            
+
+        if ($(this).data("running") == false) {
+
             // start location UE loop
-            api_start_loop({"supi":curr_supi});
+            api_start_loop({ "supi": curr_supi });
             start_map_refresh_interval();
 
-            $(this).data("running",true);
+            $(this).data("running", true);
             $(this).removeClass('btn-success').addClass('btn-danger');
         } else {
 
             // stop location UE loop
-            api_stop_loop({"supi":curr_supi});
+            api_stop_loop({ "supi": curr_supi });
 
-            $(this).data("running",false);
+            $(this).data("running", false);
             $(this).addClass('btn-success').removeClass('btn-danger');
         }
     });
@@ -835,10 +816,10 @@ function ui_add_ue_btn_listeners(){
 // Adds a listener to start/stop ALL button
 // 
 function ui_add_ue_all_btn_listener() {
-    $('#btn-start-all').on('click', function(){
+    $('#btn-start-all').on('click', function () {
         $(this).toggleClass('btn-success').toggleClass('btn-danger');
-        if ( $(this).text() == "Start all" ) {
-            
+        if ($(this).text() == "Start all") {
+
             // start location UE loops
             for (const ue of ues) {
                 api_start_loop(ue);
@@ -867,9 +848,9 @@ function ui_add_ue_all_btn_listener() {
 // On change, it takes the selected value (seconds)
 // and reloads the interval
 // 
-function ui_add_select_listener_map_reload(){
-    $('.map-reload-select').on('change', function(){
-        reload_map_refresh_interval( $(this).val() );
+function ui_add_select_listener_map_reload() {
+    $('.map-reload-select').on('change', function () {
+        reload_map_refresh_interval($(this).val());
     });
 }
 
@@ -880,9 +861,9 @@ function ui_add_select_listener_map_reload(){
 // On change, it takes the selected value (seconds)
 // and reloads the interval
 // 
-function ui_add_select_listener_events_reload(){
-    $('.events-reload-select').on('change', function(){
-        reload_events_refresh_interval( $(this).val() );
+function ui_add_select_listener_events_reload() {
+    $('.events-reload-select').on('change', function () {
+        reload_events_refresh_interval($(this).val());
     });
 }
 
@@ -910,36 +891,33 @@ function ui_add_select_listener_events_reload(){
 // 
 // 
 function api_get_all_monitoring_events() {
-    
+
     var url = app.api_url + '/utils/monitoring/notifications?skip=0&limit=100';
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             events = data;
-            if ( events_first_fetch ) {
+            if (events_first_fetch) {
                 // initialize datatable
                 ui_init_datatable_events();
                 events_first_fetch = false;
             }
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -957,33 +935,30 @@ function api_get_all_monitoring_events() {
 // that appends them to Datatables is called.
 // 
 function api_get_last_monitoring_events() {
-    
+
     var url = app.api_url + '/utils/monitoring/last_notifications?id=' + latest_event_id_fetched;
 
     $.ajax({
         type: 'GET',
-        url:  url,
-        contentType : 'application/json',
+        url: url,
+        contentType: 'application/json',
         headers: {
             "authorization": "Bearer " + app.auth_obj.access_token
         },
-        processData:  false,
-        beforeSend: function() {
+        processData: false,
+        beforeSend: function () {
             // 
         },
-        success: function(data)
-        {
+        success: function (data) {
             // console.log(data);
             events.push(...data);
             ui_append_datatable_events(data);
-            
+
         },
-        error: function(err)
-        {
+        error: function (err) {
             console.log(err);
         },
-        complete: function()
-        {
+        complete: function () {
             // 
         },
         timeout: 60000
@@ -995,7 +970,7 @@ function api_get_last_monitoring_events() {
 // Called to create the Datatable instance of the events.
 // 
 function ui_init_datatable_events() {
-    events_datatbl = $('#dt-events').DataTable( {
+    events_datatbl = $('#dt-events').DataTable({
         data: events,
         responsive: true,
         paging: false,
@@ -1009,7 +984,7 @@ function ui_init_datatable_events() {
                 "targets": 0,
                 "data": "id",
                 "visible": true,
-                "orderable" : true,
+                "orderable": true,
                 "searchable": true,
             },
             // {
@@ -1032,9 +1007,9 @@ function ui_init_datatable_events() {
                 "targets": 6,
                 "data": null,
                 "defaultContent": '',
-                "orderable" : false,
+                "orderable": false,
                 "searchable": false,
-                "render": function ( data, type, row ) {
+                "render": function (data, type, row) {
                     // return row.id;
                     return detail_btn_tpl.replaceAll("{{id}}", row.id);
                 },
@@ -1043,13 +1018,14 @@ function ui_init_datatable_events() {
         columns: [
             { "data": "id", className: "dt-center" },
             { "data": "serviceAPI" },
-            { "data": "isNotification",
-              "render": function(data) {
-                if (data) {
-                    return 'Notification';
+            {
+                "data": "isNotification",
+                "render": function (data) {
+                    if (data) {
+                        return 'Notification';
+                    }
+                    return 'Request';
                 }
-                return 'Request';
-              }
             },
             { "data": "method", className: "dt-center" },
             { "data": "status_code", className: "dt-center" },
@@ -1057,13 +1033,13 @@ function ui_init_datatable_events() {
             { "data": null, className: "dt-center" },
         ],
         oLanguage: {
-           "sSearch": "quick search: "
-         }
-    } );
+            "sSearch": "quick search: "
+        }
+    });
 
 
-    $('#dt-filter-input').keyup(function(){
-        events_datatbl.search($(this).val()).draw() ;
+    $('#dt-filter-input').keyup(function () {
+        events_datatbl.search($(this).val()).draw();
     })
     // $('#dt-filter-input').on('keyup change', function () {
     //     console.log( this.value );
@@ -1071,7 +1047,7 @@ function ui_init_datatable_events() {
     // });
 
     // update id value of latest event
-    if (events.length > 0) { latest_event_id_fetched = events[ events.length-1 ].id }
+    if (events.length > 0) { latest_event_id_fetched = events[events.length - 1].id }
 }
 
 
@@ -1087,49 +1063,49 @@ function ui_append_datatable_events(data) {
 
         // console.log(event);
 
-        events_datatbl.rows.add( [{
-            id:             event.id,
-            serviceAPI:     event.serviceAPI,
+        events_datatbl.rows.add([{
+            id: event.id,
+            serviceAPI: event.serviceAPI,
             isNotification: event.isNotification,
-            method:         event.method,
-            status_code:    event.status_code,
-            timestamp:      event.timestamp,
-        }] ).draw( false );
+            method: event.method,
+            status_code: event.status_code,
+            timestamp: event.timestamp,
+        }]).draw(false);
     }
 
     // update id value of latest event
-    latest_event_id_fetched = data[ data.length-1 ].id
+    latest_event_id_fetched = data[data.length - 1].id
 }
 
 
 
 
 
-function show_details_modal( event_id ) {
+function show_details_modal(event_id) {
 
-    details = helper_get_event_details( event_id );
+    details = helper_get_event_details(event_id);
 
     // load event details
-    $("#modal_srv").html( details.serviceAPI );
+    $("#modal_srv").html(details.serviceAPI);
     $("#modal_endpoint").html(details.endpoint);
-    $("#modal_type").html( (details.isNotification)? "Notification" : "Request" );
+    $("#modal_type").html((details.isNotification) ? "Notification" : "Request");
     $("#modal_code").html(details.status_code);
     $("#modal_method").html(details.method);
     $("#modal_tstamp").html(details.timestamp);
 
     if (details.request_body != null) {
-        $("#modal_req").html(  JSON.stringify( JSON.parse(details.request_body),  null, 4 ) );
+        $("#modal_req").html(JSON.stringify(JSON.parse(details.request_body), null, 4));
     } else {
-        $("#modal_req").html(  "empty" );
+        $("#modal_req").html("empty");
     }
-    
-    $("#modal_resp").html( JSON.stringify( JSON.parse(details.response_body), null, 4 ) );
+
+    $("#modal_resp").html(JSON.stringify(JSON.parse(details.response_body), null, 4));
 
     modal.show();
 }
 
 
-function helper_get_event_details( event_id ) {
+function helper_get_event_details(event_id) {
     for (const event of events) {
         if (event.id == event_id) return event;
     }
@@ -1137,9 +1113,278 @@ function helper_get_event_details( event_id ) {
 
 
 
-function helper_check_path_is_already_painted( path_id ) {
-    if ( paths_painted[ path_id ] != true) {
+function helper_check_path_is_already_painted(path_id) {
+    if (paths_painted[path_id] != true) {
         return false;
     }
     return true;
+}
+
+
+// ===============================================
+//        ML Handover Control Panel Functions
+//           (Thesis Showcase Features)
+// ===============================================
+
+var handoverHistory = [];
+var mlStats = { ml_decisions: 0, a3_fallbacks: 0, total: 0 };
+
+// Fetch current ML mode on page load
+$(document).ready(function () {
+    fetchMLMode();
+    // Refresh stats every 5 seconds
+    setInterval(fetchMLMode, 5000);
+});
+
+// Get current handover mode from API
+function fetchMLMode() {
+    $.ajax({
+        type: "GET",
+        url: api_url + "/ml/mode",
+        headers: get_auth_header(),
+        success: function (response) {
+            updateModeUI(response.use_ml);
+        },
+        error: function (xhr) {
+            console.log("Failed to fetch ML mode:", xhr);
+            $("#ml-mode-label").text("Error").removeClass().addClass("badge bg-danger ms-2");
+        }
+    });
+}
+
+// Toggle handover mode (ML or A3)
+function setHandoverMode(useML) {
+    $.ajax({
+        type: "POST",
+        url: api_url + "/ml/mode",
+        headers: get_auth_header(),
+        contentType: "application/json",
+        data: JSON.stringify({ use_ml: useML }),
+        success: function (response) {
+            updateModeUI(response.use_ml);
+            toastr.success("Handover mode set to: " + (response.use_ml ? "ML" : "A3 Rule"));
+        },
+        error: function (xhr) {
+            toastr.error("Failed to change handover mode");
+            console.log("Error setting mode:", xhr);
+        }
+    });
+}
+
+// Update UI to reflect current mode
+function updateModeUI(useML) {
+    if (useML) {
+        $("#ml-mode-label").text("ML Active").removeClass().addClass("badge bg-success ms-2");
+        $("#btn-ml-mode").removeClass("btn-outline-success").addClass("btn-success");
+        $("#btn-a3-mode").removeClass("btn-warning").addClass("btn-outline-warning");
+    } else {
+        $("#ml-mode-label").text("A3 Rule").removeClass().addClass("badge bg-warning ms-2");
+        $("#btn-ml-mode").removeClass("btn-success").addClass("btn-outline-success");
+        $("#btn-a3-mode").removeClass("btn-outline-warning").addClass("btn-warning");
+    }
+}
+
+// Fetch UE signal quality (feature vector) when clicking a UE
+function fetchUESignal(ueId) {
+    $("#selected-ue-label").text(ueId);
+    $("#ue-signal-panel").html('<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Loading...</div>');
+
+    $.ajax({
+        type: "GET",
+        url: api_url + "/ml/state/" + ueId,
+        headers: get_auth_header(),
+        success: function (fv) {
+            renderSignalPanel(fv);
+        },
+        error: function (xhr) {
+            $("#ue-signal-panel").html('<div class="text-center text-danger py-3">Failed to load signal data</div>');
+        }
+    });
+}
+
+// Render signal strength bars for each cell
+function renderSignalPanel(fv) {
+    var html = '<div class="small">';
+    html += '<div class="mb-2"><strong>Connected to:</strong> <span class="badge bg-success">' + (fv.connected_to || 'None') + '</span></div>';
+
+    // RSRP bars
+    html += '<table class="table table-sm table-borderless mb-0"><thead><tr><th>Cell</th><th>RSRP (dBm)</th><th>SINR (dB)</th><th>Load</th></tr></thead><tbody>';
+
+    var rsrps = fv.neighbor_rsrp_dbm || {};
+    var sinrs = fv.neighbor_sinrs || {};
+    var loads = fv.neighbor_cell_loads || {};
+
+    for (var cellId in rsrps) {
+        var rsrp = rsrps[cellId].toFixed(1);
+        var sinr = sinrs[cellId] ? sinrs[cellId].toFixed(1) : 'N/A';
+        var load = loads[cellId] || 0;
+        var isConnected = cellId === fv.connected_to;
+
+        // Calculate bar width (RSRP typically -50 to -120 dBm)
+        var barWidth = Math.max(0, Math.min(100, (rsrp + 120) * 1.5));
+        var barColor = rsrp > -70 ? 'bg-success' : (rsrp > -90 ? 'bg-warning' : 'bg-danger');
+
+        html += '<tr' + (isConnected ? ' class="table-success"' : '') + '>';
+        html += '<td>' + cellId + (isConnected ? ' ✓' : '') + '</td>';
+        html += '<td><div class="progress" style="height:15px;"><div class="progress-bar ' + barColor + '" style="width:' + barWidth + '%">' + rsrp + '</div></div></td>';
+        html += '<td>' + sinr + '</td>';
+        html += '<td><span class="badge bg-secondary">' + load + '</span></td>';
+        html += '</tr>';
+    }
+
+    html += '</tbody></table>';
+
+    // QoS if available
+    if (fv.observed_qos) {
+        html += '<div class="mt-2 pt-2 border-top">';
+        html += '<strong>QoS:</strong> ';
+        html += 'Latency: ' + (fv.observed_qos.latency_ms || 0).toFixed(1) + 'ms | ';
+        html += 'Throughput: ' + (fv.observed_qos.throughput_mbps || 0).toFixed(1) + ' Mbps';
+        html += '</div>';
+    }
+
+    html += '</div>';
+    $("#ue-signal-panel").html(html);
+}
+
+// Add entry to handover history table
+function addHandoverToHistory(data) {
+    var tbody = $("#handover-history-body");
+
+    // Remove placeholder if present
+    if (handoverHistory.length === 0) {
+        tbody.empty();
+    }
+
+    var time = new Date().toLocaleTimeString();
+    var methodBadge = data.method === 'ML'
+        ? '<span class="badge bg-success">ML</span>'
+        : '<span class="badge bg-warning">A3</span>';
+    var confidence = data.confidence ? (data.confidence * 100).toFixed(0) + '%' : '-';
+    var rsrpDelta = data.rsrp_delta ? (data.rsrp_delta > 0 ? '+' : '') + data.rsrp_delta.toFixed(1) + ' dB' : '-';
+
+    var row = '<tr>' +
+        '<td>' + time + '</td>' +
+        '<td>' + data.ue_id + '</td>' +
+        '<td>' + (data.from_cell || '-') + '</td>' +
+        '<td>' + (data.to_cell || '-') + '</td>' +
+        '<td>' + methodBadge + '</td>' +
+        '<td>' + confidence + '</td>' +
+        '<td>' + rsrpDelta + '</td>' +
+        '</tr>';
+
+    tbody.prepend(row);
+    handoverHistory.unshift(data);
+
+    // Keep only last 50 entries
+    if (handoverHistory.length > 50) {
+        handoverHistory.pop();
+        tbody.find('tr:last').remove();
+    }
+
+    // Update stats
+    if (data.method === 'ML') {
+        mlStats.ml_decisions++;
+    } else {
+        mlStats.a3_fallbacks++;
+    }
+    mlStats.total++;
+    updateStatsUI();
+}
+
+// Update stats counters
+function updateStatsUI() {
+    $("#stat-ml-decisions").text(mlStats.ml_decisions);
+    $("#stat-a3-fallbacks").text(mlStats.a3_fallbacks);
+    $("#stat-total-handovers").text(mlStats.total);
+}
+
+// Clear handover history
+function clearHandoverHistory() {
+    handoverHistory = [];
+    mlStats = { ml_decisions: 0, a3_fallbacks: 0, total: 0 };
+    $("#handover-history-body").html('<tr><td colspan="7" class="text-center text-muted py-3"><small>Handover events will appear here when UEs move...</small></td></tr>');
+    updateStatsUI();
+    toastr.info("Handover history cleared");
+}
+
+// Helper to get auth header (reuse from existing code)
+function get_auth_header() {
+    var token = localStorage.getItem("app_auth");
+    if (token) {
+        var parsed = JSON.parse(token);
+        return { "Authorization": "Bearer " + parsed.access_token };
+    }
+    return {};
+}
+
+
+// ===============================================
+//        Export Functions (CSV/JSON)
+// ===============================================
+
+// Export handover history to CSV file
+function exportToCSV() {
+    if (handoverHistory.length === 0) {
+        toastr.warning("No handover data to export");
+        return;
+    }
+
+    var csv = "Time,UE,From,To,Method,Confidence,RSRP_Delta\n";
+
+    handoverHistory.forEach(function (row) {
+        csv += [
+            row.time || new Date().toISOString(),
+            row.ue_id || '',
+            row.from_cell || '',
+            row.to_cell || '',
+            row.method || '',
+            row.confidence ? (row.confidence * 100).toFixed(0) + '%' : '',
+            row.rsrp_delta ? row.rsrp_delta.toFixed(1) : ''
+        ].join(',') + '\n';
+    });
+
+    downloadFile(csv, 'handover_results_' + getTimestamp() + '.csv', 'text/csv');
+    toastr.success("Exported " + handoverHistory.length + " records to CSV");
+}
+
+// Export full test results to JSON
+function exportToJSON() {
+    var exportData = {
+        export_date: new Date().toISOString(),
+        stats: {
+            ml_decisions: mlStats.ml_decisions,
+            a3_fallbacks: mlStats.a3_fallbacks,
+            total_handovers: mlStats.total,
+            ml_percentage: mlStats.total > 0 ? ((mlStats.ml_decisions / mlStats.total) * 100).toFixed(1) + '%' : '0%'
+        },
+        handover_history: handoverHistory
+    };
+
+    var json = JSON.stringify(exportData, null, 2);
+    downloadFile(json, 'test_results_' + getTimestamp() + '.json', 'application/json');
+    toastr.success("Exported full test results to JSON");
+}
+
+// Helper to download file
+function downloadFile(content, filename, mimeType) {
+    var blob = new Blob([content], { type: mimeType });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// Get timestamp string for filenames
+function getTimestamp() {
+    var d = new Date();
+    return d.getFullYear() +
+        ('0' + (d.getMonth() + 1)).slice(-2) +
+        ('0' + d.getDate()).slice(-2) + '_' +
+        ('0' + d.getHours()).slice(-2) +
+        ('0' + d.getMinutes()).slice(-2);
 }

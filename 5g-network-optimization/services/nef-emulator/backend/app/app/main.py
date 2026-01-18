@@ -102,6 +102,10 @@ async def export(request: Request):
 async def import_view(request: Request):
     return templates.TemplateResponse("import.html", {"request": request})
 
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics(request: Request):
+    return templates.TemplateResponse("analytics.html", {"request": request})
+
 @app.get("/err404", response_class=HTMLResponse)
 async def err404(request: Request):
     return templates.TemplateResponse("404.html", {"request": request})
