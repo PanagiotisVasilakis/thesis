@@ -1,408 +1,260 @@
 {
-    "name": "Handover Stress Test",
-    "description": "Multiple UEs crossing cell boundaries to test ML prediction accuracy under frequent handover conditions",
-    "gNBs": [
+  "gNBs": [
+    {
+      "gNB_id": "AAAAA4",
+      "name": "gNB-Stress",
+      "description": "Base station for stress testing",
+      "location": "Test Environment"
+    }
+  ],
+  "cells": [
+    {
+      "cell_id": "AAAAA4001",
+      "name": "Cell-A",
+      "description": "Western coverage zone",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.817,
+      "radius": 80
+    },
+    {
+      "cell_id": "AAAAA4002",
+      "name": "Cell-B",
+      "description": "Central coverage zone",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.8185,
+      "radius": 80
+    },
+    {
+      "cell_id": "AAAAA4003",
+      "name": "Cell-C",
+      "description": "Eastern coverage zone",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.82,
+      "radius": 80
+    },
+    {
+      "cell_id": "AAAAA4004",
+      "name": "Cell-D",
+      "description": "Northern coverage zone",
+      "gNB_id": 1,
+      "latitude": 37.9995,
+      "longitude": 23.8185,
+      "radius": 80
+    },
+    {
+      "cell_id": "AAAAA4005",
+      "name": "Cell-E",
+      "description": "Southern coverage zone",
+      "gNB_id": 1,
+      "latitude": 37.9965,
+      "longitude": 23.8185,
+      "radius": 80
+    },
+    {
+      "cell_id": "AAAAA4006",
+      "name": "Cell-F",
+      "description": "Center overlap zone",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.8185,
+      "radius": 60
+    }
+  ],
+  "UEs": [
+    {
+      "name": "UE-Fast1",
+      "description": "Fast moving UE crossing multiple cells",
+      "ip_address_v4": "10.0.1.1",
+      "ip_address_v6": "::1:1",
+      "mac_address": "22-00-00-01-00-01",
+      "dnn": "stress.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "stress1@test.com",
+      "speed": "HIGH",
+      "supi": "202010000001001"
+    },
+    {
+      "name": "UE-Fast2",
+      "description": "Fast moving UE on perpendicular path",
+      "ip_address_v4": "10.0.1.2",
+      "ip_address_v6": "::1:2",
+      "mac_address": "22-00-00-01-00-02",
+      "dnn": "stress.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "stress2@test.com",
+      "speed": "HIGH",
+      "supi": "202010000001002"
+    },
+    {
+      "name": "UE-Medium1",
+      "description": "Medium speed UE",
+      "ip_address_v4": "10.0.1.3",
+      "ip_address_v6": "::1:3",
+      "mac_address": "22-00-00-01-00-03",
+      "dnn": "stress.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "stress3@test.com",
+      "speed": "LOW",
+      "supi": "202010000001003"
+    },
+    {
+      "name": "UE-Medium2",
+      "description": "Medium speed UE on diagonal",
+      "ip_address_v4": "10.0.1.4",
+      "ip_address_v6": "::1:4",
+      "mac_address": "22-00-00-01-00-04",
+      "dnn": "stress.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "stress4@test.com",
+      "speed": "LOW",
+      "supi": "202010000001004"
+    },
+    {
+      "name": "UE-Circular",
+      "description": "UE moving in circular pattern",
+      "ip_address_v4": "10.0.1.5",
+      "ip_address_v6": "::1:5",
+      "mac_address": "22-00-00-01-00-05",
+      "dnn": "stress.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "stress5@test.com",
+      "speed": "HIGH",
+      "supi": "202010000001005"
+    }
+  ],
+  "paths": [
+    {
+      "description": "East-West traversal",
+      "color": "#e74c3c",
+      "id": 1,
+      "start_point": {
+        "latitude": 37.998,
+        "longitude": 23.816
+      },
+      "end_point": {
+        "latitude": 37.998,
+        "longitude": 23.821
+      },
+      "points": [
         {
-            "gNB_id": "STRESS1",
-            "name": "gNB-Stress",
-            "description": "Base station for stress testing",
-            "location": "Test Environment"
+          "latitude": 37.998,
+          "longitude": 23.816
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8165
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.817
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8175
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.818
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.819
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8195
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.82
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8205
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.821
         }
-    ],
-    "cells": [
+      ]
+    },
+    {
+      "description": "North-South traversal",
+      "color": "#3498db",
+      "id": 2,
+      "start_point": {
+        "latitude": 37.9955,
+        "longitude": 23.8185
+      },
+      "end_point": {
+        "latitude": 37.9995,
+        "longitude": 23.8185
+      },
+      "points": [
         {
-            "cell_id": "STRESS1001",
-            "name": "Cell-A",
-            "description": "Western coverage zone",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8170,
-            "radius": 80
+          "latitude": 37.9955,
+          "longitude": 23.8185
         },
         {
-            "cell_id": "STRESS1002",
-            "name": "Cell-B",
-            "description": "Central coverage zone",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8185,
-            "radius": 80
+          "latitude": 37.996,
+          "longitude": 23.8185
         },
         {
-            "cell_id": "STRESS1003",
-            "name": "Cell-C",
-            "description": "Eastern coverage zone",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8200,
-            "radius": 80
+          "latitude": 37.9965,
+          "longitude": 23.8185
         },
         {
-            "cell_id": "STRESS1004",
-            "name": "Cell-D",
-            "description": "Northern coverage zone",
-            "gNB_id": 1,
-            "latitude": 37.9995,
-            "longitude": 23.8185,
-            "radius": 80
+          "latitude": 37.997,
+          "longitude": 23.8185
         },
         {
-            "cell_id": "STRESS1005",
-            "name": "Cell-E",
-            "description": "Southern coverage zone",
-            "gNB_id": 1,
-            "latitude": 37.9965,
-            "longitude": 23.8185,
-            "radius": 80
+          "latitude": 37.9975,
+          "longitude": 23.8185
         },
         {
-            "cell_id": "STRESS1006",
-            "name": "Cell-F",
-            "description": "Center overlap zone",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8185,
-            "radius": 60
+          "latitude": 37.998,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.9985,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.999,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.9995,
+          "longitude": 23.8185
         }
-    ],
-    "UEs": [
-        {
-            "name": "UE-Fast1",
-            "description": "Fast moving UE crossing multiple cells",
-            "ip_address_v4": "10.0.1.1",
-            "ip_address_v6": "::1:1",
-            "mac_address": "22-00-00-01-00-01",
-            "dnn": "stress.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "stress1@test.com",
-            "speed": "HIGH",
-            "supi": "202010000001001"
-        },
-        {
-            "name": "UE-Fast2",
-            "description": "Fast moving UE on perpendicular path",
-            "ip_address_v4": "10.0.1.2",
-            "ip_address_v6": "::1:2",
-            "mac_address": "22-00-00-01-00-02",
-            "dnn": "stress.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "stress2@test.com",
-            "speed": "HIGH",
-            "supi": "202010000001002"
-        },
-        {
-            "name": "UE-Medium1",
-            "description": "Medium speed UE",
-            "ip_address_v4": "10.0.1.3",
-            "ip_address_v6": "::1:3",
-            "mac_address": "22-00-00-01-00-03",
-            "dnn": "stress.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "stress3@test.com",
-            "speed": "LOW",
-            "supi": "202010000001003"
-        },
-        {
-            "name": "UE-Medium2",
-            "description": "Medium speed UE on diagonal",
-            "ip_address_v4": "10.0.1.4",
-            "ip_address_v6": "::1:4",
-            "mac_address": "22-00-00-01-00-04",
-            "dnn": "stress.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "stress4@test.com",
-            "speed": "LOW",
-            "supi": "202010000001004"
-        },
-        {
-            "name": "UE-Circular",
-            "description": "UE moving in circular pattern",
-            "ip_address_v4": "10.0.1.5",
-            "ip_address_v6": "::1:5",
-            "mac_address": "22-00-00-01-00-05",
-            "dnn": "stress.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "stress5@test.com",
-            "speed": "HIGH",
-            "supi": "202010000001005"
-        }
-    ],
-    "paths": [
-        {
-            "description": "East-West traversal",
-            "color": "#e74c3c",
-            "id": 1,
-            "start_point": {
-                "latitude": 37.9980,
-                "longitude": 23.8160
-            },
-            "end_point": {
-                "latitude": 37.9980,
-                "longitude": 23.8210
-            },
-            "points": [
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8160
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8165
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8170
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8195
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8200
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8205
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8210
-                }
-            ]
-        },
-        {
-            "description": "North-South traversal",
-            "color": "#3498db",
-            "id": 2,
-            "start_point": {
-                "latitude": 37.9955,
-                "longitude": 23.8185
-            },
-            "end_point": {
-                "latitude": 38.0005,
-                "longitude": 23.8185
-            },
-            "points": [
-                {
-                    "latitude": 37.9955,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9960,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 38.0000,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 38.0005,
-                    "longitude": 23.8185
-                }
-            ]
-        },
-        {
-            "description": "Diagonal NW-SE",
-            "color": "#2ecc71",
-            "id": 3,
-            "start_point": {
-                "latitude": 37.9995,
-                "longitude": 23.8165
-            },
-            "end_point": {
-                "latitude": 37.9965,
-                "longitude": 23.8205
-            },
-            "points": [
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8165
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8170
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8195
-                },
-                {
-                    "latitude": 37.9960,
-                    "longitude": 23.8200
-                },
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8205
-                }
-            ]
-        },
-        {
-            "description": "Diagonal SW-NE",
-            "color": "#9b59b6",
-            "id": 4,
-            "start_point": {
-                "latitude": 37.9965,
-                "longitude": 23.8165
-            },
-            "end_point": {
-                "latitude": 37.9995,
-                "longitude": 23.8205
-            },
-            "points": [
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8165
-                },
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8170
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8195
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8205
-                }
-            ]
-        },
-        {
-            "description": "Center circle path",
-            "color": "#f39c12",
-            "id": 5,
-            "start_point": {
-                "latitude": 37.9985,
-                "longitude": 23.8175
-            },
-            "end_point": {
-                "latitude": 37.9985,
-                "longitude": 23.8175
-            },
-            "points": [
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9988,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9988,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8195
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8195
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8175
-                }
-            ]
-        }
-    ]
+      ]
+    },
+    {
+      "description": "North-East traversal",
+      "color": "#2ecc71",
+      "id": 3,
+      "start_point": {
+        "latitude": 37.9955,
+        "longitude": 23.8185
+      },
+      "end_point": {
+        "latitude": 37.9995,
+        "longitude": 23.8185
+      },
+      "points": []
+    }
+  ],
+  "ue_path_association": []
 }

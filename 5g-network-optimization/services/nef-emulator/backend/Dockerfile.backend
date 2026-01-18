@@ -14,38 +14,22 @@ RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python
     poetry config virtualenvs.create false
 
 # Copy poetry.lock* in case it doesn't exist in the repo
-COPY services/nef-emulator/backend/app/pyproject.toml services/nef-emulator/backend/app/poetry.lock* /app/
+COPY app/pyproject.toml app/poetry.lock* /app/
 
 # Allow installing dev dependencies to run tests
 ARG INSTALL_DEV=false
 RUN poetry install --no-root
 
 # For development, Jupyter remote kernel, Hydrogen
-# Using inside the container:
-# jupyter lab --ip=0.0.0.0 --allow-root --NotebookApp.custom_display_url=http://127.0.0.1:8888
 ARG INSTALL_JUPYTER=false
 RUN bash -c "if [ $INSTALL_JUPYTER == 'true' ] ; then pip install jupyterlab ; fi"
 
-COPY services/nef-emulator/backend/app /app
+COPY app /app
 ENV PYTHONPATH=/app
 
 WORKDIR /
 
-#Remove the comments below for manual testing of evolved5g library
-
-# RUN git clone https://github.com/EVOLVED-5G/SDK-CLI.git && \
-#     cd SDK-CLI/ && \
-#     git checkout develop && \ 
-#     python3 setup.py install && \ 
-#     cp -R evolved5g /usr/local/lib/python3.10/site-packages/
-
 WORKDIR /app/
-COPY services/nef-emulator/backend/start-reload.sh /
+COPY start-reload.sh /
 ENV A3_HYSTERESIS_DB=2.0
 ENV A3_TTT_S=0.0
-
-# Optionally install the ML service inside this image
-COPY services/ml-service /opt/ml-service
-RUN if [ "$ML_LOCAL" = "1" ] || [ "$ML_LOCAL" = "true" ]; then \
-        pip install /opt/ml-service; \
-    fi

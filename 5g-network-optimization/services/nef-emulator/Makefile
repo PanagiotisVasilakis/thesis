@@ -9,13 +9,13 @@ prepare-dev-env:
 # docker compose TASKS
 
 up:
-	docker compose --profile dev up
+	docker-compose up -d
 
 upd:
-	docker compose --profile dev up -d
+	docker-compose up -d
 
 debug-up:
-	docker compose --profile debug up
+	docker-compose up
 
 debug-upd:
 	docker compose --profile debug up -d

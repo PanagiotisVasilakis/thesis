@@ -1,317 +1,316 @@
 {
-    "name": "Highway Fast Handover",
-    "description": "Simulates vehicles on a highway with high-speed handovers between cells along a linear path",
-    "gNBs": [
+  "gNBs": [
+    {
+      "gNB_id": "AAAAA3",
+      "name": "Highway-gNB",
+      "description": "Highway coverage base station",
+      "location": "Highway Route"
+    }
+  ],
+  "cells": [
+    {
+      "cell_id": "AAAAA3001",
+      "name": "Highway-Cell-1",
+      "description": "Highway segment 1",
+      "gNB_id": 1,
+      "latitude": 37.995,
+      "longitude": 23.81,
+      "radius": 150
+    },
+    {
+      "cell_id": "AAAAA3002",
+      "name": "Highway-Cell-2",
+      "description": "Highway segment 2",
+      "gNB_id": 1,
+      "latitude": 37.997,
+      "longitude": 23.815,
+      "radius": 150
+    },
+    {
+      "cell_id": "AAAAA3003",
+      "name": "Highway-Cell-3",
+      "description": "Highway segment 3",
+      "gNB_id": 1,
+      "latitude": 37.999,
+      "longitude": 23.82,
+      "radius": 150
+    },
+    {
+      "cell_id": "AAAAA3004",
+      "name": "Highway-Cell-4",
+      "description": "Highway segment 4",
+      "gNB_id": 1,
+      "latitude": 38.001,
+      "longitude": 23.825,
+      "radius": 150
+    }
+  ],
+  "UEs": [
+    {
+      "name": "Vehicle-1",
+      "description": "Fast vehicle on highway",
+      "ip_address_v4": "10.0.2.1",
+      "ip_address_v6": "::2:1",
+      "mac_address": "22-00-00-02-00-01",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle1@test.com",
+      "speed": "HIGH",
+      "supi": "202010000002001"
+    },
+    {
+      "name": "Vehicle-2",
+      "description": "Fast vehicle on highway",
+      "ip_address_v4": "10.0.2.2",
+      "ip_address_v6": "::2:2",
+      "mac_address": "22-00-00-02-00-02",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle2@test.com",
+      "speed": "HIGH",
+      "supi": "202010000002002"
+    },
+    {
+      "name": "Vehicle-3",
+      "description": "Fast vehicle on highway",
+      "ip_address_v4": "10.0.2.3",
+      "ip_address_v6": "::2:3",
+      "mac_address": "22-00-00-02-00-03",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle3@test.com",
+      "speed": "HIGH",
+      "supi": "202010000002003"
+    },
+    {
+      "name": "Vehicle-4",
+      "description": "Medium speed vehicle",
+      "ip_address_v4": "10.0.2.4",
+      "ip_address_v6": "::2:4",
+      "mac_address": "22-00-00-02-00-04",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle4@test.com",
+      "speed": "LOW",
+      "supi": "202010000002004"
+    },
+    {
+      "name": "Vehicle-5",
+      "description": "Reverse direction vehicle",
+      "ip_address_v4": "10.0.2.5",
+      "ip_address_v6": "::2:5",
+      "mac_address": "22-00-00-02-00-05",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle5@test.com",
+      "speed": "HIGH",
+      "supi": "202010000002005"
+    },
+    {
+      "name": "Vehicle-6",
+      "description": "Slow truck",
+      "ip_address_v4": "10.0.2.6",
+      "ip_address_v6": "::2:6",
+      "mac_address": "22-00-00-02-00-06",
+      "dnn": "highway.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "vehicle6@test.com",
+      "speed": "LOW",
+      "supi": "202010000002006"
+    }
+  ],
+  "paths": [
+    {
+      "description": "Highway forward lane 1",
+      "color": "#e74c3c",
+      "id": 1,
+      "start_point": {
+        "latitude": 37.994,
+        "longitude": 23.808
+      },
+      "end_point": {
+        "latitude": 38.002,
+        "longitude": 23.827
+      },
+      "points": [
         {
-            "gNB_id": "HIGHWY",
-            "name": "Highway-gNB",
-            "description": "Highway coverage base station",
-            "location": "Highway Route"
+          "latitude": 37.994,
+          "longitude": 23.808
+        },
+        {
+          "latitude": 37.9945,
+          "longitude": 23.809
+        },
+        {
+          "latitude": 37.995,
+          "longitude": 23.81
+        },
+        {
+          "latitude": 37.9955,
+          "longitude": 23.8115
+        },
+        {
+          "latitude": 37.996,
+          "longitude": 23.813
+        },
+        {
+          "latitude": 37.9965,
+          "longitude": 23.814
+        },
+        {
+          "latitude": 37.997,
+          "longitude": 23.815
+        },
+        {
+          "latitude": 37.9975,
+          "longitude": 23.8165
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.818
+        },
+        {
+          "latitude": 37.9985,
+          "longitude": 23.819
+        },
+        {
+          "latitude": 37.999,
+          "longitude": 23.82
+        },
+        {
+          "latitude": 37.9995,
+          "longitude": 23.8215
+        },
+        {
+          "latitude": 38.0,
+          "longitude": 23.823
+        },
+        {
+          "latitude": 38.0005,
+          "longitude": 23.824
+        },
+        {
+          "latitude": 38.001,
+          "longitude": 23.825
+        },
+        {
+          "latitude": 38.0015,
+          "longitude": 23.826
+        },
+        {
+          "latitude": 38.002,
+          "longitude": 23.827
         }
-    ],
-    "cells": [
+      ]
+    },
+    {
+      "description": "Highway forward lane 2",
+      "color": "#3498db",
+      "id": 2,
+      "start_point": {
+        "latitude": 37.9942,
+        "longitude": 23.8082
+      },
+      "end_point": {
+        "latitude": 38.0022,
+        "longitude": 23.8272
+      },
+      "points": [
         {
-            "cell_id": "HIGHWY001",
-            "name": "Highway-Cell-1",
-            "description": "Highway segment 1",
-            "gNB_id": 1,
-            "latitude": 37.9950,
-            "longitude": 23.8100,
-            "radius": 150
+          "latitude": 37.9942,
+          "longitude": 23.8082
         },
         {
-            "cell_id": "HIGHWY002",
-            "name": "Highway-Cell-2",
-            "description": "Highway segment 2",
-            "gNB_id": 1,
-            "latitude": 37.9970,
-            "longitude": 23.8150,
-            "radius": 150
+          "latitude": 37.9952,
+          "longitude": 23.8102
         },
         {
-            "cell_id": "HIGHWY003",
-            "name": "Highway-Cell-3",
-            "description": "Highway segment 3",
-            "gNB_id": 1,
-            "latitude": 37.9990,
-            "longitude": 23.8200,
-            "radius": 150
+          "latitude": 37.9962,
+          "longitude": 23.8132
         },
         {
-            "cell_id": "HIGHWY004",
-            "name": "Highway-Cell-4",
-            "description": "Highway segment 4",
-            "gNB_id": 1,
-            "latitude": 38.0010,
-            "longitude": 23.8250,
-            "radius": 150
+          "latitude": 37.9972,
+          "longitude": 23.8152
+        },
+        {
+          "latitude": 37.9982,
+          "longitude": 23.8182
+        },
+        {
+          "latitude": 37.9992,
+          "longitude": 23.8202
+        },
+        {
+          "latitude": 38.0002,
+          "longitude": 23.8232
+        },
+        {
+          "latitude": 38.0012,
+          "longitude": 23.8252
+        },
+        {
+          "latitude": 38.0022,
+          "longitude": 23.8272
         }
-    ],
-    "UEs": [
+      ]
+    },
+    {
+      "description": "Highway reverse lane",
+      "color": "#2ecc71",
+      "id": 3,
+      "start_point": {
+        "latitude": 38.0018,
+        "longitude": 23.8268
+      },
+      "end_point": {
+        "latitude": 37.9938,
+        "longitude": 23.8078
+      },
+      "points": [
         {
-            "name": "Vehicle-1",
-            "description": "Fast vehicle on highway",
-            "ip_address_v4": "10.0.2.1",
-            "ip_address_v6": "::2:1",
-            "mac_address": "22-00-00-02-00-01",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle1@test.com",
-            "speed": "HIGH",
-            "supi": "202010000002001"
+          "latitude": 38.0018,
+          "longitude": 23.8268
         },
         {
-            "name": "Vehicle-2",
-            "description": "Fast vehicle on highway",
-            "ip_address_v4": "10.0.2.2",
-            "ip_address_v6": "::2:2",
-            "mac_address": "22-00-00-02-00-02",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle2@test.com",
-            "speed": "HIGH",
-            "supi": "202010000002002"
+          "latitude": 38.0008,
+          "longitude": 23.8248
         },
         {
-            "name": "Vehicle-3",
-            "description": "Fast vehicle on highway",
-            "ip_address_v4": "10.0.2.3",
-            "ip_address_v6": "::2:3",
-            "mac_address": "22-00-00-02-00-03",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle3@test.com",
-            "speed": "HIGH",
-            "supi": "202010000002003"
+          "latitude": 37.9998,
+          "longitude": 23.8228
         },
         {
-            "name": "Vehicle-4",
-            "description": "Medium speed vehicle",
-            "ip_address_v4": "10.0.2.4",
-            "ip_address_v6": "::2:4",
-            "mac_address": "22-00-00-02-00-04",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle4@test.com",
-            "speed": "LOW",
-            "supi": "202010000002004"
+          "latitude": 37.9988,
+          "longitude": 23.8198
         },
         {
-            "name": "Vehicle-5",
-            "description": "Reverse direction vehicle",
-            "ip_address_v4": "10.0.2.5",
-            "ip_address_v6": "::2:5",
-            "mac_address": "22-00-00-02-00-05",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle5@test.com",
-            "speed": "HIGH",
-            "supi": "202010000002005"
+          "latitude": 37.9978,
+          "longitude": 23.8178
         },
         {
-            "name": "Vehicle-6",
-            "description": "Slow truck",
-            "ip_address_v4": "10.0.2.6",
-            "ip_address_v6": "::2:6",
-            "mac_address": "22-00-00-02-00-06",
-            "dnn": "highway.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "vehicle6@test.com",
-            "speed": "LOW",
-            "supi": "202010000002006"
+          "latitude": 37.9968,
+          "longitude": 23.8148
+        },
+        {
+          "latitude": 37.9958,
+          "longitude": 23.8128
+        },
+        {
+          "latitude": 37.9948,
+          "longitude": 23.8098
+        },
+        {
+          "latitude": 37.9938,
+          "longitude": 23.8078
         }
-    ],
-    "paths": [
-        {
-            "description": "Highway forward lane 1",
-            "color": "#e74c3c",
-            "id": 1,
-            "start_point": {
-                "latitude": 37.9940,
-                "longitude": 23.8080
-            },
-            "end_point": {
-                "latitude": 38.0020,
-                "longitude": 23.8270
-            },
-            "points": [
-                {
-                    "latitude": 37.9940,
-                    "longitude": 23.8080
-                },
-                {
-                    "latitude": 37.9945,
-                    "longitude": 23.8090
-                },
-                {
-                    "latitude": 37.9950,
-                    "longitude": 23.8100
-                },
-                {
-                    "latitude": 37.9955,
-                    "longitude": 23.8115
-                },
-                {
-                    "latitude": 37.9960,
-                    "longitude": 23.8130
-                },
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8140
-                },
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8150
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8165
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8200
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8215
-                },
-                {
-                    "latitude": 38.0000,
-                    "longitude": 23.8230
-                },
-                {
-                    "latitude": 38.0005,
-                    "longitude": 23.8240
-                },
-                {
-                    "latitude": 38.0010,
-                    "longitude": 23.8250
-                },
-                {
-                    "latitude": 38.0015,
-                    "longitude": 23.8260
-                },
-                {
-                    "latitude": 38.0020,
-                    "longitude": 23.8270
-                }
-            ]
-        },
-        {
-            "description": "Highway forward lane 2",
-            "color": "#3498db",
-            "id": 2,
-            "start_point": {
-                "latitude": 37.9942,
-                "longitude": 23.8082
-            },
-            "end_point": {
-                "latitude": 38.0022,
-                "longitude": 23.8272
-            },
-            "points": [
-                {
-                    "latitude": 37.9942,
-                    "longitude": 23.8082
-                },
-                {
-                    "latitude": 37.9952,
-                    "longitude": 23.8102
-                },
-                {
-                    "latitude": 37.9962,
-                    "longitude": 23.8132
-                },
-                {
-                    "latitude": 37.9972,
-                    "longitude": 23.8152
-                },
-                {
-                    "latitude": 37.9982,
-                    "longitude": 23.8182
-                },
-                {
-                    "latitude": 37.9992,
-                    "longitude": 23.8202
-                },
-                {
-                    "latitude": 38.0002,
-                    "longitude": 23.8232
-                },
-                {
-                    "latitude": 38.0012,
-                    "longitude": 23.8252
-                },
-                {
-                    "latitude": 38.0022,
-                    "longitude": 23.8272
-                }
-            ]
-        },
-        {
-            "description": "Highway reverse lane",
-            "color": "#2ecc71",
-            "id": 3,
-            "start_point": {
-                "latitude": 38.0018,
-                "longitude": 23.8268
-            },
-            "end_point": {
-                "latitude": 37.9938,
-                "longitude": 23.8078
-            },
-            "points": [
-                {
-                    "latitude": 38.0018,
-                    "longitude": 23.8268
-                },
-                {
-                    "latitude": 38.0008,
-                    "longitude": 23.8248
-                },
-                {
-                    "latitude": 37.9998,
-                    "longitude": 23.8228
-                },
-                {
-                    "latitude": 37.9988,
-                    "longitude": 23.8198
-                },
-                {
-                    "latitude": 37.9978,
-                    "longitude": 23.8178
-                },
-                {
-                    "latitude": 37.9968,
-                    "longitude": 23.8148
-                },
-                {
-                    "latitude": 37.9958,
-                    "longitude": 23.8128
-                },
-                {
-                    "latitude": 37.9948,
-                    "longitude": 23.8098
-                },
-                {
-                    "latitude": 37.9938,
-                    "longitude": 23.8078
-                }
-            ]
-        }
-    ]
+      ]
+    }
+  ],
+  "ue_path_association": []
 }

@@ -54,13 +54,18 @@ class CRUD_Points(CRUDBase[Points, PathCreate, PathUpdate]):
         else:
             obj_in_data = obj_in.copy()
 
-        for obj in obj_in_data["points"]:
+        points = obj_in_data.get("points", [])
+        created_objs = []
+        for obj in points:
             db_obj = self.model(**obj, path_id=path_id)
             db.add(db_obj)
-        
+            created_objs.append(db_obj)
         db.commit()
-        db.refresh(db_obj)
-        return db_obj
+        # Refresh all created objects to get IDs
+        for obj in created_objs:
+            db.refresh(obj)
+        # Return list of created point objects (may be empty)
+        return created_objs
 
     def get_points(
         self, db: Session, *, path_id: int

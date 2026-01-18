@@ -1,355 +1,354 @@
 {
-    "name": "Urban Dense Network",
-    "description": "Dense urban environment with overlapping cell coverage and many UEs to test load balancing and interference handling",
-    "gNBs": [
+  "gNBs": [
+    {
+      "gNB_id": "AAAAA1",
+      "name": "Urban-gNB-1",
+      "description": "Urban area base station 1",
+      "location": "City Center"
+    },
+    {
+      "gNB_id": "AAAAA2",
+      "name": "Urban-gNB-2",
+      "description": "Urban area base station 2",
+      "location": "Business District"
+    }
+  ],
+  "cells": [
+    {
+      "cell_id": "AAAAA1001",
+      "name": "Downtown-1",
+      "description": "Downtown cell 1",
+      "gNB_id": 1,
+      "latitude": 37.9975,
+      "longitude": 23.8175,
+      "radius": 60
+    },
+    {
+      "cell_id": "AAAAA1002",
+      "name": "Downtown-2",
+      "description": "Downtown cell 2",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.8185,
+      "radius": 60
+    },
+    {
+      "cell_id": "AAAAA1003",
+      "name": "Downtown-3",
+      "description": "Downtown cell 3",
+      "gNB_id": 1,
+      "latitude": 37.9985,
+      "longitude": 23.8175,
+      "radius": 60
+    },
+    {
+      "cell_id": "AAAAA1004",
+      "name": "Downtown-4",
+      "description": "Downtown cell 4",
+      "gNB_id": 1,
+      "latitude": 37.998,
+      "longitude": 23.8165,
+      "radius": 60
+    },
+    {
+      "cell_id": "BBBBB2001",
+      "name": "Business-1",
+      "description": "Business district cell 1",
+      "gNB_id": 2,
+      "latitude": 37.999,
+      "longitude": 23.819,
+      "radius": 70
+    },
+    {
+      "cell_id": "BBBBB2002",
+      "name": "Business-2",
+      "description": "Business district cell 2",
+      "gNB_id": 2,
+      "latitude": 37.9995,
+      "longitude": 23.818,
+      "radius": 70
+    },
+    {
+      "cell_id": "BBBBB2003",
+      "name": "Business-3",
+      "description": "Business district cell 3",
+      "gNB_id": 2,
+      "latitude": 37.999,
+      "longitude": 23.817,
+      "radius": 70
+    },
+    {
+      "cell_id": "BBBBB2004",
+      "name": "Business-4",
+      "description": "Business district cell 4",
+      "gNB_id": 2,
+      "latitude": 37.997,
+      "longitude": 23.819,
+      "radius": 70
+    }
+  ],
+  "UEs": [
+    {
+      "name": "Pedestrian-1",
+      "ip_address_v4": "10.0.3.1",
+      "ip_address_v6": "::3:1",
+      "mac_address": "22-00-00-03-00-01",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "ped1@test.com",
+      "speed": "LOW",
+      "supi": "202010000003001",
+      "description": "Pedestrian walking downtown"
+    },
+    {
+      "name": "Pedestrian-2",
+      "ip_address_v4": "10.0.3.2",
+      "ip_address_v6": "::3:2",
+      "mac_address": "22-00-00-03-00-02",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "ped2@test.com",
+      "speed": "LOW",
+      "supi": "202010000003002",
+      "description": "Pedestrian walking downtown"
+    },
+    {
+      "name": "Pedestrian-3",
+      "ip_address_v4": "10.0.3.3",
+      "ip_address_v6": "::3:3",
+      "mac_address": "22-00-00-03-00-03",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "ped3@test.com",
+      "speed": "LOW",
+      "supi": "202010000003003",
+      "description": "Pedestrian walking downtown"
+    },
+    {
+      "name": "Cyclist-1",
+      "ip_address_v4": "10.0.3.4",
+      "ip_address_v6": "::3:4",
+      "mac_address": "22-00-00-03-00-04",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "cyc1@test.com",
+      "speed": "HIGH",
+      "supi": "202010000003004",
+      "description": "Cyclist in bike lane"
+    },
+    {
+      "name": "Cyclist-2",
+      "ip_address_v4": "10.0.3.5",
+      "ip_address_v6": "::3:5",
+      "mac_address": "22-00-00-03-00-05",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "cyc2@test.com",
+      "speed": "HIGH",
+      "supi": "202010000003005",
+      "description": "Cyclist in bike lane"
+    },
+    {
+      "name": "Car-1",
+      "ip_address_v4": "10.0.3.6",
+      "ip_address_v6": "::3:6",
+      "mac_address": "22-00-00-03-00-06",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "car1@test.com",
+      "speed": "HIGH",
+      "supi": "202010000003006",
+      "description": "Car in traffic"
+    },
+    {
+      "name": "Car-2",
+      "ip_address_v4": "10.0.3.7",
+      "ip_address_v6": "::3:7",
+      "mac_address": "22-00-00-03-00-07",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "car2@test.com",
+      "speed": "HIGH",
+      "supi": "202010000003007",
+      "description": "Car in traffic"
+    },
+    {
+      "name": "IoT-Sensor-1",
+      "ip_address_v4": "10.0.3.8",
+      "ip_address_v6": "::3:8",
+      "mac_address": "22-00-00-03-00-08",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "iot1@test.com",
+      "speed": "LOW",
+      "supi": "202010000003008",
+      "description": "Static IoT sensor"
+    },
+    {
+      "name": "IoT-Sensor-2",
+      "ip_address_v4": "10.0.3.9",
+      "ip_address_v6": "::3:9",
+      "mac_address": "22-00-00-03-00-09",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "iot2@test.com",
+      "speed": "LOW",
+      "supi": "202010000003009",
+      "description": "Static IoT sensor"
+    },
+    {
+      "name": "Drone-1",
+      "ip_address_v4": "10.0.3.10",
+      "ip_address_v6": "::3:10",
+      "mac_address": "22-00-00-03-00-10",
+      "dnn": "urban.mnc01.mcc202.gprs",
+      "mcc": 202,
+      "mnc": 1,
+      "external_identifier": "drone1@test.com",
+      "speed": "HIGH",
+      "supi": "202010000003010",
+      "description": "Drone delivery"
+    }
+  ],
+  "paths": [
+    {
+      "description": "Downtown walking path",
+      "color": "#e74c3c",
+      "id": 1,
+      "start_point": {
+        "latitude": 37.997,
+        "longitude": 23.8165
+      },
+      "end_point": {
+        "latitude": 37.9995,
+        "longitude": 23.82
+      },
+      "points": [
         {
-            "gNB_id": "URBAN1",
-            "name": "Urban-gNB-1",
-            "description": "Urban area base station 1",
-            "location": "City Center"
+          "latitude": 37.997,
+          "longitude": 23.8165
         },
         {
-            "gNB_id": "URBAN2",
-            "name": "Urban-gNB-2",
-            "description": "Urban area base station 2",
-            "location": "Business District"
+          "latitude": 37.9975,
+          "longitude": 23.817
+        },
+        {
+          "latitude": 37.998,
+          "longitude": 23.8175
+        },
+        {
+          "latitude": 37.9982,
+          "longitude": 23.818
+        },
+        {
+          "latitude": 37.9985,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.9988,
+          "longitude": 23.819
+        },
+        {
+          "latitude": 37.999,
+          "longitude": 23.8195
         }
-    ],
-    "cells": [
+      ]
+    },
+    {
+      "description": "Bike lane path",
+      "color": "#3498db",
+      "id": 2,
+      "start_point": {
+        "latitude": 37.9965,
+        "longitude": 23.818
+      },
+      "end_point": {
+        "latitude": 37.9998,
+        "longitude": 23.818
+      },
+      "points": [
         {
-            "cell_id": "URBAN10001",
-            "name": "Downtown-1",
-            "description": "Downtown cell 1",
-            "gNB_id": 1,
-            "latitude": 37.9975,
-            "longitude": 23.8175,
-            "radius": 60
+          "latitude": 37.9965,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN10002",
-            "name": "Downtown-2",
-            "description": "Downtown cell 2",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8185,
-            "radius": 60
+          "latitude": 37.997,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN10003",
-            "name": "Downtown-3",
-            "description": "Downtown cell 3",
-            "gNB_id": 1,
-            "latitude": 37.9985,
-            "longitude": 23.8175,
-            "radius": 60
+          "latitude": 37.9975,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN10004",
-            "name": "Downtown-4",
-            "description": "Downtown cell 4",
-            "gNB_id": 1,
-            "latitude": 37.9980,
-            "longitude": 23.8165,
-            "radius": 60
+          "latitude": 37.998,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN20001",
-            "name": "Business-1",
-            "description": "Business district cell 1",
-            "gNB_id": 2,
-            "latitude": 37.9990,
-            "longitude": 23.8190,
-            "radius": 70
+          "latitude": 37.9985,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN20002",
-            "name": "Business-2",
-            "description": "Business district cell 2",
-            "gNB_id": 2,
-            "latitude": 37.9995,
-            "longitude": 23.8180,
-            "radius": 70
+          "latitude": 37.999,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN20003",
-            "name": "Business-3",
-            "description": "Business district cell 3",
-            "gNB_id": 2,
-            "latitude": 37.9990,
-            "longitude": 23.8170,
-            "radius": 70
+          "latitude": 37.9995,
+          "longitude": 23.818
         },
         {
-            "cell_id": "URBAN20004",
-            "name": "Business-4",
-            "description": "Business district cell 4",
-            "gNB_id": 2,
-            "latitude": 37.9970,
-            "longitude": 23.8190,
-            "radius": 70
+          "latitude": 37.9998,
+          "longitude": 23.818
         }
-    ],
-    "UEs": [
+      ]
+    },
+    {
+      "description": "Main street car route",
+      "color": "#2ecc71",
+      "id": 3,
+      "start_point": {
+        "latitude": 37.9975,
+        "longitude": 23.816
+      },
+      "end_point": {
+        "latitude": 37.9995,
+        "longitude": 23.82
+      },
+      "points": [
         {
-            "name": "Pedestrian-1",
-            "ip_address_v4": "10.0.3.1",
-            "ip_address_v6": "::3:1",
-            "mac_address": "22-00-00-03-00-01",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "ped1@test.com",
-            "speed": "LOW",
-            "supi": "202010000003001",
-            "description": "Pedestrian walking downtown"
+          "latitude": 37.9975,
+          "longitude": 23.816
         },
         {
-            "name": "Pedestrian-2",
-            "ip_address_v4": "10.0.3.2",
-            "ip_address_v6": "::3:2",
-            "mac_address": "22-00-00-03-00-02",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "ped2@test.com",
-            "speed": "LOW",
-            "supi": "202010000003002",
-            "description": "Pedestrian walking downtown"
+          "latitude": 37.9978,
+          "longitude": 23.8168
         },
         {
-            "name": "Pedestrian-3",
-            "ip_address_v4": "10.0.3.3",
-            "ip_address_v6": "::3:3",
-            "mac_address": "22-00-00-03-00-03",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "ped3@test.com",
-            "speed": "LOW",
-            "supi": "202010000003003",
-            "description": "Pedestrian walking downtown"
+          "latitude": 37.9982,
+          "longitude": 23.8176
         },
         {
-            "name": "Cyclist-1",
-            "ip_address_v4": "10.0.3.4",
-            "ip_address_v6": "::3:4",
-            "mac_address": "22-00-00-03-00-04",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "cyc1@test.com",
-            "speed": "HIGH",
-            "supi": "202010000003004",
-            "description": "Cyclist in bike lane"
+          "latitude": 37.9985,
+          "longitude": 23.8184
         },
         {
-            "name": "Cyclist-2",
-            "ip_address_v4": "10.0.3.5",
-            "ip_address_v6": "::3:5",
-            "mac_address": "22-00-00-03-00-05",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "cyc2@test.com",
-            "speed": "HIGH",
-            "supi": "202010000003005",
-            "description": "Cyclist in bike lane"
+          "latitude": 37.9988,
+          "longitude": 23.8192
         },
         {
-            "name": "Car-1",
-            "ip_address_v4": "10.0.3.6",
-            "ip_address_v6": "::3:6",
-            "mac_address": "22-00-00-03-00-06",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "car1@test.com",
-            "speed": "HIGH",
-            "supi": "202010000003006",
-            "description": "Car in traffic"
-        },
-        {
-            "name": "Car-2",
-            "ip_address_v4": "10.0.3.7",
-            "ip_address_v6": "::3:7",
-            "mac_address": "22-00-00-03-00-07",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "car2@test.com",
-            "speed": "HIGH",
-            "supi": "202010000003007",
-            "description": "Car in traffic"
-        },
-        {
-            "name": "IoT-Sensor-1",
-            "ip_address_v4": "10.0.3.8",
-            "ip_address_v6": "::3:8",
-            "mac_address": "22-00-00-03-00-08",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "iot1@test.com",
-            "speed": "LOW",
-            "supi": "202010000003008",
-            "description": "Static IoT sensor"
-        },
-        {
-            "name": "IoT-Sensor-2",
-            "ip_address_v4": "10.0.3.9",
-            "ip_address_v6": "::3:9",
-            "mac_address": "22-00-00-03-00-09",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "iot2@test.com",
-            "speed": "LOW",
-            "supi": "202010000003009",
-            "description": "Static IoT sensor"
-        },
-        {
-            "name": "Drone-1",
-            "ip_address_v4": "10.0.3.10",
-            "ip_address_v6": "::3:10",
-            "mac_address": "22-00-00-03-00-10",
-            "dnn": "urban.mnc01.mcc202.gprs",
-            "mcc": 202,
-            "mnc": 1,
-            "external_identifier": "drone1@test.com",
-            "speed": "HIGH",
-            "supi": "202010000003010",
-            "description": "Drone delivery"
+          "latitude": 37.9995,
+          "longitude": 23.82
         }
-    ],
-    "paths": [
-        {
-            "description": "Downtown walking path",
-            "color": "#e74c3c",
-            "id": 1,
-            "start_point": {
-                "latitude": 37.9970,
-                "longitude": 23.8165
-            },
-            "end_point": {
-                "latitude": 37.9990,
-                "longitude": 23.8195
-            },
-            "points": [
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8165
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8170
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8175
-                },
-                {
-                    "latitude": 37.9982,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8185
-                },
-                {
-                    "latitude": 37.9988,
-                    "longitude": 23.8190
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8195
-                }
-            ]
-        },
-        {
-            "description": "Bike lane path",
-            "color": "#3498db",
-            "id": 2,
-            "start_point": {
-                "latitude": 37.9965,
-                "longitude": 23.8180
-            },
-            "end_point": {
-                "latitude": 37.9998,
-                "longitude": 23.8180
-            },
-            "points": [
-                {
-                    "latitude": 37.9965,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9970,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9980,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9990,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8180
-                },
-                {
-                    "latitude": 37.9998,
-                    "longitude": 23.8180
-                }
-            ]
-        },
-        {
-            "description": "Main street car route",
-            "color": "#2ecc71",
-            "id": 3,
-            "start_point": {
-                "latitude": 37.9975,
-                "longitude": 23.8160
-            },
-            "end_point": {
-                "latitude": 37.9995,
-                "longitude": 23.8200
-            },
-            "points": [
-                {
-                    "latitude": 37.9975,
-                    "longitude": 23.8160
-                },
-                {
-                    "latitude": 37.9978,
-                    "longitude": 23.8168
-                },
-                {
-                    "latitude": 37.9982,
-                    "longitude": 23.8176
-                },
-                {
-                    "latitude": 37.9985,
-                    "longitude": 23.8184
-                },
-                {
-                    "latitude": 37.9988,
-                    "longitude": 23.8192
-                },
-                {
-                    "latitude": 37.9995,
-                    "longitude": 23.8200
-                }
-            ]
-        }
-    ]
+      ]
+    }
+  ],
+  "ue_path_association": []
 }
