@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import PingPongAnalysis from '../components/Analytics/PingPongAnalysis';
 import StatisticalSummary from '../components/Analytics/StatisticalSummary';
 import QoSComparisonChart from '../components/Analytics/QoSComparisonChart';
 import ConfidenceDistribution from '../components/Analytics/ConfidenceDistribution';
-import FailureModeTest from '../components/Analytics/FailureModeTest';
 import ExportReport from '../components/Analytics/ExportReport';
 import UETypeBreakdown from '../components/Analytics/UETypeBreakdown';
 import StabilityAnalysis from '../components/Analytics/StabilityAnalysis';
@@ -13,6 +12,11 @@ export default function AnalyticsPage() {
     const [history, setHistory] = useState([]);
     const [sessions, setSessions] = useState([]);
     const [selectedSession, setSelectedSession] = useState('all');
+    const [handoverWsStatus, setHandoverWsStatus] = useState('disconnected');
+    const handoverWsRef = useRef(null);
+    const processedBackendIdsRef = useRef(new Set());
+    const reconnectTimeoutRef = useRef(null);
+    const reconnectAttemptRef = useRef(0);
 
     useEffect(() => {
         const saved = localStorage.getItem('handover_history');
@@ -22,7 +26,128 @@ export default function AnalyticsPage() {
             // Extract unique sessions
             const uniqueSessions = [...new Set(parsed.map(h => h.sessionId).filter(Boolean))];
             setSessions(uniqueSessions);
+            parsed.forEach(h => {
+                if (h?.ue && h?.timestamp) {
+                    processedBackendIdsRef.current.add(`${h.ue}-${Math.floor(h.timestamp / 1000)}`);
+                }
+            });
         }
+    }, []);
+
+    useEffect(() => {
+        const buildWsUrl = () => {
+            const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+            if (apiBase.startsWith('http')) {
+                return apiBase.replace(/^http/, 'ws');
+            }
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const basePath = apiBase.startsWith('/') ? apiBase : `/${apiBase}`;
+            return `${wsProtocol}://${window.location.host}${basePath}`;
+        };
+
+        const connect = () => {
+            if (handoverWsRef.current) {
+                handoverWsRef.current.close();
+                handoverWsRef.current = null;
+            }
+
+            const token = localStorage.getItem('access_token');
+            const wsBase = buildWsUrl();
+            const wsUrl = `${wsBase}/ue_movement/ws/handovers?limit=50${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+            const ws = new WebSocket(wsUrl);
+            handoverWsRef.current = ws;
+            setHandoverWsStatus('connecting');
+
+            ws.onopen = () => {
+                reconnectAttemptRef.current = 0;
+                setHandoverWsStatus('connected');
+            };
+
+            ws.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data || '{}');
+                const ue = payload.ue;
+                const eventTime = payload.time;
+                if (!ue || !eventTime) {
+                    return;
+                }
+
+                const key = `${ue}-${eventTime}`;
+                if (processedBackendIdsRef.current.has(key)) {
+                    return;
+                }
+                processedBackendIdsRef.current.add(key);
+
+                const timestamp = Number(eventTime) * 1000;
+                const timeLabel = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+                const handover = {
+                    sessionId: 'session_live',
+                    retryNumber: 1,
+                    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+                    time: timeLabel,
+                    ue: ue,
+                    from: payload.from,
+                    to: payload.to,
+                    method: payload.method || 'A3 Event',
+                    confidence: typeof payload.confidence === 'number' ? payload.confidence.toFixed(2) : payload.confidence,
+                    rsrp: payload.rsrp ?? null,
+                    rsrpPrev: null,
+                    rsrpDelta: null,
+                    sinr: payload.sinr ?? null,
+                    fromBackend: true,
+                };
+
+                setHistory(prev => {
+                    const updated = [...prev, handover];
+                    localStorage.setItem('handover_history', JSON.stringify(updated));
+                    return updated;
+                });
+
+                setSessions(prev => {
+                    if (prev.includes('session_live')) {
+                        return prev;
+                    }
+                    return [...prev, 'session_live'];
+                });
+
+                const stats = JSON.parse(localStorage.getItem('kinisis_analytics') || '{"ml":0,"a3":0}');
+                if (handover.method === 'ML') stats.ml++;
+                else stats.a3++;
+                localStorage.setItem('kinisis_analytics', JSON.stringify(stats));
+            } catch (err) {
+                console.warn('Failed to parse analytics handover payload:', err);
+            }
+            };
+
+            ws.onerror = () => {
+                setHandoverWsStatus('disconnected');
+            };
+
+            ws.onclose = () => {
+                setHandoverWsStatus('disconnected');
+                const attempt = reconnectAttemptRef.current + 1;
+                reconnectAttemptRef.current = attempt;
+                const backoffMs = Math.min(30000, 1000 * (2 ** (attempt - 1)));
+                if (reconnectTimeoutRef.current) {
+                    clearTimeout(reconnectTimeoutRef.current);
+                }
+                reconnectTimeoutRef.current = setTimeout(connect, backoffMs);
+            };
+        };
+
+        connect();
+
+        return () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
+            }
+            if (handoverWsRef.current) {
+                handoverWsRef.current.close();
+                handoverWsRef.current = null;
+            }
+        };
     }, []);
 
     // Filter history based on selected session
@@ -67,6 +192,12 @@ export default function AnalyticsPage() {
                     <p className="text-gray-500">Compare ML vs A3 handover performance</p>
                 </div>
 
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className={`w-2 h-2 rounded-full ${handoverWsStatus === 'connected' ? 'bg-green-500' : handoverWsStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
+                        <span>Live feed: {handoverWsStatus}</span>
+                    </div>
+
                 {/* Session Filter */}
                 <div className="flex items-center gap-4">
                     <label className="text-sm font-medium text-gray-600">Session:</label>
@@ -82,6 +213,7 @@ export default function AnalyticsPage() {
                             </option>
                         ))}
                     </select>
+                </div>
                 </div>
             </div>
 
@@ -163,10 +295,9 @@ export default function AnalyticsPage() {
             {/* QoS Comparison */}
             <QoSComparisonChart history={filteredHistory} />
 
-            {/* Confidence & Failure Testing */}
+            {/* Confidence Distribution */}
             <div className="grid grid-cols-2 gap-4">
                 <ConfidenceDistribution history={filteredHistory} />
-                <FailureModeTest />
             </div>
 
             {/* Export */}

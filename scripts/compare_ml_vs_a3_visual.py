@@ -130,6 +130,150 @@ def _is_finite(value: Any) -> bool:
         return False
 
 
+# UE Type Categories for handover rate analysis
+UE_TYPE_PATTERNS = {
+    "Vehicle": r"(?i)(car|truck|vehicle|bus|taxi|ambulance|emergency)",
+    "Pedestrian": r"(?i)(pedestrian|walker|person|smartphone|tablet)",
+    "Drone": r"(?i)(drone|uav|agv)",
+    "IoT": r"(?i)(iot|sensor)",
+}
+
+import re
+
+def _infer_ue_type(ue_id: str) -> str:
+    """Infer UE type from UE ID/name using regex patterns.
+    
+    Uses naming conventions from scenario definitions:
+    - Car_1, Truck_1, Emergency_Ambulance → Vehicle
+    - Pedestrian_1, Walker_1 → Pedestrian  
+    - Drone_1, UAV_1, AGV_1 → Drone
+    - IoT_Sensor_1 → IoT
+    - Otherwise → Other
+    """
+    for ue_type, pattern in UE_TYPE_PATTERNS.items():
+        if re.search(pattern, ue_id):
+            return ue_type
+    return "Other"
+
+
+def _calculate_cross_retry_stats(values: List[float]) -> Dict[str, float]:
+    """Calculate statistics across multiple experiment retries.
+    
+    Returns mean, std, coefficient of variation, min, max.
+    """
+    if not values:
+        return {
+            "mean": float("nan"),
+            "std": float("nan"),
+            "cv": float("nan"),
+            "min": float("nan"),
+            "max": float("nan"),
+            "n": 0,
+        }
+    
+    arr = np.array([v for v in values if math.isfinite(v)], dtype=float)
+    if arr.size == 0:
+        return {
+            "mean": float("nan"),
+            "std": float("nan"),
+            "cv": float("nan"),
+            "min": float("nan"),
+            "max": float("nan"),
+            "n": 0,
+        }
+    
+    mean_val = float(np.mean(arr))
+    std_val = float(np.std(arr, ddof=1)) if arr.size > 1 else 0.0
+    cv = (std_val / mean_val * 100) if mean_val != 0 else 0.0
+    
+    return {
+        "mean": mean_val,
+        "std": std_val,
+        "cv": cv,  # Coefficient of variation as percentage
+        "min": float(np.min(arr)),
+        "max": float(np.max(arr)),
+        "n": int(arr.size),
+    }
+
+
+def _ttest_ind_pvalue(a: List[float], b: List[float]) -> float:
+    """Compute independent t-test p-value between two samples."""
+    if sp_stats is None or len(a) < 2 or len(b) < 2:
+        return float("nan")
+    try:
+        result = sp_stats.ttest_ind(a, b, equal_var=False)  # Welch's t-test
+        return float(result.pvalue)
+    except Exception:  # noqa: BLE001
+        logger.debug("T-test failed", exc_info=True)
+        return float("nan")
+
+
+def load_multi_experiment_metrics(experiment_dirs: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+    """Load metrics from multiple experiment directories for cross-retry analysis.
+    
+    Returns dict with 'ml' and 'a3' keys, each containing list of metric dicts.
+    """
+    ml_runs: List[Dict[str, Any]] = []
+    a3_runs: List[Dict[str, Any]] = []
+    
+    for exp_dir in experiment_dirs:
+        exp_path = Path(exp_dir)
+        if not exp_path.exists():
+            logger.warning("Experiment directory not found: %s", exp_dir)
+            continue
+        
+        # Look for metrics files in standard locations
+        metrics_dir = exp_path / "metrics"
+        if not metrics_dir.exists():
+            metrics_dir = exp_path
+        
+        # Try to load ML metrics
+        for ml_candidate in ["ml_metrics.json", "ml_mode_metrics.json"]:
+            ml_path = metrics_dir / ml_candidate
+            if ml_path.exists():
+                try:
+                    with open(ml_path) as f:
+                        ml_data = json.load(f)
+                    normalized = normalize_metrics_payload(ml_data, mode="ml")
+                    ml_runs.append(normalized.get("instant", {}))
+                    logger.info("Loaded ML metrics from %s", ml_path)
+                except Exception as e:
+                    logger.warning("Failed to load %s: %s", ml_path, e)
+                break
+        
+        # Try to load A3 metrics  
+        for a3_candidate in ["a3_metrics.json", "a3_mode_metrics.json"]:
+            a3_path = metrics_dir / a3_candidate
+            if a3_path.exists():
+                try:
+                    with open(a3_path) as f:
+                        a3_data = json.load(f)
+                    normalized = normalize_metrics_payload(a3_data, mode="a3")
+                    a3_runs.append(normalized.get("instant", {}))
+                    logger.info("Loaded A3 metrics from %s", a3_path)
+                except Exception as e:
+                    logger.warning("Failed to load %s: %s", a3_path, e)
+                break
+        
+        # Also check for combined metrics file
+        combined_path = metrics_dir / "combined_metrics.json"
+        if combined_path.exists() and not ml_runs:
+            try:
+                with open(combined_path) as f:
+                    combined = json.load(f)
+                if "ml_mode" in combined:
+                    ml_norm = normalize_metrics_payload(combined["ml_mode"], mode="ml")
+                    ml_runs.append(ml_norm.get("instant", {}))
+                if "a3_mode" in combined:
+                    a3_norm = normalize_metrics_payload(combined["a3_mode"], mode="a3")
+                    a3_runs.append(a3_norm.get("instant", {}))
+                logger.info("Loaded combined metrics from %s", combined_path)
+            except Exception as e:
+                logger.warning("Failed to load %s: %s", combined_path, e)
+    
+    return {"ml": ml_runs, "a3": a3_runs}
+
+
 def _sanitize_numeric_fields(metrics: Dict[str, Any]) -> Dict[str, Any]:
     cleaned = dict(metrics)
     for key, value in metrics.items():
@@ -521,6 +665,7 @@ def _derive_metrics_from_events(events: List[Dict[str, Any]], *, mode: str, ping
     fail_by_service: Counter[str] = Counter()
     type_counter: Counter[str] = Counter()
     skip_reasons: Counter[str] = Counter()
+    handovers_by_ue_type: Counter[str] = Counter()  # Track by UE type (Vehicle/Pedestrian/Drone/etc)
     per_ue_counter: Dict[str, Dict[str, int]] = defaultdict(lambda: {"applied": 0, "skipped": 0})
     previous_by_ue: Dict[str, Dict[str, Any]] = {}
     processed = 0
@@ -558,6 +703,10 @@ def _derive_metrics_from_events(events: List[Dict[str, Any]], *, mode: str, ping
 
         type_counter["applied"] += 1
         per_ue_counter[ue_id]["applied"] += 1
+        
+        # Track handover by UE type (inferred from UE name/ID)
+        ue_type = _infer_ue_type(ue_id)
+        handovers_by_ue_type[ue_type] += 1
 
         handover_result = raw.get("handover_result") or {}
         from_cell = handover_result.get("from") or raw.get("current_antenna")
@@ -675,6 +824,7 @@ def _derive_metrics_from_events(events: List[Dict[str, Any]], *, mode: str, ping
     derived["qos_violations_by_metric"] = {k: float(v) for k, v in violations_counter.items()}
     derived["handover_events_by_type"] = {k: float(v) for k, v in type_counter.items()}
     derived["skipped_by_outcome"] = {k: float(v) for k, v in skip_reasons.items()}
+    derived["handovers_by_ue_type"] = {k: float(v) for k, v in handovers_by_ue_type.items()}
     derived["handover_events_per_ue"] = {
         ue: {"applied": float(counts["applied"]), "skipped": float(counts["skipped"])}
         for ue, counts in per_ue_counter.items()
@@ -717,6 +867,7 @@ def _ensure_metric_defaults(metrics: Dict[str, Any], mode: str) -> Dict[str, Any
     metrics.setdefault("qos_violations_by_metric", {})
     metrics.setdefault("handover_events_by_type", {})
     metrics.setdefault("skipped_by_outcome", {})
+    metrics.setdefault("handovers_by_ue_type", {})
     metrics.setdefault("handover_events_per_ue", {})
     metrics.setdefault("dwell_time_samples", [])
     metrics.setdefault("latency_samples", [])
@@ -1004,6 +1155,9 @@ class ComparisonVisualizer:
         # 9. Time series plots (if available)
         if ml_timeseries:
             plots.append(self._plot_timeseries_comparison(ml_timeseries, a3_timeseries))
+        
+        # 10. Handovers by UE type (Vehicle/Pedestrian/Drone/etc)
+        plots.append(self._plot_handovers_by_ue_type(ml_clean, a3_clean))
         
         logger.info("Generated %d visualization files", len(plots))
         return [p for p in plots if p]  # Filter out None values
@@ -1478,6 +1632,229 @@ class ComparisonVisualizer:
         logger.info("Created confidence metrics: %s", output_path)
         return output_path
     
+    def _plot_handovers_by_ue_type(self, ml: Dict, a3: Dict) -> Path:
+        """Plot handover breakdown by UE type (Vehicle/Pedestrian/Drone/etc)."""
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+        fig.suptitle('Handover Distribution by UE Type', fontsize=14, fontweight='bold')
+        
+        ml_by_type = ml.get('handovers_by_ue_type', {})
+        a3_by_type = a3.get('handovers_by_ue_type', {})
+        
+        # Combine all UE types from both modes
+        all_types = sorted(set(list(ml_by_type.keys()) + list(a3_by_type.keys())))
+        if not all_types:
+            all_types = ['Vehicle', 'Pedestrian', 'Drone', 'IoT', 'Other']
+        
+        ml_counts = [ml_by_type.get(t, 0) for t in all_types]
+        a3_counts = [a3_by_type.get(t, 0) for t in all_types]
+        
+        # Left plot: Grouped bar chart comparing ML vs A3
+        x = np.arange(len(all_types))
+        width = 0.35
+        
+        bars_a3 = ax1.bar(x - width/2, a3_counts, width, label='A3 Mode', 
+                          color='#FF6B6B', alpha=0.8, edgecolor='black')
+        bars_ml = ax1.bar(x + width/2, ml_counts, width, label='ML Mode',
+                          color='#51CF66', alpha=0.8, edgecolor='black')
+        
+        # Add value labels
+        for bars in [bars_a3, bars_ml]:
+            for bar in bars:
+                height = bar.get_height()
+                if height > 0:
+                    ax1.text(bar.get_x() + bar.get_width()/2., height,
+                            f'{int(height)}',
+                            ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        ax1.set_xlabel('UE Type', fontsize=11, fontweight='bold')
+        ax1.set_ylabel('Handover Count', fontsize=11, fontweight='bold')
+        ax1.set_title('Handovers by UE Type Comparison', fontsize=12, fontweight='bold')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(all_types, rotation=15, ha='right')
+        ax1.legend(fontsize=10)
+        ax1.grid(True, alpha=0.3, axis='y')
+        
+        # Right plot: Calculate handover rate per UE type (handovers / total for that type)
+        ml_total = sum(ml_counts) if sum(ml_counts) > 0 else 1
+        a3_total = sum(a3_counts) if sum(a3_counts) > 0 else 1
+        
+        ml_rates = [c / ml_total * 100 for c in ml_counts]
+        a3_rates = [c / a3_total * 100 for c in a3_counts]
+        
+        bars_a3_rate = ax2.bar(x - width/2, a3_rates, width, label='A3 Mode',
+                                color='#FF6B6B', alpha=0.8, edgecolor='black')
+        bars_ml_rate = ax2.bar(x + width/2, ml_rates, width, label='ML Mode',
+                                color='#51CF66', alpha=0.8, edgecolor='black')
+        
+        for bars in [bars_a3_rate, bars_ml_rate]:
+            for bar in bars:
+                height = bar.get_height()
+                if height > 0:
+                    ax2.text(bar.get_x() + bar.get_width()/2., height,
+                            f'{height:.1f}%',
+                            ha='center', va='bottom', fontsize=9, fontweight='bold')
+        
+        ax2.set_xlabel('UE Type', fontsize=11, fontweight='bold')
+        ax2.set_ylabel('Share of Handovers (%)', fontsize=11, fontweight='bold')
+        ax2.set_title('Handover Share by UE Type', fontsize=12, fontweight='bold')
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(all_types, rotation=15, ha='right')
+        ax2.legend(fontsize=10)
+        ax2.grid(True, alpha=0.3, axis='y')
+        
+        plt.tight_layout()
+        output_path = self.output_dir / "10_handovers_by_ue_type.png"
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        logger.info("Created UE type breakdown: %s", output_path)
+        return output_path
+    
+    def _plot_cross_retry_stability(
+        self,
+        multi_run_metrics: Dict[str, List[Dict[str, Any]]],
+    ) -> Optional[Path]:
+        """Plot cross-retry stability analysis showing variance across experiment runs.
+        
+        Args:
+            multi_run_metrics: Dict with 'ml' and 'a3' keys, each containing
+                               list of metric dicts from multiple experiment runs.
+        """
+        ml_runs = multi_run_metrics.get('ml', [])
+        a3_runs = multi_run_metrics.get('a3', [])
+        
+        if len(ml_runs) < 2 and len(a3_runs) < 2:
+            logger.info("Skipping stability plot: need at least 2 runs for variance analysis")
+            return None
+        
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle('Time-Series Stability: Variance Across Experiment Retries', 
+                     fontsize=14, fontweight='bold')
+        
+        # Key metrics to analyze for stability
+        stability_metrics = [
+            ('total_handovers', 'Total Handovers'),
+            ('pingpong_suppressions', 'Ping-Pong Suppressions'),
+            ('qos_compliance_ok', 'QoS Compliant'),
+            ('avg_confidence', 'Avg ML Confidence'),
+        ]
+        
+        for idx, (metric_key, metric_label) in enumerate(stability_metrics):
+            ax = axes[idx // 2, idx % 2]
+            
+            ml_values = [run.get(metric_key, 0) for run in ml_runs if metric_key in run]
+            a3_values = [run.get(metric_key, 0) for run in a3_runs if metric_key in run]
+            
+            # Scale confidence to percentage
+            if metric_key == 'avg_confidence':
+                ml_values = [v * 100 for v in ml_values]
+                a3_values = [v * 100 for v in a3_values]
+            
+            ml_stats = _calculate_cross_retry_stats(ml_values)
+            a3_stats = _calculate_cross_retry_stats(a3_values)
+            
+            # Plot bars with error bars for std dev
+            x_pos = [0, 1]
+            means = [a3_stats['mean'], ml_stats['mean']]
+            stds = [a3_stats['std'], ml_stats['std']]
+            colors = ['#FF6B6B', '#51CF66']
+            
+            bars = ax.bar(x_pos, means, yerr=stds, capsize=5,
+                         color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
+            
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(['A3 Mode', 'ML Mode'])
+            ax.set_ylabel(metric_label, fontweight='bold')
+            ax.set_title(f'{metric_label} Stability', fontweight='bold')
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            # Add CV (coefficient of variation) annotations
+            for i, (mean, std, stats) in enumerate([(a3_stats['mean'], a3_stats['std'], a3_stats),
+                                                     (ml_stats['mean'], ml_stats['std'], ml_stats)]):
+                if not math.isnan(mean):
+                    cv = stats['cv']
+                    n = stats['n']
+                    cv_color = 'green' if cv < 15 else ('orange' if cv < 30 else 'red')
+                    label = f'μ={mean:.1f}\\nCV={cv:.1f}%\\nn={n}'
+                    ax.annotate(label, xy=(i, mean), xytext=(i, mean + std + (ax.get_ylim()[1] * 0.05)),
+                               ha='center', fontsize=8, color=cv_color,
+                               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        
+        plt.tight_layout()
+        output_path = self.output_dir / "11_cross_retry_stability.png"
+        plt.savefig(output_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        logger.info("Created cross-retry stability analysis: %s", output_path)
+        return output_path
+    
+    def generate_stability_report(
+        self,
+        multi_run_metrics: Dict[str, List[Dict[str, Any]]],
+    ) -> str:
+        """Generate text summary of cross-retry stability analysis.
+        
+        Returns formatted string with stability metrics.
+        """
+        ml_runs = multi_run_metrics.get('ml', [])
+        a3_runs = multi_run_metrics.get('a3', [])
+        
+        lines = []
+        lines.append("=" * 70)
+        lines.append("CROSS-RETRY STABILITY ANALYSIS")
+        lines.append("=" * 70)
+        lines.append(f"ML experiment runs: {len(ml_runs)}")
+        lines.append(f"A3 experiment runs: {len(a3_runs)}")
+        lines.append("")
+        
+        if len(ml_runs) < 2 and len(a3_runs) < 2:
+            lines.append("⚠️  Insufficient data for variance analysis (need ≥2 runs)")
+            return "\\n".join(lines)
+        
+        # Metrics to analyze
+        metrics_to_check = [
+            ('total_handovers', 'Total Handovers', ''),
+            ('skipped_handovers', 'Skipped Handovers', ''),
+            ('pingpong_suppressions', 'Ping-Pong Suppressions', ''),
+            ('qos_compliance_ok', 'QoS Compliant', ''),
+            ('p50_handover_interval', 'Median Dwell Time', 's'),
+            ('avg_confidence', 'Avg ML Confidence', '', 100),  # Scale factor
+        ]
+        
+        lines.append(f"{'Metric':<25} {'Mode':<6} {'Mean':>10} {'Std':>10} {'CV%':>8} {'Status':>10}")
+        lines.append("-" * 70)
+        
+        for metric_tuple in metrics_to_check:
+            metric_key = metric_tuple[0]
+            metric_label = metric_tuple[1]
+            unit = metric_tuple[2] if len(metric_tuple) > 2 else ''
+            scale = metric_tuple[3] if len(metric_tuple) > 3 else 1
+            
+            ml_values = [run.get(metric_key, 0) * scale for run in ml_runs if metric_key in run]
+            a3_values = [run.get(metric_key, 0) * scale for run in a3_runs if metric_key in run]
+            
+            for mode, values in [('ML', ml_values), ('A3', a3_values)]:
+                stats = _calculate_cross_retry_stats(values)
+                if stats['n'] >= 2:
+                    cv = stats['cv']
+                    status = '✓ Stable' if cv < 15 else ('⚠ Moderate' if cv < 30 else '✗ High Var')
+                    mean_str = f"{stats['mean']:.2f}{unit}"
+                    std_str = f"±{stats['std']:.2f}"
+                    cv_str = f"{cv:.1f}%"
+                else:
+                    status = 'N/A'
+                    mean_str = f"{stats['mean']:.2f}{unit}" if stats['n'] > 0 else 'N/A'
+                    std_str = 'N/A'
+                    cv_str = 'N/A'
+                
+                lines.append(f"{metric_label:<25} {mode:<6} {mean_str:>10} {std_str:>10} {cv_str:>8} {status:>10}")
+        
+        lines.append("")
+        lines.append("Stability thresholds: CV < 15% = Stable, 15-30% = Moderate, >30% = High variance")
+        lines.append("=" * 70)
+        
+        return "\\n".join(lines)
+    
     def _plot_comprehensive_comparison(self, ml: Dict, a3: Dict) -> Path:
         """Plot comprehensive side-by-side comparison."""
         fig, axes = plt.subplots(2, 2, figsize=(16, 12))
@@ -1724,10 +2101,30 @@ class ComparisonVisualizer:
         ml_confidence_arr = _clean_sample_array(ml.get('confidence_samples'))
         ml_confidence_std = _sample_std(ml_confidence_arr)
 
+        # Statistical tests
+        dwell_mann_whitney_pvalue = _mann_whitney_pvalue(ml_dwell_arr.tolist(), a3_dwell_arr.tolist())
+        dwell_ttest_pvalue = _ttest_ind_pvalue(ml_dwell_arr.tolist(), a3_dwell_arr.tolist())
+        
+        # UE type breakdown
+        ml_by_ue_type = ml.get('handovers_by_ue_type', {})
+        a3_by_ue_type = a3.get('handovers_by_ue_type', {})
+        all_ue_types = sorted(set(list(ml_by_ue_type.keys()) + list(a3_by_ue_type.keys())))
+
         def _format_ci(low: float, high: float) -> str:
             if math.isnan(low) or math.isnan(high):
                 return 'N/A'
             return f"[{low:.2f}, {high:.2f}]"
+        
+        def _format_pvalue(pval: float) -> str:
+            if math.isnan(pval):
+                return 'N/A'
+            if pval < 0.001:
+                return '<0.001***'
+            if pval < 0.01:
+                return f'{pval:.4f}**'
+            if pval < 0.05:
+                return f'{pval:.4f}*'
+            return f'{pval:.4f}'
 
         data = {
             'Metric': [
@@ -1800,6 +2197,26 @@ class ComparisonVisualizer:
                 top_skip_display,
             ]
         }
+        
+        # Add statistical test results
+        data['Metric'].extend([
+            'Dwell Time Mann-Whitney U p-value',
+            'Dwell Time T-Test p-value',
+        ])
+        data['A3_Mode'].extend([
+            _format_pvalue(dwell_mann_whitney_pvalue),
+            _format_pvalue(dwell_ttest_pvalue),
+        ])
+        data['ML_Mode'].extend([
+            _format_pvalue(dwell_mann_whitney_pvalue),
+            _format_pvalue(dwell_ttest_pvalue),
+        ])
+        
+        # Add UE type breakdown
+        for ue_type in all_ue_types:
+            data['Metric'].append(f'Handovers by {ue_type}')
+            data['A3_Mode'].append(int(a3_by_ue_type.get(ue_type, 0)))
+            data['ML_Mode'].append(int(ml_by_ue_type.get(ue_type, 0)))
         
         df = pd.DataFrame(data)
         
@@ -1914,6 +2331,7 @@ class ComparisonVisualizer:
         ml_dwell_ci_low, ml_dwell_ci_high = _bootstrap_confidence_interval(ml_dwell_arr.tolist(), np.median)
         a3_dwell_ci_low, a3_dwell_ci_high = _bootstrap_confidence_interval(a3_dwell_arr.tolist(), np.median)
         dwell_pvalue = _mann_whitney_pvalue(ml_dwell_arr.tolist(), a3_dwell_arr.tolist())
+        dwell_ttest_pvalue = _ttest_ind_pvalue(ml_dwell_arr.tolist(), a3_dwell_arr.tolist())
         ml_dwell_std = _sample_std(ml_dwell_arr)
         a3_dwell_std = _sample_std(a3_dwell_arr)
 
@@ -1935,6 +2353,21 @@ class ComparisonVisualizer:
             f"A3 n={a3_dwell_arr.size}, σ={_format_std(a3_dwell_std, 's')}"
         )
         dwell_pvalue_display = f'{dwell_pvalue:.4f}' if not math.isnan(dwell_pvalue) else 'N/A'
+        dwell_ttest_pvalue_display = f'{dwell_ttest_pvalue:.4f}' if not math.isnan(dwell_ttest_pvalue) else 'N/A'
+        
+        # UE type breakdown summary
+        ml_by_ue_type = ml.get('handovers_by_ue_type', {})
+        a3_by_ue_type = a3.get('handovers_by_ue_type', {})
+        all_ue_types = sorted(set(list(ml_by_ue_type.keys()) + list(a3_by_ue_type.keys())))
+        if all_ue_types:
+            ue_type_lines = []
+            for ue_type in all_ue_types:
+                ml_count = int(ml_by_ue_type.get(ue_type, 0))
+                a3_count = int(a3_by_ue_type.get(ue_type, 0))
+                ue_type_lines.append(f"    • {ue_type}: ML={ml_count}, A3={a3_count}")
+            ue_type_summary = "\\n".join(ue_type_lines)
+        else:
+            ue_type_summary = "    • No UE type data available"
 
         per_ue = ml.get('handover_events_per_ue') or {}
         ue_rows: List[Tuple[str, float, float, float]] = []
@@ -2044,6 +2477,10 @@ Dwell Time Statistical Summary:
     {dwell_ci_summary}
     Samples: {dwell_samples_summary}
     Mann-Whitney U p-value: {dwell_pvalue_display}
+    T-Test p-value (Welch): {dwell_ttest_pvalue_display}
+
+HANDOVER RATE BY UE TYPE:
+{ue_type_summary}
 
 PER-UE OBSERVATIONS:
 {per_ue_summary}
@@ -2316,6 +2753,10 @@ Examples:
                        help='Generate visualizations from existing data only')
     parser.add_argument('--input', type=str, help='Input data file (JSON) with both ML and A3 metrics')
     
+    # Cross-retry stability analysis
+    parser.add_argument('--experiment-dirs', type=str, nargs='+',
+                       help='Multiple experiment directories for cross-retry stability analysis')
+    
     args = parser.parse_args()
     
     # Create output directory
@@ -2447,6 +2888,26 @@ Examples:
     csv_path = visualizer.export_csv_report(ml_metrics, a3_metrics)
     per_ue_csv = visualizer.export_per_ue_report(ml_metrics, a3_metrics)
     skip_reason_csv = visualizer.export_skip_reason_report(ml_metrics)
+    
+    # Cross-retry stability analysis if multiple experiment directories provided
+    stability_plot = None
+    stability_report = None
+    if args.experiment_dirs and len(args.experiment_dirs) >= 2:
+        logger.info("=" * 70)
+        logger.info("Cross-Retry Stability Analysis")
+        logger.info("=" * 70)
+        multi_run_metrics = load_multi_experiment_metrics(args.experiment_dirs)
+        
+        if multi_run_metrics['ml'] or multi_run_metrics['a3']:
+            stability_plot = visualizer._plot_cross_retry_stability(multi_run_metrics)
+            if stability_plot:
+                plots.append(stability_plot)
+            
+            stability_report = visualizer.generate_stability_report(multi_run_metrics)
+            stability_report_path = output_dir / "STABILITY_REPORT.txt"
+            with open(stability_report_path, 'w') as f:
+                f.write(stability_report)
+            logger.info("Generated stability report: %s", stability_report_path)
     
     # Generate text summary
     summary_path = visualizer.generate_text_summary(ml_metrics, a3_metrics)

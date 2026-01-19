@@ -116,22 +116,11 @@ class MetricsStateObserver(StateObserver):
             # Track specific metrics based on metadata
             metadata = change.metadata or {}
             
-            # Track model-related metrics
-            if "ue_id" in metadata:
-                # This is a UE-related state change
-                pass  # Could track UE-specific metrics here
-            
-            if metadata.get("action") == "ue_update":
-                # Track UE update metrics
-                pass
-            
-            if change.key == "prediction_count":
-                # Track prediction metrics
-                if isinstance(change.new_value, int) and isinstance(change.old_value, int):
-                    predictions_made = change.new_value - change.old_value
-                    if predictions_made > 0:
-                        # Use default values for demonstration
-                        track_prediction("antenna_1", 0.8)
+            # Track model-related metrics only when real metadata is available
+            predicted_antenna = metadata.get("predicted_antenna") or metadata.get("antenna_id")
+            confidence = metadata.get("confidence")
+            if predicted_antenna is not None and isinstance(confidence, (int, float)):
+                track_prediction(str(predicted_antenna), float(confidence))
     
     def get_metrics(self) -> Dict[str, Any]:
         """Get collected metrics."""

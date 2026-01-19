@@ -122,15 +122,12 @@ async function stopAllUEs() {
 }
 
 async function getHandoverCount() {
-    // Try to get handover count from backend
-    // If endpoint doesn't exist, return a placeholder
     try {
         const res = await axiosInstance.get(`${NEF_API}/ue_movement/handover-stats`);
         return res.data.total_handovers || 0;
     } catch (error) {
-        // Fallback: count from state-ues (not accurate, just for demo)
-        console.warn('   ⚠️ handover-stats endpoint not available, using mock data');
-        return Math.floor(Math.random() * 5) + 1; // Mock for now
+        console.error('   ❌ handover-stats endpoint not available:', error.message);
+        return null;
     }
 }
 
@@ -172,6 +169,10 @@ async function runTrial(mode, trialNum) {
 
     // Get handover count
     const handovers = await getHandoverCount();
+    if (handovers === null) {
+        console.error('   ❌ Cannot complete trial without real handover stats.');
+        return null;
+    }
 
     const result = {
         trial: trialNum + 1,

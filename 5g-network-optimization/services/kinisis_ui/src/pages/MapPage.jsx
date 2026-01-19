@@ -51,9 +51,15 @@ export default function MapPage() {
     const [selectedUE, setSelectedUE] = useState(null);
     const [showRetryModal, setShowRetryModal] = useState(false);
     const [showClearModal, setShowClearModal] = useState(false);
+    const [handoverWsConnected, setHandoverWsConnected] = useState(false);
+    const [handoverWsStatus, setHandoverWsStatus] = useState('disconnected');
 
     const pollIntervalRef = useRef(null);
     const timerIntervalRef = useRef(null);
+    const handoverWsRef = useRef(null);
+    const processedBackendIdsRef = useRef(new Set());
+    const handoverReconnectTimeoutRef = useRef(null);
+    const handoverReconnectAttemptRef = useRef(0);
 
     // Fetch initial data
     useEffect(() => {
@@ -89,8 +95,7 @@ export default function MapPage() {
     // Poll for UE movement when running
     useEffect(() => {
         if (isRunning) {
-            // Track which handovers we've already processed from backend
-            const processedBackendIds = new Set();
+            const processedBackendIds = processedBackendIdsRef.current;
 
             pollIntervalRef.current = setInterval(async () => {
                 try {
@@ -99,17 +104,20 @@ export default function MapPage() {
 
                     // Also fetch real handover events from backend (with actual ML confidence)
                     let backendHandovers = [];
-                    try {
-                        const hoRes = await getRecentHandovers(20);
-                        backendHandovers = hoRes.data || [];
-                    } catch (e) {
-                        // Backend endpoint may not exist in older versions
-                        console.debug('Backend handovers not available:', e.message);
+                    if (!handoverWsConnected) {
+                        try {
+                            const hoRes = await getRecentHandovers(20);
+                            backendHandovers = hoRes.data || [];
+                        } catch (e) {
+                            // Backend endpoint may not exist in older versions
+                            console.debug('Backend handovers not available:', e.message);
+                        }
                     }
 
                     // Detect handovers from position changes
                     const newHandovers = [];
-                    movingUEs.forEach(nextUE => {
+                    if (!handoverWsConnected) {
+                        movingUEs.forEach(nextUE => {
                         const prevUE = prevUEsRef.current[nextUE.supi];
                         if (prevUE && prevUE.cell_id_hex && nextUE.cell_id_hex &&
                             prevUE.cell_id_hex !== nextUE.cell_id_hex) {
@@ -120,7 +128,7 @@ export default function MapPage() {
                                 !processedBackendIds.has(`${bh.ue}-${bh.time}`)
                             );
 
-                            let confidence;
+                            let confidence = null;
                             let method;
 
                             if (backendMatch && backendMatch.confidence !== null) {
@@ -129,21 +137,12 @@ export default function MapPage() {
                                 method = backendMatch.method || (mlMode ? 'ML' : 'A3 Event');
                                 processedBackendIds.add(`${backendMatch.ue}-${backendMatch.time}`);
                             } else {
-                                // Fallback to signal-based calculation
-                                const prevRSRP = prevUE.rsrp || -95;
-                                const nextRSRP = nextUE.rsrp || -85;
-                                const rsrpImprovement = nextRSRP - prevRSRP;
-
-                                if (mlMode) {
-                                    confidence = Math.min(0.99, Math.max(0.60, 0.75 + rsrpImprovement * 0.02));
-                                } else {
-                                    confidence = Math.min(0.85, Math.max(0.50, 0.65 + rsrpImprovement * 0.015));
-                                }
                                 method = mlMode ? 'ML' : 'A3 Event';
                             }
 
-                            const prevRSRP = prevUE.rsrp || -95;
-                            const nextRSRP = nextUE.rsrp || -85;
+                            const prevRSRP = Number.isFinite(prevUE.rsrp) ? prevUE.rsrp : null;
+                            const nextRSRP = Number.isFinite(nextUE.rsrp) ? nextUE.rsrp : null;
+                            const rsrpDelta = (prevRSRP !== null && nextRSRP !== null) ? (nextRSRP - prevRSRP) : null;
 
                             newHandovers.push({
                                 sessionId: sessionId,
@@ -157,18 +156,22 @@ export default function MapPage() {
                                 confidence: typeof confidence === 'number' ? confidence.toFixed(2) : confidence,
                                 rsrp: nextRSRP,
                                 rsrpPrev: prevRSRP,
-                                rsrpDelta: (nextRSRP - prevRSRP).toFixed(1),
-                                sinr: nextUE.sinr || Math.round(10 + Math.random() * 10),
+                                rsrpDelta: rsrpDelta !== null ? rsrpDelta.toFixed(1) : null,
+                                sinr: Number.isFinite(nextUE.sinr) ? nextUE.sinr : null,
                                 fromBackend: !!backendMatch,
                             });
                         }
                         prevUEsRef.current[nextUE.supi] = { ...nextUE };
                     });
+                    } else {
+                        movingUEs.forEach(nextUE => {
+                            prevUEsRef.current[nextUE.supi] = { ...nextUE };
+                        });
+                    }
 
                     if (newHandovers.length > 0) {
                         newHandovers.forEach(h => {
                             addHandover(h);
-                            // Also update analytics storage
                             const stats = JSON.parse(localStorage.getItem('kinisis_analytics') || '{"ml":0,"a3":0}');
                             if (h.method === 'ML') stats.ml++;
                             else stats.a3++;
@@ -204,7 +207,124 @@ export default function MapPage() {
                 clearInterval(pollIntervalRef.current);
             }
         };
-    }, [isRunning, sessionId, mlMode, currentRetry]);
+    }, [isRunning, sessionId, mlMode, currentRetry, handoverWsConnected]);
+
+    // Handover WebSocket streaming
+    useEffect(() => {
+        if (!isRunning) {
+            if (handoverWsRef.current) {
+                handoverWsRef.current.close();
+                handoverWsRef.current = null;
+            }
+            setHandoverWsConnected(false);
+            setHandoverWsStatus('disconnected');
+            return;
+        }
+
+        const buildWsUrl = () => {
+            const apiBase = import.meta.env.VITE_API_URL || '/api/v1';
+            if (apiBase.startsWith('http')) {
+                return apiBase.replace(/^http/, 'ws');
+            }
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            const basePath = apiBase.startsWith('/') ? apiBase : `/${apiBase}`;
+            return `${wsProtocol}://${window.location.host}${basePath}`;
+        };
+
+        const connect = () => {
+            if (handoverWsRef.current) {
+                handoverWsRef.current.close();
+                handoverWsRef.current = null;
+            }
+
+            const token = localStorage.getItem('access_token');
+            const wsBase = buildWsUrl();
+            const wsUrl = `${wsBase}/ue_movement/ws/handovers?limit=50${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+            const ws = new WebSocket(wsUrl);
+            handoverWsRef.current = ws;
+            setHandoverWsStatus('connecting');
+
+            ws.onopen = () => {
+                handoverReconnectAttemptRef.current = 0;
+                setHandoverWsConnected(true);
+                setHandoverWsStatus('connected');
+            };
+
+            ws.onclose = () => {
+                setHandoverWsConnected(false);
+                setHandoverWsStatus('disconnected');
+                const attempt = handoverReconnectAttemptRef.current + 1;
+                handoverReconnectAttemptRef.current = attempt;
+                const backoffMs = Math.min(30000, 1000 * (2 ** (attempt - 1)));
+                if (handoverReconnectTimeoutRef.current) {
+                    clearTimeout(handoverReconnectTimeoutRef.current);
+                }
+                handoverReconnectTimeoutRef.current = setTimeout(connect, backoffMs);
+            };
+
+            ws.onerror = () => {
+                setHandoverWsConnected(false);
+                setHandoverWsStatus('disconnected');
+            };
+
+            ws.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data || '{}');
+                const ue = payload.ue;
+                const eventTime = payload.time;
+                if (!ue || !eventTime) {
+                    return;
+                }
+                const key = `${ue}-${eventTime}`;
+                if (processedBackendIdsRef.current.has(key)) {
+                    return;
+                }
+                processedBackendIdsRef.current.add(key);
+
+                const timestamp = Number(eventTime) * 1000;
+                const timeLabel = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+                const handover = {
+                    sessionId: sessionId,
+                    retryNumber: currentRetry || 1,
+                    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+                    time: timeLabel,
+                    ue: ue,
+                    from: payload.from,
+                    to: payload.to,
+                    method: payload.method || 'A3 Event',
+                    confidence: typeof payload.confidence === 'number' ? payload.confidence.toFixed(2) : payload.confidence,
+                    rsrp: payload.rsrp ?? null,
+                    rsrpPrev: null,
+                    rsrpDelta: null,
+                    sinr: payload.sinr ?? null,
+                    fromBackend: true,
+                };
+
+                addHandover(handover);
+                const stats = JSON.parse(localStorage.getItem('kinisis_analytics') || '{"ml":0,"a3":0}');
+                if (handover.method === 'ML') stats.ml++;
+                else stats.a3++;
+                localStorage.setItem('kinisis_analytics', JSON.stringify(stats));
+            } catch (err) {
+                console.warn('Failed to parse handover WebSocket payload:', err);
+            }
+            };
+        };
+
+        connect();
+
+        return () => {
+            if (handoverReconnectTimeoutRef.current) {
+                clearTimeout(handoverReconnectTimeoutRef.current);
+                handoverReconnectTimeoutRef.current = null;
+            }
+            if (handoverWsRef.current) {
+                handoverWsRef.current.close();
+                handoverWsRef.current = null;
+            }
+        };
+    }, [isRunning, sessionId, currentRetry]);
 
     // Timer countdown
     useEffect(() => {
@@ -230,6 +350,7 @@ export default function MapPage() {
     const handleStart = async () => {
         try {
             prevUEsRef.current = {};
+            processedBackendIdsRef.current = new Set();
             await startAllUEs();
             setIsRunning(true);
             setTimeRemaining(duration);
@@ -290,7 +411,13 @@ export default function MapPage() {
 
     return (
         <div className="space-y-4">
-            <h1 className="text-2xl font-bold">📍 Network Map</h1>
+            <div className="flex items-center justify-between">
+                <h1 className="text-2xl font-bold">📍 Network Map</h1>
+                <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className={`w-2 h-2 rounded-full ${handoverWsStatus === 'connected' ? 'bg-green-500' : handoverWsStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'}`}></span>
+                    <span>Handover feed: {handoverWsStatus}</span>
+                </div>
+            </div>
 
             {/* Experiment Controls */}
             <div className="card">
@@ -481,7 +608,7 @@ export default function MapPage() {
             />
 
             {/* Real-Time Metrics */}
-            <RealTimeMetrics isRunning={isRunning} selectedUE={selectedUE?.name} />
+            <RealTimeMetrics isRunning={isRunning} selectedUE={selectedUE?.supi} />
 
             {/* Retry Modal */}
 

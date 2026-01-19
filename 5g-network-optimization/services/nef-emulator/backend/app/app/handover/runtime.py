@@ -268,7 +268,15 @@ class HandoverRuntime:
                 self.logger.warning("UE %s removed during ML call", supi)
                 return None  # UE was removed
             
-            return self.engine.apply_decision(supi, decision, fv)
+            result = self.engine.apply_decision(supi, decision, fv)
+            
+            # Merge ML confidence from original decision into result
+            # This ensures the confidence flows through to ue_movement.py
+            if result is not None:
+                result["confidence"] = decision.get("confidence")
+                result["source"] = decision.get("source", "ml" if self.use_ml else "a3")
+            
+            return result
 
     def get_cell_by_key(self, key: Optional[str]) -> Optional[dict]:
         if key is None:

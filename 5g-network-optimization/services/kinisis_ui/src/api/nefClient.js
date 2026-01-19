@@ -60,6 +60,7 @@ export const createUE = (data) => api.post('/UEs', data);
 export const updateUE = (id, data) => api.put(`/UEs/${id}`, data);
 export const deleteUE = (id) => api.delete(`/UEs/${id}`);
 export const getMovingUEs = () => api.get('/ue_movement/state-ues');
+export const getLiveMetrics = (supi) => api.get(`/ue_movement/live-metrics/${supi}`);
 
 // Paths
 export const getPaths = () => api.get('/paths');

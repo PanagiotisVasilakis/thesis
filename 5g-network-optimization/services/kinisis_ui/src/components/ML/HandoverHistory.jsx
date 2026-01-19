@@ -2,7 +2,7 @@ export default function HandoverHistory({ history, onClear }) {
     const exportCSV = () => {
         if (history.length === 0) return;
         const csv = 'Time,Session,Retry,UE,From,To,Method,Confidence,RSRP,SINR\n' +
-            history.map(h => `${h.time},${h.sessionId || 'unknown'},${h.retryNumber || 1},${h.ue},${h.from},${h.to},${h.method},${h.confidence},${h.rsrp || ''},${h.sinr || ''}`).join('\n');
+            history.map(h => `${h.time},${h.sessionId || 'unknown'},${h.retryNumber || 1},${h.ue},${h.from},${h.to},${h.method},${h.confidence ?? ''},${h.rsrp || ''},${h.sinr || ''}`).join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -60,7 +60,7 @@ export default function HandoverHistory({ history, onClear }) {
                                                 {h.method}
                                             </span>
                                         </td>
-                                        <td className="px-3 py-2">{h.confidence}</td>
+                                        <td className="px-3 py-2">{h.confidence ?? '—'}</td>
                                         <td className="px-3 py-2 text-blue-600">{h.rsrp || '-'} dBm</td>
                                         <td className="px-3 py-2 text-green-600">{h.sinr || '-'} dB</td>
                                     </tr>

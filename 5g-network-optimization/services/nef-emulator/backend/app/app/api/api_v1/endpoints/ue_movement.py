@@ -1,5 +1,5 @@
-import threading, logging, time, requests, copy
-from fastapi import APIRouter, Path, Depends, HTTPException
+import threading, logging, time, requests, copy, asyncio
+from fastapi import APIRouter, Path, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from typing import Any
 from app import crud, tools, models
@@ -229,6 +229,25 @@ class _RealBackgroundTasks(threading.Thread):
                     logger.info("UE %s handover candidate %s -> %s at lat=%s lon=%s", supi, current_key, candidate_key, ue_data["latitude"], ue_data["longitude"])
 
                 handover_runtime.upsert_ue_state(supi, ue_data["latitude"], ue_data["longitude"], ue_data.get("speed"), previous_cell_id, candidate_id)
+
+                # Update UE signal metrics (RSRP/SINR) based on current position
+                # These are calculated dynamically by the NetworkStateManager using RF models
+                try:
+                    feature_vector = handover_runtime.state_manager.get_feature_vector(supi)
+                    neighbor_rsrp = feature_vector.get("neighbor_rsrp_dbm", {})
+                    neighbor_sinr = feature_vector.get("neighbor_sinr_db", {})
+                    # Get the serving cell's signal values
+                    serving_key = feature_vector.get("connected_to")
+                    if serving_key and serving_key in neighbor_rsrp:
+                        ue_data["rsrp"] = round(neighbor_rsrp[serving_key], 1)
+                        ue_data["sinr"] = round(neighbor_sinr.get(serving_key, 10.0), 1)
+                    elif neighbor_rsrp:
+                        # Fallback: use strongest signal
+                        best_cell = max(neighbor_rsrp, key=neighbor_rsrp.get)
+                        ue_data["rsrp"] = round(neighbor_rsrp[best_cell], 1)
+                        ue_data["sinr"] = round(neighbor_sinr.get(best_cell, 10.0), 1)
+                except (KeyError, AttributeError) as e:
+                    logger.debug("Could not update signal metrics for UE %s: %s", supi, e)
 
                 handover_meta = ue_data.setdefault("_handover_meta", {})
                 last_eval = handover_meta.get("last_eval") or {}
@@ -778,6 +797,125 @@ def state_ues(
     Get the state
     """
     return state_manager.all_ues()
+
+
+def _build_live_metrics_payload(supi: str) -> dict:
+    feature_vector = handover_runtime.state_manager.get_feature_vector(supi)
+
+    neighbor_rsrp = feature_vector.get("neighbor_rsrp_dbm", {}) or {}
+    neighbor_sinr = feature_vector.get("neighbor_sinrs", {}) or {}
+    serving_key = feature_vector.get("connected_to")
+
+    if serving_key is None and neighbor_rsrp:
+        serving_key = max(neighbor_rsrp, key=neighbor_rsrp.get)
+
+    rsrp = neighbor_rsrp.get(serving_key) if serving_key else None
+    sinr = neighbor_sinr.get(serving_key) if serving_key else None
+
+    observed_qos = feature_vector.get("observed_qos")
+    latest_qos = None
+    if isinstance(observed_qos, dict):
+        latest_qos = observed_qos.get("latest")
+
+    return {
+        "supi": supi,
+        "serving_cell": serving_key,
+        "rsrp": rsrp,
+        "sinr": sinr,
+        "qos": latest_qos,
+        "timestamp": time.time(),
+    }
+
+
+@router.get("/live-metrics/{supi}", status_code=200)
+def live_metrics(
+    *,
+    supi: str = Path(...),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Return real-time UE metrics (RSRP/SINR/QoS) for UI polling.
+    """
+    try:
+        return _build_live_metrics_payload(supi)
+    except AttributeError as err:
+        raise HTTPException(status_code=503, detail="Handover runtime unavailable") from err
+    except KeyError as err:
+        raise HTTPException(status_code=404, detail=str(err)) from err
+
+
+@router.websocket("/ws/ue-metrics")
+async def ws_live_metrics(websocket: WebSocket):
+    supi = websocket.query_params.get("supi")
+    token = websocket.query_params.get("token")
+
+    if not supi:
+        await websocket.close(code=1008)
+        return
+
+    if token:
+        try:
+            db = SessionLocal()
+            try:
+                deps.get_current_user(db=db, token=token)
+            finally:
+                db.close()
+        except Exception:
+            await websocket.close(code=1008)
+            return
+
+    await websocket.accept()
+
+    try:
+        while True:
+            try:
+                payload = _build_live_metrics_payload(supi)
+                await websocket.send_json(payload)
+            except Exception as err:
+                await websocket.send_json({"error": str(err), "supi": supi})
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        return
+
+
+@router.websocket("/ws/handovers")
+async def ws_handovers(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+    limit_param = websocket.query_params.get("limit", "50")
+
+    try:
+        limit = max(1, min(int(limit_param), 200))
+    except ValueError:
+        limit = 50
+
+    if token:
+        try:
+            db = SessionLocal()
+            try:
+                deps.get_current_user(db=db, token=token)
+            finally:
+                db.close()
+        except Exception:
+            await websocket.close(code=1008)
+            return
+
+    await websocket.accept()
+
+    last_sent = 0.0
+
+    try:
+        while True:
+            events = state_manager.get_recent_handovers(limit=limit)
+            if events:
+                # events are sorted descending; send oldest -> newest
+                for event in reversed(events):
+                    event_time = event.get("time", 0.0) or 0.0
+                    if event_time > last_sent:
+                        await websocket.send_json(event)
+                        last_sent = max(last_sent, event_time)
+            await asyncio.sleep(1.0)
+    except WebSocketDisconnect:
+        return
 
 
 @router.get("/handover-stats", status_code=200)
