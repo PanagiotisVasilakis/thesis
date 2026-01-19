@@ -181,7 +181,7 @@ class HandoverTracker:
 
 
 class SignalProcessor:
-    """Processes signal quality metrics and trends."""
+    """Processes signal quality metrics and trends with temporal derivatives."""
     
     def __init__(self, signal_window_size: int = 5, max_ues: int = 10000, ue_ttl_hours: float = 24.0):
         self.signal_window_size = signal_window_size
@@ -190,6 +190,10 @@ class SignalProcessor:
         # Memory-managed tracking dictionaries
         self._prev_signal: UETrackingDict[dict] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
         self._signal_buffer: UETrackingDict[dict] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
+        # Track previous trend values for acceleration calculation
+        self._prev_trend: UETrackingDict[dict] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
+        # EMA tracking for trend divergence
+        self._ema_state: UETrackingDict[dict] = UETrackingDict(max_ues=max_ues, ue_ttl_hours=ue_ttl_hours)
     
     def update_signal_metrics(self, ue_id: str, current_rsrp: Optional[float], 
                             current_sinr: Optional[float], current_rsrq: Optional[float]) -> Tuple[float, float]:
@@ -262,6 +266,91 @@ class SignalProcessor:
         
         return signal_trend
     
+    def compute_temporal_features(
+        self,
+        ue_id: str,
+        current_rsrp: Optional[float],
+        current_sinr: Optional[float],
+    ) -> Dict[str, float]:
+        """Compute temporal derivative features for better prediction.
+        
+        These features capture rate of change and momentum in signals,
+        helping the model predict future conditions rather than just
+        reacting to current state.
+        
+        Args:
+            ue_id: UE identifier
+            current_rsrp: Current RSRP value (dBm)
+            current_sinr: Current SINR value (dB)
+            
+        Returns:
+            Dictionary of temporal features:
+                - rsrp_acceleration: Rate of change of RSRP trend
+                - sinr_acceleration: Rate of change of SINR trend
+                - rsrp_ema_short: Short-term EMA (3 samples)
+                - rsrp_ema_long: Long-term EMA (10 samples)
+                - rsrp_trend_divergence: Difference between short and long EMA
+        """
+        result = {
+            "rsrp_acceleration": 0.0,
+            "sinr_acceleration": 0.0,
+            "rsrp_ema_short": current_rsrp or -85.0,
+            "rsrp_ema_long": current_rsrp or -85.0,
+            "rsrp_trend_divergence": 0.0,
+        }
+        
+        # Get previous state
+        prev_trend = self._prev_trend.get(ue_id, {})
+        ema_state = self._ema_state.get(ue_id, {})
+        
+        # Calculate current trends
+        current_rsrp_trend = 0.0
+        current_sinr_trend = 0.0
+        
+        prev_signal = self._prev_signal.get(ue_id)
+        if prev_signal is not None:
+            if current_rsrp is not None:
+                current_rsrp_trend = current_rsrp - prev_signal.get("rsrp", current_rsrp)
+            if current_sinr is not None:
+                current_sinr_trend = current_sinr - prev_signal.get("sinr", current_sinr)
+        
+        # Calculate acceleration (second derivative: rate of change of trend)
+        prev_rsrp_trend = prev_trend.get("rsrp_trend", 0.0)
+        prev_sinr_trend = prev_trend.get("sinr_trend", 0.0)
+        
+        result["rsrp_acceleration"] = current_rsrp_trend - prev_rsrp_trend
+        result["sinr_acceleration"] = current_sinr_trend - prev_sinr_trend
+        
+        # Update trend state for next iteration
+        self._prev_trend[ue_id] = {
+            "rsrp_trend": current_rsrp_trend,
+            "sinr_trend": current_sinr_trend,
+        }
+        
+        # Calculate EMAs (Exponential Moving Averages)
+        if current_rsrp is not None:
+            # Short-term EMA (alpha = 2/(3+1) = 0.5)
+            alpha_short = 0.5
+            prev_ema_short = ema_state.get("ema_short", current_rsrp)
+            ema_short = alpha_short * current_rsrp + (1 - alpha_short) * prev_ema_short
+            
+            # Long-term EMA (alpha = 2/(10+1) ≈ 0.18)
+            alpha_long = 0.18
+            prev_ema_long = ema_state.get("ema_long", current_rsrp)
+            ema_long = alpha_long * current_rsrp + (1 - alpha_long) * prev_ema_long
+            
+            result["rsrp_ema_short"] = ema_short
+            result["rsrp_ema_long"] = ema_long
+            result["rsrp_trend_divergence"] = ema_short - ema_long
+            
+            # Update EMA state
+            self._ema_state[ue_id] = {
+                "ema_short": ema_short,
+                "ema_long": ema_long,
+            }
+        
+        return result
+    
     def _calculate_stddev(self, values: deque) -> float:
         """Calculate standard deviation of values in deque."""
         n = len(values)
@@ -279,7 +368,9 @@ class SignalProcessor:
             "signal_window_size": self.signal_window_size,
             "memory_usage": {
                 "prev_signal": self._prev_signal.get_memory_usage(),
-                "signal_buffer": self._signal_buffer.get_memory_usage()
+                "signal_buffer": self._signal_buffer.get_memory_usage(),
+                "prev_trend": self._prev_trend.get_memory_usage(),
+                "ema_state": self._ema_state.get_memory_usage(),
             }
         }
 

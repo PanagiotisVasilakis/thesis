@@ -139,6 +139,63 @@ base_features:
     transform: float
     min: -20.0
     max: 20.0
+  # Temporal derivative features - rate of change for better prediction
+  - name: rsrp_acceleration
+    transform: float
+    min: -10.0
+    max: 10.0
+    description: Rate of change of RSRP trend (dB/s²)
+  - name: sinr_acceleration
+    transform: float
+    min: -5.0
+    max: 5.0
+    description: Rate of change of SINR trend (dB/s²)
+  - name: speed_jerk
+    transform: float
+    min: -5.0
+    max: 5.0
+    description: Rate of change of acceleration (m/s³)
+  - name: rsrp_ema_short
+    transform: float
+    min: -140.0
+    max: -40.0
+    description: Short-term EMA of RSRP (3 samples)
+  - name: rsrp_ema_long
+    transform: float
+    min: -140.0
+    max: -40.0
+    description: Long-term EMA of RSRP (10 samples)
+  - name: rsrp_trend_divergence
+    transform: float
+    min: -30.0
+    max: 30.0
+    description: Difference between short and long EMA (crossover signal)
+  # Spatial features - physics-based location awareness
+  - name: distance_to_target
+    transform: float
+    min: 0.0
+    max: 2000.0
+    description: Distance from UE to target antenna (meters)
+  - name: distance_to_current
+    transform: float
+    min: 0.0
+    max: 2000.0
+    description: Distance from UE to currently connected antenna (meters)
+  - name: angle_to_target
+    transform: float
+    min: -180.0
+    max: 180.0
+    description: Angle from UE heading to target antenna (degrees, 0=straight ahead)
+  - name: relative_distance_ratio
+    transform: float
+    min: 0.0
+    max: 10.0
+    description: Ratio of distance_to_target / distance_to_current (< 1 means closer)
+  - name: moving_toward_target
+    transform: float
+    min: -1.0
+    max: 1.0
+    description: Cosine of angle between velocity vector and target direction
   - name: altitude
     transform: float
     min: -100.0

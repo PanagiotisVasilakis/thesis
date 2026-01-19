@@ -104,3 +104,105 @@ def select_optimal_antenna(
 
     best_id = max(scores.items(), key=lambda item: item[1])[0]
     return best_id, scores
+
+
+def should_stay_on_current_cell(
+    current_cell_id: str,
+    best_antenna_id: str,
+    antenna_scores: AntennaScores,
+    *,
+    time_since_handover: Optional[float] = None,
+    stability: Optional[float] = None,
+    hysteresis_margin: float = 0.05,
+    min_handover_interval: float = 2.0,
+    stability_threshold: float = 0.7,
+) -> Tuple[bool, str]:
+    """Determine if UE should stay on current cell instead of handing over.
+    
+    This function implements handover hysteresis logic to prevent unnecessary
+    handovers. It's used for generating negative training examples where the
+    model learns when NOT to handover.
+    
+    Args:
+        current_cell_id: Currently connected cell
+        best_antenna_id: Antenna that scored highest
+        antenna_scores: Scores for all antennas
+        time_since_handover: Seconds since last handover
+        stability: UE mobility stability (0-1, higher = more stable)
+        hysteresis_margin: Minimum score advantage to trigger handover
+        min_handover_interval: Minimum seconds between handovers
+        stability_threshold: Stability above which we prefer to stay
+        
+    Returns:
+        Tuple of (should_stay: bool, reason: str)
+    """
+    if not current_cell_id or not antenna_scores:
+        return False, "no_data"
+    
+    # If already on best antenna, definitely stay
+    if current_cell_id == best_antenna_id:
+        return True, "already_optimal"
+    
+    current_score = antenna_scores.get(current_cell_id, 0.0)
+    best_score = antenna_scores.get(best_antenna_id, 0.0)
+    
+    # Hysteresis check: best antenna must be significantly better
+    score_margin = best_score - current_score
+    if score_margin < hysteresis_margin:
+        return True, "insufficient_margin"
+    
+    # Too soon since last handover (ping-pong prevention)
+    if time_since_handover is not None and time_since_handover < min_handover_interval:
+        return True, "too_recent"
+    
+    # High stability UEs should stay unless forced
+    if stability is not None and stability > stability_threshold:
+        # Even higher bar for stable UEs
+        if score_margin < (hysteresis_margin * 2):
+            return True, "stable_ue_hysteresis"
+    
+    # Handover is justified
+    return False, "handover_justified"
+
+
+def get_training_sample_type(
+    current_cell_id: str,
+    optimal_antenna: str,
+    antenna_scores: AntennaScores,
+    *,
+    time_since_handover: Optional[float] = None,
+    stability: Optional[float] = None,
+) -> Tuple[str, str, str]:
+    """Determine the optimal target for training and the sample type.
+    
+    This function decides whether to generate a positive example (handover)
+    or negative example (stay) based on the current context.
+    
+    Args:
+        current_cell_id: Currently connected cell
+        optimal_antenna: Antenna that scored highest
+        antenna_scores: Scores for all antennas
+        time_since_handover: Seconds since last handover
+        stability: UE mobility stability (0-1)
+        
+    Returns:
+        Tuple of (training_target: str, sample_type: str, reason: str)
+        - training_target: The antenna ID to use as label
+        - sample_type: "positive" (handover) or "negative" (stay)
+        - reason: Explanation for the decision
+    """
+    should_stay, reason = should_stay_on_current_cell(
+        current_cell_id,
+        optimal_antenna,
+        antenna_scores,
+        time_since_handover=time_since_handover,
+        stability=stability,
+    )
+    
+    if should_stay:
+        # Negative example: label is current cell (stay)
+        return current_cell_id, "negative", reason
+    else:
+        # Positive example: label is optimal antenna (handover)
+        return optimal_antenna, "positive", reason
+

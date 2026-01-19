@@ -40,7 +40,8 @@ from .feature_extractor import (
     MobilityProcessor,
 )
 from .persistence import TrainingDataPersistence
-from ..utils.antenna_selection import select_optimal_antenna
+from ..utils.antenna_selection import select_optimal_antenna, get_training_sample_type
+from ..utils.ue_classification import get_ue_category
 
 SIGNAL_WINDOW_SIZE = env_constants.SIGNAL_WINDOW_SIZE
 POSITION_WINDOW_SIZE = env_constants.POSITION_WINDOW_SIZE
@@ -323,6 +324,15 @@ class _CollectorComponents:
             timestamp,
         )
 
+        # Determine if this should be a positive (handover) or negative (stay) example
+        training_target, sample_type, sample_reason = get_training_sample_type(
+            connected_cell_id,
+            optimal_antenna,
+            antenna_scores,
+            time_since_handover=time_since_handover,
+            stability=stability,
+        )
+
         velocity_val = self._to_float(feature_vector.get("velocity"))
         velocity = velocity_val if velocity_val is not None else speed
 
@@ -348,9 +358,19 @@ class _CollectorComponents:
         if environment is None:
             environment = 0.0
 
+        # Classify UE by category for stratified sampling
+        ue_category, classification_method = get_ue_category(
+            ue_id,
+            speed=speed,
+            altitude=altitude if isinstance(altitude, (int, float)) else None,
+        )
+
         sample = {
             "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
             "ue_id": ue_id,
+            # UE category for stratified sampling (car, pedestrian, cyclist, drone, iot_sensor)
+            "ue_category": ue_category,
+            "ue_classification_method": classification_method,  # How category was determined
             "latitude": ue_data.get("latitude"),
             "longitude": ue_data.get("longitude"),
             "heading_change_rate": heading_change_rate,
@@ -367,7 +387,13 @@ class _CollectorComponents:
             "rsrp_stddev": rsrp_stddev,
             "sinr_stddev": sinr_stddev,
             "connected_to": connected_cell_id,
-            "optimal_antenna": optimal_antenna,
+            # optimal_antenna now reflects the training target (may be current cell for "stay" examples)
+            "optimal_antenna": training_target,
+            # Original best antenna for reference (before stay/handover decision)
+            "best_scoring_antenna": optimal_antenna,
+            # Sample metadata for training analysis
+            "sample_type": sample_type,  # "positive" (handover) or "negative" (stay)
+            "sample_reason": sample_reason,  # Why this sample type was chosen
             "rf_metrics": rf_metrics,
             "service_type": service_type,
             "service_priority": service_priority,

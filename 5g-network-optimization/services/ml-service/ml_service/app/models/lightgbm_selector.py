@@ -7,8 +7,8 @@ from collections import Counter
 import lightgbm as lgb
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.metrics import accuracy_score, f1_score
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, classification_report
+from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.utils.class_weight import compute_class_weight
 
 from .antenna_selector import AntennaSelector
@@ -212,6 +212,41 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                     f1_score(y_val, y_pred, average="weighted", zero_division=0)
                 )
                 
+                # Add confusion matrix for thesis analysis
+                try:
+                    unique_classes = sorted(set(y_val) | set(y_pred))
+                    cm = confusion_matrix(y_val, y_pred, labels=unique_classes)
+                    metrics["confusion_matrix"] = cm.tolist()
+                    metrics["confusion_matrix_labels"] = [str(c) for c in unique_classes]
+                    
+                    # Per-class metrics from classification report
+                    report = classification_report(
+                        y_val, y_pred, 
+                        labels=unique_classes,
+                        output_dict=True, 
+                        zero_division=0
+                    )
+                    per_class = {}
+                    for class_label in unique_classes:
+                        class_key = str(class_label)
+                        if class_key in report:
+                            per_class[class_key] = {
+                                "precision": float(report[class_key]["precision"]),
+                                "recall": float(report[class_key]["recall"]),
+                                "f1": float(report[class_key]["f1-score"]),
+                                "support": int(report[class_key]["support"]),
+                            }
+                    metrics["per_class_metrics"] = per_class
+                    
+                    # Macro and weighted averages
+                    if "macro avg" in report:
+                        metrics["macro_precision"] = float(report["macro avg"]["precision"])
+                        metrics["macro_recall"] = float(report["macro avg"]["recall"])
+                        metrics["macro_f1"] = float(report["macro avg"]["f1-score"])
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to compute confusion matrix metrics: {e}")
+                
                 # Add calibration metrics if calibrated
                 if self.calibrated_model:
                     y_pred_uncal = self.model.predict(X_val)
@@ -251,3 +286,138 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                 random_state=42,
                 stratify=None,
             )
+
+    def train_with_cv(
+        self,
+        training_data: list,
+        *,
+        n_folds: int = 5,
+        early_stopping_rounds: int | None = 20,
+    ) -> dict:
+        """Train with K-fold cross-validation for thesis-grade evaluation.
+        
+        This method reports mean ± std metrics across folds, which is the
+        standard for academic ML evaluation. The final model is trained on
+        all data after CV evaluation.
+        
+        Args:
+            training_data: List of training samples
+            n_folds: Number of cross-validation folds (default: 5)
+            early_stopping_rounds: Early stopping patience
+            
+        Returns:
+            Dictionary containing:
+                - cv_scores: Per-fold accuracy scores
+                - cv_mean_accuracy: Mean accuracy across folds
+                - cv_std_accuracy: Standard deviation of accuracy
+                - cv_mean_f1: Mean F1 across folds
+                - cv_std_f1: Standard deviation of F1
+                - final_model_metrics: Metrics from final training on all data
+        """
+        if not training_data:
+            raise ValueError("Training data cannot be empty")
+        
+        if n_folds < 2:
+            raise ValueError("n_folds must be at least 2")
+        
+        # Build and scale dataset
+        X_arr, y_arr = self.build_dataset(training_data)
+        self.scaler.fit(X_arr)
+        X_scaled = self.scaler.transform(X_arr)
+        
+        # Check if we have enough samples for CV
+        class_counts = Counter(y_arr)
+        min_class_count = min(class_counts.values())
+        
+        if min_class_count < n_folds:
+            logger.warning(
+                f"Reducing n_folds from {n_folds} to {min_class_count} "
+                f"due to small class size"
+            )
+            n_folds = max(2, min_class_count)
+        
+        # Perform stratified K-fold cross-validation
+        skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+        
+        fold_accuracies = []
+        fold_f1_scores = []
+        fold_details = []
+        
+        logger.info(f"Starting {n_folds}-fold cross-validation...")
+        
+        for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_scaled, y_arr)):
+            X_train_fold = X_scaled[train_idx]
+            X_val_fold = X_scaled[val_idx]
+            y_train_fold = y_arr[train_idx]
+            y_val_fold = y_arr[val_idx]
+            
+            # Create fresh model for each fold
+            fold_model = lgb.LGBMClassifier(
+                n_estimators=self.n_estimators,
+                max_depth=self.max_depth,
+                num_leaves=self.num_leaves,
+                learning_rate=self.learning_rate,
+                feature_fraction=self.feature_fraction,
+                random_state=42,
+            )
+            
+            # Compute class weights for this fold
+            classes = np.array(sorted(set(y_train_fold)))
+            weights = compute_class_weight("balanced", classes=classes, y=y_train_fold)
+            class_weights = {str(cls): float(w) for cls, w in zip(classes, weights)}
+            fold_model.set_params(class_weight=class_weights)
+            
+            # Fit with early stopping
+            fit_params = {}
+            if early_stopping_rounds:
+                fit_params["eval_set"] = [(X_val_fold, y_val_fold)]
+                fit_params["callbacks"] = [lgb.early_stopping(early_stopping_rounds)]
+            
+            fold_model.fit(X_train_fold, y_train_fold, **fit_params)
+            
+            # Evaluate fold
+            y_pred = fold_model.predict(X_val_fold)
+            fold_acc = accuracy_score(y_val_fold, y_pred)
+            fold_f1 = f1_score(y_val_fold, y_pred, average="weighted", zero_division=0)
+            
+            fold_accuracies.append(fold_acc)
+            fold_f1_scores.append(fold_f1)
+            fold_details.append({
+                "fold": fold_idx + 1,
+                "train_size": len(train_idx),
+                "val_size": len(val_idx),
+                "accuracy": float(fold_acc),
+                "f1": float(fold_f1),
+            })
+            
+            logger.info(f"Fold {fold_idx + 1}/{n_folds}: accuracy={fold_acc:.4f}, F1={fold_f1:.4f}")
+        
+        # Calculate CV statistics
+        cv_metrics = {
+            "n_folds": n_folds,
+            "cv_scores": [float(s) for s in fold_accuracies],
+            "cv_f1_scores": [float(s) for s in fold_f1_scores],
+            "cv_mean_accuracy": float(np.mean(fold_accuracies)),
+            "cv_std_accuracy": float(np.std(fold_accuracies)),
+            "cv_mean_f1": float(np.mean(fold_f1_scores)),
+            "cv_std_f1": float(np.std(fold_f1_scores)),
+            "fold_details": fold_details,
+            # Thesis-ready formatted strings
+            "accuracy_report": f"{np.mean(fold_accuracies):.4f} ± {np.std(fold_accuracies):.4f}",
+            "f1_report": f"{np.mean(fold_f1_scores):.4f} ± {np.std(fold_f1_scores):.4f}",
+        }
+        
+        logger.info(
+            f"Cross-validation complete: "
+            f"Accuracy = {cv_metrics['accuracy_report']}, "
+            f"F1 = {cv_metrics['f1_report']}"
+        )
+        
+        # Train final model on all data
+        logger.info("Training final model on all data...")
+        final_metrics = self.train(training_data, validation_split=0.1)
+        
+        cv_metrics["final_model_metrics"] = final_metrics
+        
+        return cv_metrics
+
