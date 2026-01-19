@@ -1,0 +1,194 @@
+{
+    "gNBs": [
+        {
+            "gNB_id": "CCCCC5",
+            "name": "CellEdge-gNB",
+            "description": "Cell edge stress test base station",
+            "location": "Cell Edge Test Area"
+        }
+    ],
+    "cells": [
+        {
+            "cell_id": "CCCCC5001",
+            "name": "CellEdge-North",
+            "description": "Northern cell with overlapping coverage",
+            "gNB_id": 1,
+            "latitude": 37.998,
+            "longitude": 23.817,
+            "radius": 100
+        },
+        {
+            "cell_id": "CCCCC5002",
+            "name": "CellEdge-South",
+            "description": "Southern cell with overlapping coverage",
+            "gNB_id": 1,
+            "latitude": 37.996,
+            "longitude": 23.817,
+            "radius": 100
+        },
+        {
+            "cell_id": "CCCCC5003",
+            "name": "CellEdge-East",
+            "description": "Eastern cell with overlapping coverage",
+            "gNB_id": 1,
+            "latitude": 37.997,
+            "longitude": 23.819,
+            "radius": 100
+        },
+        {
+            "cell_id": "CCCCC5004",
+            "name": "CellEdge-West",
+            "description": "Western cell with overlapping coverage",
+            "gNB_id": 1,
+            "latitude": 37.997,
+            "longitude": 23.815,
+            "radius": 100
+        }
+    ],
+    "UEs": [
+        {
+            "name": "EdgeUE-1",
+            "description": "UE moving along cell edges",
+            "ip_address_v4": "10.0.5.1",
+            "ip_address_v6": "::5:1",
+            "mac_address": "55-00-00-05-00-01",
+            "dnn": "celledge.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "edge1@test.com",
+            "speed": "LOW",
+            "supi": "202010000005001"
+        },
+        {
+            "name": "EdgeUE-2",
+            "description": "UE moving along cell edges",
+            "ip_address_v4": "10.0.5.2",
+            "ip_address_v6": "::5:2",
+            "mac_address": "55-00-00-05-00-02",
+            "dnn": "celledge.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "edge2@test.com",
+            "speed": "LOW",
+            "supi": "202010000005002"
+        },
+        {
+            "name": "EdgeUE-3",
+            "description": "UE oscillating at triple cell boundary",
+            "ip_address_v4": "10.0.5.3",
+            "ip_address_v6": "::5:3",
+            "mac_address": "55-00-00-05-00-03",
+            "dnn": "celledge.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "edge3@test.com",
+            "speed": "LOW",
+            "supi": "202010000005003"
+        },
+        {
+            "name": "EdgeUE-4",
+            "description": "Stationary UE at cell boundary",
+            "ip_address_v4": "10.0.5.4",
+            "ip_address_v6": "::5:4",
+            "mac_address": "55-00-00-05-00-04",
+            "dnn": "celledge.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "edge4@test.com",
+            "speed": "LOW",
+            "supi": "202010000005004"
+        }
+    ],
+    "paths": [
+        {
+            "description": "Circular path around cell edges",
+            "color": "#FF0000",
+            "points": [
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.817
+                },
+                {
+                    "latitude": 37.9975,
+                    "longitude": 23.818
+                },
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.819
+                },
+                {
+                    "latitude": 37.9965,
+                    "longitude": 23.818
+                },
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.817
+                }
+            ]
+        },
+        {
+            "description": "Diagonal cross through all cell boundaries",
+            "color": "#00FF00",
+            "points": [
+                {
+                    "latitude": 37.995,
+                    "longitude": 23.814
+                },
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.817
+                },
+                {
+                    "latitude": 37.999,
+                    "longitude": 23.820
+                }
+            ]
+        },
+        {
+            "description": "Tight oscillation at boundary",
+            "color": "#0000FF",
+            "points": [
+                {
+                    "latitude": 37.9968,
+                    "longitude": 23.8165
+                },
+                {
+                    "latitude": 37.9972,
+                    "longitude": 23.8175
+                },
+                {
+                    "latitude": 37.9968,
+                    "longitude": 23.8165
+                }
+            ]
+        },
+        {
+            "description": "Stationary position at cell edge",
+            "color": "#FFFF00",
+            "points": [
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.817
+                }
+            ]
+        }
+    ],
+    "ue_path_association": [
+        {
+            "ue": "202010000005001",
+            "path": 1
+        },
+        {
+            "ue": "202010000005002",
+            "path": 2
+        },
+        {
+            "ue": "202010000005003",
+            "path": 3
+        },
+        {
+            "ue": "202010000005004",
+            "path": 4
+        }
+    ]
+}

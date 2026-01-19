@@ -59,7 +59,7 @@ export const getUEs = () => api.get('/UEs');
 export const createUE = (data) => api.post('/UEs', data);
 export const updateUE = (id, data) => api.put(`/UEs/${id}`, data);
 export const deleteUE = (id) => api.delete(`/UEs/${id}`);
-export const getMovingUEs = () => api.get('/UEs/movement');
+export const getMovingUEs = () => api.get('/ue_movement/state-ues');
 
 // Paths
 export const getPaths = () => api.get('/paths');
@@ -68,12 +68,21 @@ export const updatePath = (id, data) => api.put(`/paths/${id}`, data);
 export const deletePath = (id) => api.delete(`/paths/${id}`);
 
 // Movement
-export const startUE = (supi) => api.post(`/UEs/movement/start/${supi}`);
-export const stopUE = (supi) => api.post(`/UEs/movement/stop/${supi}`);
-export const startAllUEs = () => api.post('/UEs/movement/start-all');
-export const stopAllUEs = () => api.post('/UEs/movement/stop-all');
+// Movement
+export const startUE = (supi) => api.post('/ue_movement/start-loop', { supi });
+export const stopUE = (supi) => api.post('/ue_movement/stop-loop', { supi });
+export const startAllUEs = () => api.post('/ue_movement/start-all');
+export const stopAllUEs = () => api.post('/ue_movement/stop-all');
+
+// Handover Statistics (Thesis Experiments)
+export const getHandoverStats = () => api.get('/ue_movement/handover-stats');
+export const resetHandoverStats = () => api.post('/ue_movement/reset-stats');
+export const getRecentHandovers = (limit = 50) => api.get(`/ue_movement/recent-handovers?limit=${limit}`);
 
 // Scenarios
+// Notifications
+export const getNotifications = (id) => api.get(`/utils/monitoring/last_notifications?id=${id}`);
+
 export const importScenario = (data) => api.post('/utils/import/scenario', data);
 export const exportScenario = () => api.get('/utils/export/scenario');
 

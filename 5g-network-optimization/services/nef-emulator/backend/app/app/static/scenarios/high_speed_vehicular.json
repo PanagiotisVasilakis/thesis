@@ -1,0 +1,255 @@
+{
+    "gNBs": [
+        {
+            "gNB_id": "DDDDD6",
+            "name": "HighSpeed-gNB",
+            "description": "High-speed vehicular test base station",
+            "location": "Highway 120km/h Test"
+        }
+    ],
+    "cells": [
+        {
+            "cell_id": "DDDDD6001",
+            "name": "HighSpeed-Cell-1",
+            "description": "High-speed segment 1",
+            "gNB_id": 1,
+            "latitude": 37.990,
+            "longitude": 23.810,
+            "radius": 200
+        },
+        {
+            "cell_id": "DDDDD6002",
+            "name": "HighSpeed-Cell-2",
+            "description": "High-speed segment 2",
+            "gNB_id": 1,
+            "latitude": 37.995,
+            "longitude": 23.815,
+            "radius": 200
+        },
+        {
+            "cell_id": "DDDDD6003",
+            "name": "HighSpeed-Cell-3",
+            "description": "High-speed segment 3",
+            "gNB_id": 1,
+            "latitude": 38.000,
+            "longitude": 23.820,
+            "radius": 200
+        },
+        {
+            "cell_id": "DDDDD6004",
+            "name": "HighSpeed-Cell-4",
+            "description": "High-speed segment 4",
+            "gNB_id": 1,
+            "latitude": 38.005,
+            "longitude": 23.825,
+            "radius": 200
+        },
+        {
+            "cell_id": "DDDDD6005",
+            "name": "HighSpeed-Cell-5",
+            "description": "High-speed segment 5",
+            "gNB_id": 1,
+            "latitude": 38.010,
+            "longitude": 23.830,
+            "radius": 200
+        }
+    ],
+    "UEs": [
+        {
+            "name": "FastCar-1",
+            "description": "Very high speed vehicle 120km/h",
+            "ip_address_v4": "10.0.6.1",
+            "ip_address_v6": "::6:1",
+            "mac_address": "66-00-00-06-00-01",
+            "dnn": "highspeed.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "fastcar1@test.com",
+            "speed": "HIGH",
+            "supi": "202010000006001"
+        },
+        {
+            "name": "FastCar-2",
+            "description": "Very high speed vehicle 120km/h",
+            "ip_address_v4": "10.0.6.2",
+            "ip_address_v6": "::6:2",
+            "mac_address": "66-00-00-06-00-02",
+            "dnn": "highspeed.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "fastcar2@test.com",
+            "speed": "HIGH",
+            "supi": "202010000006002"
+        },
+        {
+            "name": "FastCar-3",
+            "description": "Very high speed vehicle 120km/h",
+            "ip_address_v4": "10.0.6.3",
+            "ip_address_v6": "::6:3",
+            "mac_address": "66-00-00-06-00-03",
+            "dnn": "highspeed.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "fastcar3@test.com",
+            "speed": "HIGH",
+            "supi": "202010000006003"
+        },
+        {
+            "name": "Train-1",
+            "description": "High speed train simulator",
+            "ip_address_v4": "10.0.6.4",
+            "ip_address_v6": "::6:4",
+            "mac_address": "66-00-00-06-00-04",
+            "dnn": "highspeed.mnc01.mcc202.gprs",
+            "mcc": 202,
+            "mnc": 1,
+            "external_identifier": "train1@test.com",
+            "speed": "HIGH",
+            "supi": "202010000006004"
+        }
+    ],
+    "paths": [
+        {
+            "description": "Long straight highway path",
+            "color": "#FF0000",
+            "points": [
+                {
+                    "latitude": 37.988,
+                    "longitude": 23.808
+                },
+                {
+                    "latitude": 37.992,
+                    "longitude": 23.812
+                },
+                {
+                    "latitude": 37.996,
+                    "longitude": 23.816
+                },
+                {
+                    "latitude": 38.000,
+                    "longitude": 23.820
+                },
+                {
+                    "latitude": 38.004,
+                    "longitude": 23.824
+                },
+                {
+                    "latitude": 38.008,
+                    "longitude": 23.828
+                },
+                {
+                    "latitude": 38.012,
+                    "longitude": 23.832
+                }
+            ]
+        },
+        {
+            "description": "Parallel highway path",
+            "color": "#00FF00",
+            "points": [
+                {
+                    "latitude": 37.989,
+                    "longitude": 23.809
+                },
+                {
+                    "latitude": 37.993,
+                    "longitude": 23.813
+                },
+                {
+                    "latitude": 37.997,
+                    "longitude": 23.817
+                },
+                {
+                    "latitude": 38.001,
+                    "longitude": 23.821
+                },
+                {
+                    "latitude": 38.005,
+                    "longitude": 23.825
+                },
+                {
+                    "latitude": 38.009,
+                    "longitude": 23.829
+                },
+                {
+                    "latitude": 38.013,
+                    "longitude": 23.833
+                }
+            ]
+        },
+        {
+            "description": "Opposite direction path",
+            "color": "#0000FF",
+            "points": [
+                {
+                    "latitude": 38.012,
+                    "longitude": 23.832
+                },
+                {
+                    "latitude": 38.008,
+                    "longitude": 23.828
+                },
+                {
+                    "latitude": 38.004,
+                    "longitude": 23.824
+                },
+                {
+                    "latitude": 38.000,
+                    "longitude": 23.820
+                },
+                {
+                    "latitude": 37.996,
+                    "longitude": 23.816
+                },
+                {
+                    "latitude": 37.992,
+                    "longitude": 23.812
+                },
+                {
+                    "latitude": 37.988,
+                    "longitude": 23.808
+                }
+            ]
+        },
+        {
+            "description": "Train route along highway",
+            "color": "#FFFF00",
+            "points": [
+                {
+                    "latitude": 37.987,
+                    "longitude": 23.807
+                },
+                {
+                    "latitude": 37.995,
+                    "longitude": 23.815
+                },
+                {
+                    "latitude": 38.003,
+                    "longitude": 23.823
+                },
+                {
+                    "latitude": 38.011,
+                    "longitude": 23.831
+                }
+            ]
+        }
+    ],
+    "ue_path_association": [
+        {
+            "ue": "202010000006001",
+            "path": 1
+        },
+        {
+            "ue": "202010000006002",
+            "path": 2
+        },
+        {
+            "ue": "202010000006003",
+            "path": 3
+        },
+        {
+            "ue": "202010000006004",
+            "path": 4
+        }
+    ]
+}

@@ -132,7 +132,7 @@
   ],
   "paths": [
     {
-      "description": "East-West traversal",
+      "description": "East-West Traversal",
       "color": "#e74c3c",
       "id": 1,
       "start_point": {
@@ -150,39 +150,7 @@
         },
         {
           "latitude": 37.998,
-          "longitude": 23.8165
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.817
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.8175
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.818
-        },
-        {
-          "latitude": 37.998,
           "longitude": 23.8185
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.819
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.8195
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.82
-        },
-        {
-          "latitude": 37.998,
-          "longitude": 23.8205
         },
         {
           "latitude": 37.998,
@@ -191,7 +159,7 @@
       ]
     },
     {
-      "description": "North-South traversal",
+      "description": "North-South Traversal",
       "color": "#3498db",
       "id": 2,
       "start_point": {
@@ -208,31 +176,7 @@
           "longitude": 23.8185
         },
         {
-          "latitude": 37.996,
-          "longitude": 23.8185
-        },
-        {
-          "latitude": 37.9965,
-          "longitude": 23.8185
-        },
-        {
-          "latitude": 37.997,
-          "longitude": 23.8185
-        },
-        {
-          "latitude": 37.9975,
-          "longitude": 23.8185
-        },
-        {
           "latitude": 37.998,
-          "longitude": 23.8185
-        },
-        {
-          "latitude": 37.9985,
-          "longitude": 23.8185
-        },
-        {
-          "latitude": 37.999,
           "longitude": 23.8185
         },
         {
@@ -242,7 +186,7 @@
       ]
     },
     {
-      "description": "North-East traversal",
+      "description": "North-East Traversal",
       "color": "#2ecc71",
       "id": 3,
       "start_point": {
@@ -251,10 +195,44 @@
       },
       "end_point": {
         "latitude": 37.9995,
-        "longitude": 23.8185
+        "longitude": 23.822
       },
-      "points": []
+      "points": [
+        {
+          "latitude": 37.9955,
+          "longitude": 23.8185
+        },
+        {
+          "latitude": 37.9975,
+          "longitude": 23.82
+        },
+        {
+          "latitude": 37.9995,
+          "longitude": 23.822
+        }
+      ]
     }
   ],
-  "ue_path_association": []
+  "ue_path_association": [
+    {
+      "supi": "202010000001001",
+      "path": 1
+    },
+    {
+      "supi": "202010000001002",
+      "path": 2
+    },
+    {
+      "supi": "202010000001003",
+      "path": 1
+    },
+    {
+      "supi": "202010000001004",
+      "path": 3
+    },
+    {
+      "supi": "202010000001005",
+      "path": 1
+    }
+  ]
 }

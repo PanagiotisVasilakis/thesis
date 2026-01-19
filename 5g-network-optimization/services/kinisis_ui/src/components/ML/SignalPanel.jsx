@@ -1,8 +1,8 @@
 export default function SignalPanel({ ue, signalData }) {
     if (!ue) {
         return (
-            <div className="card">
-                <div className="card-header bg-cyan-600 text-white">
+            <div className="card flex-1">
+                <div className="card-header bg-gray-100 text-gray-900 font-bold text-lg">
                     📡 UE Signal Quality
                 </div>
                 <div className="card-body text-center text-gray-500 py-8">
@@ -29,10 +29,10 @@ export default function SignalPanel({ ue, signalData }) {
     };
 
     return (
-        <div className="card">
-            <div className="card-header bg-cyan-600 text-white flex justify-between items-center">
+        <div className="card flex-1">
+            <div className="card-header bg-gray-100 text-gray-900 font-bold text-lg flex justify-between items-center">
                 <span>📡 UE Signal Quality</span>
-                <span className="badge bg-white text-cyan-600">{ue.name}</span>
+                <span className="badge bg-cyan-600 text-white">{ue.name}</span>
             </div>
             <div className="card-body">
                 <div className="mb-3">

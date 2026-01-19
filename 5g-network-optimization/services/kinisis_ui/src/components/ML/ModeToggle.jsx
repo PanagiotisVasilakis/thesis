@@ -1,27 +1,33 @@
-export default function ModeToggle({ mlMode, onModeChange }) {
+export default function ModeToggle({ mlMode, onModeChange, enabled, onChange, disabled }) {
+    // Support both old and new prop patterns
+    const isML = enabled !== undefined ? enabled : mlMode;
+    const handleChange = onChange || onModeChange;
+
     return (
-        <div className="card">
-            <div className="card-header bg-blue-600 text-white">
+        <div className="card flex-1">
+            <div className="card-header bg-gray-100 text-gray-900 font-bold text-lg">
                 🧠 ML Handover Control
             </div>
             <div className="card-body">
                 <div className="flex items-center justify-between">
                     <div>
                         <span className="font-medium">Handover Mode:</span>
-                        <span className={`badge ml-2 ${mlMode ? 'badge-success' : 'badge-warning'}`}>
-                            {mlMode ? 'ML Active' : 'A3 Rule'}
+                        <span className={`badge ml-2 ${isML ? 'badge-success' : 'badge-warning'}`}>
+                            {isML ? 'ML Active' : 'A3 Rule'}
                         </span>
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => onModeChange(true)}
-                            className={`btn ${mlMode ? 'btn-success' : 'btn-outline'}`}
+                            onClick={() => handleChange(true)}
+                            disabled={disabled}
+                            className={`btn ${isML ? 'btn-success' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
                         >
                             🧠 ML
                         </button>
                         <button
-                            onClick={() => onModeChange(false)}
-                            className={`btn ${!mlMode ? 'btn-warning' : 'btn-outline'}`}
+                            onClick={() => handleChange(false)}
+                            disabled={disabled}
+                            className={`btn ${!isML ? 'btn-warning' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
                         >
                             📏 A3 Rule
                         </button>
@@ -35,3 +41,4 @@ export default function ModeToggle({ mlMode, onModeChange }) {
         </div>
     );
 }
+

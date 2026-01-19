@@ -294,7 +294,24 @@ class _RealBackgroundTasks(threading.Thread):
                                 handover_executed = True
                                 effective_cell = selected_cell
                                 metrics.HANDOVER_DECISIONS.labels(outcome="applied").inc()
-                                logger.info("UE %s handover applied %s -> %s via ML engine", supi, previous_cell_id, target_id)
+                                # Record for thesis experiments with ML confidence
+                                ml_confidence = decision.get("confidence") if decision else None
+                                ml_method = "ML" if handover_runtime.use_ml else "A3"
+                                # Get current UE signal metrics
+                                ue_rsrp = ue_data.get("rsrp")
+                                ue_sinr = ue_data.get("sinr")
+                                state_manager.record_handover(
+                                    supi, 
+                                    str(previous_cell_id), 
+                                    str(target_id),
+                                    method=ml_method,
+                                    confidence=ml_confidence,
+                                    rsrp=ue_rsrp,
+                                    sinr=ue_sinr,
+                                )
+                                logger.info("UE %s handover applied %s -> %s via %s (confidence=%.2f)", 
+                                           supi, previous_cell_id, target_id, ml_method, 
+                                           ml_confidence if ml_confidence else 0.0)
                             else:
                                 effective_cell = selected_cell
                                 metrics.HANDOVER_DECISIONS.labels(outcome="none").inc()
@@ -646,6 +663,102 @@ def terminate_movement(
     state_manager.remove_ue(msg.supi)
     return {"msg": "Loop ended"}
 
+def _start_ue_movement_internal(db: Session, current_user: models.User, supi: str):
+    if state_manager.get_thread(supi, f"{current_user.id}"):
+        return # Already running
+
+    UE = crud.ue.get_supi(db=db, supi=supi)
+    if not UE:
+        logging.warning(f"UE {supi} not found")
+        return
+    if (UE.owner_id != current_user.id):
+        logging.warning("Not enough permissions")
+        return
+    
+    ue_data = jsonable_encoder(UE)
+    ue_data.pop("id", None)
+
+    if UE.Cell_id is not None:
+        ue_data["cell_id_hex"] = UE.Cell.cell_id
+        ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
+    else:
+        ue_data["cell_id_hex"] = None
+        ue_data["gnb_id_hex"] = None
+
+    path = crud.path.get(db=db, id=UE.path_id)
+    if not path:
+        logging.warning(f"Path not found for UE {supi}")
+        return
+    
+    points = crud.points.get_points(db=db, path_id=UE.path_id)
+    points = jsonable_encoder(points)
+
+    Cells = crud.cell.get_multi_by_owner(db=db, owner_id=current_user.id, skip=0, limit=100)
+    json_cells = jsonable_encoder(Cells)
+    cells_by_id = {cell["id"]: cell for cell in json_cells}
+    handover_runtime.ensure_topology(json_cells)
+
+    is_superuser = crud.user.is_superuser(current_user)
+
+    t = BackgroundTasks(args=(current_user, supi, json_cells, points, is_superuser, ue_data, cells_by_id))
+    state_manager.set_thread(supi, f"{current_user.id}", t)
+    state_manager.set_ue(supi, ue_data)
+    t.start()
+
+@router.post("/start-all", status_code=200)
+def start_all_ues(
+    current_user: models.User = Depends(deps.get_current_active_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Start movement for all UEs owned by the user.
+    """
+    if crud.user.is_superuser(current_user):
+        ues = crud.ue.get_multi(db=db, limit=1000)
+    else:
+        ues = crud.ue.get_multi_by_owner(db=db, owner_id=current_user.id, limit=1000)
+    
+    count = 0
+    for ue in ues:
+        try:
+            _start_ue_movement_internal(db, current_user, ue.supi)
+            count += 1
+        except Exception as e:
+            logger.error(f"Failed to start UE {ue.supi}: {e}")
+            
+    return {"msg": f"Started {count} UEs"}
+
+@router.post("/stop-all", status_code=200)
+def stop_all_ues(
+    current_user: models.User = Depends(deps.get_current_active_user),
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """
+    Stop movement for all UEs.
+    """
+    # iterate over all threads for this user?
+    # state_manager doesn't easily expose "get all for user".
+    # But we can iterate UEs and try to stop.
+    if crud.user.is_superuser(current_user):
+        ues = crud.ue.get_multi(db=db, limit=1000)
+    else:
+        ues = crud.ue.get_multi_by_owner(db=db, owner_id=current_user.id, limit=1000)
+        
+    for ue in ues:
+        thread_key = f"{current_user.id}"
+        t = state_manager.get_thread(ue.supi, thread_key)
+        if t:
+            try:
+                t.stop()
+                t.join(timeout=1.0)
+            except Exception as e:
+                logger.error(f"Error stopping UE {ue.supi}: {e}")
+            finally:
+                state_manager.remove_thread(ue.supi, thread_key)
+                state_manager.remove_ue(ue.supi)
+                
+    return {"msg": "All UEs stopped"}
+
 @router.get("/state-loop/{supi}", status_code=200)
 def state_movement(
     *,
@@ -665,6 +778,40 @@ def state_ues(
     Get the state
     """
     return state_manager.all_ues()
+
+
+@router.get("/handover-stats", status_code=200)
+def get_handover_stats(
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get handover statistics for the current experiment session.
+    Used for thesis statistical validation.
+    """
+    return state_manager.get_handover_stats()
+
+
+@router.post("/reset-stats", status_code=200)
+def reset_handover_stats(
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Reset handover statistics for a new experiment session.
+    """
+    state_manager.reset_handover_stats()
+    return {"message": "Handover statistics reset", "session_start": state_manager.get_handover_stats()["session_start"]}
+
+
+@router.get("/recent-handovers", status_code=200)
+def get_recent_handovers(
+    limit: int = 50,
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Get recent handover events with full details including ML confidence.
+    Used for thesis analytics dashboard.
+    """
+    return state_manager.get_recent_handovers(limit=limit)
 
 #Functions
 def retrieve_ue_state(supi: str, user_id: int) -> bool:

@@ -10,6 +10,7 @@ import ExportPage from './pages/ExportPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import LoginPage from './pages/LoginPage';
 import EntitiesPage from './pages/entities/EntitiesPage';
+import { ExperimentProvider } from './context/ExperimentContext';
 
 function App() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -25,29 +26,32 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <div className="flex min-h-screen bg-gray-100">
-                <Sidebar />
-                <div className="flex-1 flex flex-col">
-                    <Header onLogout={() => {
-                        localStorage.removeItem('access_token');
-                        setIsAuthenticated(false);
-                    }} />
-                    <main className="flex-1 p-6 overflow-auto">
-                        <Routes>
-                            <Route path="/" element={<Dashboard />} />
-                            <Route path="/dashboard" element={<Dashboard />} />
-                            <Route path="/entities" element={<EntitiesPage />} />
-                            <Route path="/map" element={<MapPage />} />
-                            <Route path="/import" element={<ImportPage />} />
-                            <Route path="/export" element={<ExportPage />} />
-                            <Route path="/analytics" element={<AnalyticsPage />} />
-                            <Route path="*" element={<Navigate to="/" replace />} />
-                        </Routes>
-                    </main>
+            <ExperimentProvider>
+                <div className="flex min-h-screen bg-gray-100">
+                    <Sidebar />
+                    <div className="flex-1 flex flex-col">
+                        <Header onLogout={() => {
+                            localStorage.removeItem('access_token');
+                            setIsAuthenticated(false);
+                        }} />
+                        <main className="flex-1 p-6 overflow-auto">
+                            <Routes>
+                                <Route path="/" element={<Dashboard />} />
+                                <Route path="/dashboard" element={<Dashboard />} />
+                                <Route path="/entities" element={<EntitiesPage />} />
+                                <Route path="/map" element={<MapPage />} />
+                                <Route path="/import" element={<ImportPage />} />
+                                <Route path="/export" element={<ExportPage />} />
+                                <Route path="/analytics" element={<AnalyticsPage />} />
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </main>
+                    </div>
                 </div>
-            </div>
+            </ExperimentProvider>
         </ErrorBoundary>
     );
 }
 
 export default App;
+

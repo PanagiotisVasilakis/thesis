@@ -283,6 +283,9 @@ def create_scenario(
     ues = scenario_in.UEs
     paths = scenario_in.paths
     ue_path_association = scenario_in.ue_path_association
+    
+    # Reset simulation state and stop background threads
+    state_manager.reset()
 
     from sqlalchemy import text
     db.execute(text('TRUNCATE TABLE cell, gnb, monitoring, path, points, ue RESTART IDENTITY'))
@@ -343,9 +346,19 @@ def create_scenario(
                     if ue_path.path == path_old_id:
                         logger.debug("New path id %s", path.id)
                         json_data['path_id'] = path.id
-                        random_point = get_random_point(db, path.id)
-                        json_data['latitude'] = random_point.get('latitude')
-                        json_data['longitude'] = random_point.get('longitude')
+                        
+                        # Deterministic Start: Always start at the beginning of the path (index 0)
+                        # This ensures every run is identical for A/B testing
+                        points = crud.points.get_points(db=db, path_id=path.id)
+                        if points:
+                            start_point = jsonable_encoder(points[0])
+                            json_data['latitude'] = start_point.get('latitude')
+                            json_data['longitude'] = start_point.get('longitude')
+                        else:
+                            # Fallback if no points (should not happen in valid scenarios)
+                            logger.warning("No points found for path %s, user will start at (0,0)", path.id)
+                            json_data['latitude'] = 0.0
+                            json_data['longitude'] = 0.0
                     
                     crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
     
