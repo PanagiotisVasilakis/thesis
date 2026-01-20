@@ -42,18 +42,39 @@ from app.handover.engine import HandoverEngine
 from app.network.state_manager import NetworkStateManager
 
 EARTH_RADIUS_M = 6_371_000.0
-DEFAULT_CELL_ALTITUDE_M = 25.0
-DEFAULT_UE_ALTITUDE_M = 1.5
+try:
+    DEFAULT_CELL_ALTITUDE_M = float(os.environ.get("DEFAULT_CELL_ALTITUDE_M", 25.0))
+except ValueError:
+    DEFAULT_CELL_ALTITUDE_M = 25.0
+try:
+    DEFAULT_UE_ALTITUDE_M = float(os.environ.get("DEFAULT_UE_ALTITUDE_M", 1.5))
+except ValueError:
+    DEFAULT_UE_ALTITUDE_M = 1.5
 
 # Network configuration defaults - can be overridden via environment variables
 import os
-DEFAULT_CARRIER_HZ = float(os.environ.get("DEFAULT_CARRIER_HZ", 3.5e9))
-DEFAULT_TX_POWER_DBM = float(os.environ.get("DEFAULT_TX_POWER_DBM", 40.0))
-TRAJECTORY_LIMIT = int(os.environ.get("TRAJECTORY_LIMIT", 900))  # keep ~15 minutes of 1 Hz samples
+try:
+    DEFAULT_CARRIER_HZ = float(os.environ.get("DEFAULT_CARRIER_HZ", 3.5e9))
+except ValueError:
+    DEFAULT_CARRIER_HZ = 3.5e9
+try:
+    DEFAULT_TX_POWER_DBM = float(os.environ.get("DEFAULT_TX_POWER_DBM", 40.0))
+except ValueError:
+    DEFAULT_TX_POWER_DBM = 40.0
+try:
+    TRAJECTORY_LIMIT = int(os.environ.get("TRAJECTORY_LIMIT", 900))
+except ValueError:
+    TRAJECTORY_LIMIT = 900  # keep ~15 minutes of 1 Hz samples
 
 # Speed mapping constants (m/s)
-HIGH_SPEED_MPS = 10.0  # Vehicular speed
-LOW_SPEED_MPS = 1.0    # Walking speed
+try:
+    HIGH_SPEED_MPS = float(os.environ.get("HIGH_SPEED_MPS", 10.0))
+except ValueError:
+    HIGH_SPEED_MPS = 10.0  # Vehicular speed
+try:
+    LOW_SPEED_MPS = float(os.environ.get("LOW_SPEED_MPS", 1.0))
+except ValueError:
+    LOW_SPEED_MPS = 1.0    # Walking speed
 
 
 class HandoverRuntime:
@@ -274,7 +295,8 @@ class HandoverRuntime:
             # This ensures the confidence flows through to ue_movement.py
             if result is not None:
                 result["confidence"] = decision.get("confidence")
-                result["source"] = decision.get("source", "ml" if self.use_ml else "a3")
+                use_ml = getattr(self.engine, "use_ml", False)
+                result["source"] = decision.get("source", "ml" if use_ml else "a3")
             
             return result
 

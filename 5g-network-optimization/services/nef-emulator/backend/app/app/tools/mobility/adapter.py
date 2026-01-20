@@ -191,6 +191,6 @@ class MobilityPatternAdapter:
     @classmethod
     def _validate_required_params(cls, params: Dict[str, Any], required: List[str]) -> None:
         """Validate that all required parameters are present."""
-        missing = [param for param in required if param not in params]
+        missing = [param for param in required if param not in params or params.get(param) is None]
         if missing:
             raise ValueError(f"Missing required parameters: {missing}")

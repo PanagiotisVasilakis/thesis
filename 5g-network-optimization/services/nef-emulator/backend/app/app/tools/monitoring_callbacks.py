@@ -1,9 +1,19 @@
 import requests
 import json
+from urllib.parse import urlparse
 from app.core.constants import DEFAULT_TIMEOUT
+
+
+def _validate_callback_url(callbackurl: str) -> None:
+    parsed = urlparse(callbackurl)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError(f"Unsupported callback URL scheme: {parsed.scheme}")
+    if not parsed.netloc:
+        raise ValueError("Callback URL must include a host")
 
 def location_callback(ue, callbackurl, subscription):
     url = callbackurl
+    _validate_callback_url(url)
 
     payload = json.dumps({
     "externalId" : ue.get("external_identifier"),
@@ -26,6 +36,7 @@ def location_callback(ue, callbackurl, subscription):
 
 def loss_of_connectivity_callback(ue, callbackurl, subscription):
     url = callbackurl
+    _validate_callback_url(url)
 
     payload = json.dumps({
     "externalId" : ue.get("external_identifier"),
@@ -45,6 +56,7 @@ def loss_of_connectivity_callback(ue, callbackurl, subscription):
 
 def ue_reachability_callback(ue, callbackurl, subscription, reachabilityType):
     url = callbackurl
+    _validate_callback_url(url)
 
     payload = json.dumps({
     "externalId" : ue.get("external_identifier"),

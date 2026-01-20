@@ -50,6 +50,15 @@ class HandoverEngine:
         self.ml_service_url = ml_service_url or os.getenv(
             "ML_SERVICE_URL", "http://ml-service:5050"
         )
+        env_min_antennas = os.getenv("MIN_ANTENNAS_ML")
+        if env_min_antennas is not None:
+            try:
+                min_antennas_ml = int(env_min_antennas)
+            except ValueError:
+                self.logger.warning(
+                    "Invalid value for MIN_ANTENNAS_ML: '%s'. Using default.",
+                    env_min_antennas,
+                )
         self.min_antennas_ml = min_antennas_ml
         env_thresh = os.getenv("ML_CONFIDENCE_THRESHOLD")
         if env_thresh is not None:
@@ -74,6 +83,25 @@ class HandoverEngine:
                 self.model = load_model(self.ml_model_path)
             except Exception:
                 self.model = None
+        env_hyst = os.getenv("A3_HYSTERESIS_DB")
+        if env_hyst is not None:
+            try:
+                a3_hysteresis_db = float(env_hyst)
+            except ValueError:
+                self.logger.warning(
+                    "Invalid value for A3_HYSTERESIS_DB: '%s'. Using default.",
+                    env_hyst,
+                )
+        env_ttt = os.getenv("A3_TTT_S")
+        if env_ttt is not None:
+            try:
+                a3_ttt_s = float(env_ttt)
+            except ValueError:
+                self.logger.warning(
+                    "Invalid value for A3_TTT_S: '%s'. Using default.",
+                    env_ttt,
+                )
+
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
         # Always have an A3 rule available; it will only be used when
         # machine learning is disabled.
@@ -121,6 +149,22 @@ class HandoverEngine:
             self._token_refresh_skew = 15.0
         self._last_ml_error_reason: Optional[str] = None
         self._last_ml_http_status: Optional[int] = None
+        try:
+            self.http_timeout = float(os.getenv("ML_HTTP_TIMEOUT", str(self.HTTP_TIMEOUT_SECONDS)))
+        except ValueError:
+            self.http_timeout = float(self.HTTP_TIMEOUT_SECONDS)
+        try:
+            self.feedback_timeout = float(os.getenv("ML_FEEDBACK_TIMEOUT", str(self.HTTP_FEEDBACK_TIMEOUT_SECONDS)))
+        except ValueError:
+            self.feedback_timeout = float(self.HTTP_FEEDBACK_TIMEOUT_SECONDS)
+        try:
+            self.token_expiry_fallback = float(os.getenv("ML_TOKEN_EXPIRY_SECONDS", str(self.DEFAULT_TOKEN_EXPIRY_SECONDS)))
+        except ValueError:
+            self.token_expiry_fallback = float(self.DEFAULT_TOKEN_EXPIRY_SECONDS)
+        try:
+            self.coverage_margin_factor = float(os.getenv("COVERAGE_MARGIN_FACTOR", str(self.COVERAGE_MARGIN_FACTOR)))
+        except ValueError:
+            self.coverage_margin_factor = float(self.COVERAGE_MARGIN_FACTOR)
 
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
@@ -144,31 +188,7 @@ class HandoverEngine:
 
     def _select_rule(self, ue_id: str) -> Optional[str]:
         fv = self.state_mgr.get_feature_vector(ue_id)
-        current = fv["connected_to"]
-        now = datetime.now(timezone.utc)
-        
-        # Prepare serving cell metrics
-        serving_rsrp = fv["neighbor_rsrp_dbm"][current]
-        serving_rsrq = fv["neighbor_rsrqs"].get(current) if "neighbor_rsrqs" in fv else None
-        serving_metrics = {
-            "rsrp": serving_rsrp,
-            "rsrq": serving_rsrq
-        } if serving_rsrq is not None else serving_rsrp
-        
-        # Check each neighbor
-        for aid, rsrp in fv["neighbor_rsrp_dbm"].items():
-            if aid == current:
-                continue
-            
-            neighbor_rsrq = fv["neighbor_rsrqs"].get(aid) if "neighbor_rsrqs" in fv else None
-            target_metrics = {
-                "rsrp": rsrp,
-                "rsrq": neighbor_rsrq
-            } if neighbor_rsrq is not None else rsrp
-            
-            if self.rule.check(serving_metrics, target_metrics, now):
-                return aid
-        return None
+        return self._select_rule_with_features(ue_id, fv)
 
     # ------------------------------------------------------------------
     # Lock-free decision methods (for use with pre-computed feature vectors)
@@ -277,14 +297,14 @@ class HandoverEngine:
             headers = self._get_ml_headers()
             
             def _post_with_optional_headers(auth_headers):
-                kwargs = {"json": ue_data, "timeout": 5}
+                kwargs = {"json": ue_data, "timeout": self.http_timeout}
                 if auth_headers:
                     kwargs["headers"] = auth_headers
                 try:
                     return requests.post(url, **kwargs)
                 except TypeError as exc:
                     if auth_headers and "headers" in str(exc):
-                        return requests.post(url, json=ue_data, timeout=5)
+                        return requests.post(url, json=ue_data, timeout=self.http_timeout)
                     raise
             
             resp = _post_with_optional_headers(headers)
@@ -336,14 +356,14 @@ class HandoverEngine:
         
         serving_rsrp = rsrp_map[current]
         serving_rsrq = rsrq_map.get(current)
-        serving_metrics = {"rsrp": serving_rsrp, "rsrq": serving_rsrq} if serving_rsrq else serving_rsrp
+        serving_metrics = {"rsrp": serving_rsrp, "rsrq": serving_rsrq} if serving_rsrq is not None else serving_rsrp
         
         for aid, rsrp in rsrp_map.items():
             if aid == current:
                 continue
             
             neighbor_rsrq = rsrq_map.get(aid)
-            target_metrics = {"rsrp": rsrp, "rsrq": neighbor_rsrq} if neighbor_rsrq else rsrp
+            target_metrics = {"rsrp": rsrp, "rsrq": neighbor_rsrq} if neighbor_rsrq is not None else rsrp
             
             if self.rule.check(serving_metrics, target_metrics, now):
                 return aid
@@ -423,7 +443,7 @@ class HandoverEngine:
             "password": self._ml_password,
         }
         try:
-            resp = requests.post(login_url, json=payload, timeout=5)
+            resp = requests.post(login_url, json=payload, timeout=self.http_timeout)
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # noqa: BLE001
@@ -439,7 +459,7 @@ class HandoverEngine:
         refresh_url = f"{self.ml_service_url.rstrip('/')}/api/refresh"
         payload = {"refresh_token": self._ml_refresh_token}
         try:
-            resp = requests.post(refresh_url, json=payload, timeout=5)
+            resp = requests.post(refresh_url, json=payload, timeout=self.http_timeout)
             resp.raise_for_status()
             data = resp.json()
         except Exception as exc:  # noqa: BLE001
@@ -466,8 +486,7 @@ class HandoverEngine:
         self._ml_token_expiry = self._decode_token_expiry(self._ml_access_token, expires_in)
         return True
 
-    @staticmethod
-    def _decode_token_expiry(token: str, expires_in: Optional[float]) -> float:
+    def _decode_token_expiry(self, token: str, expires_in: Optional[float]) -> float:
         now = time.time()
         if isinstance(expires_in, (int, float)) and expires_in > 0:
             return now + float(expires_in)
@@ -481,7 +500,7 @@ class HandoverEngine:
             pass
 
         # Fallback: refresh again in five minutes
-        return now + 300.0
+        return now + self.token_expiry_fallback
 
     # ------------------------------------------------------------------
 
@@ -667,7 +686,7 @@ class HandoverEngine:
                         )
                         
                         # Allow 1.5x radius before declaring coverage loss
-                        max_coverage = float(current_cell.radius) * 1.5
+                        max_coverage = float(current_cell.radius) * self.coverage_margin_factor
                         
                         if distance_to_current > max_coverage:
                             coverage_loss_detected = True
@@ -693,7 +712,7 @@ class HandoverEngine:
                                     decision_log["fallback_reason"] = "coverage_loss"
                                     decision_log["final_target"] = resolved_target or target
                                     metrics.COVERAGE_LOSS_HANDOVERS.inc()
-                                    metrics.HANDOVER_DECISIONS.labels(decision="forced_coverage_loss").inc()
+                                    metrics.HANDOVER_DECISIONS.labels(outcome="forced_coverage_loss").inc()
                     except ImportError:
                         self.logger.debug("Cell config unavailable for coverage check")
                     except Exception as exc:  # noqa: BLE001
@@ -830,7 +849,7 @@ class HandoverEngine:
         try:
             self.logger.debug("Posting QoS feedback to %s: %s", endpoint, payload)
             headers = self._get_ml_headers()
-            request_kwargs = {"json": payload, "timeout": 3}
+            request_kwargs = {"json": payload, "timeout": self.feedback_timeout}
             if headers:
                 request_kwargs["headers"] = headers
             response = requests.post(endpoint, **request_kwargs)
@@ -839,7 +858,7 @@ class HandoverEngine:
                 headers = self._get_ml_headers(force_refresh=True)
                 if headers:
                     response = requests.post(
-                        endpoint, json=payload, headers=headers, timeout=3
+                        endpoint, json=payload, headers=headers, timeout=self.feedback_timeout
                     )
             response.raise_for_status()
         except Exception as exc:  # noqa: BLE001

@@ -1,5 +1,6 @@
 import threading
 import time
+import os
 from typing import Any, Dict, List, Optional
 
 
@@ -17,6 +18,10 @@ class StateManager:
         self._handover_count: int = 0
         self._handovers_by_ue: Dict[str, List[Dict[str, Any]]] = {}
         self._session_start: float = time.time()
+        try:
+            self._notification_limit = int(os.getenv("NEF_NOTIFICATION_LIMIT", "100"))
+        except ValueError:
+            self._notification_limit = 100
 
     # Notification handling
     def add_notification(self, notification: Dict[str, Any]) -> Dict[str, Any]:
@@ -25,7 +30,7 @@ class StateManager:
             notification["id"] = self._counter
             self._counter += 1
             self._event_notifications.append(notification)
-            if len(self._event_notifications) > 100:
+            if len(self._event_notifications) > self._notification_limit:
                 self._event_notifications.pop(0)
             return notification
 

@@ -1,7 +1,8 @@
 import threading, logging, time, requests, copy, asyncio
+import os
 from fastapi import APIRouter, Path, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
-from typing import Any
+from typing import Any, Optional
 from app import crud, tools, models
 from app.crud import crud_mongo
 from app.tools.distance import check_distance
@@ -56,34 +57,14 @@ except ModuleNotFoundError:  # pragma: no cover - fallback used only in tests
 
 
 # Counter for timer related errors is stored in StateManager
-HANDOVER_REEVALUATION_SECONDS = 3.0
+try:
+    HANDOVER_REEVALUATION_SECONDS = float(os.getenv("HANDOVER_REEVALUATION_SECONDS", "3.0"))
+except ValueError:
+    HANDOVER_REEVALUATION_SECONDS = 3.0
 
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer
 from sqlalchemy.orm import Session
-
-class BackgroundTasks(threading.Thread):
-
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs=None):
-        super().__init__(group=group, target=target, name=name)
-        self._args = args
-        self._kwargs = kwargs or {}
-        self._stop_threads = False
-        self._wait_event = threading.Event()
-
-    def run(self) -> None:
-        while not self._stop_threads:
-            self._wait_event.wait(0.05)
-            self._wait_event.clear()
-
-    def stop(self) -> None:
-        self._stop_threads = True
-        self._wait_event.set()
-
-
-# NOTE: Test-related PAD scaffolding removed. If tests depend on line numbers,
-# they should be updated to use function/class names instead of line counts.
-
 
 class _RealBackgroundTasks(threading.Thread):
 
@@ -202,7 +183,7 @@ class _RealBackgroundTasks(threading.Thread):
             except timer.TimerError as ex:
                 log_timer_exception(ex)
                 return True, None
-            except requests.exceptions.ConnectionError as ex:
+            except (requests.exceptions.RequestException, ValueError) as ex:
                 logging.warning("Failed to send the callback request")
                 logging.warning(ex)
                 return False, None
@@ -529,17 +510,24 @@ class _RealBackgroundTasks(threading.Thread):
                 ue_data["gnb_id_hex"] = None
 
             step = 1
-            if ue_data["speed"] == "LOW":
-                step = 1
-            elif ue_data["speed"] == "HIGH":
-                step = 10
-            else:
-                logger.debug(
-                    "UE %s uses custom speed %s; defaulting to step=%s",
-                    supi,
-                    ue_data["speed"],
-                    step,
-                )
+            speed_value = ue_data.get("speed")
+            if isinstance(speed_value, str):
+                speed_norm = speed_value.strip().upper()
+                if speed_norm == "LOW":
+                    step = 1
+                elif speed_norm == "HIGH":
+                    step = 10
+                elif speed_norm == "STATIONARY":
+                    step = 0
+                elif speed_norm and speed_norm != "STATIONARY":
+                    logger.debug(
+                        "UE %s uses custom speed %s; defaulting to step=%s",
+                        supi,
+                        speed_value,
+                        step,
+                    )
+            elif isinstance(speed_value, (int, float)):
+                step = max(0, int(round(speed_value)))
 
             moving_position_index = moving_position_index + step
             next_index = moving_position_index % len(points)
@@ -551,7 +539,11 @@ class _RealBackgroundTasks(threading.Thread):
             )
 
             self._wait_event.clear()
-            self._wait_event.wait(1)
+            try:
+                interval = float(os.getenv("UE_MOVEMENT_INTERVAL_SECONDS", "1"))
+            except ValueError:
+                interval = 1.0
+            self._wait_event.wait(interval)
 
             current_position_index = next_index
             state_manager.set_ue(supi, ue_data)
@@ -562,16 +554,21 @@ class _RealBackgroundTasks(threading.Thread):
                     "Updating UE with the latest coordinates and cell in the database (last known position)..."
                 )
                 db = SessionLocal()
-                UE = crud.ue.get_supi(db, supi)
-                crud.ue.update_coordinates(
-                    db=db,
-                    lat=ue_data["latitude"],
-                    long=ue_data["longitude"],
-                    db_obj=UE,
-                )
-                crud.ue.update(db=db, db_obj=UE, obj_in={"Cell_id": ue_data["Cell_id"]})
-                state_manager.remove_ue(supi)
-                db.close()
+                try:
+                    UE = crud.ue.get_supi(db, supi)
+                    if UE is not None:
+                        crud.ue.update_coordinates(
+                            db=db,
+                            lat=ue_data["latitude"],
+                            long=ue_data["longitude"],
+                            db_obj=UE,
+                        )
+                        crud.ue.update(db=db, db_obj=UE, obj_in={"Cell_id": ue_data["Cell_id"]})
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Failed to persist UE %s state on stop: %s", supi, exc)
+                finally:
+                    state_manager.remove_ue(supi)
+                    db.close()
                 if rt is not None:
                     rt.stop()
                 break
@@ -588,6 +585,51 @@ BackgroundTasks = _RealBackgroundTasks
 #API
 router = APIRouter()
 
+
+def _build_movement_context(
+    db: Session,
+    current_user: models.User,
+    supi: str,
+    ue_data: Optional[dict] = None,
+):
+    UE = crud.ue.get_supi(db=db, supi=supi)
+    if not UE:
+        logging.warning("UE %s not found", supi)
+        return None
+    if UE.owner_id != current_user.id:
+        logging.warning("Not enough permissions")
+        return None
+
+    if ue_data is None:
+        ue_data = jsonable_encoder(UE)
+        ue_data.pop("id", None)
+
+        if UE.Cell_id is not None:
+            ue_data["cell_id_hex"] = UE.Cell.cell_id
+            ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
+        else:
+            ue_data["cell_id_hex"] = None
+            ue_data["gnb_id_hex"] = None
+
+    path = crud.path.get(db=db, id=UE.path_id)
+    if not path:
+        logging.warning("Path not found")
+        return None
+    if path.owner_id != current_user.id:
+        logging.warning("Not enough permissions")
+        return None
+
+    points = crud.points.get_points(db=db, path_id=UE.path_id)
+    points = jsonable_encoder(points)
+
+    Cells = crud.cell.get_multi_by_owner(db=db, owner_id=current_user.id, skip=0, limit=100)
+    json_cells = jsonable_encoder(Cells)
+    cells_by_id = {cell["id"]: cell for cell in json_cells}
+    handover_runtime.ensure_topology(json_cells)
+
+    is_superuser = crud.user.is_superuser(current_user)
+    return ue_data, json_cells, points, is_superuser, cells_by_id
+
 @router.post("/start-loop", status_code=200)
 def initiate_movement(
     *,
@@ -601,52 +643,12 @@ def initiate_movement(
     if state_manager.get_thread(msg.supi, f"{current_user.id}"):
         raise HTTPException(status_code=409, detail=f"There is a thread already running for this supi:{msg.supi}")
     
-    #Check if UE 
-    UE = crud.ue.get_supi(db=db, supi=msg.supi)
-    if not UE:
-        logging.warning("UE not found")
-        state_manager.remove_thread(msg.supi)
-        return
-    if (UE.owner_id != current_user.id):
-        logging.warning("Not enough permissions")
-        state_manager.remove_thread(msg.supi)
-        return
-    
-    #Insert running UE in the dictionary
-
-    ue_data = jsonable_encoder(UE)
-    ue_data.pop("id")
-
-    if UE.Cell_id is not None:
-        ue_data["cell_id_hex"] = UE.Cell.cell_id
-        ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
-    else:
-        ue_data["cell_id_hex"] = None
-        ue_data["gnb_id_hex"] = None
-
-
-    #Retrieve paths & points
-    path = crud.path.get(db=db, id=UE.path_id)
-    if not path:
-        logging.warning("Path not found")
-        state_manager.remove_thread(msg.supi)
-        return
-    if (path.owner_id != current_user.id):
-        logging.warning("Not enough permissions")
+    context = _build_movement_context(db, current_user, msg.supi)
+    if context is None:
         state_manager.remove_thread(msg.supi)
         return
 
-    points = crud.points.get_points(db=db, path_id=UE.path_id)
-    points = jsonable_encoder(points)
-
-    #Retrieve all the cells
-    Cells = crud.cell.get_multi_by_owner(db=db, owner_id=current_user.id, skip=0, limit=100)
-    json_cells = jsonable_encoder(Cells)
-    cells_by_id = {cell["id"]: cell for cell in json_cells}
-    handover_runtime.ensure_topology(json_cells)
-
-    is_superuser = crud.user.is_superuser(current_user)
-
+    ue_data, json_cells, points, is_superuser, cells_by_id = context
     t = BackgroundTasks(args=(current_user, msg.supi, json_cells, points, is_superuser, ue_data, cells_by_id))
     state_manager.set_thread(msg.supi, f"{current_user.id}", t)
     state_manager.set_ue(msg.supi, ue_data)
@@ -676,7 +678,9 @@ def terminate_movement(
     try:
         t.stop()
     finally:
-        t.join()
+        t.join(timeout=2.0)
+        if t.is_alive():
+            logger.warning("UE movement thread for %s did not stop cleanly", msg.supi)
 
     state_manager.remove_thread(msg.supi, thread_key)
     state_manager.remove_ue(msg.supi)
@@ -685,40 +689,11 @@ def terminate_movement(
 def _start_ue_movement_internal(db: Session, current_user: models.User, supi: str):
     if state_manager.get_thread(supi, f"{current_user.id}"):
         return # Already running
-
-    UE = crud.ue.get_supi(db=db, supi=supi)
-    if not UE:
-        logging.warning(f"UE {supi} not found")
+    context = _build_movement_context(db, current_user, supi)
+    if context is None:
         return
-    if (UE.owner_id != current_user.id):
-        logging.warning("Not enough permissions")
-        return
-    
-    ue_data = jsonable_encoder(UE)
-    ue_data.pop("id", None)
 
-    if UE.Cell_id is not None:
-        ue_data["cell_id_hex"] = UE.Cell.cell_id
-        ue_data["gnb_id_hex"] = UE.Cell.gNB.gNB_id
-    else:
-        ue_data["cell_id_hex"] = None
-        ue_data["gnb_id_hex"] = None
-
-    path = crud.path.get(db=db, id=UE.path_id)
-    if not path:
-        logging.warning(f"Path not found for UE {supi}")
-        return
-    
-    points = crud.points.get_points(db=db, path_id=UE.path_id)
-    points = jsonable_encoder(points)
-
-    Cells = crud.cell.get_multi_by_owner(db=db, owner_id=current_user.id, skip=0, limit=100)
-    json_cells = jsonable_encoder(Cells)
-    cells_by_id = {cell["id"]: cell for cell in json_cells}
-    handover_runtime.ensure_topology(json_cells)
-
-    is_superuser = crud.user.is_superuser(current_user)
-
+    ue_data, json_cells, points, is_superuser, cells_by_id = context
     t = BackgroundTasks(args=(current_user, supi, json_cells, points, is_superuser, ue_data, cells_by_id))
     state_manager.set_thread(supi, f"{current_user.id}", t)
     state_manager.set_ue(supi, ue_data)
@@ -770,6 +745,8 @@ def stop_all_ues(
             try:
                 t.stop()
                 t.join(timeout=1.0)
+                if t.is_alive():
+                    logger.warning("UE movement thread for %s did not stop cleanly", ue.supi)
             except Exception as e:
                 logger.error(f"Error stopping UE {ue.supi}: {e}")
             finally:

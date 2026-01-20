@@ -13,6 +13,7 @@ from __future__ import annotations
 import threading
 import time
 from collections import defaultdict, deque
+import os
 from dataclasses import dataclass
 from typing import Deque, Dict, Iterable, List, Optional
 
@@ -67,6 +68,28 @@ class QoSMonitor:
         min_samples: int = 1,
         max_samples: int = 120,
     ) -> None:
+        def _env_float(name: str, default: float) -> float:
+            value = os.getenv(name)
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except ValueError:
+                return default
+
+        def _env_int(name: str, default: int) -> int:
+            value = os.getenv(name)
+            if value is None:
+                return default
+            try:
+                return int(value)
+            except ValueError:
+                return default
+
+        window_seconds = _env_float("QOS_WINDOW_SECONDS", window_seconds)
+        min_samples = _env_int("QOS_MIN_SAMPLES", min_samples)
+        max_samples = _env_int("QOS_MAX_SAMPLES", max_samples)
+
         if window_seconds <= 0:
             raise ValueError("window_seconds must be positive")
         if min_samples <= 0:

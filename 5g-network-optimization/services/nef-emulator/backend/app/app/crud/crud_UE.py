@@ -93,6 +93,9 @@ class CRUD_UE(CRUDBase[UE, UECreate, UEUpdate]):
     def remove_supi(self, db: Session, *, supi: str) -> UE:
         logger.info("removing supi %s", supi)
         obj = db.query(self.model).filter(UE.supi == supi).first()
+        if obj is None:
+            logger.warning("supi %s not found; nothing to delete", supi)
+            return None
         logger.info("Done")
         logger.debug(obj)
         db.delete(obj)

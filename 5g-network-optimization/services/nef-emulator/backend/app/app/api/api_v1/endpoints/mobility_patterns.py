@@ -41,8 +41,8 @@ class MobilityPatternRequest(BaseModel):
     """Request body for generating a mobility pattern."""
     model_type: str = Field(..., description="Type of mobility model (linear, l_shaped)")
     ue_id: str = Field(..., description="UE identifier")
-    duration: float = Field(300.0, description="Duration in seconds")
-    time_step: float = Field(1.0, description="Time step in seconds")
+    duration: float = Field(300.0, gt=0, description="Duration in seconds")
+    time_step: float = Field(1.0, gt=0, description="Time step in seconds")
     parameters: MobilityParameters = Field(..., description="Model-specific parameters")
 
 @router.post("/generate", response_model=List[Dict[str, Any]])

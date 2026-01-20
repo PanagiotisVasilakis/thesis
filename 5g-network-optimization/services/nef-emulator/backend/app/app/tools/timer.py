@@ -71,7 +71,11 @@ class RepeatedTimer:
         with self._lock:
             self.is_running = False
         self.start()
-        self.function(*self.args, **self.kwargs)
+        try:
+            self.function(*self.args, **self.kwargs)
+        except Exception:
+            # Swallow exceptions to keep the timer loop alive
+            pass
 
     def start(self):
         with self._lock:

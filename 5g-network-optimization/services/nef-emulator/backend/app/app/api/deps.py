@@ -9,6 +9,9 @@ from app.core import security
 from app.core.config import settings
 from app.db.session import SessionLocal
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 reusable_oauth2 = OAuth2PasswordBearer(
     tokenUrl=f"{settings.API_V1_STR}/login/access-token"
@@ -67,6 +70,14 @@ def get_current_user(
         return user
     else:
         default_email = os.getenv("DEFAULT_ADMIN_EMAIL", "admin@my-email.com")
+        if os.getenv("DEFAULT_ADMIN_EMAIL") is None:
+            allow_fallback = os.getenv("ALLOW_DEFAULT_ADMIN_FALLBACK", "false").lower() in {"1", "true", "yes"}
+            if not allow_fallback:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="DEFAULT_ADMIN_EMAIL must be set when public key verification is enabled",
+                )
+            logger.warning("DEFAULT_ADMIN_EMAIL not set; falling back to %s", default_email)
         user = crud.user.get_by_email(db, email=default_email)
         if not user:
             raise HTTPException(

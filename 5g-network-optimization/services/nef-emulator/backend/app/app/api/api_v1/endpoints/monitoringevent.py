@@ -34,18 +34,17 @@ async def read_active_subscriptions(
     db_mongo = client.fastapi
 
     retrieved_docs = crud_mongo.read_all(db_mongo, db_collection, current_user.id)
-    temp_json_subs = retrieved_docs.copy() #Create copy of the list (json_subs) -> you cannot remove items from a list while you iterating the list.
+    active_docs = []
 
-    for sub in temp_json_subs:
+    for sub in retrieved_docs:
         sub_validate_time = tools.check_expiration_time(expire_time=sub.get("monitorExpireTime"))
-        if not sub_validate_time:
+        if sub_validate_time:
+            active_docs.append(sub)
+        else:
             crud_mongo.delete_by_item(db_mongo, db_collection, "externalId", sub.get("externalId"))
-            retrieved_docs.remove(sub)
-            
-    temp_json_subs.clear()
 
-    if retrieved_docs:
-        http_response = JSONResponse(content=retrieved_docs, status_code=200)
+    if active_docs:
+        http_response = JSONResponse(content=active_docs, status_code=200)
         await add_notifications(http_request, http_response, False)
         await log_to_capif(http_request, http_response, "service_monitoring_event.json", token_payload)
 

@@ -1,5 +1,7 @@
 import secrets
 import json
+import os
+import logging
 from typing import Any, List, Optional, Union
 from urllib.parse import quote_plus
 
@@ -97,6 +99,10 @@ class Settings(BaseSettings):
     USE_PUBLIC_KEY_VERIFICATION: bool
 
 settings = Settings()
+if os.getenv("SECRET_KEY") is None:
+    logging.getLogger(__name__).warning(
+        "SECRET_KEY is not set; generated key will change on restart and invalidate tokens"
+    )
 
 
 class QoSSettings:

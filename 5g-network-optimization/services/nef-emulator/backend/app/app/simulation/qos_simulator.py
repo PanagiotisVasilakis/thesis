@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import random
 from typing import Dict, Optional
 
@@ -23,11 +24,32 @@ class QoSSimulator:
         max_latency_ms: float = 80.0,
         max_throughput_mbps: float = 400.0,
     ) -> None:
+        def _env_float(name: str, default: float) -> float:
+            value = os.getenv(name)
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except ValueError:
+                return default
+
+        base_latency_ms = _env_float("QOS_BASE_LATENCY_MS", base_latency_ms)
+        min_latency_ms = _env_float("QOS_MIN_LATENCY_MS", min_latency_ms)
+        max_latency_ms = _env_float("QOS_MAX_LATENCY_MS", max_latency_ms)
+        max_throughput_mbps = _env_float("QOS_MAX_THROUGHPUT_MBPS", max_throughput_mbps)
+
         self.base_latency_ms = base_latency_ms
         self.min_latency_ms = min_latency_ms
         self.max_latency_ms = max_latency_ms
         self.max_throughput_mbps = max_throughput_mbps
-        self._rng = random.Random(42)
+        seed_env = os.getenv("QOS_RANDOM_SEED", "42")
+        seed = None
+        if seed_env != "":
+            try:
+                seed = int(seed_env)
+            except ValueError:
+                seed = None
+        self._rng = random.Random(seed)
 
     # ------------------------------------------------------------------
     def estimate(self, context: Dict[str, object]) -> Optional[Dict[str, float]]:

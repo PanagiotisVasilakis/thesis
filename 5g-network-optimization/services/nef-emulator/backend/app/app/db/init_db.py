@@ -57,9 +57,17 @@ def init_db(db: Session) -> None:
         logging.warning("Scenario file not found. Please make sure the file exists and check the file path.")
         return  # Exit early - cannot proceed without scenario data
 
-    # Use SQLAlchemy text() wrapper for raw SQL (safer than raw string)
+    allow_reset = os.getenv("NEF_ALLOW_DB_RESET", "false").lower() in {"1", "true", "yes"}
     from sqlalchemy import text
-    db.execute(text('TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY CASCADE'))
+    if allow_reset:
+        logging.warning("NEF_ALLOW_DB_RESET enabled: truncating scenario tables")
+        db.execute(text('TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY CASCADE'))
+    else:
+        logging.info("NEF_ALLOW_DB_RESET is disabled; skipping table truncation")
+        existing = db.execute(text("SELECT 1 FROM gnb LIMIT 1")).first()
+        if existing:
+            logging.info("Existing scenario data detected; skipping seed")
+            return
     
     for gNB_in in gNBs:
         gNB = crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=user.id)

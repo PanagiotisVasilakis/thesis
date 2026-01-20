@@ -135,8 +135,6 @@ def get_by_gNB_id(
     Cell = crud.cell.get_by_gNB_id(db=db, gNB_id=gNB.id)
     if not Cell:
         raise HTTPException(status_code=404, detail="Cell for specific gNB not found")
-    if not crud.user.is_superuser(current_user) and (Cell.owner_id != current_user.id):
-        raise HTTPException(status_code=403, detail="Not enough permissions")
     return Cell
 
 
