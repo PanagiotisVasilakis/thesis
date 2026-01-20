@@ -69,7 +69,7 @@ export default function MapPage() {
                     getCells(),
                     getUEs(),
                     getPaths(),
-                    getMode().catch(() => ({ data: { ml_enabled: false } })),
+                    getMode().catch(() => ({ data: { mode: 'hybrid' } })),
                 ]);
                 setCells(cellsRes.data || []);
                 setUEs(uesRes.data || []);
@@ -134,10 +134,12 @@ export default function MapPage() {
                                 if (backendMatch && backendMatch.confidence !== null) {
                                     // Use REAL ML confidence from backend
                                     confidence = backendMatch.confidence;
-                                    method = backendMatch.method || (mlMode !== 'a3' ? 'ML' : 'A3 Event');
+                                    // Use backend method if available, otherwise derive from mode
+                                    method = backendMatch.method || (mlMode === 'ml' ? 'ML' : mlMode === 'hybrid' ? 'Hybrid' : 'A3 Event');
                                     processedBackendIds.add(`${backendMatch.ue}-${backendMatch.time}`);
                                 } else {
-                                    method = mlMode !== 'a3' ? 'ML' : 'A3 Event';
+                                    // No backend match - derive method from current mode
+                                    method = mlMode === 'ml' ? 'ML' : mlMode === 'hybrid' ? 'Hybrid' : 'A3 Event';
                                 }
 
                                 const prevRSRP = Number.isFinite(prevUE.rsrp) ? prevUE.rsrp : null;

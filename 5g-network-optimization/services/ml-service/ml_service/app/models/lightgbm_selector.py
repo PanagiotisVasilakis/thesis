@@ -14,6 +14,7 @@ from sklearn.utils.class_weight import compute_class_weight
 from .antenna_selector import AntennaSelector
 from .base_model_mixin import BaseModelMixin
 from ..utils.exception_handler import ModelError
+from ..config.constants import env_constants
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         *,
         neighbor_count: int | None = None,
         config_path: str | None = None,
-        n_estimators: int = 100,
+        n_estimators: int = env_constants.N_ESTIMATORS,
         max_depth: int = 10,
         num_leaves: int = 31,
         learning_rate: float = 0.1,
@@ -134,7 +135,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
             # Apply confidence calibration if enabled and we have validation data
             if self.calibrate_confidence and X_val is not None and len(X_val) >= 30:
                 try:
-                    logger.info(f"Calibrating confidence estimates using {self.calibration_method} method...")
+                    logger.info("Calibrating confidence estimates using %s method...", self.calibration_method)
                     
                     # Use CalibratedClassifierCV with pre-split data
                     # We pass cv='prefit' since model is already trained
@@ -157,11 +158,11 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                     uncal_conf_avg = np.mean(np.max(uncal_probs, axis=1))
                     cal_conf_avg = np.mean(np.max(cal_probs, axis=1))
                     
-                    logger.info(f"Avg confidence before calibration: {uncal_conf_avg:.3f}")
-                    logger.info(f"Avg confidence after calibration: {cal_conf_avg:.3f}")
+                    logger.info("Avg confidence before calibration: %.3f", uncal_conf_avg)
+                    logger.info("Avg confidence after calibration: %.3f", cal_conf_avg)
                     
                 except Exception as e:
-                    logger.warning(f"Confidence calibration failed: {e}, using uncalibrated model")
+                    logger.warning("Confidence calibration failed: %s, using uncalibrated model", e)
                     self.calibrated_model = None
             else:
                 self.calibrated_model = None
@@ -169,7 +170,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                     if X_val is None:
                         logger.info("Skipping calibration: no validation data")
                     elif len(X_val) < 30:
-                        logger.info(f"Skipping calibration: insufficient validation samples ({len(X_val)} < 30)")
+                        logger.info("Skipping calibration: insufficient validation samples (%d < 30)", len(X_val))
 
             # Detect collapsed predictors by inspecting training predictions
             train_predictions = self.model.predict(X_arr)
@@ -245,7 +246,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                         metrics["macro_f1"] = float(report["macro avg"]["f1-score"])
                     
                 except Exception as e:
-                    logger.warning(f"Failed to compute confusion matrix metrics: {e}")
+                    logger.warning("Failed to compute confusion matrix metrics: %s", e)
                 
                 # Add calibration metrics if calibrated
                 if self.calibrated_model:
@@ -331,8 +332,8 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         
         if min_class_count < n_folds:
             logger.warning(
-                f"Reducing n_folds from {n_folds} to {min_class_count} "
-                f"due to small class size"
+                "Reducing n_folds from %d to %d due to small class size",
+                n_folds, min_class_count
             )
             n_folds = max(2, min_class_count)
         
@@ -343,7 +344,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         fold_f1_scores = []
         fold_details = []
         
-        logger.info(f"Starting {n_folds}-fold cross-validation...")
+        logger.info("Starting %d-fold cross-validation...", n_folds)
         
         for fold_idx, (train_idx, val_idx) in enumerate(skf.split(X_scaled, y_arr)):
             X_train_fold = X_scaled[train_idx]
@@ -390,7 +391,7 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
                 "f1": float(fold_f1),
             })
             
-            logger.info(f"Fold {fold_idx + 1}/{n_folds}: accuracy={fold_acc:.4f}, F1={fold_f1:.4f}")
+            logger.info("Fold %d/%d: accuracy=%.4f, F1=%.4f", fold_idx + 1, n_folds, fold_acc, fold_f1)
         
         # Calculate CV statistics
         cv_metrics = {
@@ -408,9 +409,9 @@ class LightGBMSelector(BaseModelMixin, AntennaSelector):
         }
         
         logger.info(
-            f"Cross-validation complete: "
-            f"Accuracy = {cv_metrics['accuracy_report']}, "
-            f"F1 = {cv_metrics['f1_report']}"
+            "Cross-validation complete: Accuracy = %s, F1 = %s",
+            cv_metrics['accuracy_report'],
+            cv_metrics['f1_report']
         )
         
         # Train final model on all data

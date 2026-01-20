@@ -9,10 +9,13 @@ from .base_model_mixin import BaseModelMixin
 import numpy as np
 import tensorflow as tf
 import os
+import shutil
+import tempfile
 import joblib
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
+from ..config.constants import env_constants
 
 
 class LSTMSelector(BaseModelMixin, AntennaSelector):
@@ -24,8 +27,8 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
         *,
         neighbor_count: int | None = None,
         config_path: str | None = None,
-        epochs: int = 5,
-        units: int = 16,
+        epochs: int = env_constants.LSTM_EPOCHS,
+        units: int = env_constants.LSTM_UNITS,
     ) -> None:
         self.epochs = epochs
         self.units = units
@@ -127,18 +130,25 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
         # Thread-safe model saving
         with self._model_lock:
             try:
+                temp_dir = None
                 save_path = os.fspath(save_path)
                 os.makedirs(os.path.dirname(save_path), exist_ok=True)
                 
-                # Save TensorFlow model
-                temp_path = save_path + ".tmp"
-                self.model.save(temp_path)
-                
-                # Atomic move to final location
-                import shutil
+                # Save TensorFlow model to a temp directory first
+                temp_dir = tempfile.mkdtemp(prefix="lstm_model_", dir=os.path.dirname(save_path))
+                self.model.save(temp_dir)
+
+                backup_path = save_path + ".bak"
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
+
                 if os.path.exists(save_path):
-                    shutil.rmtree(save_path)
-                shutil.move(temp_path, save_path)
+                    os.replace(save_path, backup_path)
+
+                os.replace(temp_dir, save_path)
+
+                if os.path.exists(backup_path):
+                    shutil.rmtree(backup_path)
                 
                 # Save metadata atomically
                 meta_path = save_path + ".meta"
@@ -171,6 +181,11 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
                                 shutil.rmtree(temp_file)
                             else:
                                 os.remove(temp_file)
+                    except OSError:
+                        pass
+                if temp_dir and os.path.exists(temp_dir):
+                    try:
+                        shutil.rmtree(temp_dir)
                     except OSError:
                         pass
                 return False

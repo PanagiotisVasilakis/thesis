@@ -93,6 +93,7 @@ class ModelOperationQueue:
         self.max_size = max_size
         self._queue = queue.PriorityQueue(maxsize=max_size)
         self._operations: Dict[str, ModelOperation] = {}
+        self._cancelled: set[str] = set()
         self._lock = threading.RLock()
         self._stats = {
             "total_submitted": 0,
@@ -126,17 +127,22 @@ class ModelOperationQueue:
     def get_next(self, timeout: Optional[float] = None) -> Optional[ModelOperation]:
         """Get next operation from queue."""
         try:
-            priority, created_at, operation_id = self._queue.get(timeout=timeout)
-            
-            with self._lock:
-                operation = self._operations.get(operation_id)
-                if operation and operation.status == ModelOperationStatus.PENDING:
-                    operation.status = ModelOperationStatus.RUNNING
-                    operation.started_at = time.time()
-                    return operation
-                else:
-                    # Operation was cancelled or doesn't exist
-                    return None
+            while True:
+                priority, created_at, operation_id = self._queue.get(timeout=timeout)
+
+                with self._lock:
+                    if operation_id in self._cancelled:
+                        # Discard cancelled operation
+                        self._cancelled.discard(operation_id)
+                        continue
+
+                    operation = self._operations.get(operation_id)
+                    if operation and operation.status == ModelOperationStatus.PENDING:
+                        operation.status = ModelOperationStatus.RUNNING
+                        operation.started_at = time.time()
+                        return operation
+                    # If missing or already moved, continue to next
+                # Loop again to fetch next queued item
                     
         except queue.Empty:
             return None
@@ -163,6 +169,7 @@ class ModelOperationQueue:
             if operation and operation.status == ModelOperationStatus.PENDING:
                 operation.status = ModelOperationStatus.CANCELLED
                 self._stats["total_cancelled"] += 1
+                self._cancelled.add(operation_id)
                 return True
             return False
     
@@ -185,6 +192,7 @@ class ModelOperationQueue:
             
             for op_id in completed_ops:
                 del self._operations[op_id]
+                self._cancelled.discard(op_id)
                 removed_count += 1
         
         return removed_count

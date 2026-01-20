@@ -11,6 +11,7 @@ from ..config.constants import (
     DEFAULT_FALLBACK_RSRP,
     DEFAULT_FALLBACK_SINR,
     DEFAULT_FALLBACK_RSRQ,
+    DEFAULT_FALLBACK_ANTENNA_ID,
 )
 from ..config.feature_specs import sanitize_feature_ranges
 from ..utils.feature_cache import _cached_direction_to_unit, _cached_signal_extraction
@@ -163,7 +164,7 @@ def extract_mobility_features(feature_vector: Dict[str, Any]) -> Dict[str, float
 def determine_optimal_antenna(rf_metrics: Dict[str, Dict[str, float]]) -> str:
     """Choose the antenna with highest RSRP using SINR as tie breaker."""
     if not rf_metrics:
-        return "antenna_1"
+        return DEFAULT_FALLBACK_ANTENNA_ID
 
     best: Tuple[str, float, float] | None = None
     for antenna_id, metrics in rf_metrics.items():
@@ -171,7 +172,7 @@ def determine_optimal_antenna(rf_metrics: Dict[str, Dict[str, float]]) -> str:
         sinr = metrics.get("sinr", float("-inf"))
         if best is None or rsrp > best[1] or (rsrp == best[1] and sinr > best[2]):
             best = (antenna_id, rsrp, sinr)
-    return best[0] if best else "antenna_1"
+    return best[0] if best else DEFAULT_FALLBACK_ANTENNA_ID
 
 
 # --- Helper functions used by the ML models ---

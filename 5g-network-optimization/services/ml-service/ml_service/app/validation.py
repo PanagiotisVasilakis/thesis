@@ -8,6 +8,15 @@ from flask import jsonify, request
 from pydantic import BaseModel, Field, ValidationError
 
 from .errors import RequestValidationError
+from .config.constants import (
+    DEFAULT_COLLECTION_DURATION,
+    DEFAULT_COLLECTION_INTERVAL,
+    MIN_COLLECTION_INTERVAL,
+    MAX_COLLECTION_INTERVAL,
+    MAX_COLLECTION_DURATION,
+    DEFAULT_MAX_USERNAME_LENGTH,
+    DEFAULT_MAX_PASSWORD_LENGTH,
+)
 
 
 def _format_validation_errors(validation_error: ValidationError, context: str = "") -> str:
@@ -109,8 +118,8 @@ def _generate_validation_suggestions(validation_error: ValidationError, payload:
 
 class LoginRequest(BaseModel):
     """Validation schema for login requests."""
-    username: str = Field(..., min_length=1, max_length=100)
-    password: str = Field(..., min_length=1, max_length=1000)
+    username: str = Field(..., min_length=1, max_length=DEFAULT_MAX_USERNAME_LENGTH)
+    password: str = Field(..., min_length=1, max_length=DEFAULT_MAX_PASSWORD_LENGTH)
 
 
 class RefreshTokenRequest(BaseModel):
@@ -120,10 +129,14 @@ class RefreshTokenRequest(BaseModel):
 
 class CollectDataRequest(BaseModel):
     """Validation schema for data collection requests."""
-    duration: int = Field(60, ge=1, le=3600)  # 1 second to 1 hour
-    interval: int = Field(1, ge=1, le=60)     # 1 to 60 seconds
-    username: Optional[str] = Field(None, max_length=100)
-    password: Optional[str] = Field(None, max_length=1000)
+    duration: float = Field(DEFAULT_COLLECTION_DURATION, ge=1, le=MAX_COLLECTION_DURATION)
+    interval: float = Field(
+        DEFAULT_COLLECTION_INTERVAL,
+        ge=MIN_COLLECTION_INTERVAL,
+        le=MAX_COLLECTION_INTERVAL,
+    )
+    username: Optional[str] = Field(None, max_length=DEFAULT_MAX_USERNAME_LENGTH)
+    password: Optional[str] = Field(None, max_length=DEFAULT_MAX_PASSWORD_LENGTH)
 
 
 class ModelVersionRequest(BaseModel):

@@ -128,6 +128,8 @@ class HandoverEngine:
             want_ml = len(self.state_mgr.antenna_list) >= self.min_antennas_ml
             if want_ml != self.use_ml:
                 self.use_ml = want_ml
+                # Sync handover_mode to match the auto-detected state
+                self.handover_mode = "hybrid" if want_ml else "a3"
 
     # ------------------------------------------------------------------
 
@@ -492,7 +494,6 @@ class HandoverEngine:
         decision_log = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "ue_id": ue_id,
-            "mode": "ml" if self.use_ml else "a3",
             "num_antennas": len(self.state_mgr.antenna_list),
             "ml_auto_activated": self._auto if hasattr(self, '_auto') else False,
         }

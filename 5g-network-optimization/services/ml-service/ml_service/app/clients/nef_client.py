@@ -93,6 +93,19 @@ class NEFClient:
             pool_connections, pool_maxsize, max_retries
         )
 
+    def close(self) -> None:
+        """Release resources and unregister circuit breakers."""
+        try:
+            circuit_registry.unregister(self._login_breaker)
+            circuit_registry.unregister(self._api_breaker)
+        except Exception:
+            pass
+        if self.session is not None:
+            try:
+                self.session.close()
+            except Exception:
+                pass
+
     def _initialize_http_client(
         self,
         http_client: Optional[Any],
@@ -264,7 +277,7 @@ class NEFClient:
             ) from exc
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             # Handle JSON parsing and data extraction errors
-            self.logger.error(f"Error parsing movement state response: {str(e)}")
+            self.logger.error("Error parsing movement state response: %s", e)
             raise NEFClientError(f"Invalid response format: {e}") from e
 
     def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
@@ -289,7 +302,7 @@ class NEFClient:
             ) from exc
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             # Handle JSON parsing and data extraction errors
-            self.logger.error(f"Error parsing feature vector response: {str(e)}")
+            self.logger.error("Error parsing feature vector response: %s", e)
             raise NEFClientError(f"Invalid response format: {e}") from e
 
     def get_qos_requirements(self, ue_id: str) -> Dict[str, Any]:
@@ -328,7 +341,7 @@ class NEFClient:
                 f"QoS request failed: {exc}"
             ) from exc
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            self.logger.error(f"Error parsing QoS response: {str(e)}")
+            self.logger.error("Error parsing QoS response: %s", e)
             raise NEFClientError(f"Invalid QoS response format: {e}") from e
 
     def get_circuit_breaker_stats(self) -> Dict[str, Any]:

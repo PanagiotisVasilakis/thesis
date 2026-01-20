@@ -11,7 +11,8 @@ from ..config.constants import (
     DEFAULT_FEATURE_CACHE_TTL,
     DEFAULT_FALLBACK_RSRP,
     DEFAULT_FALLBACK_SINR,
-    DEFAULT_FALLBACK_RSRQ
+    DEFAULT_FALLBACK_RSRQ,
+    env_constants,
 )
 
 
@@ -27,7 +28,7 @@ class CachedFeatures:
 class FeatureExtractionCache:
     """Thread-safe cache for feature extraction results."""
     
-    def __init__(self, max_size: int = DEFAULT_FEATURE_CACHE_SIZE, ttl_seconds: float = DEFAULT_FEATURE_CACHE_TTL):
+    def __init__(self, max_size: int = env_constants.FEATURE_CACHE_SIZE, ttl_seconds: float = env_constants.FEATURE_CACHE_TTL):
         """Initialize the feature cache.
         
         Args:

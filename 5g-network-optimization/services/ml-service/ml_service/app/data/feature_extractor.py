@@ -157,7 +157,8 @@ class HandoverTracker:
         current_time = history[-1][1] if history else 0.0
         
         # Check if target cell appears in recent history (excluding current)
-        for cell, timestamp in history[-6:-1]:  # Check last 5 cells before current
+        # Check last 5 cells before current (most recent first)
+        for cell, timestamp in history[-5:-1]:
             if cell == target_cell:
                 time_diff = current_time - timestamp
                 if time_diff <= window_seconds:

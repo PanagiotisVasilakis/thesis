@@ -247,6 +247,13 @@ class CircuitBreakerRegistry:
         with self._lock:
             self._breakers[breaker.name] = breaker
             self.logger.debug("Registered circuit breaker: %s", breaker.name)
+
+    def unregister(self, breaker: CircuitBreaker) -> None:
+        """Unregister a circuit breaker."""
+        with self._lock:
+            if breaker.name in self._breakers:
+                self._breakers.pop(breaker.name, None)
+                self.logger.debug("Unregistered circuit breaker: %s", breaker.name)
     
     def get(self, name: str) -> Optional[CircuitBreaker]:
         """Get a circuit breaker by name."""

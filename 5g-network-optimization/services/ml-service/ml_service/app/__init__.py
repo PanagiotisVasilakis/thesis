@@ -64,6 +64,8 @@ def create_app(config=None):
         RATELIMIT_DEFAULT=os.getenv("RATELIMIT_DEFAULT", "100 per minute"),
         RATELIMIT_STORAGE_URI=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
         RATE_LIMITS=_parse_rate_limits(),
+        REDIS_URL=os.getenv("REDIS_URL", ""),
+        REDIS_REFRESH_TOKEN_PREFIX=os.getenv("REDIS_REFRESH_TOKEN_PREFIX", "ml:refresh:"),
     )
     app.config.from_mapping(default_config)
     
@@ -127,18 +129,23 @@ def create_app(config=None):
 
     # Import metrics authentication
     from .auth.metrics_auth import require_metrics_auth, get_metrics_authenticator
-    
+
+    def _maybe_require_metrics_auth(handler):
+        if app.testing:
+            return handler
+        return require_metrics_auth(handler)
+
     @app.route("/metrics")
-    @require_metrics_auth if not app.testing else (lambda f: f)
+    @_maybe_require_metrics_auth
     def metrics_endpoint():
         """Expose Prometheus metrics with authentication."""
         return Response(
-            generate_latest(metrics.REGISTRY),
+            generate_latest(),
             mimetype="text/plain; version=0.0.4",
         )
 
     @app.route("/metrics/auth/token", methods=["POST"])
-    @require_metrics_auth if not app.testing else (lambda f: f)
+    @_maybe_require_metrics_auth
     def create_metrics_token():
         """Create a JWT token for metrics access."""
         from .auth.metrics_auth import create_metrics_auth_token
@@ -150,7 +157,7 @@ def create_app(config=None):
             return {"error": "Failed to create token"}, 500
 
     @app.route("/metrics/auth/stats")
-    @require_metrics_auth if not app.testing else (lambda f: f)
+    @_maybe_require_metrics_auth
     def metrics_auth_stats():
         """Get metrics authentication statistics."""
         auth = get_metrics_authenticator()

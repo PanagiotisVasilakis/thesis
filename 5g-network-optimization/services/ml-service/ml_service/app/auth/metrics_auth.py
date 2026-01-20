@@ -12,11 +12,6 @@ import flask
 from flask import Response
 import jwt
 
-# Allow test utilities to decode generated tokens without explicitly supplying
-# the audience parameter; audience enforcement is handled explicitly during
-# request authentication below.
-jwt.api_jwt._jwt_global_obj.options["verify_aud"] = False
-
 from ..utils.exception_handler import SecurityError
 from ..config.constants import env_constants
 
@@ -64,8 +59,9 @@ class MetricsAuthenticator:
         
         # Track failed authentication attempts for rate limiting
         self._failed_attempts = {}
-        self._max_attempts = 5
-        self._lockout_duration = 300  # 5 minutes
+        self._max_attempts = env_constants.METRICS_MAX_FAILED_ATTEMPTS
+        self._lockout_duration = env_constants.METRICS_LOCKOUT_DURATION
+        self._last_cleanup = 0.0
         
     def _is_rate_limited(self, client_ip: str) -> bool:
         """Check if client IP is rate limited due to failed attempts."""
@@ -80,6 +76,19 @@ class MetricsAuthenticator:
             return False
         
         return attempts >= self._max_attempts
+
+    def _purge_expired_attempts(self) -> None:
+        """Remove stale failed-attempt entries to prevent unbounded growth."""
+        now = time.time()
+        if now - self._last_cleanup < self._lockout_duration:
+            return
+        expired = [
+            ip for ip, (_, last_attempt) in self._failed_attempts.items()
+            if now - last_attempt > self._lockout_duration
+        ]
+        for ip in expired:
+            self._failed_attempts.pop(ip, None)
+        self._last_cleanup = now
     
     def _record_failed_attempt(self, client_ip: str) -> None:
         """Record a failed authentication attempt."""
@@ -128,10 +137,11 @@ class MetricsAuthenticator:
                         token,
                         self.jwt_secret,
                         algorithms=["HS256"],
-                        options={"require_exp": True, "verify_aud": False}
+                        audience=self.jwt_audience,
+                        options={"require": ["exp"]},
                     )
 
-                    if payload.get("sub") == "metrics" and payload.get("aud") == self.jwt_audience:
+                    if payload.get("sub") == "metrics":
                         return True
                     logger.warning(
                         "Invalid JWT claims: sub=%s aud=%s",
@@ -161,6 +171,8 @@ class MetricsAuthenticator:
         """
         if request_obj is None:
             request_obj = _resolve_request()
+
+        self._purge_expired_attempts()
         
         client_ip = request_obj.environ.get('REMOTE_ADDR', 'unknown')
         

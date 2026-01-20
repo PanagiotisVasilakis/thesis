@@ -52,6 +52,11 @@ def _get_current_mode() -> str:
 
 def _set_engine_mode(mode: str) -> None:
     """Set the engine to the specified mode."""
+    # Validate mode string
+    valid_modes = {"ml", "a3", "hybrid"}
+    if mode not in valid_modes:
+        raise ValueError(f"Invalid mode: {mode}. Must be one of {valid_modes}")
+    
     # Set the new handover_mode attribute
     engine.handover_mode = mode
     

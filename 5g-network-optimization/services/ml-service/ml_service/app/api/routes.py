@@ -1,6 +1,7 @@
 """API routes for ML Service."""
 from flask import jsonify, request, current_app, g
 import time
+import math
 from pathlib import Path
 import asyncio
 from pydantic import ValidationError
@@ -619,7 +620,7 @@ def explain_prediction():
             "ue_id": req.ue_id,
         }), 503
     except Exception as e:
-        current_app.logger.error(f"Explanation failed: {e}")
+        current_app.logger.error("Explanation failed: %s", e)
         return jsonify({
             "error": str(e),
             "ue_id": req.ue_id,
@@ -678,50 +679,35 @@ def latency_stats():
         )
         
         # Extract histogram data from Prometheus metrics
-        # Get prediction latency histogram
         latency_data = {}
-        
-        # Access the internal histogram data
-        if hasattr(PREDICTION_LATENCY, '_sum') and hasattr(PREDICTION_LATENCY, '_count'):
-            total_count = PREDICTION_LATENCY._count.get()
-            total_sum = PREDICTION_LATENCY._sum.get()
-            
-            latency_data["prediction"] = {
-                "total_count": total_count,
-                "total_sum": total_sum,
-                "mean_latency_seconds": total_sum / total_count if total_count > 0 else 0,
-                "mean_latency_ms": (total_sum / total_count * 1000) if total_count > 0 else 0,
-            }
-            
-            # Get bucket data for histogram
-            buckets = []
-            if hasattr(PREDICTION_LATENCY, '_buckets'):
-                for upper_bound, bucket_count in PREDICTION_LATENCY._buckets:
-                    bucket_val = bucket_count.get() if hasattr(bucket_count, 'get') else bucket_count
-                    buckets.append({
-                        "upper_bound": upper_bound,
-                        "count": bucket_val,
-                    })
-            latency_data["prediction"]["buckets"] = buckets
-            
-            # Calculate approximate percentiles from buckets
-            if total_count > 0 and buckets:
-                latency_data["prediction"]["percentiles"] = _calculate_percentiles_from_buckets(
-                    buckets, total_count
-                )
+
+        total_count, total_sum, buckets = _extract_histogram_samples(PREDICTION_LATENCY)
+
+        latency_data["prediction"] = {
+            "total_count": total_count,
+            "total_sum": total_sum,
+            "mean_latency_seconds": total_sum / total_count if total_count > 0 else 0,
+            "mean_latency_ms": (total_sum / total_count * 1000) if total_count > 0 else 0,
+            "buckets": buckets,
+        }
+
+        if total_count > 0 and buckets:
+            latency_data["prediction"]["percentiles"] = _calculate_percentiles_from_buckets(
+                buckets, total_count
+            )
         
         # Get stage latency breakdown
         stage_latencies = {}
         for stage in ["feature_extraction", "model_inference", "ping_pong_check", "qos_validation"]:
             try:
-                stage_metric = PREDICTION_STAGE_LATENCY.labels(stage=stage)
-                if hasattr(stage_metric, '_sum') and hasattr(stage_metric, '_count'):
-                    count = stage_metric._count.get()
-                    total = stage_metric._sum.get()
-                    stage_latencies[stage] = {
-                        "count": count,
-                        "mean_ms": (total / count * 1000) if count > 0 else 0,
-                    }
+                count, total, _ = _extract_histogram_samples(
+                    PREDICTION_STAGE_LATENCY,
+                    label_matcher=lambda labels, stage=stage: labels.get("stage") == stage,
+                )
+                stage_latencies[stage] = {
+                    "count": count,
+                    "mean_ms": (total / count * 1000) if count > 0 else 0,
+                }
             except Exception:
                 pass
         
@@ -733,10 +719,33 @@ def latency_stats():
         })
         
     except Exception as e:
-        current_app.logger.error(f"Failed to get latency stats: {e}")
+        current_app.logger.error("Failed to get latency stats: %s", e)
         return jsonify({
             "error": str(e),
         }), 500
+
+
+def _extract_histogram_samples(metric, label_matcher=None):
+    """Extract histogram buckets and summary stats from a Prometheus metric."""
+    total_count = 0.0
+    total_sum = 0.0
+    buckets = []
+    for family in metric.collect():
+        for sample in family.samples:
+            if label_matcher and not label_matcher(sample.labels):
+                continue
+            if sample.name.endswith("_sum"):
+                total_sum = float(sample.value)
+            elif sample.name.endswith("_count"):
+                total_count = float(sample.value)
+            elif sample.name.endswith("_bucket"):
+                upper = sample.labels.get("le")
+                if upper is None:
+                    continue
+                upper_bound = float("inf") if upper == "+Inf" else float(upper)
+                buckets.append({"upper_bound": upper_bound, "count": float(sample.value)})
+    buckets.sort(key=lambda b: b["upper_bound"])
+    return total_count, total_sum, buckets
 
 
 def _calculate_percentiles_from_buckets(buckets, total_count):
@@ -756,8 +765,8 @@ def _calculate_percentiles_from_buckets(buckets, total_count):
     for name, target_ratio in target_percentiles.items():
         target_count = total_count * target_ratio
         
-        prev_bound = 0
-        prev_count = 0
+        prev_bound = 0.0
+        prev_count = 0.0
         
         for bucket in buckets:
             upper_bound = bucket["upper_bound"]
@@ -769,7 +778,10 @@ def _calculate_percentiles_from_buckets(buckets, total_count):
                     ratio = (target_count - prev_count) / (count - prev_count)
                 else:
                     ratio = 0
-                percentile_value = prev_bound + ratio * (upper_bound - prev_bound)
+                if math.isinf(upper_bound):
+                    percentile_value = prev_bound
+                else:
+                    percentile_value = prev_bound + ratio * (upper_bound - prev_bound)
                 percentiles[name] = {
                     "seconds": float(percentile_value),
                     "ms": float(percentile_value * 1000),

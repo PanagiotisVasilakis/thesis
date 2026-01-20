@@ -22,7 +22,7 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_class_weight
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from collections import Counter
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,7 @@ class HyperparameterTuner:
         self.n_cv_folds = n_cv_folds
         self.metric = metric
         self.scaler = StandardScaler()
+        self._categorical_mappings: Dict[str, Dict[str, int]] = {}
         self.best_params: Optional[Dict[str, Any]] = None
         self.study: Optional["optuna.Study"] = None
     
@@ -86,7 +87,22 @@ class HyperparameterTuner:
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Convert training data to numpy arrays."""
         X, y = [], []
-        
+        categorical_values: Dict[str, List[str]] = {name: [] for name in self.feature_names}
+
+        for sample in training_data:
+            for name in self.feature_names:
+                val = sample.get(name)
+                if isinstance(val, str):
+                    categorical_values[name].append(val)
+
+        self._categorical_mappings = {}
+        for name, values in categorical_values.items():
+            if not values:
+                continue
+            encoder = LabelEncoder()
+            encoder.fit(values)
+            self._categorical_mappings[name] = {cls: int(idx) for idx, cls in enumerate(encoder.classes_)}
+
         for sample in training_data:
             features = []
             for name in self.feature_names:
@@ -94,18 +110,18 @@ class HyperparameterTuner:
                 if val is None:
                     val = 0.0
                 elif isinstance(val, str):
-                    # Handle categorical features
-                    val = hash(val) % 1000 / 1000.0
+                    mapping = self._categorical_mappings.get(name, {})
+                    val = float(mapping.get(val, -1))
                 else:
                     try:
                         val = float(val)
                     except (TypeError, ValueError):
                         val = 0.0
                 features.append(val)
-            
+
             X.append(features)
             y.append(sample.get("optimal_antenna", "unknown"))
-        
+
         return np.array(X, dtype=float), np.array(y)
     
     def _create_objective(

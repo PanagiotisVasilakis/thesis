@@ -1,5 +1,5 @@
 """Prometheus metrics for ML service."""
-from prometheus_client import CollectorRegistry, Counter, Histogram, Gauge
+from prometheus_client import Counter, Histogram, Gauge, REGISTRY
 import json
 import logging
 import time
@@ -12,10 +12,41 @@ import psutil
 
 logger = logging.getLogger(__name__)
 
-# Use a dedicated registry so tests can reload this module without
-# "Duplicated timeseries" errors from the default global registry. Each
-# metric is explicitly registered against this registry.
-REGISTRY = CollectorRegistry()
+def _get_or_create_counter(name: str, documentation: str, labelnames: tuple | list = ()) -> Counter:
+    try:
+        return Counter(name, documentation, labelnames)
+    except ValueError:
+        existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+        if existing:
+            return existing
+        raise
+
+
+def _get_or_create_gauge(name: str, documentation: str, labelnames: tuple | list = ()) -> Gauge:
+    try:
+        return Gauge(name, documentation, labelnames)
+    except ValueError:
+        existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+        if existing:
+            return existing
+        raise
+
+
+def _get_or_create_histogram(
+    name: str,
+    documentation: str,
+    labelnames: tuple | list = (),
+    buckets: list | tuple | None = None,
+) -> Histogram:
+    try:
+        if buckets is None:
+            return Histogram(name, documentation, labelnames)
+        return Histogram(name, documentation, labelnames, buckets=buckets)
+    except ValueError:
+        existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
+        if existing:
+            return existing
+        raise
 
 from ..config.constants import (
     PREDICTION_LATENCY_BUCKETS,
@@ -40,195 +71,169 @@ from ..utils.resource_manager import (
 )
 
 # Track prediction requests
-PREDICTION_REQUESTS = Counter(
+PREDICTION_REQUESTS = _get_or_create_counter(
     'ml_prediction_requests_total',
     'Total number of prediction requests',
     ['status'],
-    registry=REGISTRY,
 )
 
 # Track prediction latency
-PREDICTION_LATENCY = Histogram(
+PREDICTION_LATENCY = _get_or_create_histogram(
     'ml_prediction_latency_seconds',
     'Latency of antenna selection predictions',
     buckets=PREDICTION_LATENCY_BUCKETS,
-    registry=REGISTRY,
 )
 
 # Track latency per prediction stage (for URLLC bottleneck identification)
 # Stages: feature_extraction, model_inference, ping_pong_check, qos_validation
-PREDICTION_STAGE_LATENCY = Histogram(
+PREDICTION_STAGE_LATENCY = _get_or_create_histogram(
     'ml_prediction_stage_latency_seconds',
     'Latency breakdown by prediction stage',
     ['stage'],  # feature_extraction, model_inference, ping_pong_check, qos_validation
     buckets=[0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.25],
-    registry=REGISTRY,
 )
 
 # Track prediction outcomes
-ANTENNA_PREDICTIONS = Counter(
+ANTENNA_PREDICTIONS = _get_or_create_counter(
     'ml_antenna_predictions_total',
     'Antenna selection predictions',
     ['antenna_id'],
-    registry=REGISTRY,
 )
 
 # Track prediction confidence
-PREDICTION_CONFIDENCE = Gauge(
+PREDICTION_CONFIDENCE = _get_or_create_gauge(
     'ml_prediction_confidence_avg',
     'Average confidence of antenna predictions',
     ['antenna_id'],
-    registry=REGISTRY,
 )
 
-GEOGRAPHIC_OVERRIDES = Counter(
+GEOGRAPHIC_OVERRIDES = _get_or_create_counter(
     'ml_geographic_overrides_total',
     'Number of geographic overrides applied to ML predictions',
-    registry=REGISTRY,
 )
 
-LOW_DIVERSITY_WARNINGS = Counter(
+LOW_DIVERSITY_WARNINGS = _get_or_create_counter(
     'ml_low_diversity_warnings_total',
     'Number of low-diversity warnings emitted by the predictor',
-    registry=REGISTRY,
 )
 
 # Phase 7: Model Health Metrics
-MODEL_HEALTH_SCORE = Gauge(
+MODEL_HEALTH_SCORE = _get_or_create_gauge(
     'ml_model_health_score',
     'Composite health score (0-1) based on diversity, accuracy, fallback rate',
-    registry=REGISTRY,
 )
 
-PREDICTION_DIVERSITY_RATIO = Gauge(
+PREDICTION_DIVERSITY_RATIO = _get_or_create_gauge(
     'ml_prediction_diversity_ratio',
     'Ratio of unique predictions in last N samples',
-    registry=REGISTRY,
 )
 
-PREDICTION_DISTRIBUTION = Gauge(
+PREDICTION_DISTRIBUTION = _get_or_create_gauge(
     'ml_prediction_distribution_percent',
     'Percentage of predictions per antenna class',
     ['antenna_id'],
-    registry=REGISTRY,
 )
 
 # Track model training
-MODEL_TRAINING_DURATION = Histogram(
+MODEL_TRAINING_DURATION = _get_or_create_histogram(
     'ml_model_training_duration_seconds',
     'Duration of model training',
     buckets=TRAINING_DURATION_BUCKETS,
-    registry=REGISTRY,
 )
 
-MODEL_TRAINING_SAMPLES = Gauge(
+MODEL_TRAINING_SAMPLES = _get_or_create_gauge(
     'ml_model_training_samples',
     'Number of samples used for model training',
-    registry=REGISTRY,
 )
 
-MODEL_TRAINING_ACCURACY = Gauge(
+MODEL_TRAINING_ACCURACY = _get_or_create_gauge(
     'ml_model_training_accuracy',
     'Accuracy of trained model',
-    registry=REGISTRY,
 )
 
 # Track latest feature importance values
-FEATURE_IMPORTANCE = Gauge(
+FEATURE_IMPORTANCE = _get_or_create_gauge(
     'ml_feature_importance',
     'Latest feature importance score',
     ['feature'],
-    registry=REGISTRY,
 )
 
 # --- Operational and Drift Metrics ---
 
 # Data drift indicator updated by ``MetricsCollector``
-DATA_DRIFT_SCORE = Gauge(
+DATA_DRIFT_SCORE = _get_or_create_gauge(
     'ml_data_drift_score',
     'Average change between consecutive feature distributions',
-    registry=REGISTRY,
 )
 
 # Rate of failed prediction requests over the last collection interval
-ERROR_RATE = Gauge(
+ERROR_RATE = _get_or_create_gauge(
     'ml_prediction_error_rate',
     'Fraction of prediction requests resulting in an error',
-    registry=REGISTRY,
 )
 
 # Resource usage of the ML service process
-CPU_USAGE = Gauge(
+CPU_USAGE = _get_or_create_gauge(
     'ml_cpu_usage_percent',
     'CPU utilisation of the ML service process',
-    registry=REGISTRY,
 )
 
-MEMORY_USAGE = Gauge(
+MEMORY_USAGE = _get_or_create_gauge(
     'ml_memory_usage_bytes',
     'Resident memory usage of the ML service process in bytes',
-    registry=REGISTRY,
 )
 
 # --- Anti-Ping-Pong Metrics ---
 
 # Track ping-pong suppression events by reason
-PING_PONG_SUPPRESSIONS = Counter(
+PING_PONG_SUPPRESSIONS = _get_or_create_counter(
     'ml_pingpong_suppressions_total',
     'Number of times ping-pong prevention blocked a handover',
     ['reason'],  # 'too_recent', 'too_many', 'immediate_return'
-    registry=REGISTRY,
 )
 
 # Track time between consecutive handovers
-HANDOVER_INTERVAL = Histogram(
+HANDOVER_INTERVAL = _get_or_create_histogram(
     'ml_handover_interval_seconds',
     'Time between consecutive handovers for UEs',
     buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 300.0, 600.0],
-    registry=REGISTRY,
 )
 
 # QoS compliance tracking
-QOS_COMPLIANCE_CHECKS = Counter(
+QOS_COMPLIANCE_CHECKS = _get_or_create_counter(
     'ml_qos_compliance_total',
     'Number of QoS compliance evaluations',
     ['service_type', 'outcome'],
-    registry=REGISTRY,
 )
 
-QOS_VIOLATION_REASONS = Counter(
+QOS_VIOLATION_REASONS = _get_or_create_counter(
     'ml_qos_violation_total',
     'QoS violation reasons encountered by the ML predictor',
     ['service_type', 'metric'],
-    registry=REGISTRY,
 )
 
-QOS_LATENCY_OBSERVED = Histogram(
+QOS_LATENCY_OBSERVED = _get_or_create_histogram(
     'ml_qos_latency_observed_ms',
     'Observed latency for QoS compliance evaluations',
     buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 250.0, 500.0, 1000.0],
-    registry=REGISTRY,
 )
 
-QOS_THROUGHPUT_OBSERVED = Histogram(
+QOS_THROUGHPUT_OBSERVED = _get_or_create_histogram(
     'ml_qos_throughput_observed_mbps',
     'Observed throughput for QoS compliance evaluations',
     buckets=[0.1, 1.0, 5.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0, 10000.0],
-    registry=REGISTRY,
 )
 
-QOS_FEEDBACK_EVENTS = Counter(
+QOS_FEEDBACK_EVENTS = _get_or_create_counter(
     'ml_qos_feedback_total',
     'Number of QoS feedback samples received from the NEF emulator',
     ['service_type', 'outcome'],
-    registry=REGISTRY,
 )
 
-ADAPTIVE_CONFIDENCE = Gauge(
+ADAPTIVE_CONFIDENCE = _get_or_create_gauge(
     'ml_qos_adaptive_confidence',
     'Adaptive confidence threshold per service type',
     ['service_type'],
-    registry=REGISTRY,
 )
 
 class MetricsMiddleware:

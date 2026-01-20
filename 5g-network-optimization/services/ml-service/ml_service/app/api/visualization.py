@@ -4,6 +4,7 @@ import os
 import logging
 import requests
 from ..errors import RequestValidationError, NEFConnectionError, ResourceNotFoundError
+from .decorators import require_auth
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
 from ..initialization.model_init import ModelManager
 from ..visualization.plotter import (
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @viz_bp.route("/coverage-map", methods=["GET"])
+@require_auth
 def coverage_map():
     """Generate and return an antenna coverage map."""
     try:
@@ -66,6 +68,7 @@ def coverage_map():
 
 
 @viz_bp.route("/trajectory", methods=["POST"])
+@require_auth
 def trajectory():
     """Generate and return a movement trajectory visualization."""
     try:

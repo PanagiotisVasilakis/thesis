@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 from threading import RLock
 from typing import Any, Iterable, Optional
 from uuid import uuid4
 
 from flask import current_app
 from jose import JWTError, jwt
+
+try:
+    import redis  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    redis = None
 
 from .metrics_auth import (
     MetricsAuthenticator,
@@ -21,7 +27,23 @@ from .metrics_auth import (
 ALGORITHM = "HS256"
 
 
-class RefreshTokenStore:
+class BaseRefreshTokenStore:
+    """Interface for refresh token stores."""
+
+    def add(self, *, jti: str, subject: str, roles: list[str], expires_at: datetime) -> None:
+        raise NotImplementedError
+
+    def pop(self, jti: str) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def get(self, jti: str) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def purge_subject(self, subject: str) -> None:
+        raise NotImplementedError
+
+
+class MemoryRefreshTokenStore(BaseRefreshTokenStore):
     """Thread-safe in-memory refresh token registry."""
 
     def __init__(self) -> None:
@@ -51,10 +73,81 @@ class RefreshTokenStore:
                 self._tokens.pop(jti, None)
 
 
-def _refresh_store() -> RefreshTokenStore:
-    store = current_app.extensions.setdefault("refresh_token_store", RefreshTokenStore())
-    if not isinstance(store, RefreshTokenStore):
-        store = RefreshTokenStore()
+class RedisRefreshTokenStore(BaseRefreshTokenStore):
+    """Redis-backed refresh token store."""
+
+    def __init__(self, redis_url: str, prefix: str) -> None:
+        if not redis:
+            raise RuntimeError("redis package is not installed")
+        self._client = redis.Redis.from_url(redis_url, decode_responses=True)
+        self._prefix = prefix
+
+    def _key(self, jti: str) -> str:
+        return f"{self._prefix}{jti}"
+
+    def _encode(self, subject: str, roles: list[str], expires_at: datetime) -> str:
+        payload = {
+            "sub": subject,
+            "roles": roles,
+            "exp": expires_at.isoformat(),
+        }
+        return json.dumps(payload)
+
+    def _decode(self, raw: str) -> Optional[dict[str, Any]]:
+        if not raw:
+            return None
+        data = json.loads(raw)
+        exp = data.get("exp")
+        if exp:
+            data["exp"] = datetime.fromisoformat(exp)
+        return data
+
+    def add(self, *, jti: str, subject: str, roles: list[str], expires_at: datetime) -> None:
+        ttl = max(int((expires_at - datetime.now(timezone.utc)).total_seconds()), 0)
+        self._client.set(self._key(jti), self._encode(subject, roles, expires_at), ex=ttl)
+
+    def pop(self, jti: str) -> Optional[dict[str, Any]]:
+        key = self._key(jti)
+        raw = self._client.get(key)
+        self._client.delete(key)
+        return self._decode(raw) if raw else None
+
+    def get(self, jti: str) -> Optional[dict[str, Any]]:
+        raw = self._client.get(self._key(jti))
+        return self._decode(raw) if raw else None
+
+    def purge_subject(self, subject: str) -> None:
+        pattern = f"{self._prefix}*"
+        keys_to_delete = []
+        for key in self._client.scan_iter(match=pattern):
+            raw = self._client.get(key)
+            if not raw:
+                continue
+            decoded = self._decode(raw)
+            if decoded and decoded.get("sub") == subject:
+                keys_to_delete.append(key)
+        if keys_to_delete:
+            self._client.delete(*keys_to_delete)
+
+
+def _create_refresh_store() -> BaseRefreshTokenStore:
+    redis_url = current_app.config.get("REDIS_URL", "")
+    prefix = current_app.config.get("REDIS_REFRESH_TOKEN_PREFIX", "ml:refresh:")
+    if redis_url:
+        try:
+            return RedisRefreshTokenStore(redis_url, prefix)
+        except Exception as exc:
+            current_app.logger.warning(
+                "Redis refresh token store unavailable (%s). Falling back to in-memory.",
+                exc,
+            )
+    return MemoryRefreshTokenStore()
+
+
+def _refresh_store() -> BaseRefreshTokenStore:
+    store = current_app.extensions.get("refresh_token_store")
+    if not isinstance(store, BaseRefreshTokenStore):
+        store = _create_refresh_store()
         current_app.extensions["refresh_token_store"] = store
     return store
 

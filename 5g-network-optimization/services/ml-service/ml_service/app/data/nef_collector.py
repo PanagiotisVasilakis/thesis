@@ -639,7 +639,7 @@ class NEFDataCollector:
             state = self.client.get_ue_movement_state()
             if state is not None:
                 ue_count = len(state.keys())
-                self.logger.info(f"Retrieved state for {ue_count} moving UEs")
+                self.logger.info("Retrieved state for %d moving UEs", ue_count)
             return state
 
     async def collect_training_data(
@@ -680,7 +680,9 @@ class NEFDataCollector:
             raise NEFClientError(f"Cannot connect to NEF service: {e}") from e
 
         self.logger.info(
-            f"Starting data collection for {duration} seconds at {interval}s intervals"
+            "Starting data collection for %s seconds at %ss intervals",
+            duration,
+            interval,
         )
 
         collected_data = []
@@ -788,7 +790,7 @@ class NEFDataCollector:
             
             self.logger.info("NEF data collector resources cleaned up")
         except Exception as e:
-            self.logger.error(f"Error cleaning up collector resources: {e}")
+            self.logger.error("Error cleaning up collector resources: %s", e)
 
     def __enter__(self):
         """Context manager entry."""
@@ -857,7 +859,7 @@ class AsyncNEFDataCollector:
         try:
             return await self.client.login()
         except (AsyncNEFClientError, CircuitBreakerError) as exc:
-            self.logger.error(f"NEF authentication error: {exc}")
+            self.logger.error("NEF authentication error: %s", exc)
             return False
 
     async def get_ue_movement_state(self) -> Dict[str, Any]:
@@ -866,13 +868,13 @@ class AsyncNEFDataCollector:
             state = await self.client.get_ue_movement_state()
             if state:
                 ue_count = len(state.keys())
-                self.logger.info(f"Retrieved state for {ue_count} moving UEs")
+                self.logger.info("Retrieved state for %d moving UEs", ue_count)
             return state
         except (AsyncNEFClientError, CircuitBreakerError) as exc:
-            self.logger.error(f"NEF movement state error: {exc}")
+            self.logger.error("NEF movement state error: %s", exc)
             return {}
         except Exception as e:
-            self.logger.error(f"Error getting UE movement state: {str(e)}")
+            self.logger.error("Error getting UE movement state: %s", e)
             return {}
 
     async def collect_training_data(
@@ -1065,7 +1067,7 @@ class AsyncNEFDataCollector:
             self._components.cleanup()
             self.logger.info("Async NEF data collector resources cleaned up")
         except Exception as e:
-            self.logger.error(f"Error cleaning up async collector resources: {e}")
+            self.logger.error("Error cleaning up async collector resources: %s", e)
 
     async def __aenter__(self):
         """Async context manager entry."""

@@ -41,6 +41,9 @@ def main():
                         help='Train the ML model with collected data')
     parser.add_argument('--ml-service-url', type=str, default=None,
                         help='Call /api/collect-data on the given ML service instead of collecting locally')
+    parser.add_argument('--train-url', type=str,
+                        default=os.getenv('ML_SERVICE_TRAIN_URL', 'http://localhost:5050/api/train'),
+                        help='Training endpoint for the ML service')
     
     args = parser.parse_args()
 
@@ -171,7 +174,7 @@ def main():
         logger.info("Training ML model with collected data...")
         try:
             response = requests.post(
-                "http://localhost:5050/api/train",
+                args.train_url,
                 json=training_samples
             )
 

@@ -9,6 +9,8 @@ from enum import Enum
 
 from ..utils.common_validators import ValidationError
 
+MAX_ERROR_TYPES = 200
+
 
 class ErrorSeverity(Enum):
     """Severity levels for errors."""
@@ -131,6 +133,8 @@ class ExceptionHandler:
         
         # Count errors for monitoring
         error_type = type(exception).__name__
+        if error_type not in self._error_counts and len(self._error_counts) >= MAX_ERROR_TYPES:
+            self._error_counts.clear()
         self._error_counts[error_type] = self._error_counts.get(error_type, 0) + 1
         
         # Log with appropriate level

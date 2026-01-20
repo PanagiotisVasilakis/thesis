@@ -8,6 +8,10 @@ from flask import current_app, g, jsonify, request
 
 from ..auth import verify_token
 
+# Legacy decorator kept for backward compatibility; unused in codebase.
+def log_slow_request(func):
+    return func
+
 
 def require_auth(func):
     """Decorator enforcing JWT authentication for API handlers."""

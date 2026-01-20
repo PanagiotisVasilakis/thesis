@@ -83,7 +83,11 @@ class OnlineHandoverModel(AntennaSelector):
                 self._classes = np.array([label])
                 self.model.partial_fit(X, [label], classes=self._classes)
             else:
-                self.model.partial_fit(X, [label])
+                if label not in self._classes:
+                    self._classes = np.unique(np.append(self._classes, label))
+                    self.model.partial_fit(X, [label], classes=self._classes)
+                else:
+                    self.model.partial_fit(X, [label])
             self.feedback_window.append(1 if success else 0)
 
     def drift_detected(self) -> bool:

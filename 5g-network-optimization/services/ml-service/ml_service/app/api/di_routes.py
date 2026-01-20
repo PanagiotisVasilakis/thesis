@@ -147,7 +147,7 @@ def predict_di():
     services = get_services()
 
     # Log request
-    services.logger.info(f"Prediction request for UE: {req.ue_id}")
+    services.logger.info("Prediction request for UE: %s", req.ue_id)
 
     try:
         # Check cache first
@@ -155,7 +155,7 @@ def predict_di():
         cached_result = services.cache.get(cache_key)
 
         if cached_result:
-            services.logger.debug(f"Cache hit for UE: {req.ue_id}")
+            services.logger.debug("Cache hit for UE: %s", req.ue_id)
             services.metrics.track_prediction(cached_result["antenna_id"], cached_result["confidence"])
             return jsonify(
                 {
@@ -184,8 +184,10 @@ def predict_di():
         services.metrics.track_prediction(result["antenna_id"], result["confidence"])
 
         services.logger.info(
-            f"Prediction completed for UE {req.ue_id}: {result['antenna_id']} "
-            f"(confidence: {result['confidence']:.3f})"
+            "Prediction completed for UE %s: %s (confidence: %.3f)",
+            req.ue_id,
+            result['antenna_id'],
+            result['confidence'],
         )
 
         return jsonify(
@@ -200,10 +202,10 @@ def predict_di():
         )
 
     except (ValueError, TypeError, KeyError) as exc:
-        services.logger.error(f"Prediction failed for UE {req.ue_id}: {exc}")
+        services.logger.error("Prediction failed for UE %s: %s", req.ue_id, exc)
         raise ModelError(f"Prediction failed: {exc}") from exc
     except Exception as exc:
-        services.logger.error(f"Unexpected error in prediction for UE {req.ue_id}: {exc}")
+        services.logger.error("Unexpected error in prediction for UE %s: %s", req.ue_id, exc)
         raise ModelError(f"Unexpected prediction error: {exc}") from exc
 
 
@@ -218,7 +220,7 @@ def predict_di_with_qos():
     req = request.validated_data  # type: ignore[attr-defined]
     services = get_services()
 
-    services.logger.info(f"Prediction request with QoS for UE: {req.ue_id}")
+    services.logger.info("Prediction request with QoS for UE: %s", req.ue_id)
 
     try:
         # Extract features and predict using DI model
@@ -240,10 +242,10 @@ def predict_di_with_qos():
         )
 
     except (ValueError, TypeError, KeyError) as exc:
-        services.logger.error(f"Prediction failed for UE {req.ue_id}: {exc}")
+        services.logger.error("Prediction failed for UE %s: %s", req.ue_id, exc)
         raise ModelError(f"Prediction failed: {exc}") from exc
     except Exception as exc:
-        services.logger.error(f"Unexpected error in prediction for UE {req.ue_id}: {exc}")
+        services.logger.error("Unexpected error in prediction for UE %s: %s", req.ue_id, exc)
         raise ModelError(f"Unexpected prediction error: {exc}") from exc
 
 
@@ -264,11 +266,11 @@ def nef_status_di():
                 "di_enabled": True
             })
 
-        services.logger.warning(f"NEF returned non-200 status: {response}")
+        services.logger.warning("NEF returned non-200 status: %s", response)
         raise NEFConnectionError(f"NEF returned non-200 status: {response}")
 
     except Exception as exc:
-        services.logger.error(f"NEF connection error: {exc}")
+        services.logger.error("NEF connection error: %s", exc)
         raise NEFConnectionError(f"Failed to connect to NEF: {exc}") from exc
 
 
@@ -290,7 +292,7 @@ async def collect_data_di():
     username = params.username
     password = params.password
 
-    services.logger.info(f"Data collection request: {duration}s duration, {interval}s interval")
+    services.logger.info("Data collection request: %ss duration, %ss interval", duration, interval)
 
     # Authenticate if credentials provided
     if username and password and not services.data_collector.login():
@@ -306,7 +308,7 @@ async def collect_data_di():
             duration=duration, interval=interval
         )
 
-        services.logger.info(f"Data collection completed: {len(samples)} samples")
+        services.logger.info("Data collection completed: %d samples", len(samples))
 
         return jsonify({
             "samples": len(samples),
@@ -314,7 +316,7 @@ async def collect_data_di():
         })
 
     except Exception as exc:
-        services.logger.error(f"Data collection failed: {exc}")
+        services.logger.error("Data collection failed: %s", exc)
         raise NEFConnectionError(exc) from exc
 
 
@@ -333,7 +335,7 @@ def cache_stats_di():
         })
 
     except Exception as exc:
-        services.logger.error(f"Error getting cache stats: {exc}")
+        services.logger.error("Error getting cache stats: %s", exc)
         return jsonify({"error": "Failed to get cache stats", "di_enabled": True}), 500
 
 
@@ -352,7 +354,7 @@ def metrics_di():
         })
 
     except Exception as exc:
-        services.logger.error(f"Error getting metrics: {exc}")
+        services.logger.error("Error getting metrics: %s", exc)
         return jsonify({"error": "Failed to get metrics", "di_enabled": True}), 500
 
 
@@ -376,7 +378,7 @@ def config_di():
         })
 
     except Exception as exc:
-        services.logger.error(f"Error getting config: {exc}")
+        services.logger.error("Error getting config: %s", exc)
         return jsonify({"error": "Failed to get config", "di_enabled": True}), 500
 
 
@@ -397,7 +399,7 @@ def services_info_di():
         })
 
     except Exception as exc:
-        services.logger.error(f"Error getting services info: {exc}")
+        services.logger.error("Error getting services info: %s", exc)
         return jsonify({"error": "Failed to get services info", "di_enabled": True}), 500
 
 

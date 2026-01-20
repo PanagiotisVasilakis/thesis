@@ -5,6 +5,7 @@ import joblib
 import os
 import logging
 import threading
+from collections import deque
 import json
 import time
 from pathlib import Path
@@ -444,7 +445,8 @@ class AntennaSelector(AsyncModelInterface):
         )
 
         # Track recent predictions for diversity monitoring
-        self._prediction_history: list[str] = []
+        self._prediction_history = deque(maxlen=DEFAULT_PREDICTION_HISTORY_LIMIT)
+        self._prediction_history_lock = threading.Lock()
 
         # Try to load existing model
         try:
@@ -813,19 +815,19 @@ class AntennaSelector(AsyncModelInterface):
                                 result["distance_to_fallback"] = float(nearest_distance)
 
                             predicted_antenna = nearest_id
-                            confidence = 1.0
+                            confidence = min(confidence, DEFAULT_FALLBACK_CONFIDENCE)
                             result["antenna_id"] = nearest_id
                             result["confidence"] = confidence
 
         # --------------------------------------------------------------
         # Diversity monitoring for collapse detection in production
         # --------------------------------------------------------------
-        self._prediction_history.append(predicted_antenna)
-        if len(self._prediction_history) > DEFAULT_PREDICTION_HISTORY_LIMIT:
-            self._prediction_history.pop(0)
+        with self._prediction_history_lock:
+            self._prediction_history.append(predicted_antenna)
+            history_snapshot = list(self._prediction_history)
 
-        if len(self._prediction_history) >= DEFAULT_DIVERSITY_WINDOW_SIZE:
-            window = self._prediction_history[-DEFAULT_DIVERSITY_WINDOW_SIZE:]
+        if len(history_snapshot) >= DEFAULT_DIVERSITY_WINDOW_SIZE:
+            window = history_snapshot[-DEFAULT_DIVERSITY_WINDOW_SIZE:]
             unique_predictions = len(set(window))
             diversity_ratio = unique_predictions / float(DEFAULT_DIVERSITY_WINDOW_SIZE)
 

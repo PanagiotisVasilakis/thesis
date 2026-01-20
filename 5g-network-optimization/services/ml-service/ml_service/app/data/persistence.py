@@ -25,7 +25,7 @@ class TrainingDataPersistence:
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         
-        self.logger.info(f"Training data persistence initialized with directory: {self.data_dir}")
+        self.logger.info("Training data persistence initialized with directory: %s", self.data_dir)
     
     def save_training_data(self, data: List[Dict[str, Any]], 
                           filename_prefix: str = "training_data") -> str:
@@ -47,14 +47,14 @@ class TrainingDataPersistence:
                 json.dump(data, f, indent=2)
             
             if not data:
-                self.logger.warning(f"Saved empty training data file to {filepath}")
+                self.logger.warning("Saved empty training data file to %s", filepath)
             else:
-                self.logger.info(f"Saved {len(data)} training samples to {filepath}")
+                self.logger.info("Saved %d training samples to %s", len(data), filepath)
                 
             return str(filepath)
             
         except Exception as e:
-            self.logger.error(f"Failed to save training data to {filepath}: {e}")
+            self.logger.error("Failed to save training data to %s: %s", filepath, e)
             raise
     
     def save_collection_metadata(self, metadata: Dict[str, Any], 
@@ -78,11 +78,11 @@ class TrainingDataPersistence:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
             
-            self.logger.info(f"Saved collection metadata to {filepath}")
+            self.logger.info("Saved collection metadata to %s", filepath)
             return str(filepath)
             
         except Exception as e:
-            self.logger.error(f"Failed to save metadata to {filepath}: {e}")
+            self.logger.error("Failed to save metadata to %s: %s", filepath, e)
             raise
     
     def load_training_data(self, filepath: str) -> List[Dict[str, Any]]:
@@ -98,11 +98,11 @@ class TrainingDataPersistence:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             
-            self.logger.info(f"Loaded {len(data)} training samples from {filepath}")
+            self.logger.info("Loaded %d training samples from %s", len(data), filepath)
             return data
             
         except Exception as e:
-            self.logger.error(f"Failed to load training data from {filepath}: {e}")
+            self.logger.error("Failed to load training data from %s: %s", filepath, e)
             raise
     
     def get_recent_files(self, file_pattern: str = "training_data_*.json", 
@@ -124,7 +124,7 @@ class TrainingDataPersistence:
             return [str(f) for f in files[:limit]]
             
         except Exception as e:
-            self.logger.error(f"Failed to get recent files: {e}")
+            self.logger.error("Failed to get recent files: %s", e)
             return []
     
     def cleanup_old_files(self, file_pattern: str = "training_data_*.json", 
@@ -151,17 +151,17 @@ class TrainingDataPersistence:
                 try:
                     file_path.unlink()
                     deleted_count += 1
-                    self.logger.debug(f"Deleted old training data file: {file_path}")
+                    self.logger.debug("Deleted old training data file: %s", file_path)
                 except Exception as e:
-                    self.logger.warning(f"Failed to delete file {file_path}: {e}")
+                    self.logger.warning("Failed to delete file %s: %s", file_path, e)
             
             if deleted_count > 0:
-                self.logger.info(f"Cleaned up {deleted_count} old training data files")
+                self.logger.info("Cleaned up %d old training data files", deleted_count)
                 
             return deleted_count
             
         except Exception as e:
-            self.logger.error(f"Failed to cleanup old files: {e}")
+            self.logger.error("Failed to cleanup old files: %s", e)
             return 0
     
     def get_storage_stats(self) -> Dict[str, Any]:
@@ -190,7 +190,7 @@ class TrainingDataPersistence:
             }
             
         except Exception as e:
-            self.logger.error(f"Failed to get storage stats: {e}")
+            self.logger.error("Failed to get storage stats: %s", e)
             return {
                 "data_directory": str(self.data_dir),
                 "error": str(e)
