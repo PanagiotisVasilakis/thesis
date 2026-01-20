@@ -80,6 +80,10 @@ export const getHandoverStats = () => api.get('/ue_movement/handover-stats');
 export const resetHandoverStats = () => api.post('/ue_movement/reset-stats');
 export const getRecentHandovers = (limit = 50) => api.get(`/ue_movement/recent-handovers?limit=${limit}`);
 
+// Handover Mode Control (ML / A3 / Hybrid)
+export const getHandoverMode = () => api.get('/ml/mode');
+export const setHandoverMode = (mode) => api.post('/ml/mode', { mode });
+
 // Scenarios
 // Notifications
 export const getNotifications = (id) => api.get(`/utils/monitoring/last_notifications?id=${id}`);

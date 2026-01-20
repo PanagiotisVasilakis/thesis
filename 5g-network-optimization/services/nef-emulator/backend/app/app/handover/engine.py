@@ -95,6 +95,10 @@ class HandoverEngine:
             self._auto = True
             self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
 
+        # Handover mode: "ml" (pure), "a3" (pure), or "hybrid" (ML with A3 fallback)
+        # Default to "hybrid" for backward compatibility with existing behavior
+        self.handover_mode = "hybrid" if self.use_ml else "a3"
+
         # --- ML service authentication ---
         self._ml_username = (
             os.getenv("ML_SERVICE_USERNAME")
@@ -506,7 +510,41 @@ class HandoverEngine:
         except Exception as e:
             decision_log["feature_vector_error"] = str(e)
         
-        if self.use_ml:
+        # Get current mode (use handover_mode if set, fall back to use_ml boolean)
+        current_mode = getattr(self, 'handover_mode', 'hybrid' if self.use_ml else 'a3')
+        decision_log["handover_mode"] = current_mode
+
+        if current_mode == "a3":
+            # Pure A3 mode - no ML at all
+            decision_log["a3_rule_params"] = {
+                "hysteresis_db": self._a3_params[0],
+                "ttt_seconds": self._a3_params[1]
+            }
+            target = self._select_rule(ue_id)
+            decision_log["a3_target"] = target
+            
+        elif current_mode == "ml":
+            # Pure ML mode - no A3 fallback
+            result = self._select_ml(ue_id)
+            decision_log["ml_response"] = result
+            
+            if result is None:
+                decision_log["ml_available"] = False
+                decision_log["fallback_reason"] = self._last_ml_error_reason or "ml_service_unavailable"
+                if self._last_ml_http_status is not None:
+                    decision_log["ml_status_code"] = self._last_ml_http_status
+                # In pure ML mode, no fallback - just no handover
+                target = None
+            else:
+                decision_log["ml_available"] = True
+                target = result.get("antenna_id")
+                confidence = result.get("confidence") or 0.0
+                decision_log["ml_prediction"] = target
+                decision_log["ml_confidence"] = confidence
+                # In pure ML mode, use prediction directly without checking thresholds
+                
+        else:
+            # Hybrid mode (default) - ML with A3 fallback on failures
             result = self._select_ml(ue_id)
             decision_log["ml_response"] = result
             
@@ -519,7 +557,8 @@ class HandoverEngine:
                 decision_log["fallback_to_a3"] = True
                 metrics.HANDOVER_FALLBACKS.inc()
                 self._record_fallback_metrics(None, fallback_reason)
-                target = None
+                target = self._select_rule(ue_id)
+                decision_log["a3_fallback_target"] = target
             else:
                 decision_log["ml_available"] = True
                 target = result.get("antenna_id")
@@ -594,14 +633,6 @@ class HandoverEngine:
                         self._record_fallback_metrics(None, "low_confidence")
                         target = self._select_rule(ue_id)
                         decision_log["a3_fallback_target"] = target
-        else:
-            # A3 mode
-            decision_log["a3_rule_params"] = {
-                "hysteresis_db": self._a3_params[0],
-                "ttt_seconds": self._a3_params[1]
-            }
-            target = self._select_rule(ue_id)
-            decision_log["a3_target"] = target
 
         resolved_current = self.state_mgr.resolve_antenna_id(decision_log.get("current_antenna"))
         resolved_target = self.state_mgr.resolve_antenna_id(target) if target else None

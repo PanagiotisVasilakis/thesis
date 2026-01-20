@@ -74,7 +74,7 @@ export default function MapPage() {
                 setCells(cellsRes.data || []);
                 setUEs(uesRes.data || []);
                 setPaths(pathsRes.data || []);
-                setMlMode(modeRes.data?.ml_enabled || false);
+                setMlMode(modeRes.data?.mode || 'hybrid');
 
                 // Store initial UE positions when data loads
                 if (uesRes.data?.length > 0) {
@@ -118,51 +118,51 @@ export default function MapPage() {
                     const newHandovers = [];
                     if (!handoverWsConnected) {
                         movingUEs.forEach(nextUE => {
-                        const prevUE = prevUEsRef.current[nextUE.supi];
-                        if (prevUE && prevUE.cell_id_hex && nextUE.cell_id_hex &&
-                            prevUE.cell_id_hex !== nextUE.cell_id_hex) {
+                            const prevUE = prevUEsRef.current[nextUE.supi];
+                            if (prevUE && prevUE.cell_id_hex && nextUE.cell_id_hex &&
+                                prevUE.cell_id_hex !== nextUE.cell_id_hex) {
 
-                            // Try to find matching backend handover with real ML confidence
-                            const backendMatch = backendHandovers.find(bh =>
-                                bh.ue === (nextUE.name || nextUE.supi) &&
-                                !processedBackendIds.has(`${bh.ue}-${bh.time}`)
-                            );
+                                // Try to find matching backend handover with real ML confidence
+                                const backendMatch = backendHandovers.find(bh =>
+                                    bh.ue === (nextUE.name || nextUE.supi) &&
+                                    !processedBackendIds.has(`${bh.ue}-${bh.time}`)
+                                );
 
-                            let confidence = null;
-                            let method;
+                                let confidence = null;
+                                let method;
 
-                            if (backendMatch && backendMatch.confidence !== null) {
-                                // Use REAL ML confidence from backend
-                                confidence = backendMatch.confidence;
-                                method = backendMatch.method || (mlMode ? 'ML' : 'A3 Event');
-                                processedBackendIds.add(`${backendMatch.ue}-${backendMatch.time}`);
-                            } else {
-                                method = mlMode ? 'ML' : 'A3 Event';
+                                if (backendMatch && backendMatch.confidence !== null) {
+                                    // Use REAL ML confidence from backend
+                                    confidence = backendMatch.confidence;
+                                    method = backendMatch.method || (mlMode !== 'a3' ? 'ML' : 'A3 Event');
+                                    processedBackendIds.add(`${backendMatch.ue}-${backendMatch.time}`);
+                                } else {
+                                    method = mlMode !== 'a3' ? 'ML' : 'A3 Event';
+                                }
+
+                                const prevRSRP = Number.isFinite(prevUE.rsrp) ? prevUE.rsrp : null;
+                                const nextRSRP = Number.isFinite(nextUE.rsrp) ? nextUE.rsrp : null;
+                                const rsrpDelta = (prevRSRP !== null && nextRSRP !== null) ? (nextRSRP - prevRSRP) : null;
+
+                                newHandovers.push({
+                                    sessionId: sessionId,
+                                    retryNumber: currentRetry || 1,
+                                    timestamp: Date.now(),
+                                    time: new Date().toLocaleTimeString(),
+                                    ue: nextUE.name || nextUE.supi,
+                                    from: prevUE.cell_id_hex,
+                                    to: nextUE.cell_id_hex,
+                                    method: method,
+                                    confidence: typeof confidence === 'number' ? confidence.toFixed(2) : confidence,
+                                    rsrp: nextRSRP,
+                                    rsrpPrev: prevRSRP,
+                                    rsrpDelta: rsrpDelta !== null ? rsrpDelta.toFixed(1) : null,
+                                    sinr: Number.isFinite(nextUE.sinr) ? nextUE.sinr : null,
+                                    fromBackend: !!backendMatch,
+                                });
                             }
-
-                            const prevRSRP = Number.isFinite(prevUE.rsrp) ? prevUE.rsrp : null;
-                            const nextRSRP = Number.isFinite(nextUE.rsrp) ? nextUE.rsrp : null;
-                            const rsrpDelta = (prevRSRP !== null && nextRSRP !== null) ? (nextRSRP - prevRSRP) : null;
-
-                            newHandovers.push({
-                                sessionId: sessionId,
-                                retryNumber: currentRetry || 1,
-                                timestamp: Date.now(),
-                                time: new Date().toLocaleTimeString(),
-                                ue: nextUE.name || nextUE.supi,
-                                from: prevUE.cell_id_hex,
-                                to: nextUE.cell_id_hex,
-                                method: method,
-                                confidence: typeof confidence === 'number' ? confidence.toFixed(2) : confidence,
-                                rsrp: nextRSRP,
-                                rsrpPrev: prevRSRP,
-                                rsrpDelta: rsrpDelta !== null ? rsrpDelta.toFixed(1) : null,
-                                sinr: Number.isFinite(nextUE.sinr) ? nextUE.sinr : null,
-                                fromBackend: !!backendMatch,
-                            });
-                        }
-                        prevUEsRef.current[nextUE.supi] = { ...nextUE };
-                    });
+                            prevUEsRef.current[nextUE.supi] = { ...nextUE };
+                        });
                     } else {
                         movingUEs.forEach(nextUE => {
                             prevUEsRef.current[nextUE.supi] = { ...nextUE };
@@ -268,47 +268,47 @@ export default function MapPage() {
             };
 
             ws.onmessage = (event) => {
-            try {
-                const payload = JSON.parse(event.data || '{}');
-                const ue = payload.ue;
-                const eventTime = payload.time;
-                if (!ue || !eventTime) {
-                    return;
+                try {
+                    const payload = JSON.parse(event.data || '{}');
+                    const ue = payload.ue;
+                    const eventTime = payload.time;
+                    if (!ue || !eventTime) {
+                        return;
+                    }
+                    const key = `${ue}-${eventTime}`;
+                    if (processedBackendIdsRef.current.has(key)) {
+                        return;
+                    }
+                    processedBackendIdsRef.current.add(key);
+
+                    const timestamp = Number(eventTime) * 1000;
+                    const timeLabel = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+                    const handover = {
+                        sessionId: sessionId,
+                        retryNumber: currentRetry || 1,
+                        timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
+                        time: timeLabel,
+                        ue: ue,
+                        from: payload.from,
+                        to: payload.to,
+                        method: payload.method || 'A3 Event',
+                        confidence: typeof payload.confidence === 'number' ? payload.confidence.toFixed(2) : payload.confidence,
+                        rsrp: payload.rsrp ?? null,
+                        rsrpPrev: null,
+                        rsrpDelta: null,
+                        sinr: payload.sinr ?? null,
+                        fromBackend: true,
+                    };
+
+                    addHandover(handover);
+                    const stats = JSON.parse(localStorage.getItem('kinisis_analytics') || '{"ml":0,"a3":0}');
+                    if (handover.method === 'ML') stats.ml++;
+                    else stats.a3++;
+                    localStorage.setItem('kinisis_analytics', JSON.stringify(stats));
+                } catch (err) {
+                    console.warn('Failed to parse handover WebSocket payload:', err);
                 }
-                const key = `${ue}-${eventTime}`;
-                if (processedBackendIdsRef.current.has(key)) {
-                    return;
-                }
-                processedBackendIdsRef.current.add(key);
-
-                const timestamp = Number(eventTime) * 1000;
-                const timeLabel = Number.isFinite(timestamp) ? new Date(timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-                const handover = {
-                    sessionId: sessionId,
-                    retryNumber: currentRetry || 1,
-                    timestamp: Number.isFinite(timestamp) ? timestamp : Date.now(),
-                    time: timeLabel,
-                    ue: ue,
-                    from: payload.from,
-                    to: payload.to,
-                    method: payload.method || 'A3 Event',
-                    confidence: typeof payload.confidence === 'number' ? payload.confidence.toFixed(2) : payload.confidence,
-                    rsrp: payload.rsrp ?? null,
-                    rsrpPrev: null,
-                    rsrpDelta: null,
-                    sinr: payload.sinr ?? null,
-                    fromBackend: true,
-                };
-
-                addHandover(handover);
-                const stats = JSON.parse(localStorage.getItem('kinisis_analytics') || '{"ml":0,"a3":0}');
-                if (handover.method === 'ML') stats.ml++;
-                else stats.a3++;
-                localStorage.setItem('kinisis_analytics', JSON.stringify(stats));
-            } catch (err) {
-                console.warn('Failed to parse handover WebSocket payload:', err);
-            }
             };
         };
 
@@ -372,14 +372,14 @@ export default function MapPage() {
         }
     };
 
-    const handleModeChange = async (enabled) => {
+    const handleModeChange = async (newMode) => {
         if (isRunning || isRetrying) {
             alert('Cannot change mode during experiment. Stop current experiment first.');
             return;
         }
         try {
-            await setMode(enabled);
-            setMlMode(enabled);
+            await setMode(newMode);
+            setMlMode(newMode);
         } catch (error) {
             console.error('Error setting mode:', error);
         }
@@ -425,8 +425,8 @@ export default function MapPage() {
                     <div className="flex flex-wrap items-stretch gap-4">
                         {/* Mode Toggle */}
                         <ModeToggle
-                            enabled={mlMode}
-                            onChange={handleModeChange}
+                            mode={mlMode}
+                            onModeChange={handleModeChange}
                             disabled={isRunning || isRetrying}
                         />
 

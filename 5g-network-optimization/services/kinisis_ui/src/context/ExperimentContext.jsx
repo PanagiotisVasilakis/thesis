@@ -11,7 +11,7 @@ export function ExperimentProvider({ children }) {
     const [isRunning, setIsRunning] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [sessionId, setSessionId] = useState(`session_${Date.now()}`);
-    const [mlMode, setMlMode] = useState(false);
+    const [mlMode, setMlMode] = useState('hybrid');  // 'ml', 'a3', or 'hybrid'
     const [duration, setDuration] = useState(60);
     const [scenarioName, setScenarioName] = useState('');
 

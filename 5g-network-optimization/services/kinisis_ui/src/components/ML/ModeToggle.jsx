@@ -1,7 +1,21 @@
-export default function ModeToggle({ mlMode, onModeChange, enabled, onChange, disabled }) {
-    // Support both old and new prop patterns
-    const isML = enabled !== undefined ? enabled : mlMode;
-    const handleChange = onChange || onModeChange;
+export default function ModeToggle({ mode, onModeChange, enabled, onChange, disabled }) {
+    // Support both new mode prop and legacy enabled boolean
+    // mode: "ml" | "a3" | "hybrid"
+    // enabled: legacy boolean (true = hybrid, false = a3)
+
+    const currentMode = mode !== undefined
+        ? mode
+        : (enabled ? 'hybrid' : 'a3');
+
+    // Handle both new and legacy callbacks
+    const handleModeChange = (newMode) => {
+        if (onModeChange) {
+            onModeChange(newMode);
+        } else if (onChange) {
+            // Legacy callback expects boolean
+            onChange(newMode !== 'a3');
+        }
+    };
 
     return (
         <div className="card flex-1">
@@ -12,31 +26,47 @@ export default function ModeToggle({ mlMode, onModeChange, enabled, onChange, di
                 <div className="flex items-center justify-between">
                     <div>
                         <span className="font-medium">Handover Mode:</span>
-                        <span className={`badge ml-2 ${isML ? 'badge-success' : 'badge-warning'}`}>
-                            {isML ? 'ML Active' : 'A3 Rule'}
+                        <span className={`badge ml-2 ${currentMode === 'ml' ? 'badge-success' :
+                                currentMode === 'hybrid' ? 'badge-info' :
+                                    'badge-warning'
+                            }`}>
+                            {currentMode === 'ml' ? 'ML Only' :
+                                currentMode === 'hybrid' ? 'Hybrid' :
+                                    'A3 Rule'}
                         </span>
                     </div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => handleChange(true)}
+                            onClick={() => handleModeChange('ml')}
                             disabled={disabled}
-                            className={`btn ${isML ? 'btn-success' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
+                            className={`btn ${currentMode === 'ml' ? 'btn-success' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
+                            title="Pure ML predictions without A3 fallback"
                         >
                             🧠 ML
                         </button>
                         <button
-                            onClick={() => handleChange(false)}
+                            onClick={() => handleModeChange('hybrid')}
                             disabled={disabled}
-                            className={`btn ${!isML ? 'btn-warning' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
+                            className={`btn ${currentMode === 'hybrid' ? 'btn-primary' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
+                            title="ML primary with A3 fallback on failures"
                         >
-                            📏 A3 Rule
+                            🔄 Hybrid
+                        </button>
+                        <button
+                            onClick={() => handleModeChange('a3')}
+                            disabled={disabled}
+                            className={`btn ${currentMode === 'a3' ? 'btn-warning' : 'btn-outline'} ${disabled ? 'opacity-50' : ''}`}
+                            title="Standard 3GPP A3 rule only"
+                        >
+                            📏 A3
                         </button>
                     </div>
                 </div>
-                <p className="text-sm text-gray-500 mt-3">
-                    <strong>ML:</strong> Trained model predictions |
-                    <strong> A3:</strong> Standard 3GPP hysteresis rule
-                </p>
+                <div className="mt-3 text-sm text-gray-500 space-y-1">
+                    <p><strong>ML:</strong> Pure model predictions (no safety fallback)</p>
+                    <p><strong>Hybrid:</strong> ML with A3 fallback on low confidence/QoS failures</p>
+                    <p><strong>A3:</strong> Standard 3GPP hysteresis rule only</p>
+                </div>
             </div>
         </div>
     );
