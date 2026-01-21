@@ -15,6 +15,14 @@ from app.api import deps
 from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
 from app.api.api_v1.state_manager import state_manager
+try:
+    from app.handover.runtime import runtime as handover_runtime
+except Exception:  # noqa: BLE001 - fallback when handover runtime not available
+    class _FallbackRuntime:
+        def reset_topology(self) -> None:
+            return None
+
+    handover_runtime = _FallbackRuntime()  # type: ignore[assignment]
 from app.core.config import settings
 from app.core.constants import DEFAULT_TIMEOUT
 from app.schemas import UserPlaneNotificationData, monitoringevent
@@ -286,6 +294,8 @@ def create_scenario(
     
     # Reset simulation state and stop background threads
     state_manager.reset()
+    # Reset handover runtime topology to avoid stale antenna IDs
+    handover_runtime.reset_topology()
 
     from sqlalchemy import text
     db.execute(text('TRUNCATE TABLE cell, gnb, monitoring, path, points, ue RESTART IDENTITY'))

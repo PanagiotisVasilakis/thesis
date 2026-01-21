@@ -13,7 +13,17 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
     const wsRef = useRef(null);
     const wsReconnectTimeoutRef = useRef(null);
     const wsReconnectAttemptRef = useRef(0);
+    const lastMessageRef = useRef(null);
     const maxDataPoints = 60; // Keep last 60 seconds
+
+    const toNumber = (value) => {
+        if (Number.isFinite(value)) return value;
+        if (typeof value === 'string' && value.trim() !== '') {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+    };
 
     useEffect(() => {
         setMetrics([]);
@@ -23,6 +33,7 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
         setApiTransport(null);
         setUseWebSocket(true);
         wsReconnectAttemptRef.current = 0;
+        lastMessageRef.current = null;
         if (wsReconnectTimeoutRef.current) {
             clearTimeout(wsReconnectTimeoutRef.current);
             wsReconnectTimeoutRef.current = null;
@@ -59,6 +70,17 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
             wsRef.current = ws;
             setApiTransport('ws');
             setApiLatencyMs(null);
+            lastMessageRef.current = null;
+
+            const noDataTimeout = setTimeout(() => {
+                if (!lastMessageRef.current) {
+                    setUseWebSocket(false);
+                    if (wsRef.current) {
+                        wsRef.current.close();
+                        wsRef.current = null;
+                    }
+                }
+            }, 4000);
 
             ws.onmessage = (event) => {
                 const now = new Date();
@@ -70,10 +92,10 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
                     const newMetric = {
                         time: timeLabel,
                         timestamp: Date.now(),
-                        rsrp: Number.isFinite(data.rsrp) ? data.rsrp : null,
-                        sinr: Number.isFinite(data.sinr) ? data.sinr : null,
-                        throughput: Number.isFinite(qos.throughput_mbps) ? qos.throughput_mbps : null,
-                        latency: Number.isFinite(qos.latency_ms) ? qos.latency_ms : null,
+                        rsrp: toNumber(data.rsrp),
+                        sinr: toNumber(data.sinr),
+                        throughput: toNumber(qos.throughput_mbps),
+                        latency: toNumber(qos.latency_ms),
                         handoverPending: false,
                         predictedCell: null,
                         confidence: null,
@@ -81,6 +103,7 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
                     };
 
                     setLatestMetrics(newMetric);
+                    lastMessageRef.current = Date.now();
 
                     if (Number.isFinite(newMetric.rsrp) && Number.isFinite(newMetric.sinr)) {
                         setMetrics(prev => {
@@ -98,6 +121,7 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
             };
 
             ws.onclose = () => {
+                clearTimeout(noDataTimeout);
                 const attempt = wsReconnectAttemptRef.current + 1;
                 wsReconnectAttemptRef.current = attempt;
                 const maxAttempts = 5;
@@ -117,6 +141,7 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
             };
 
             return () => {
+                clearTimeout(noDataTimeout);
                 if (wsRef.current) {
                     wsRef.current.close();
                     wsRef.current = null;
@@ -151,10 +176,10 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
                     const newMetric = {
                         time: timeLabel,
                         timestamp: Date.now(),
-                        rsrp: Number.isFinite(data.rsrp) ? data.rsrp : null,
-                        sinr: Number.isFinite(data.sinr) ? data.sinr : null,
-                        throughput: Number.isFinite(qos.throughput_mbps) ? qos.throughput_mbps : null,
-                        latency: Number.isFinite(qos.latency_ms) ? qos.latency_ms : null,
+                        rsrp: toNumber(data.rsrp),
+                        sinr: toNumber(data.sinr),
+                        throughput: toNumber(qos.throughput_mbps),
+                        latency: toNumber(qos.latency_ms),
                         handoverPending: false,
                         predictedCell: null,
                         confidence: null,
@@ -220,7 +245,14 @@ export default function RealTimeMetrics({ isRunning, selectedUE }) {
             <div className="card-body">
                 {!isRunning && metrics.length === 0 ? (
                     <div className="text-center text-gray-500 py-8">
-                        Start UE movement to see real-time metrics
+                        {selectedUE 
+                            ? 'Start UE movement to see real-time metrics'
+                            : 'Click on a UE marker on the map, then start movement'}
+                    </div>
+                ) : !selectedUE ? (
+                    <div className="text-center text-gray-500 py-8">
+                        <div className="mb-2">📍 Click on a UE marker on the map</div>
+                        <div className="text-xs">to see its real-time signal metrics</div>
                     </div>
                 ) : (
                     <>

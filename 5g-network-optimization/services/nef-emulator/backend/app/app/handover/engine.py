@@ -103,6 +103,9 @@ class HandoverEngine:
                 )
 
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
+        # Per-UE, per-target TTT timers: {ue_id: {target_antenna_id: event_start_time}}
+        # This ensures independent TTT tracking for each UE-target pair
+        self._ttt_timers: dict[str, dict[str, datetime]] = {}
         # Always have an A3 rule available; it will only be used when
         # machine learning is disabled.
         self.rule = A3EventRule(
@@ -342,7 +345,12 @@ class HandoverEngine:
             return None
     
     def _select_rule_with_features(self, ue_id: str, fv: dict) -> Optional[str]:
-        """Make A3 rule decision using pre-computed features (no state_mgr access)."""
+        """Make A3 rule decision using pre-computed features with per-UE TTT tracking.
+        
+        This implements proper 3GPP-compliant Time-to-Trigger (TTT) logic where each
+        UE has independent timers for each potential target cell. A handover is only
+        triggered when the A3 condition remains satisfied for the full TTT duration.
+        """
         current = fv.get("connected_to")
         if not current:
             return None
@@ -358,6 +366,15 @@ class HandoverEngine:
         serving_rsrq = rsrq_map.get(current)
         serving_metrics = {"rsrp": serving_rsrp, "rsrq": serving_rsrq} if serving_rsrq is not None else serving_rsrp
         
+        # Initialize per-UE timer dict if needed
+        if ue_id not in self._ttt_timers:
+            self._ttt_timers[ue_id] = {}
+        
+        hysteresis_db, ttt_seconds = self._a3_params
+        best_candidate = None
+        best_rsrp = float('-inf')
+        active_targets = set()  # Track which targets still meet A3 condition
+        
         for aid, rsrp in rsrp_map.items():
             if aid == current:
                 continue
@@ -365,10 +382,57 @@ class HandoverEngine:
             neighbor_rsrq = rsrq_map.get(aid)
             target_metrics = {"rsrp": rsrp, "rsrq": neighbor_rsrq} if neighbor_rsrq is not None else rsrp
             
-            if self.rule.check(serving_metrics, target_metrics, now):
-                return aid
+            # Check A3 condition (without TTT - pure signal comparison)
+            a3_met = self.rule.check_condition(serving_metrics, target_metrics)
+            
+            if a3_met:
+                active_targets.add(aid)
+                
+                # TTT tracking for this UE-target pair
+                if aid not in self._ttt_timers[ue_id]:
+                    # Start TTT timer for this target
+                    self._ttt_timers[ue_id][aid] = now
+                    self.logger.debug(
+                        "TTT started for UE %s -> target %s (TTT=%.2fs)",
+                        ue_id, aid, ttt_seconds
+                    )
+                
+                # Check if TTT has expired
+                elapsed = (now - self._ttt_timers[ue_id][aid]).total_seconds()
+                
+                if elapsed >= ttt_seconds:
+                    # TTT expired - this is a valid handover candidate
+                    if rsrp > best_rsrp:
+                        best_candidate = aid
+                        best_rsrp = rsrp
+                        self.logger.debug(
+                            "TTT expired for UE %s -> target %s (elapsed=%.2fs, rsrp=%.1f)",
+                            ue_id, aid, elapsed, rsrp
+                        )
         
-        return None
+        # Clean up timers for targets that no longer meet A3 condition
+        stale_targets = set(self._ttt_timers[ue_id].keys()) - active_targets
+        for stale in stale_targets:
+            del self._ttt_timers[ue_id][stale]
+            self.logger.debug("TTT reset for UE %s -> target %s (A3 no longer met)", ue_id, stale)
+        
+        # If we found a valid candidate, clear all timers for this UE
+        if best_candidate:
+            self._ttt_timers[ue_id].clear()
+            self.logger.info(
+                "A3 handover decision for UE %s: %s -> %s (hysteresis=%.1fdB, TTT=%.2fs)",
+                ue_id, current, best_candidate, hysteresis_db, ttt_seconds
+            )
+        
+        return best_candidate
+    
+    def clear_ttt_timers(self, ue_id: str) -> None:
+        """Clear TTT timers for a specific UE (call when UE movement stops)."""
+        self._ttt_timers.pop(ue_id, None)
+    
+    def clear_all_ttt_timers(self) -> None:
+        """Clear all TTT timers (call on topology reset)."""
+        self._ttt_timers.clear()
     
     def apply_decision(self, ue_id: str, decision: dict, fv: dict) -> Optional[dict]:
         """Apply a pre-computed handover decision to UE state.

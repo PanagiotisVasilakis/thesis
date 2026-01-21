@@ -1,10 +1,12 @@
-# NEF Emulator
+# NEF Emulator (RAN Simulator)
 
-FastAPI-based Network Exposure Function emulator with a web UI, CAPIF integration hooks, and optional ML-driven handover logic.
+> **⚠️ Terminology Note**: Despite the name "NEF Emulator", this service functions as a **RAN Simulator** implementing gNB signal propagation, handover logic, and channel modeling. The name is historical. See [docs/ORAN_TERMINOLOGY.md](docs/ORAN_TERMINOLOGY.md) for O-RAN architecture mapping and terminology clarification.
+
+FastAPI-based RAN simulation service with a web UI, network topology management, and optional ML-driven handover optimization.
 
 ## Why this service matters
 
-- **End-to-end NEF sandbox** – REST API for gNBs, cells, UEs, mobility patterns, and 3GPP northbound endpoints (monitoring events, QoS sessions).
+- **RAN Simulation Environment** – REST API for gNBs, cells, UEs, mobility patterns, with 3GPP-compliant channel models and handover logic.
 - **Operational UI** – Dashboard, map, import/export, and CRUD flows served directly from the backend (`/ui`, `/static`).
 - **Handover experimentation** – Toggleable ML handover pipeline that cooperates with the ML microservice or a local model and falls back to the 3GPP A3 rule.
 - **Observability & automation** – Prometheus metrics (`/metrics`), CAPIF onboarding helpers, seeded demo database scripts, request timing middleware, and Make targets for common workflows.

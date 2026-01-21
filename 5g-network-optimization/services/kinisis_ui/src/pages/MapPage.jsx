@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
 import { getCells, getUEs, getPaths, getMovingUEs, startAllUEs, stopAllUEs, startUE, stopUE, importScenario, getRecentHandovers } from '../api/nefClient';
-import { getMode, setMode } from '../api/mlClient';
+import { getMode, setMode, getUEState } from '../api/mlClient';
 import ModeToggle from '../components/ML/ModeToggle';
 import SignalPanel from '../components/ML/SignalPanel';
 import HandoverHistory from '../components/ML/HandoverHistory';
@@ -49,6 +49,7 @@ export default function MapPage() {
     const [ues, setUEs] = useState([]);
     const [paths, setPaths] = useState([]);
     const [selectedUE, setSelectedUE] = useState(null);
+    const [selectedSignalData, setSelectedSignalData] = useState(null);
     const [showRetryModal, setShowRetryModal] = useState(false);
     const [showClearModal, setShowClearModal] = useState(false);
     const [handoverWsConnected, setHandoverWsConnected] = useState(false);
@@ -60,6 +61,7 @@ export default function MapPage() {
     const processedBackendIdsRef = useRef(new Set());
     const handoverReconnectTimeoutRef = useRef(null);
     const handoverReconnectAttemptRef = useRef(0);
+    const signalPollRef = useRef(null);
 
     // Fetch initial data
     useEffect(() => {
@@ -211,6 +213,48 @@ export default function MapPage() {
         };
     }, [isRunning, sessionId, mlMode, currentRetry, handoverWsConnected]);
 
+    // Poll ML state (signal quality) for selected UE
+    useEffect(() => {
+        if (signalPollRef.current) {
+            clearInterval(signalPollRef.current);
+            signalPollRef.current = null;
+        }
+
+        if (!selectedUE?.supi) {
+            setSelectedSignalData(null);
+            return undefined;
+        }
+
+        let cancelled = false;
+
+        const fetchSignalData = async () => {
+            try {
+                const res = await getUEState(selectedUE.supi);
+                if (!cancelled) {
+                    setSelectedSignalData(res.data || null);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setSelectedSignalData(null);
+                }
+            }
+        };
+
+        fetchSignalData();
+
+        if (isRunning || isRetrying) {
+            signalPollRef.current = setInterval(fetchSignalData, 1000);
+        }
+
+        return () => {
+            cancelled = true;
+            if (signalPollRef.current) {
+                clearInterval(signalPollRef.current);
+                signalPollRef.current = null;
+            }
+        };
+    }, [selectedUE?.supi, isRunning, isRetrying]);
+
     // Handover WebSocket streaming
     useEffect(() => {
         if (!isRunning) {
@@ -356,6 +400,10 @@ export default function MapPage() {
             await startAllUEs();
             setIsRunning(true);
             setTimeRemaining(duration);
+            // Auto-select first UE for Real-Time Metrics if none selected
+            if (!selectedUE && ues.length > 0) {
+                setSelectedUE(ues[0]);
+            }
         } catch (error) {
             console.error('Error starting:', error);
         }
@@ -369,6 +417,14 @@ export default function MapPage() {
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
             }
+
+            // Reset scenario to ground-truth positions after run ends
+            if (scenarioName) {
+                await importScenario({ name: scenarioName });
+            }
+            const uesRes = await getUEs();
+            setUEs(uesRes.data || []);
+            setSelectedSignalData(null);
         } catch (error) {
             console.error('Error stopping:', error);
         }
@@ -485,7 +541,7 @@ export default function MapPage() {
                         </div>
 
                         {/* Signal Panel */}
-                        <SignalPanel ue={selectedUE} />
+                        <SignalPanel ue={selectedUE} signalData={selectedSignalData} />
                     </div>
                 </div>
             </div>
@@ -554,7 +610,18 @@ export default function MapPage() {
                             ))}
 
                             {/* UEs */}
-                            {ues.map(ue => (
+                            {ues.map(ue => {
+                                const isSelected = selectedUE?.supi === ue.supi;
+                                const connectedCell = isSelected
+                                    ? (selectedSignalData?.connected_to || selectedSignalData?.serving_cell || ue.cell_id_hex)
+                                    : ue.cell_id_hex;
+                                // Nearest cell from neighbor RSRP (strongest signal)
+                                const nearestCell = isSelected && selectedSignalData?.neighbor_rsrp_dbm
+                                    ? Object.entries(selectedSignalData.neighbor_rsrp_dbm)
+                                        .sort((a, b) => b[1] - a[1])[0]?.[0]
+                                    : null;
+
+                                return (
                                 <Marker
                                     key={ue.supi}
                                     position={[ue.latitude || 0, ue.longitude || 0]}
@@ -566,7 +633,10 @@ export default function MapPage() {
                                         <div>
                                             <strong>{ue.name}</strong><br />
                                             SUPI: {ue.supi}<br />
-                                            Cell: {ue.cell_id_hex || 'N/A'}<br />
+                                            <span className="text-green-600">Connected: {connectedCell || 'N/A'}</span><br />
+                                            {nearestCell && nearestCell !== connectedCell && (
+                                                <><span className="text-orange-500">Nearest: {nearestCell}</span><br /></>
+                                            )}
                                             Speed: {ue.speed || 'LOW'}
                                             <div className="mt-2 flex gap-1">
                                                 <button
@@ -597,7 +667,8 @@ export default function MapPage() {
                                         </div>
                                     </Popup>
                                 </Marker>
-                            ))}
+                                );
+                            })}
                         </MapContainer>
                     </div>
                 </div>
@@ -610,7 +681,7 @@ export default function MapPage() {
             />
 
             {/* Real-Time Metrics */}
-            <RealTimeMetrics isRunning={isRunning} selectedUE={selectedUE?.supi} />
+            <RealTimeMetrics isRunning={isRunning || isRetrying} selectedUE={selectedUE?.supi} />
 
             {/* Retry Modal */}
 

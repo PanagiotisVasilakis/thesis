@@ -28,6 +28,12 @@ export default function SignalPanel({ ue, signalData }) {
         return Math.max(0, Math.min(100, (rsrp + 120) * 1.5));
     };
 
+    // Determine nearest cell (strongest RSRP)
+    const nearestCell = Object.keys(rsrps).length > 0
+        ? Object.entries(rsrps).sort((a, b) => b[1] - a[1])[0]?.[0]
+        : null;
+    const handoverPending = nearestCell && nearestCell !== connectedTo;
+
     return (
         <div className="card flex-1">
             <div className="card-header bg-gray-100 text-gray-900 font-bold text-lg flex justify-between items-center">
@@ -35,9 +41,22 @@ export default function SignalPanel({ ue, signalData }) {
                 <span className="badge bg-cyan-600 text-white">{ue.name}</span>
             </div>
             <div className="card-body">
-                <div className="mb-3">
-                    <span className="text-sm text-gray-600">Connected to: </span>
-                    <span className="badge badge-success">{connectedTo || 'None'}</span>
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <div>
+                        <span className="text-sm text-gray-600">Connected to: </span>
+                        <span className="badge badge-success">{connectedTo || 'None'}</span>
+                    </div>
+                    {nearestCell && (
+                        <div>
+                            <span className="text-sm text-gray-600">Nearest: </span>
+                            <span className={`badge ${handoverPending ? 'bg-orange-500 text-white' : 'bg-gray-200'}`}>
+                                {nearestCell}
+                            </span>
+                        </div>
+                    )}
+                    {handoverPending && (
+                        <span className="text-xs text-orange-600 animate-pulse">⚡ Handover candidate</span>
+                    )}
                 </div>
 
                 <table className="w-full text-sm">

@@ -1,5 +1,19 @@
 import { useState } from 'react';
 
+// Helper to get mode display info
+const getModeDisplay = (mode) => {
+    switch (mode) {
+        case 'ml':
+            return { label: 'ML ✓', color: 'text-green-600', bgColor: 'bg-green-100' };
+        case 'a3':
+            return { label: 'A3 (Standard)', color: 'text-yellow-600', bgColor: 'bg-yellow-100' };
+        case 'hybrid':
+            return { label: 'Hybrid (ML+A3)', color: 'text-blue-600', bgColor: 'bg-blue-100' };
+        default:
+            return { label: mode || 'Unknown', color: 'text-gray-600', bgColor: 'bg-gray-100' };
+    }
+};
+
 export default function RetryModal({
     isOpen,
     onClose,
@@ -12,6 +26,7 @@ export default function RetryModal({
     onStop
 }) {
     const [retryCount, setRetryCount] = useState(10);
+    const modeDisplay = getModeDisplay(currentMode);
 
     if (!isOpen && !isRunning) return null;
 
@@ -44,8 +59,8 @@ export default function RetryModal({
                     </div>
 
                     <div className="flex items-center gap-4 text-sm font-medium text-blue-800">
-                        <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 rounded-lg">
-                            <span>Mode: {currentMode ? 'ML' : 'A3'}</span>
+                        <div className={`flex items-center gap-2 px-3 py-1 ${modeDisplay.bgColor} rounded-lg`}>
+                            <span className={modeDisplay.color}>Mode: {modeDisplay.label}</span>
                         </div>
                         <button
                             onClick={onStop}
@@ -89,8 +104,8 @@ export default function RetryModal({
                     <div className="bg-gray-50 rounded-lg p-3 text-sm">
                         <div className="flex justify-between">
                             <span className="text-gray-500">Mode:</span>
-                            <span className={`font-medium ${currentMode ? 'text-green-600' : 'text-yellow-600'}`}>
-                                {currentMode ? 'ML ✓' : 'A3'}
+                            <span className={`font-medium ${modeDisplay.color}`}>
+                                {modeDisplay.label}
                             </span>
                         </div>
                     </div>

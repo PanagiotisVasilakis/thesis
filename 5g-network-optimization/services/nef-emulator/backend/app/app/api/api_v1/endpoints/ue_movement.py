@@ -216,7 +216,7 @@ class _RealBackgroundTasks(threading.Thread):
                 try:
                     feature_vector = handover_runtime.state_manager.get_feature_vector(supi)
                     neighbor_rsrp = feature_vector.get("neighbor_rsrp_dbm", {})
-                    neighbor_sinr = feature_vector.get("neighbor_sinr_db", {})
+                    neighbor_sinr = feature_vector.get("neighbor_sinrs", {})
                     # Get the serving cell's signal values
                     serving_key = feature_vector.get("connected_to")
                     if serving_key and serving_key in neighbor_rsrp:
@@ -296,7 +296,14 @@ class _RealBackgroundTasks(threading.Thread):
                                 metrics.HANDOVER_DECISIONS.labels(outcome="applied").inc()
                                 # Record for thesis experiments with ML confidence
                                 ml_confidence = decision.get("confidence") if decision else None
-                                ml_method = "ML" if handover_runtime.use_ml else "A3"
+                                # Get method from actual handover_mode: 'ml', 'a3', or 'hybrid'
+                                handover_mode = getattr(handover_runtime.engine, "handover_mode", "a3")
+                                if handover_mode == "ml":
+                                    ml_method = "ML"
+                                elif handover_mode == "hybrid":
+                                    ml_method = "Hybrid"
+                                else:
+                                    ml_method = "A3"
                                 # Get current UE signal metrics
                                 ue_rsrp = ue_data.get("rsrp")
                                 ue_sinr = ue_data.get("sinr")

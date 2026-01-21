@@ -36,19 +36,24 @@ class A3EventRule:
         self.event_type = event_type
         self._event_start_time: Optional[datetime] = None
 
-    def check(
-        self, 
-        serving_metrics: Union[float, Dict[str, float]], 
-        target_metrics: Union[float, Dict[str, float]], 
-        now: datetime
+    def check_condition(
+        self,
+        serving_metrics: Union[float, Dict[str, float]],
+        target_metrics: Union[float, Dict[str, float]],
     ) -> bool:
         """
-        Return True if the A3 condition has been met for the duration.
+        Check if A3 condition is met (pure signal comparison, no TTT).
+        
+        This is the core A3 event condition check without Time-to-Trigger logic.
+        TTT should be managed externally (e.g., per-UE in HandoverEngine) to support
+        proper multi-UE scenarios.
         
         Args:
             serving_metrics: Either RSRP value or dict with 'rsrp' and 'rsrq' keys
             target_metrics: Either RSRP value or dict with 'rsrp' and 'rsrq' keys
-            now: Current timestamp
+            
+        Returns:
+            True if A3 condition is satisfied (target better than serving + hysteresis)
         """
         # Handle both single value and dict input
         if isinstance(serving_metrics, dict):
@@ -56,34 +61,47 @@ class A3EventRule:
             serving_rsrq = serving_metrics.get('rsrq', float('-inf'))
         else:
             serving_rsrp = serving_metrics
-            serving_rsrq = float('-inf')  # Default if not provided
+            serving_rsrq = float('-inf')
             
         if isinstance(target_metrics, dict):
             target_rsrp = target_metrics.get('rsrp', float('-inf'))
             target_rsrq = target_metrics.get('rsrq', float('-inf'))
         else:
             target_rsrp = target_metrics
-            target_rsrq = float('-inf')  # Default if not provided
+            target_rsrq = float('-inf')
 
-        # Check if A3 condition is satisfied based on event type
-        a3_condition_met = False
-        
+        # Check A3 condition based on event type
         if self.event_type == "rsrp_based":
-            # Standard A3: (M_n + Ofn + Hys) > (M_s + Ofs) OR (I_n - I_s) > Hys
-            # Where M is measurement, O is offset (0 for A3), Hys is hysteresis
-            diff = target_rsrp - serving_rsrp
-            a3_condition_met = diff > self.hysteresis_db
+            return (target_rsrp - serving_rsrp) > self.hysteresis_db
             
         elif self.event_type == "rsrq_based":
-            # A3 based on RSRQ: similar logic but on RSRQ values
-            diff = target_rsrq - serving_rsrq
-            a3_condition_met = diff > self.hysteresis_db
+            return (target_rsrq - serving_rsrq) > self.hysteresis_db
             
         elif self.event_type == "mixed":
-            # Mixed criteria: RSRP based with RSRQ threshold
             rsrp_condition = (target_rsrp - serving_rsrp) > self.hysteresis_db
             rsrq_condition = target_rsrq >= self.rsrq_threshold
-            a3_condition_met = rsrp_condition and rsrq_condition
+            return rsrp_condition and rsrq_condition
+        
+        return False
+
+    def check(
+        self, 
+        serving_metrics: Union[float, Dict[str, float]], 
+        target_metrics: Union[float, Dict[str, float]], 
+        now: datetime
+    ) -> bool:
+        """
+        Return True if the A3 condition has been met for the TTT duration.
+        
+        Note: This method uses a single global timer. For multi-UE scenarios,
+        use check_condition() and manage TTT externally per-UE in HandoverEngine.
+        
+        Args:
+            serving_metrics: Either RSRP value or dict with 'rsrp' and 'rsrq' keys
+            target_metrics: Either RSRP value or dict with 'rsrp' and 'rsrq' keys
+            now: Current timestamp
+        """
+        a3_condition_met = self.check_condition(serving_metrics, target_metrics)
 
         if a3_condition_met:
             if self.ttt.total_seconds() == 0:

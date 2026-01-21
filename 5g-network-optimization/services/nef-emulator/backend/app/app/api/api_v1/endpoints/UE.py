@@ -146,7 +146,6 @@ def create_UE(
     Create new UE.
     """
     #Validate Unique ids
-    ipv4_obj = item_in.ip_address_v4 if not isinstance(item_in.ip_address_v4, str) else ip_address(item_in.ip_address_v4)
     ipv4_val = item_in.ip_address_v4
     ipv6_val = item_in.ip_address_v6
     ipv4_obj = None if ipv4_val is None else (ipv4_val if not isinstance(ipv4_val, str) else ip_address(ipv4_val))
@@ -154,15 +153,15 @@ def create_UE(
     ipv4_str = str(ipv4_obj) if ipv4_obj is not None else None
     ipv6_str = str(getattr(ipv6_obj, "exploded", ipv6_obj)) if ipv6_obj is not None else None
     if crud.ue.get_supi(db=db, supi=item_in.supi):
-    if crud.ue.get_supi(db=db, supi=item_in.supi):
+        raise HTTPException(
             status_code=409, detail=f"UE with supi {item_in.supi} already exists")
-    elif crud.ue.get_ipv4(db=db, ipv4=str(ipv4_obj), owner_id=current_user.id):
     elif ipv4_str and crud.ue.get_ipv4(db=db, ipv4=ipv4_str, owner_id=current_user.id):
-            status_code=409, detail=f"UE with ipv4 {str(ipv4_obj)} already exists")
+        raise HTTPException(
             status_code=409, detail=f"UE with ipv4 {ipv4_str} already exists")
     elif ipv6_str and crud.ue.get_ipv6(db=db, ipv6=ipv6_str, owner_id=current_user.id):
-            status_code=409, detail=f"UE with ipv6 {str(ipv6_obj)} already exists")
+        raise HTTPException(
             status_code=409, detail=f"UE with ipv6 {ipv6_str} already exists")
+    elif item_in.mac_address and crud.ue.get_mac(db=db, mac=str(item_in.mac_address), owner_id=current_user.id):
         raise HTTPException(
             status_code=409, detail=f"UE with mac {str(item_in.mac_address)} already exists")
     elif crud.ue.get_externalId(db=db, externalId=item_in.external_identifier, owner_id=current_user.id):

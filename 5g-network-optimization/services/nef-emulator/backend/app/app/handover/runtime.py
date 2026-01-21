@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from datetime import datetime, timezone
 from typing import Dict, Iterable, Optional, Tuple
@@ -52,7 +53,6 @@ except ValueError:
     DEFAULT_UE_ALTITUDE_M = 1.5
 
 # Network configuration defaults - can be overridden via environment variables
-import os
 try:
     DEFAULT_CARRIER_HZ = float(os.environ.get("DEFAULT_CARRIER_HZ", 3.5e9))
 except ValueError:
@@ -174,6 +174,23 @@ class HandoverRuntime:
                 len(self.state_manager.antenna_list),
                 len(self._cells_by_alias),
             )
+
+    def reset_topology(self) -> None:
+        """Clear cached topology/UE state so a scenario import can start clean."""
+        with self._lock:
+            self.state_manager.antenna_list.clear()
+            self.state_manager.ue_states.clear()
+            self.state_manager.handover_history.clear()
+            if hasattr(self.state_manager, "_antenna_aliases"):
+                self.state_manager._antenna_aliases.clear()
+            self._cells_by_key.clear()
+            self._cells_by_alias.clear()
+            self._ref_lat = None
+            self._ref_lon = None
+            # Clear per-UE TTT timers to avoid stale state
+            self.engine.clear_all_ttt_timers()
+            self.state_manager.register_cell_lookup(lambda *_args, **_kwargs: None)
+            self.logger.info("reset_topology completed; antenna_list_size=%d", len(self.state_manager.antenna_list))
 
     # ------------------------------------------------------------------
     # UE state
