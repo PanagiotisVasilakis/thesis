@@ -11,15 +11,15 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 import threading
 from datetime import datetime, timezone
 from typing import Dict, Iterable, Optional, Tuple
 
+from app.core.env_utils import parse_env_float, parse_env_int
+
 try:  # pragma: no cover - optional dependency in container image
     from antenna_models.models import MacroCellModel as _AntennaModel  # type: ignore
 except ImportError:  # pragma: no cover - fallback when antenna_models is unavailable
-    # Note: math already imported at line 13
 
     class _AntennaModel:
         """Lightweight antenna abstraction used when rf_models package is absent."""
@@ -43,38 +43,17 @@ from app.handover.engine import HandoverEngine
 from app.network.state_manager import NetworkStateManager
 
 EARTH_RADIUS_M = 6_371_000.0
-try:
-    DEFAULT_CELL_ALTITUDE_M = float(os.environ.get("DEFAULT_CELL_ALTITUDE_M", 25.0))
-except ValueError:
-    DEFAULT_CELL_ALTITUDE_M = 25.0
-try:
-    DEFAULT_UE_ALTITUDE_M = float(os.environ.get("DEFAULT_UE_ALTITUDE_M", 1.5))
-except ValueError:
-    DEFAULT_UE_ALTITUDE_M = 1.5
 
-# Network configuration defaults - can be overridden via environment variables
-try:
-    DEFAULT_CARRIER_HZ = float(os.environ.get("DEFAULT_CARRIER_HZ", 3.5e9))
-except ValueError:
-    DEFAULT_CARRIER_HZ = 3.5e9
-try:
-    DEFAULT_TX_POWER_DBM = float(os.environ.get("DEFAULT_TX_POWER_DBM", 40.0))
-except ValueError:
-    DEFAULT_TX_POWER_DBM = 40.0
-try:
-    TRAJECTORY_LIMIT = int(os.environ.get("TRAJECTORY_LIMIT", 900))
-except ValueError:
-    TRAJECTORY_LIMIT = 900  # keep ~15 minutes of 1 Hz samples
+# Network configuration - loaded via env_utils for consistent error handling
+DEFAULT_CELL_ALTITUDE_M = parse_env_float("DEFAULT_CELL_ALTITUDE_M", 25.0)
+DEFAULT_UE_ALTITUDE_M = parse_env_float("DEFAULT_UE_ALTITUDE_M", 1.5)
+DEFAULT_CARRIER_HZ = parse_env_float("DEFAULT_CARRIER_HZ", 3.5e9)
+DEFAULT_TX_POWER_DBM = parse_env_float("DEFAULT_TX_POWER_DBM", 40.0)
+TRAJECTORY_LIMIT = parse_env_int("TRAJECTORY_LIMIT", 900)  # ~15 minutes of 1 Hz samples
 
 # Speed mapping constants (m/s)
-try:
-    HIGH_SPEED_MPS = float(os.environ.get("HIGH_SPEED_MPS", 10.0))
-except ValueError:
-    HIGH_SPEED_MPS = 10.0  # Vehicular speed
-try:
-    LOW_SPEED_MPS = float(os.environ.get("LOW_SPEED_MPS", 1.0))
-except ValueError:
-    LOW_SPEED_MPS = 1.0    # Walking speed
+HIGH_SPEED_MPS = parse_env_float("HIGH_SPEED_MPS", 10.0)  # Vehicular speed
+LOW_SPEED_MPS = parse_env_float("LOW_SPEED_MPS", 1.0)     # Walking speed
 
 
 class HandoverRuntime:

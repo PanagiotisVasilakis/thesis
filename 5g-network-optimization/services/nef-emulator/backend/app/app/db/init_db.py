@@ -78,21 +78,35 @@ def init_db(db: Session) -> None:
     for ue_in in ues:
         ue = crud.ue.create_with_owner(db=db, obj_in=ue_in, owner_id=user.id)
 
+    # Create paths and their points
+    path_id_map = {}  # Track created paths by some identifier if needed
     for path_in in paths:
         path = crud.path.create_with_owner(db=db, obj_in=path_in, owner_id=user.id)
-        crud.points.create(db=db, obj_in=path_in, path_id=path.id) 
+        crud.points.create(db=db, obj_in=path_in, path_id=path.id)
+        path_id_map[path.id] = path
+
+    # Handle UE-path associations AFTER all paths are created (fix for previous nested loop bug) 
+    for ue_path in ue_path_association:
+        supi = ue_path.get("supi")
+        path_id = ue_path.get("path")
         
-        for ue_path in ue_path_association:
-            #Assign the coordinates
-            UE = crud.ue.get_supi(db=db, supi=ue_path.get("supi"))
-            json_data = jsonable_encoder(UE)
+        if not supi or path_id is None:
+            logging.warning("Invalid ue_path_association entry: %s", ue_path)
+            continue
             
-            json_data['path_id'] = path.id
-            random_point = get_random_point(db, path.id)
+        UE = crud.ue.get_supi(db=db, supi=supi)
+        if not UE:
+            logging.warning("UE with supi '%s' not found for path association", supi)
+            continue
+            
+        json_data = jsonable_encoder(UE)
+        json_data['path_id'] = path_id
+        random_point = get_random_point(db, path_id)
+        if random_point:
             json_data['latitude'] = random_point.get('latitude')
             json_data['longitude'] = random_point.get('longitude')
-            
-            crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
+        
+        crud.ue.update(db=db, db_obj=UE, obj_in=json_data)
     
     return
 

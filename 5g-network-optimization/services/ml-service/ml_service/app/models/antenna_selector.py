@@ -121,6 +121,19 @@ DEFAULT_TEST_FEATURES = {
     "best_sinr_diff": 0.0,
     "best_rsrq_diff": 0.0,
     "altitude": 0.0,
+    # Temporal derivative features
+    "rsrp_acceleration": 0.0,
+    "sinr_acceleration": 0.0,
+    "speed_jerk": 0.0,
+    "rsrp_ema_short": -90.0,
+    "rsrp_ema_long": -90.0,
+    "rsrp_trend_divergence": 0.0,
+    # Spatial features
+    "distance_to_target": 0.0,
+    "distance_to_current": 0.0,
+    "angle_to_target": 0.0,
+    "relative_distance_ratio": 1.0,
+    "moving_toward_target": 0.0,
     **DEFAULT_QOS_FEATURES,
 }
 
@@ -552,8 +565,6 @@ class AntennaSelector(AsyncModelInterface):
                 features["jitter_ms"] = float(data.get("jitter_ms", 0.0) or 0.0)
 
             # Using shared safe_float from type_helpers
-            def _safe_float_local(value: Any, fallback: float = 0.0) -> float:
-                return safe_float(value, fallback)
 
             observed_raw = data.get("observed_qos")
             if not isinstance(observed_raw, dict):
@@ -563,19 +574,19 @@ class AntennaSelector(AsyncModelInterface):
 
             observed_raw = observed_raw if isinstance(observed_raw, dict) else {}
 
-            obs_latency = _safe_float_local(
+            obs_latency = safe_float(
                 observed_raw.get("latency_ms"),
                 fallback=features.get("latency_ms", qos.get("latency_requirement_ms", 0.0)) or 0.0,
             )
-            obs_throughput = _safe_float_local(
+            obs_throughput = safe_float(
                 observed_raw.get("throughput_mbps"),
                 fallback=features.get("throughput_mbps", qos.get("throughput_requirement_mbps", 0.0)) or 0.0,
             )
-            obs_jitter = _safe_float_local(
+            obs_jitter = safe_float(
                 observed_raw.get("jitter_ms"),
                 fallback=features.get("jitter_ms", 0.0) or 0.0,
             )
-            obs_loss = _safe_float_local(
+            obs_loss = safe_float(
                 observed_raw.get("packet_loss_rate"),
                 fallback=features.get("packet_loss_rate", 0.0) or 0.0,
             )

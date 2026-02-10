@@ -3,6 +3,7 @@ import os
 from fastapi import APIRouter, Path, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
 from typing import Any, Optional
+from app.core.env_utils import parse_env_float
 from app import crud, tools, models
 from app.crud import crud_mongo
 from app.tools.distance import check_distance
@@ -55,12 +56,8 @@ except ModuleNotFoundError:  # pragma: no cover - fallback used only in tests
 
     handover_runtime = _FallbackRuntime()  # type: ignore[assignment]
 
-
 # Counter for timer related errors is stored in StateManager
-try:
-    HANDOVER_REEVALUATION_SECONDS = float(os.getenv("HANDOVER_REEVALUATION_SECONDS", "3.0"))
-except ValueError:
-    HANDOVER_REEVALUATION_SECONDS = 3.0
+HANDOVER_REEVALUATION_SECONDS = parse_env_float("HANDOVER_REEVALUATION_SECONDS", 3.0, min_value=0.1)
 
 from app.schemas import Msg
 from app.tools import monitoring_callbacks, timer
@@ -546,10 +543,7 @@ class _RealBackgroundTasks(threading.Thread):
             )
 
             self._wait_event.clear()
-            try:
-                interval = float(os.getenv("UE_MOVEMENT_INTERVAL_SECONDS", "1"))
-            except ValueError:
-                interval = 1.0
+            interval = parse_env_float("UE_MOVEMENT_INTERVAL_SECONDS", 1.0, min_value=0.1)
             self._wait_event.wait(interval)
 
             current_position_index = next_index

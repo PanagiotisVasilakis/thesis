@@ -8,7 +8,7 @@ from app.crud import crud_mongo, user, ue
 from app.api import deps
 from app import tools
 from app.db.session import client
-from app.api.api_v1.endpoints.utils import add_notifications, ccf_logs, log_to_capif
+from app.api.api_v1.endpoints.utils import add_notifications, ccf_logs, log_to_capif, get_valid_subscription
 from .ue_movement import retrieve_ue_state, retrieve_ue
 import logging
 
@@ -270,21 +270,9 @@ async def update_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-    
-    #Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_monitoring_event.json"
+    )
 
     sub_validate_time = tools.check_expiration_time(expire_time=retrieved_doc.get("monitorExpireTime"))
     
@@ -326,21 +314,9 @@ async def read_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-    
-    #Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_monitoring_event.json"
+    )
     
     sub_validate_time = tools.check_expiration_time(expire_time=retrieved_doc.get("monitorExpireTime"))
     
@@ -375,21 +351,9 @@ async def delete_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
     
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-    
-    #Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_monitoring_event.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_monitoring_event.json"
+    )
 
     crud_mongo.delete_by_uuid(db_mongo, db_collection, subscriptionId)
     retrieved_doc.pop("owner_id")

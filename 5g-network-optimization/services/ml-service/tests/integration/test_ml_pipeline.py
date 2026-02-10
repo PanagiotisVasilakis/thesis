@@ -31,7 +31,7 @@ class TestMLPipelineIntegration:
     @pytest.fixture
     def sample_training_data(self):
         """Generate sample training data for tests."""
-        return generate_synthetic_training_data(50)
+        return generate_synthetic_training_data(200)
     
     @pytest.fixture
     def sample_features(self):
@@ -46,6 +46,7 @@ class TestMLPipelineIntegration:
             "path_curvature": 0.05,
             "velocity": 2.5,
             "acceleration": 0.2,
+            "stability": 0.8,
             "cell_load": 0.3,
             "handover_count": 1,
             "time_since_handover": 5.0,
@@ -60,6 +61,31 @@ class TestMLPipelineIntegration:
             "best_sinr_diff": 3.0,
             "best_rsrq_diff": 2.0,
             "altitude": 100.0,
+            # Temporal derivative features
+            "rsrp_acceleration": 0.5,
+            "sinr_acceleration": 0.2,
+            "speed_jerk": 0.1,
+            "rsrp_ema_short": -84.0,
+            "rsrp_ema_long": -86.0,
+            "rsrp_trend_divergence": 2.0,
+            # Spatial features
+            "distance_to_target": 150.0,
+            "distance_to_current": 100.0,
+            "angle_to_target": 30.0,
+            "relative_distance_ratio": 1.5,
+            "moving_toward_target": 0.8,
+            # Signal ranking features
+            "top2_rsrp_gap": 5.0,
+            "top2_sinr_gap": 3.0,
+            "optimal_score_margin": 2.0,
+            "connected_signal_rank": 1.0,
+            "rf_load_std": 0.1,
+            # SLA pressure features
+            "latency_pressure_ratio": 0.1,
+            "throughput_headroom_ratio": 0.2,
+            "reliability_pressure_ratio": 0.05,
+            "sla_pressure": 0.1,
+            # Neighbor features
             "rsrp_a1": -90.0,
             "sinr_a1": 12.0,
             "rsrq_a1": -10.0,
@@ -207,11 +233,11 @@ class TestMLPipelineIntegration:
         
         # Train and save two different models
         model1 = LightGBMSelector(str(model_path1), neighbor_count=2, n_estimators=50)
-        model1.train(sample_training_data[:25])  # Train on first half
+        model1.train(sample_training_data[:100])  # Train on first half
         model1.save()
         
         model2 = LightGBMSelector(str(model_path2), neighbor_count=2, n_estimators=100)  
-        model2.train(sample_training_data[25:])  # Train on second half
+        model2.train(sample_training_data[100:])  # Train on second half
         model2.save()
         
         # Initialize hot-swap manager
@@ -308,7 +334,7 @@ class TestMLPipelineIntegration:
         
         # Test prediction with missing features
         model = LightGBMSelector(neighbor_count=2)
-        model.train(generate_synthetic_training_data(10))
+        model.train(generate_synthetic_training_data(200))
         
         # Test with BaseModelMixin's validate_features
         with pytest.raises(ValueError, match="Missing required features"):

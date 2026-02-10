@@ -31,6 +31,7 @@ def test_extract_features_defaults():
         "path_curvature": 0,
         "velocity": 0,
         "acceleration": 0,
+        "stability": 1.0,
         "cell_load": 0,
         "handover_count": 0,
         "time_since_handover": 0,
@@ -43,9 +44,33 @@ def test_extract_features_defaults():
         "rsrp_current": -120,
         "sinr_current": 0,
         "rsrq_current": -30,
+        # Temporal derivative features
+        "rsrp_acceleration": 0.0,
+        "sinr_acceleration": 0.0,
+        "speed_jerk": 0.0,
+        "rsrp_ema_short": -120.0,
+        "rsrp_ema_long": -120.0,
+        "rsrp_trend_divergence": 0.0,
+        # Spatial features
+        "distance_to_target": 0.0,
+        "distance_to_current": 0.0,
+        "angle_to_target": 0.0,
+        "relative_distance_ratio": 1.0,
+        "moving_toward_target": 0.0,
+        # Signal ranking features
         "best_rsrp_diff": 0,
         "best_sinr_diff": 0,
         "best_rsrq_diff": 0,
+        "top2_rsrp_gap": 0.0,
+        "top2_sinr_gap": 0.0,
+        "optimal_score_margin": 0.0,
+        "connected_signal_rank": 1.0,
+        "rf_load_std": 0.0,
+        # SLA pressure features
+        "latency_pressure_ratio": 0.0,
+        "throughput_headroom_ratio": 0.0,
+        "reliability_pressure_ratio": 0.0,
+        "sla_pressure": 0.0,
     }
 
 

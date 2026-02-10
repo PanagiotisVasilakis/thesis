@@ -21,6 +21,7 @@ class Path(Base):
 
     #Relationships
     owner = relationship("User", back_populates="Paths")
+    points = relationship("Points", back_populates="path", order_by="Points.id")
 
 
 class Points(Base):
@@ -30,3 +31,6 @@ class Points(Base):
 
     #Foreign Keys
     path_id = Column(Integer, ForeignKey("path.id"))
+    
+    #Relationships
+    path = relationship("Path", back_populates="points")

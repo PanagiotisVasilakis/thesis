@@ -17,7 +17,7 @@ def trained_selector(tmp_path):
     
     # Train with minimal synthetic data
     training_data = []
-    for i in range(50):
+    for i in range(100):
         training_data.append({
             "ue_id": f"train_{i}",
             "latitude": i * 10.0,

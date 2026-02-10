@@ -39,6 +39,21 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.refresh(db_obj)
         return db_obj
 
+    def create_with_owner(
+        self, db: Session, *, obj_in: CreateSchemaType, owner_id: int
+    ) -> ModelType:
+        """Create a new record with an owner_id.
+        
+        This is usable by models that have an owner_id foreign key.
+        Subclasses can override for custom logic.
+        """
+        obj_in_data = jsonable_encoder(obj_in)
+        db_obj = self.model(**obj_in_data, owner_id=owner_id)  # type: ignore
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
     def update(
         self,
         db: Session,
@@ -59,7 +74,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.refresh(db_obj)
         return db_obj
 
-    def remove(self, db: Session, *, id: int) -> ModelType:
+    def remove(self, db: Session, *, id: int) -> Optional[ModelType]:
         obj = db.get(self.model, id)
         if obj is None:
             return None

@@ -1,30 +1,18 @@
-import math
+"""Distance calculation utilities for cell coverage."""
+from app.core.geo_utils import haversine_distance
 
-# Earth's mean radius in meters (used in Haversine formula)
-EARTH_RADIUS_METERS = 6371e3
-
+# Deprecated: Use haversine_distance from geo_utils directly
+# This module is kept for backward compatibility
 
 def distance(lat1, lon1, lat2, lon2):
     """Calculate great-circle distance using Haversine formula.
     
-    Determines the distance between two points on Earth given their
-    longitudes and latitudes.
+    DEPRECATED: Use app.core.geo_utils.haversine_distance instead.
     
     Returns:
         Distance in meters.
     """
-    R = EARTH_RADIUS_METERS
-    φ1 = lat1 * math.pi / 180  # φ, λ in radians
-    φ2 = lat2 * math.pi / 180
-    Δλ = (lon2 - lon1) * math.pi / 180
-    Δφ = (lat2 - lat1) * math.pi / 180
-
-    a = math.sin(Δφ / 2) * math.sin(Δφ / 2) + math.cos(φ1) * math.cos(φ2) * math.sin(Δλ / 2) * math.sin(Δλ / 2)
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    d = R * c  # in metres
-
-    return d
+    return haversine_distance(lat1, lon1, lat2, lon2)
 
 def check_distance(UE_lat, UE_long, cells):
     """Find the closest cell that covers the UE's position.

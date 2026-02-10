@@ -292,6 +292,43 @@ def build_model_features(
         "rsrq_current": rsrq_curr,
     }
 
+    # -- Temporal derivative features --
+    rsrp_ema_short = data.get("rsrp_ema_short")
+    rsrp_ema_long = data.get("rsrp_ema_long")
+    if not isinstance(rsrp_ema_short, (int, float)):
+        rsrp_ema_short = rsrp_curr
+    if not isinstance(rsrp_ema_long, (int, float)):
+        rsrp_ema_long = rsrp_curr
+
+    rsrp_accel = data.get("rsrp_acceleration")
+    sinr_accel = data.get("sinr_acceleration")
+    speed_jerk_val = data.get("speed_jerk")
+    trend_div = data.get("rsrp_trend_divergence")
+
+    features.update({
+        "rsrp_acceleration": float(rsrp_accel) if isinstance(rsrp_accel, (int, float)) else 0.0,
+        "sinr_acceleration": float(sinr_accel) if isinstance(sinr_accel, (int, float)) else 0.0,
+        "speed_jerk": float(speed_jerk_val) if isinstance(speed_jerk_val, (int, float)) else 0.0,
+        "rsrp_ema_short": float(rsrp_ema_short),
+        "rsrp_ema_long": float(rsrp_ema_long),
+        "rsrp_trend_divergence": float(trend_div) if isinstance(trend_div, (int, float)) else float(rsrp_ema_short) - float(rsrp_ema_long),
+    })
+
+    # -- Spatial features --
+    dist_target = data.get("distance_to_target")
+    dist_current = data.get("distance_to_current")
+    angle_target = data.get("angle_to_target")
+    rel_dist = data.get("relative_distance_ratio")
+    moving_toward = data.get("moving_toward_target")
+
+    features.update({
+        "distance_to_target": float(dist_target) if isinstance(dist_target, (int, float)) else 0.0,
+        "distance_to_current": float(dist_current) if isinstance(dist_current, (int, float)) else 0.0,
+        "angle_to_target": float(angle_target) if isinstance(angle_target, (int, float)) else 0.0,
+        "relative_distance_ratio": float(rel_dist) if isinstance(rel_dist, (int, float)) else 1.0,
+        "moving_toward_target": float(moving_toward) if isinstance(moving_toward, (int, float)) else 0.0,
+    })
+
     neighbors = _neighbor_list(rf_metrics, current_antenna, include_neighbors)
     best_rsrp, best_sinr, best_rsrq = rsrp_curr, sinr_curr, rsrq_curr
     if neighbors:

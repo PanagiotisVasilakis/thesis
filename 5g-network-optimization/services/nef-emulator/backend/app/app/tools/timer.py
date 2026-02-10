@@ -74,8 +74,9 @@ class RepeatedTimer:
         try:
             self.function(*self.args, **self.kwargs)
         except Exception:
-            # Swallow exceptions to keep the timer loop alive
-            pass
+            # Log exception but keep timer alive for continued operation
+            import logging
+            logging.getLogger(__name__).exception("RepeatedTimer callback failed")
 
     def start(self):
         with self._lock:

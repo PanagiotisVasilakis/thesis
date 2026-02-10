@@ -114,9 +114,20 @@ class QoSSettings:
     def import_json(self):
         from pathlib import Path
         config_path = Path(__file__).parent / "config" / "qosCharacteristics.json"
-        with open(config_path) as json_file:
-            data = json.load(json_file)
-        self._qos_characteristics = data
+        try:
+            with open(config_path) as json_file:
+                data = json.load(json_file)
+            self._qos_characteristics = data
+        except FileNotFoundError:
+            logging.getLogger(__name__).warning(
+                "QoS characteristics file not found at %s; using empty defaults", config_path
+            )
+            self._qos_characteristics = {}
+        except json.JSONDecodeError as e:
+            logging.getLogger(__name__).error(
+                "Failed to parse QoS characteristics JSON at %s: %s", config_path, e
+            )
+            self._qos_characteristics = {}
 
     def retrieve_settings(self):
         return self._qos_characteristics

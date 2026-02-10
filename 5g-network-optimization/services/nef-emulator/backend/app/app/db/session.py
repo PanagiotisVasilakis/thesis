@@ -3,8 +3,18 @@ from sqlalchemy.orm import sessionmaker
 from pymongo import MongoClient
 import os
 from app.core.config import settings
+from app.core.env_utils import parse_env_int
 
-engine = create_engine(settings.SQLALCHEMY_DATABASE_URI, pool_pre_ping=True, pool_size=150, max_overflow=20)
+# SQLAlchemy connection pool configuration (via env vars for tuning)
+_pool_size = parse_env_int("SQLALCHEMY_POOL_SIZE", 150, min_value=1, max_value=500)
+_max_overflow = parse_env_int("SQLALCHEMY_MAX_OVERFLOW", 20, min_value=0, max_value=100)
+
+engine = create_engine(
+    settings.SQLALCHEMY_DATABASE_URI,
+    pool_pre_ping=True,
+    pool_size=_pool_size,
+    max_overflow=_max_overflow,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # MongoDB credentials from environment variables (required - no insecure defaults)

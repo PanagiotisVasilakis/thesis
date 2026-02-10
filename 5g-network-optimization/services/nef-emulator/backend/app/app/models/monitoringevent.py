@@ -1,10 +1,5 @@
-from typing import TYPE_CHECKING
 from sqlalchemy import Column, Integer, String, ForeignKey
 from app.db.base_class import Base
-
-if TYPE_CHECKING:
-    from .user import User  # noqa: F401
-    from .UE import UE
 
 
 class Monitoring(Base):

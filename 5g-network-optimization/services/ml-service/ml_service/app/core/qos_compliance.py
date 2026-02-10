@@ -4,16 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from .qos import _coerce_float
+from .qos import _coerce_float, confidence_threshold
 
 
 # Alias for backward compatibility (was _as_float)
 _as_float = _coerce_float
 
 
-def _confidence_threshold(priority: int) -> float:
-    priority = max(1, min(priority, 10))
-    return 0.5 + (priority - 1) * (0.45 / 9)
+# confidence_threshold imported from .qos
 
 
 def evaluate_qos_compliance(*,
@@ -27,7 +25,7 @@ def evaluate_qos_compliance(*,
 
     service_type = qos_context.get("service_type") or "default"
     priority = int(qos_context.get("service_priority", default_priority))
-    base_required_conf = _confidence_threshold(priority)
+    base_required_conf = confidence_threshold(priority)
     required_conf = adaptive_required_confidence if adaptive_required_confidence is not None else base_required_conf
 
     requirements = {

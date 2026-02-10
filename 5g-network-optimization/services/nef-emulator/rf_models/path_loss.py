@@ -3,6 +3,27 @@ import math
 import numpy as np
 from abc import ABC, abstractmethod
 
+
+def _validate_path_loss_inputs(distance: float, frequency: float) -> float:
+    """Validate and normalize path loss calculation inputs.
+    
+    Args:
+        distance: Distance in meters.
+        frequency: Frequency in GHz.
+    
+    Returns:
+        Normalized distance (at least 1.0 meter).
+    
+    Raises:
+        ValueError: If distance or frequency is non-positive.
+    """
+    if distance <= 0:
+        raise ValueError("distance must be greater than 0")
+    if frequency <= 0:
+        raise ValueError("frequency must be greater than 0")
+    return max(1.0, distance)
+
+
 class PathLossModel(ABC):
     """Base class for path loss models."""
 

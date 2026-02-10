@@ -24,26 +24,10 @@ import logging
 import math
 from typing import Optional, Tuple
 
+from app.core.geo_utils import euclidean_distance_3d as euclidean_distance
+from app.core.geo_utils import latlon_to_local_meters
+
 logger = logging.getLogger(__name__)
-
-
-def euclidean_distance(
-    pos1: Tuple[float, float, float],
-    pos2: Tuple[float, float, float],
-) -> float:
-    """Calculate Euclidean distance between two 3D positions.
-    
-    Args:
-        pos1: First position (x, y, z)
-        pos2: Second position (x, y, z)
-        
-    Returns:
-        Distance (units depend on input coordinate system)
-    """
-    dx = pos2[0] - pos1[0]
-    dy = pos2[1] - pos1[1]
-    dz = pos2[2] - pos1[2]
-    return math.sqrt(dx*dx + dy*dy + dz*dz)
 
 
 def verify_coordinate_units(
@@ -209,7 +193,7 @@ def convert_latlon_to_local(
 ) -> Tuple[float, float]:
     """Convert lat/lon to local Cartesian coordinates in meters.
     
-    Uses equirectangular approximation (valid for small areas).
+    DEPRECATED: Use latlon_to_local_meters from app.core.geo_utils instead.
     
     Args:
         lat: Latitude in degrees
@@ -220,19 +204,7 @@ def convert_latlon_to_local(
     Returns:
         Tuple of (x_meters, y_meters) relative to reference
     """
-    EARTH_RADIUS_M = 6_371_000.0
-    
-    # Convert degrees to radians
-    lat_rad = math.radians(lat)
-    lon_rad = math.radians(lon)
-    ref_lat_rad = math.radians(ref_lat)
-    ref_lon_rad = math.radians(ref_lon)
-    
-    # Equirectangular projection
-    x = EARTH_RADIUS_M * (lon_rad - ref_lon_rad) * math.cos(ref_lat_rad)
-    y = EARTH_RADIUS_M * (lat_rad - ref_lat_rad)
-    
-    return x, y
+    return latlon_to_local_meters(lat, lon, ref_lat, ref_lon)
 
 
 def run_unit_verification_test() -> bool:

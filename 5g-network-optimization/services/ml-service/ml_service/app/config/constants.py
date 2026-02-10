@@ -206,6 +206,7 @@ DEFAULT_TEST_FEATURES = {
 
 DEFAULT_SYNTHETIC_DATA_GRID_SIZE = 1000
 DEFAULT_SYNTHETIC_DATA_BATCH_SIZE = 100
+DEFAULT_SYNTHETIC_TRAINING_SAMPLES = 500  # Default samples for model training via visualization endpoints
 
 # Prometheus Metrics Configuration
 PREDICTION_LATENCY_BUCKETS = [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]

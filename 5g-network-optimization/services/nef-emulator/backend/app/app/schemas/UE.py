@@ -43,7 +43,8 @@ class UECreate(UEBase):
 class UEUpdate(UEBase):
     pass
 
-class ue_path(BaseModel):
+class UEPath(BaseModel):
+    """Schema for associating a UE with a path."""
     supi: str = Field(
         default="202010000000000",
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.

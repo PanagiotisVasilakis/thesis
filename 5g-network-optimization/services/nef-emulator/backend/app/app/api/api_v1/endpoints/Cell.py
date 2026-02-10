@@ -152,7 +152,7 @@ def delete_Cell(
     if not Cell:
         raise HTTPException(status_code=404, detail="Cell not found")
     if not crud.user.is_superuser(current_user) and (Cell.owner_id != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+        raise HTTPException(status_code=403, detail="Not enough permissions")
     
     try:
         Cell = crud.cell.remove_by_cell_id(db=db, cell_id=cell_id)

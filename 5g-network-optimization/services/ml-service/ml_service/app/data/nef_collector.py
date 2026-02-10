@@ -42,6 +42,7 @@ from .feature_extractor import (
 from .persistence import TrainingDataPersistence
 from ..utils.antenna_selection import select_optimal_antenna, get_training_sample_type
 from ..utils.ue_classification import get_ue_category
+from ..utils.type_helpers import safe_float_or_none
 
 SIGNAL_WINDOW_SIZE = env_constants.SIGNAL_WINDOW_SIZE
 POSITION_WINDOW_SIZE = env_constants.POSITION_WINDOW_SIZE
@@ -235,14 +236,7 @@ class _CollectorComponents:
         )
         self.persistence = TrainingDataPersistence(data_dir=data_dir)
 
-    @staticmethod
-    def _to_float(value: Any) -> Optional[float]:
-        try:
-            if value is None:
-                return None
-            return float(value)
-        except (TypeError, ValueError):
-            return None
+    # Use safe_float_or_none from type_helpers instead of custom _to_float
 
     def build_sample(
         self,
@@ -259,14 +253,14 @@ class _CollectorComponents:
         rf_metrics = self.feature_extractor.extract_rf_features(feature_vector or {})
 
         env_features = self.feature_extractor.extract_environment_features(feature_vector or {})
-        cell_load = self._to_float(env_features.get("cell_load"))
-        environment = self._to_float(env_features.get("environment"))
-        signal_trend_override = self._to_float(env_features.get("signal_trend"))
+        cell_load = safe_float_or_none(env_features.get("cell_load"))
+        environment = safe_float_or_none(env_features.get("environment"))
+        signal_trend_override = safe_float_or_none(env_features.get("signal_trend"))
 
         serving_metrics = rf_metrics.get(connected_cell_id, {}) if connected_cell_id else {}
-        rsrp_current = self._to_float(serving_metrics.get("rsrp"))
-        sinr_current = self._to_float(serving_metrics.get("sinr"))
-        rsrq_current = self._to_float(serving_metrics.get("rsrq"))
+        rsrp_current = safe_float_or_none(serving_metrics.get("rsrp"))
+        sinr_current = safe_float_or_none(serving_metrics.get("sinr"))
+        rsrq_current = safe_float_or_none(serving_metrics.get("rsrq"))
 
         rsrp_stddev, sinr_stddev = self.signal_processor.update_signal_metrics(
             ue_id,
@@ -285,7 +279,7 @@ class _CollectorComponents:
 
         latitude = ue_data.get("latitude")
         longitude = ue_data.get("longitude")
-        speed = self._to_float(ue_data.get("speed"))
+        speed = safe_float_or_none(ue_data.get("speed"))
 
         heading_change_rate, path_curvature, derived_accel = self.mobility_processor.update_mobility_metrics(
             ue_id,
@@ -333,11 +327,11 @@ class _CollectorComponents:
             stability=stability,
         )
 
-        velocity_val = self._to_float(feature_vector.get("velocity"))
+        velocity_val = safe_float_or_none(feature_vector.get("velocity"))
         velocity = velocity_val if velocity_val is not None else speed
 
-        accel_feature = self._to_float(feature_vector.get("acceleration"))
-        accel_data = self._to_float(ue_data.get("acceleration"))
+        accel_feature = safe_float_or_none(feature_vector.get("acceleration"))
+        accel_data = safe_float_or_none(ue_data.get("acceleration"))
         acceleration = (
             accel_feature
             if accel_feature is not None
@@ -349,7 +343,7 @@ class _CollectorComponents:
             altitude = feature_vector.get("altitude")
 
         if cell_load is None:
-            fallback_cell_load = self._to_float(feature_vector.get("cell_load"))
+            fallback_cell_load = safe_float_or_none(feature_vector.get("cell_load"))
             if fallback_cell_load is not None:
                 cell_load = fallback_cell_load
             else:

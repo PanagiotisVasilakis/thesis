@@ -6,6 +6,7 @@ import requests
 from ..errors import RequestValidationError, NEFConnectionError, ResourceNotFoundError
 from .decorators import require_auth
 from ..models.antenna_selector import DEFAULT_TEST_FEATURES
+from ..config.constants import DEFAULT_SYNTHETIC_TRAINING_SAMPLES
 from ..initialization.model_init import ModelManager
 from ..visualization.plotter import (
     plot_antenna_coverage,
@@ -34,7 +35,7 @@ def coverage_map():
             logger.warning(
                 f"Model not trained: {str(e)}. Training with synthetic data..."
             )
-            training_data = generate_synthetic_training_data(500)
+            training_data = generate_synthetic_training_data(DEFAULT_SYNTHETIC_TRAINING_SAMPLES)
             model.train(training_data)
             logger.info("Model trained successfully with synthetic data")
 

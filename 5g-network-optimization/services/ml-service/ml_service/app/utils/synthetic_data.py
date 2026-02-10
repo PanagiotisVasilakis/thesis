@@ -308,6 +308,24 @@ def generate_synthetic_training_data(
         qos_features = _generate_qos_features(rng)
         sample.update(qos_features)
 
+        # -- Temporal derivative features --
+        rsrp_current = rf_metrics[connected_antenna]["rsrp"]
+        sinr_current = rf_metrics[connected_antenna]["sinr"]
+        rsrp_accel = float(np.clip(rng.normal(0, 2), -10, 10))
+        sinr_accel = float(np.clip(rng.normal(0, 1), -5, 5))
+        speed_jerk_val = float(np.clip(rng.normal(0, 1), -5, 5))
+        # Short-term EMA tracks current value closely; long-term lags behind
+        rsrp_ema_short = float(np.clip(rsrp_current + rng.normal(0, 1), -140, -40))
+        rsrp_ema_long = float(np.clip(rsrp_current + rng.normal(0, 3), -140, -40))
+        sample.update({
+            "rsrp_acceleration": rsrp_accel,
+            "sinr_acceleration": sinr_accel,
+            "speed_jerk": speed_jerk_val,
+            "rsrp_ema_short": rsrp_ema_short,
+            "rsrp_ema_long": rsrp_ema_long,
+            "rsrp_trend_divergence": float(np.clip(rsrp_ema_short - rsrp_ema_long, -30, 30)),
+        })
+
         optimal_antenna, antenna_scores = select_optimal_antenna(
             rf_metrics,
             qos_requirements=qos_features,
@@ -318,6 +336,41 @@ def generate_synthetic_training_data(
             antenna_bias=antenna_bias,
             rng=rng,
         )
+
+        # -- Spatial features (require target antenna to be known) --
+        target_antenna = optimal_antenna
+        target_pos = antennas[target_antenna]
+        current_pos = antennas[connected_antenna]
+
+        dist_to_target = float(np.sqrt((x - target_pos[0]) ** 2 + (y - target_pos[1]) ** 2))
+        dist_to_current = float(np.sqrt((x - current_pos[0]) ** 2 + (y - current_pos[1]) ** 2))
+
+        # Angle from UE heading to target antenna
+        dx_to_target = target_pos[0] - x
+        dy_to_target = target_pos[1] - y
+        angle_to_target_rad = math.atan2(dy_to_target, dx_to_target) - angle
+        # Normalise to [-pi, pi] then convert to degrees
+        angle_to_target_deg = float(np.clip(
+            math.degrees((angle_to_target_rad + math.pi) % (2 * math.pi) - math.pi),
+            -180, 180,
+        ))
+
+        rel_distance = dist_to_target / max(dist_to_current, 1.0)
+        # Cosine of angle between velocity vector and target direction
+        target_dist_safe = max(dist_to_target, 1e-6)
+        moving_toward = float(np.clip(
+            (direction[0] * dx_to_target + direction[1] * dy_to_target) / (speed * target_dist_safe) if speed > 0.01 else 0.0,
+            -1, 1,
+        ))
+
+        sample.update({
+            "distance_to_target": float(np.clip(dist_to_target, 0, 2000)),
+            "distance_to_current": float(np.clip(dist_to_current, 0, 2000)),
+            "angle_to_target": angle_to_target_deg,
+            "relative_distance_ratio": float(np.clip(rel_distance, 0, 10)),
+            "moving_toward_target": moving_toward,
+        })
+
         if balance_classes and anchor_antenna:
             sample["original_optimal_antenna"] = optimal_antenna
             sample["optimal_antenna"] = anchor_antenna

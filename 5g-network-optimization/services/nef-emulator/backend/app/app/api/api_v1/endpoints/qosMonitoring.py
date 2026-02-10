@@ -9,7 +9,7 @@ from app import models, schemas
 from app.api import deps
 from app.crud import crud_mongo, user, ue
 from app.db.session import client
-from .utils import add_notifications, ccf_logs, log_to_capif, log_error_to_capif
+from .utils import add_notifications, ccf_logs, log_to_capif, log_error_to_capif, get_valid_subscription
 from .qosInformation import qos_reference_match
 
 router = APIRouter()
@@ -186,21 +186,9 @@ async def read_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception:  # noqa: BLE001 - catch invalid UUID format
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-    
-    # Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_as_session_with_qos.json"
+    )
 
     retrieved_doc.pop("owner_id")
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
@@ -230,21 +218,9 @@ async def update_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-    
-    #Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_as_session_with_qos.json"
+    )
 
     #Update the document
     json_data = jsonable_encoder(item_in)
@@ -279,22 +255,9 @@ async def delete_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    try:
-        retrieved_doc = crud_mongo.read_uuid(db_mongo, db_collection, subscriptionId)
-    except Exception as ex:
-        error_response = JSONResponse(content={"detail": "Please enter a valid uuid (24-character hex string)"}, status_code=400)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=400, detail='Please enter a valid uuid (24-character hex string)')
-
-
-    #Check if the document exists
-    if not retrieved_doc:
-        error_response = JSONResponse(content={"detail": "Subscription not found"}, status_code=404)
-        await log_to_capif(http_request, error_response, "service_as_session_with_qos.json", token_payload)
-        raise HTTPException(status_code=404, detail="Subscription not found")
-    #If the document exists then validate the owner
-    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
-        raise HTTPException(status_code=400, detail="Not enough permissions")
+    retrieved_doc = await get_valid_subscription(
+        db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_as_session_with_qos.json"
+    )
 
     crud_mongo.delete_by_uuid(db_mongo, db_collection, subscriptionId)
     http_response = JSONResponse(content=retrieved_doc, status_code=200)
@@ -327,14 +290,13 @@ def send_qos_gnb(qos_reference, db, ue):
     return 
         
 
-def validate_ids(item_request: dict):
+def validate_ids(item_request: dict) -> None:
+    """Ensure that exactly one of ipv4Addr, ipv6Addr, or macAddr is provided."""
+    id_fields = {'ipv4Addr', 'ipv6Addr', 'macAddr'}
+    provided = [f for f in id_fields if f in item_request]
     
-    if 'ipv4Addr' in item_request and ('ipv6Addr' in item_request or 'macAddr' in item_request):
-        raise HTTPException(status_code=400, detail='Please enter only one of the ipv4Addr, ipv6Addr, macAddr fields in the request')
-    elif 'ipv6Addr' in item_request and ('ipv4Addr' in item_request or 'macAddr' in item_request):
-        raise HTTPException(status_code=400, detail='Please enter only one of the ipv4Addr, ipv6Addr, macAddr fields in the request')
-    elif 'macAddr' in item_request and ('ipv4Addr' in item_request or 'ipv6Addr' in item_request):
-        raise HTTPException(status_code=400, detail='Please enter only one of the ipv4Addr, ipv6Addr, macAddr fields in the request')
-    else:
-        return
-        
+    if len(provided) != 1:
+        raise HTTPException(
+            status_code=400,
+            detail='Please enter exactly one of the ipv4Addr, ipv6Addr, macAddr fields in the request'
+        )

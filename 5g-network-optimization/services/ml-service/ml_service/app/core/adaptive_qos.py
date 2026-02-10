@@ -9,10 +9,10 @@ from typing import Dict
 import os
 import time
 
+from .qos import confidence_threshold
 
-def _confidence_threshold(priority: int) -> float:
-    priority = max(1, min(priority, 10))
-    return 0.5 + (priority - 1) * (0.45 / 9)
+
+# confidence_threshold imported from .qos
 
 
 @dataclass
@@ -56,7 +56,7 @@ class AdaptiveQoSThresholds:
             stats.last_update = now
 
     def get_required_confidence(self, service_type: str, priority: int) -> float:
-        base = _confidence_threshold(priority)
+        base = confidence_threshold(priority)
         service = (service_type or "default").lower()
 
         with self._lock:

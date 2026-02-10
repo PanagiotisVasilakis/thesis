@@ -1,6 +1,5 @@
 import math
 import numpy as np
-from datetime import datetime
 from abc import ABC, abstractmethod
 from .patterns import AntennaPattern
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel

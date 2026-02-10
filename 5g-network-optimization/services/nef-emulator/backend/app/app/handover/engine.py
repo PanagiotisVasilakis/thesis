@@ -12,6 +12,7 @@ import requests
 from jose import jwt
 from requests import RequestException
 
+from ..core.env_utils import parse_env_float, parse_env_int, parse_env_bool
 from ..monitoring import metrics
 
 from ..network.state_manager import NetworkStateManager
@@ -50,57 +51,24 @@ class HandoverEngine:
         self.ml_service_url = ml_service_url or os.getenv(
             "ML_SERVICE_URL", "http://ml-service:5050"
         )
-        env_min_antennas = os.getenv("MIN_ANTENNAS_ML")
-        if env_min_antennas is not None:
-            try:
-                min_antennas_ml = int(env_min_antennas)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for MIN_ANTENNAS_ML: '%s'. Using default.",
-                    env_min_antennas,
-                )
-        self.min_antennas_ml = min_antennas_ml
-        env_thresh = os.getenv("ML_CONFIDENCE_THRESHOLD")
-        if env_thresh is not None:
-            try:
-                confidence_threshold = float(env_thresh)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for ML_CONFIDENCE_THRESHOLD: '%s'. Using default.",
-                    env_thresh,
-                )
-        self.confidence_threshold = confidence_threshold
-        env_local = os.getenv("ML_LOCAL")
-        if env_local is not None:
-            self.use_local_ml = env_local.lower() in {"1", "true", "yes"}
-        else:
-            self.use_local_ml = bool(use_local_ml)
+        
+        # Parse env vars using helpers for consistent error handling
+        self.min_antennas_ml = parse_env_int("MIN_ANTENNAS_ML", min_antennas_ml, min_value=1)
+        self.confidence_threshold = parse_env_float(
+            "ML_CONFIDENCE_THRESHOLD", confidence_threshold, min_value=0.0, max_value=1.0
+        )
+        self.use_local_ml = parse_env_bool("ML_LOCAL", use_local_ml)
+        
         self.model = None
         if self.use_local_ml:
             try:
                 from ml_service.app.api_lib import load_model
-
                 self.model = load_model(self.ml_model_path)
             except Exception:
                 self.model = None
-        env_hyst = os.getenv("A3_HYSTERESIS_DB")
-        if env_hyst is not None:
-            try:
-                a3_hysteresis_db = float(env_hyst)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for A3_HYSTERESIS_DB: '%s'. Using default.",
-                    env_hyst,
-                )
-        env_ttt = os.getenv("A3_TTT_S")
-        if env_ttt is not None:
-            try:
-                a3_ttt_s = float(env_ttt)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for A3_TTT_S: '%s'. Using default.",
-                    env_ttt,
-                )
+        
+        a3_hysteresis_db = parse_env_float("A3_HYSTERESIS_DB", a3_hysteresis_db)
+        a3_ttt_s = parse_env_float("A3_TTT_S", a3_ttt_s, min_value=0.0)
 
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
         # Per-UE, per-target TTT timers: {ue_id: {target_antenna_id: event_start_time}}
@@ -146,28 +114,15 @@ class HandoverEngine:
         self._ml_token_expiry: float = 0.0
         self._ml_auth_lock = threading.Lock()
         self._ml_credentials_warned = False
-        try:
-            self._token_refresh_skew = float(os.getenv("ML_TOKEN_REFRESH_SKEW", "15"))
-        except ValueError:
-            self._token_refresh_skew = 15.0
+        
+        # Timeouts and configuration - using env_utils for clean parsing
+        self._token_refresh_skew = parse_env_float("ML_TOKEN_REFRESH_SKEW", 15.0)
+        self.http_timeout = parse_env_float("ML_HTTP_TIMEOUT", float(self.HTTP_TIMEOUT_SECONDS))
+        self.feedback_timeout = parse_env_float("ML_FEEDBACK_TIMEOUT", float(self.HTTP_FEEDBACK_TIMEOUT_SECONDS))
+        self.token_expiry_fallback = parse_env_float("ML_TOKEN_EXPIRY_SECONDS", float(self.DEFAULT_TOKEN_EXPIRY_SECONDS))
+        self.coverage_margin_factor = parse_env_float("COVERAGE_MARGIN_FACTOR", float(self.COVERAGE_MARGIN_FACTOR))
         self._last_ml_error_reason: Optional[str] = None
         self._last_ml_http_status: Optional[int] = None
-        try:
-            self.http_timeout = float(os.getenv("ML_HTTP_TIMEOUT", str(self.HTTP_TIMEOUT_SECONDS)))
-        except ValueError:
-            self.http_timeout = float(self.HTTP_TIMEOUT_SECONDS)
-        try:
-            self.feedback_timeout = float(os.getenv("ML_FEEDBACK_TIMEOUT", str(self.HTTP_FEEDBACK_TIMEOUT_SECONDS)))
-        except ValueError:
-            self.feedback_timeout = float(self.HTTP_FEEDBACK_TIMEOUT_SECONDS)
-        try:
-            self.token_expiry_fallback = float(os.getenv("ML_TOKEN_EXPIRY_SECONDS", str(self.DEFAULT_TOKEN_EXPIRY_SECONDS)))
-        except ValueError:
-            self.token_expiry_fallback = float(self.DEFAULT_TOKEN_EXPIRY_SECONDS)
-        try:
-            self.coverage_margin_factor = float(os.getenv("COVERAGE_MARGIN_FACTOR", str(self.COVERAGE_MARGIN_FACTOR)))
-        except ValueError:
-            self.coverage_margin_factor = float(self.COVERAGE_MARGIN_FACTOR)
 
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""

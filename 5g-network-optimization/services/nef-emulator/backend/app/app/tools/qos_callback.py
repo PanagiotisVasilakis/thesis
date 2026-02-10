@@ -6,49 +6,32 @@ from app.api.api_v1.endpoints.qosInformation import qos_reference_match
 from app.db.session import SessionLocal
 from fastapi.encoders import jsonable_encoder
 from app.core.constants import DEFAULT_TIMEOUT
+from app.tools.monitoring_callbacks import JSON_HEADERS
 
 
 def qos_callback(callbackurl, resource, qos_status, ipv4):
-    url = callbackurl
-
+    """Send QoS status callback notification."""
     payload = json.dumps({
-    "transaction" : resource,
-    "ipv4Addr" : ipv4,
-    "eventReports": [
-    {
-      "event": qos_status,
-      "accumulatedUsage": {
-        "duration": None,
-        "totalVolume": None,
-        "downlinkVolume": None,
-        "uplinkVolume": None
-      },
-      "appliedQosRef": None,
-      "qosMonReports": [
-        {
-          "ulDelays": [
-            0
-          ],
-          "dlDelays": [
-            0
-          ],
-          "rtDelays": [
-            0
-          ]
-        }
-      ]
-    }]
-    })    
-    
-    
-    headers = {
-    'accept': 'application/json',
-    'Content-Type': 'application/json'
-    }
+        "transaction": resource,
+        "ipv4Addr": ipv4,
+        "eventReports": [{
+            "event": qos_status,
+            "accumulatedUsage": {
+                "duration": None,
+                "totalVolume": None,
+                "downlinkVolume": None,
+                "uplinkVolume": None
+            },
+            "appliedQosRef": None,
+            "qosMonReports": [{
+                "ulDelays": [0],
+                "dlDelays": [0],
+                "rtDelays": [0]
+            }]
+        }]
+    })
 
-    response = requests.request("POST", url, headers=headers, data=payload, timeout=DEFAULT_TIMEOUT)
-    
-    return response
+    return requests.post(callbackurl, headers=JSON_HEADERS, data=payload, timeout=DEFAULT_TIMEOUT)
 
 def qos_notification_control(doc, ipv4, ues: dict, current_ue: dict):
 

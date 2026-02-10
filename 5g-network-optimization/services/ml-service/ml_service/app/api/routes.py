@@ -708,7 +708,8 @@ def latency_stats():
                     "count": count,
                     "mean_ms": (total / count * 1000) if count > 0 else 0,
                 }
-            except Exception:
+            except (KeyError, TypeError, ZeroDivisionError):
+                # Metric may not be initialized yet or have no samples
                 pass
         
         latency_data["stages"] = stage_latencies

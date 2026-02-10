@@ -4,7 +4,7 @@ from .token import Token, TokenPayload
 from .user import User, UserCreate, UserInDB, UserUpdate
 from .gNB import gNB, gNBCreate, gNBInDB, gNBUpdate
 from .Cell import Cell, CellCreate, CellInDB, CellUpdate
-from .UE import UE, UECreate, UEUpdate, Speed, ue_path, UEhex
+from .UE import UE, UECreate, UEUpdate, Speed, UEPath, UEPath as ue_path, UEhex  # ue_path alias for backward compat
 from .monitoringevent import MonitoringEventSubscriptionCreate, MonitoringEventSubscription, MonitoringEventReport, MonitoringEventReportReceived, MonitoringNotification
 from .qosMonitoring import AsSessionWithQoSSubscriptionCreate, AsSessionWithQoSSubscription, UserPlaneNotificationData
 from .utils import Scenario

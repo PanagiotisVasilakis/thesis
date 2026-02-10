@@ -10,6 +10,16 @@ from typing import Dict, Any
 _SERVICE_PRIORITY_MIN = 1
 _SERVICE_PRIORITY_MAX = 10
 
+
+def confidence_threshold(priority: int) -> float:
+    """Calculate required confidence based on service priority (1-10).
+    
+    Higher priority services require higher confidence scores.
+    Priority 1 -> 0.5 confidence, Priority 10 -> 0.95 confidence.
+    """
+    priority = max(1, min(priority, 10))
+    return 0.5 + (priority - 1) * (0.45 / 9)
+
 _REQUIREMENT_LIMITS = {
     "latency_requirement_ms": (0.0, 10000.0),
     "throughput_requirement_mbps": (0.0, 100000.0),

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm.session import Session
 
 from app import crud, models, schemas
+from app.crud import crud_mongo, user
 from app.api import deps
 from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
@@ -176,6 +177,44 @@ async def log_error_to_capif(
         await ccf_logs(http_request, json_response, service_file, invoker_id)
     except (TypeError, AttributeError) as error:
         logging.warning("CAPIF error logging failed: %s", error)
+
+
+async def get_valid_subscription(
+    db_mongo: Any,
+    collection: str,
+    subscription_id: str,
+    current_user: models.User,
+    http_request: Request,
+    token_payload: dict,
+    capif_service_file: str
+) -> dict:
+    """
+    Retrieve and validate a subscription by UUID.
+    
+    Handles:
+    - Invalid UUID exception -> 400
+    - Document not found -> 404
+    - Permission check (owner vs superuser) -> 400
+    - CAPIF error logging for above cases
+    """
+    try:
+        retrieved_doc = crud_mongo.read_uuid(db_mongo, collection, subscription_id)
+    except Exception:  # noqa: BLE001
+        error_msg = "Please enter a valid uuid (24-character hex string)"
+        error_response = JSONResponse(content={"detail": error_msg}, status_code=400)
+        await log_to_capif(http_request, error_response, capif_service_file, token_payload)
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    if not retrieved_doc:
+        error_msg = "Subscription not found"
+        error_response = JSONResponse(content={"detail": error_msg}, status_code=404)
+        await log_to_capif(http_request, error_response, capif_service_file, token_payload)
+        raise HTTPException(status_code=404, detail=error_msg)
+
+    if not user.is_superuser(current_user) and (retrieved_doc['owner_id'] != current_user.id):
+        raise HTTPException(status_code=400, detail="Not enough permissions")
+        
+    return retrieved_doc
 
 
 # Runtime state is stored in the shared StateManager instance

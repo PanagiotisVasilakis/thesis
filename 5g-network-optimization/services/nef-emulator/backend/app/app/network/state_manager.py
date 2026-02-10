@@ -1,11 +1,11 @@
 # services/nef-emulator/network/state_manager.py
 
 import logging
-import os
-from datetime import datetime, timezone
 import math
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
+from ..core.env_utils import parse_env_float, parse_env_int
 from ..monitoring import QoSMonitor
 from ..simulation.qos_simulator import QoSSimulator
 
@@ -26,24 +26,11 @@ class NetworkStateManager:
         A3_TTT_S - time-to-trigger in seconds for the A3 event
         RESOURCE_BLOCKS - number of resource blocks for RSRQ calculation
         """
-        # Read overrides from environment variables
+        # Read overrides from environment variables using env_utils
+        a3_hysteresis_db = parse_env_float("A3_HYSTERESIS_DB", a3_hysteresis_db)
+        a3_ttt_s = parse_env_float("A3_TTT_S", a3_ttt_s, min_value=0.0)
+        resource_blocks = parse_env_int("RESOURCE_BLOCKS", resource_blocks, min_value=1)
 
-        env_hyst = os.getenv("A3_HYSTERESIS_DB")
-        if env_hyst is not None:
-            try:
-                a3_hysteresis_db = float(env_hyst)
-            except ValueError:
-                logging.warning(
-                    "Invalid value for A3_HYSTERESIS_DB: "
-                    f"'{env_hyst}'. Using default value."
-                )
-
-        env_ttt = os.getenv("A3_TTT_S")
-        if env_ttt is not None:
-            try:
-                a3_ttt_s = float(env_ttt)
-            except ValueError:
-                pass
         self.ue_states = {}  # supi -> {'position': (x, y, z), 'speed': v,
         # 'connected_to': ant_id, 'trajectory': [...]}
         self.antenna_list = {}  # ant_id -> AntennaModel instance
@@ -52,29 +39,12 @@ class NetworkStateManager:
         self.logger = logging.getLogger("NetworkStateManager")
         self.logger.setLevel(logging.INFO)
         self.logger.propagate = True
+        
         # Default noise floor in dBm (tunable)
-        self.noise_floor_dbm = -100.0
-        env_noise = os.getenv("NOISE_FLOOR_DBM")
-        if env_noise is not None:
-            try:
-                self.noise_floor_dbm = float(env_noise)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for NOISE_FLOOR_DBM: "
-                    f"'{env_noise}'. Using default."
-                )
-        env_rbs = os.getenv("RESOURCE_BLOCKS")
-        if env_rbs is not None:
-            try:
-                resource_blocks = int(env_rbs)
-            except ValueError:
-                self.logger.warning(
-                    "Invalid value for RESOURCE_BLOCKS: '%s'. Using default.",
-                    env_rbs,
-                )
+        self.noise_floor_dbm = parse_env_float("NOISE_FLOOR_DBM", -100.0)
 
         self._a3_params = (a3_hysteresis_db, a3_ttt_s)
-        self.resource_blocks = max(int(resource_blocks), 1)
+        self.resource_blocks = resource_blocks
 
         # QoS monitoring (Phase 1.1 / 1.2): track observed latency/jitter/throughput/loss
         self.qos_monitor = QoSMonitor()
