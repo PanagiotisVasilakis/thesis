@@ -8,7 +8,7 @@ from .interfaces import *
 from ..models.antenna_selector import AntennaSelector
 from ..clients.nef_client import NEFClient
 from ..clients.async_nef_client import AsyncNEFClient
-from ..data.nef_collector import NEFDataCollector, AsyncNEFDataCollector
+from ..data.nef_collector import NEFDataCollector
 from ..utils.optimized_memory_dict import MemoryOptimizedLRU, create_memory_efficient_cache
 from ..utils.exception_handler import ExceptionHandler
 from ..utils.resource_manager import global_resource_manager

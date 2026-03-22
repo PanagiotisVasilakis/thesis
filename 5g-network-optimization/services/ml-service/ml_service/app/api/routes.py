@@ -37,7 +37,6 @@ from ..validation import (
     RefreshTokenRequest,
     CollectDataRequest,
     model_version_validator,
-    bounded_int,
 )
 from ..rate_limiter import limiter, limit_for
 

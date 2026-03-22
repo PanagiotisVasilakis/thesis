@@ -17,7 +17,6 @@ from ..utils.resource_manager import (
     global_resource_manager, 
     ResourceType, 
     ResourceState,
-    async_managed_resource
 )
 
 

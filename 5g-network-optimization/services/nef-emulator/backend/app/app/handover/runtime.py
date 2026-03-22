@@ -30,7 +30,7 @@ except ImportError:  # pragma: no cover - fallback when antenna_models is unavai
             self.frequency_hz = frequency_hz
             self.tx_power_dbm = tx_power_dbm
 
-        def rsrp_dbm(self, ue_position, include_shadowing: bool = False):
+        def rsrp_dbm(self, ue_position, _include_shadowing: bool = False):
             dx = self.position[0] - ue_position[0]
             dy = self.position[1] - ue_position[1]
             dz = self.position[2] - ue_position[2]

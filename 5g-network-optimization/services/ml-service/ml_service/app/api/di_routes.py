@@ -7,7 +7,7 @@ from functools import wraps
 import asyncio
 from pydantic import ValidationError
 
-from ..core.dependency_injection import inject, ServiceLocator, get_container
+from ..core.dependency_injection import inject, get_container
 from ..core.interfaces import (
     ModelInterface,
     NEFClientInterface,

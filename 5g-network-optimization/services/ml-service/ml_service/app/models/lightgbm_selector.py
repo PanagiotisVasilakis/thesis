@@ -8,7 +8,7 @@ import lightgbm as lgb
 import numpy as np
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix, classification_report
-from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.utils.class_weight import compute_class_weight
 
 from .antenna_selector import AntennaSelector

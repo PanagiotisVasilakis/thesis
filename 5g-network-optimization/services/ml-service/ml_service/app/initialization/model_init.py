@@ -11,7 +11,6 @@ from .thread_monitor import (
     get_thread_monitor, 
     safe_thread_execution, 
     ThreadFailureLevel,
-    monitor_thread_execution
 )
 from .model_version import MODEL_VERSION
 from ..errors import ModelError
