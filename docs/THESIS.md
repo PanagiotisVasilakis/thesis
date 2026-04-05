@@ -1,24 +1,24 @@
-# Thesis: Machine Learning for Intelligent Handover Decisions in 5G Networks
+# Διπλωματική: Μηχανική Μάθηση για Ευφυείς Αποφάσεις Handover σε Δίκτυα 5G
 
-**Technical Architecture, Experimental Validation & Reproducibility**
+**Τεχνική Αρχιτεκτονική, Πειραματική Επικύρωση & Αναπαραγωγιμότητα**
 
-## 📚 Table of Contents
-1. [System Architecture](#system-architecture)
-2. [Core Algorithms](#core-algorithms)
-3. [QoS & MLOps Architecture](#qos--mlops-architecture)
-4. [Experimental Methodology](#experimental-methodology)
-5. [Validation Results](#validation-results)
-6. [Thesis Claims Verification](#thesis-claims-verification)
-7. [Reproducibility Guide](#reproducibility-guide)
-8. [Troubleshooting Experiments](#troubleshooting-experiments)
+## 📚 Πίνακας Περιεχομένων
+1. [Αρχιτεκτονική Συστήματος](#αρχιτεκτονική-συστήματος)
+2. [Βασικοί Αλγόριθμοι](#βασικοί-αλγόριθμοι)
+3. [Αρχιτεκτονική QoS & MLOps](#αρχιτεκτονική-qos--mlops)
+4. [Πειραματική Μεθοδολογία](#πειραματική-μεθοδολογία)
+5. [Αποτελέσματα Επικύρωσης](#αποτελέσματα-επικύρωσης)
+6. [Επαλήθευση Ισχυρισμών Διπλωματικής](#επαλήθευση-ισχυρισμών-διπλωματικής)
+7. [Οδηγός Αναπαραγωγιμότητας](#οδηγός-αναπαραγωγιμότητας)
+8. [Αντιμετώπιση Προβλημάτων Πειραμάτων](#αντιμετώπιση-προβλημάτων-πειραμάτων)
 
 ---
 
-## System Architecture
+## Αρχιτεκτονική Συστήματος
 
-The solution implements a microservices-based architecture designed to seamlessly integrate machine learning into a standard 3GPP network flow.
+Η προτεινόμενη λύση υλοποιεί μια αρχιτεκτονική βασισμένη σε microservices, σχεδιασμένη για την αδιάλειπτη ενσωμάτωση μηχανικής μάθησης στη ροή εργασιών ενός τυπικού δικτύου 3GPP.
 
-### High-Level Design
+### Σχεδίαση Υψηλού Επιπέδου
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                    5G Optimization System                    │
@@ -36,225 +36,225 @@ The solution implements a microservices-based architecture designed to seamlessl
 │  └──────────────────────────────────────────────────────┘    │
 ```
 
-### Components
-1.  **NEF Emulator (FastAPI)**: Acts as the network control plane. It manages UE state, simulates mobility (Linear, Manhattan Grid, etc.), and enforces the fallback A3 handover rules when ML is unavailable or uncertain.
-2.  **ML Service (Flask)**: The intelligence layer. It hosts the LightGBM/LSTM models, receives feature vectors (RSRP, SINR, Speed, Trajectory), and returns antenna predictions with confidence scores.
-3.  **Monitoring Stack**: Prometheus collects real-time metrics (handover counts, ping-pong events, latency), visualized in Grafana.
+### Συνιστώσες
+1.  **NEF Emulator (FastAPI)**: Λειτουργεί ως το επίπεδο ελέγχου δικτύου. Διαχειρίζεται την κατάσταση των UE, προσομοιώνει κινητικότητα (Linear, Manhattan Grid κ.λπ.) και εφαρμόζει τους εφεδρικούς κανόνες handover A3 όταν η ML δεν είναι διαθέσιμη ή η βεβαιότητα είναι χαμηλή.
+2.  **ML Service (Flask)**: Το επίπεδο νοημοσύνης. Φιλοξενεί τα μοντέλα LightGBM/LSTM, λαμβάνει διανύσματα χαρακτηριστικών (RSRP, SINR, ταχύτητα, τροχιά) και επιστρέφει προβλέψεις κεραίας με βαθμολογίες βεβαιότητας.
+3.  **Monitoring Stack**: Ο Prometheus συλλέγει μετρικές σε πραγματικό χρόνο (μετρήσεις handover, περιστατικά ping-pong, καθυστέρηση), με οπτικοποίηση μέσω Grafana.
 
-For full architectural details (data flows, API reference, database schemas), see [ARCHITECTURE.md](ARCHITECTURE.md).
-
----
-
-## Core Algorithms
-
-### 1. Hybrid Decision Logic (ML + A3)
-The system does not replace standard protocols but enhances them.
-
-*   **Trigger**: Handovers are evaluated when a UE moves or signal quality changes.
-*   **Threshold Check**: If `<3` antennas are visible, the system defaults to **A3 Rule** (standard RSRP comparison).
-*   **ML Activation**: If `≥3` antennas are visible, **ML Prediction** is triggered.
-*   **Confidence Gating**:
-    *   If ML Confidence > `Threshold` (e.g., 0.5 or QoS-dependent), the ML decision is applied.
-    *   If ML Confidence is low, the system falls back to the **A3 Rule**.
-
-### 2. Ping-Pong Prevention (The 3-Layer Defense)
-To prevent rapid oscillations between cells (Ping-Pong effect), the ML service implements a three-layer filter:
-
-1.  **Minimum Interval**: Hard block on handovers if the last one was `< MIN_HANDOVER_INTERVAL_S` (default 2s).
-2.  **Rate Limiting**: Blocks attempts if `> MAX_HANDOVERS_PER_MINUTE` (default 3) have occurred.
-3.  **History Awareness**: If the target cell was visited recently (within `PINGPONG_WINDOW_S`), the required confidence is boosted (e.g., to 0.95) to prevent "returning" unless necessary.
-
-### 3. Multi-Antenna Load Balancing
-In scenarios with overlapping coverage (3-10 antennas), the ML model considers **cell load** alongside signal strength.
-*   **A3 Behavior**: Always chooses the strongest signal, potentially overloading a single cell.
-*   **ML Behavior**: Can choose a slightly weaker signal (e.g., -75dBm vs -74dBm) if the stronger cell is heavily loaded, optimizing global network performance.
+Για πλήρεις αρχιτεκτονικές λεπτομέρειες (ροές δεδομένων, αναφορά API, σχήματα βάσεων δεδομένων), ανατρέξτε στο [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
-## QoS & MLOps Architecture
+## Βασικοί Αλγόριθμοι
 
-### QoS-Aware Prediction
-Different 5G slices have different risk tolerances. The system dynamically adjusts confidence thresholds based on the requested service:
+### 1. Υβριδική Λογική Αποφάσεων (ML + A3)
+Το σύστημα δεν αντικαθιστά τα πρωτόκολλα 3GPP αλλά τα ενισχύει.
 
-| Service | Priority | Min Confidence | Rationale |
-|---------|----------|----------------|-----------|
-| **URLLC** | 9-10 | **0.95** | Critical reliability; avoid risky handovers. |
-| **eMBB** | 6-9 | **0.75** | High throughput; moderate risk acceptable. |
-| **mMTC** | 2-4 | **0.60** | Connectivity focus; aggressive handover ok. |
+*   **Ενεργοποίηση**: Τα handovers αξιολογούνται όταν ένα UE κινείται ή αλλάζει η ποιότητα σήματος.
+*   **Έλεγχος Κατωφλίου**: Εάν είναι ορατές `<3` κεραίες, το σύστημα χρησιμοποιεί τον **κανόνα A3** (τυπική σύγκριση RSRP).
+*   **Ενεργοποίηση ML**: Εάν είναι ορατές `≥3` κεραίες, ενεργοποιείται η **πρόβλεψη ML**.
+*   **Πύλη Βεβαιότητας (Confidence Gating)**:
+    *   Εάν η βεβαιότητα ML > `Κατώφλι` (π.χ. 0.5 ή εξαρτώμενο από QoS), εφαρμόζεται η απόφαση ML.
+    *   Εάν η βεβαιότητα ML είναι χαμηλή, το σύστημα επανέρχεται στον **κανόνα A3**.
 
-### Synthetic Data Generation
-To train the model, we use a 3GPP-aligned synthetic generator (`scripts/data_generation/synthetic_generator.py`) that produces realistic traffic profiles:
-*   **Distributions**: Triangular distributions for Latency, Reliability, and Throughput.
-*   **Profiles**: `urllc-heavy`, `embb-heavy`, `balanced`.
-*   **Output**: CSV/JSON datasets compatible with the training pipeline.
+### 2. Πρόληψη Ping-Pong (Άμυνα Τριών Επιπέδων)
+Για την αποτροπή ταχέων ταλαντώσεων μεταξύ κελιών (φαινόμενο Ping-Pong), η υπηρεσία ML υλοποιεί ένα φίλτρο τριών επιπέδων:
 
-Service parameter envelopes align with 3GPP TS 22.261 and TR 38.913 for eMBB/URLLC and 3GPP TS 22.104 for mMTC, while the priority ranges mirror the conversational/mission-critical 5QI groupings from 3GPP TS 23.501 Annex E.
+1.  **Ελάχιστο Διάστημα**: Αποκλεισμός handover εάν το τελευταίο πραγματοποιήθηκε πριν από `< MIN_HANDOVER_INTERVAL_S` (προεπιλογή 2 δευτερόλεπτα).
+2.  **Περιορισμός Ρυθμού**: Αποκλεισμός εάν έχουν γίνει `> MAX_HANDOVERS_PER_MINUTE` (προεπιλογή 3) handovers.
+3.  **Επίγνωση Ιστορικού**: Εάν το κελί-στόχος επισκέφθηκε πρόσφατα (εντός `PINGPONG_WINDOW_S`), η απαιτούμενη βεβαιότητα αυξάνεται (π.χ. σε 0.95) ώστε να αποτρέπεται η «επιστροφή» εκτός εάν είναι αναγκαία.
 
-#### CSV Schema
+### 3. Εξισορρόπηση Φορτίου Πολλαπλών Κεραιών
+Σε σενάρια επικαλυπτόμενης κάλυψης (3-10 κεραίες), το μοντέλο ML λαμβάνει υπόψη το **φορτίο κελιού** παράλληλα με την ισχύ σήματος.
+*   **Συμπεριφορά A3**: Επιλέγει πάντα το ισχυρότερο σήμα, δυνητικά υπερφορτώνοντας ένα μόνο κελί.
+*   **Συμπεριφορά ML**: Μπορεί να επιλέξει ένα ελαφρώς ασθενέστερο σήμα (π.χ. -75dBm αντί -74dBm) εάν το ισχυρότερο κελί είναι βαριά φορτωμένο, βελτιστοποιώντας τη συνολική απόδοση του δικτύου.
 
-| Column | Description |
-| --- | --- |
-| `request_id` | Stable identifier (`req_000000`), ensuring deterministic joins. |
-| `service_type` | One of `embb`, `urllc`, `mmtc`, or `default`. |
-| `latency_ms` | Round-trip latency from a triangular distribution. |
-| `reliability_pct` | Probability of successful delivery (e.g., `99.995`). |
-| `throughput_mbps` | Expected user-plane throughput in Mbps. |
-| `priority` | Integer priority bucket aligned with 5QI scheduling tiers. |
+---
 
-#### CLI Usage
+## Αρχιτεκτονική QoS & MLOps
+
+### Πρόβλεψη με Επίγνωση QoS
+Τα διαφορετικά slices του 5G έχουν διαφορετικές ανοχές κινδύνου. Το σύστημα προσαρμόζει δυναμικά τα κατώφλια βεβαιότητας βάσει της ζητούμενης υπηρεσίας:
+
+| Υπηρεσία | Προτεραιότητα | Ελάχ. Βεβαιότητα | Αιτιολόγηση |
+|----------|--------------|-------------------|-------------|
+| **URLLC** | 9-10 | **0.95** | Κρίσιμη αξιοπιστία· αποφυγή επικίνδυνων handovers. |
+| **eMBB** | 6-9 | **0.75** | Υψηλή ρυθμαπόδοση· μέτριος κίνδυνος αποδεκτός. |
+| **mMTC** | 2-4 | **0.60** | Εστίαση στη συνδεσιμότητα· επιθετικό handover αποδεκτό. |
+
+### Παραγωγή Συνθετικών Δεδομένων
+Για την εκπαίδευση του μοντέλου χρησιμοποιείται ένας συνθετικός γεννήτης ευθυγραμμισμένος με τα πρότυπα 3GPP (`scripts/data_generation/synthetic_generator.py`), ο οποίος παράγει ρεαλιστικά προφίλ κίνησης:
+*   **Κατανομές**: Τριγωνικές κατανομές για καθυστέρηση (latency), αξιοπιστία (reliability) και ρυθμαπόδοση (throughput).
+*   **Προφίλ**: `urllc-heavy`, `embb-heavy`, `balanced`.
+*   **Έξοδος**: Σύνολα δεδομένων CSV/JSON συμβατά με τη γραμμή εκπαίδευσης.
+
+Οι παράμετροι υπηρεσιών ευθυγραμμίζονται με τα πρότυπα 3GPP TS 22.261 και TR 38.913 για eMBB/URLLC, καθώς και 3GPP TS 22.104 για mMTC. Τα εύρη προτεραιότητας αντικατοπτρίζουν τις ομαδοποιήσεις 5QI διαλογικών/κρίσιμων αποστολών από το 3GPP TS 23.501, Παράρτημα E.
+
+#### Σχήμα CSV
+
+| Στήλη | Περιγραφή |
+|-------|-----------|
+| `request_id` | Σταθερό αναγνωριστικό (`req_000000`), εξασφαλίζοντας ντετερμινιστικές συνενώσεις. |
+| `service_type` | Ένα εκ των `embb`, `urllc`, `mmtc` ή `default`. |
+| `latency_ms` | Καθυστέρηση μετ' επιστροφής (round-trip) από τριγωνική κατανομή. |
+| `reliability_pct` | Πιθανότητα επιτυχούς παράδοσης (π.χ. `99.995`). |
+| `throughput_mbps` | Αναμενόμενη ρυθμαπόδοση επιπέδου χρήστη σε Mbps. |
+| `priority` | Ακέραιος κάδος προτεραιότητας σύμφωνα με τα επίπεδα χρονοπρογραμματισμού 5QI. |
+
+#### Χρήση CLI
 
 ```bash
-# Balanced CSV dataset
+# Ισορροπημένο σύνολο δεδομένων CSV
 python scripts/data_generation/synthetic_generator.py \
   --records 10000 --profile balanced --output output/samples.csv --format csv --seed 42
 
-# URLLC-heavy JSON dataset
+# Σύνολο δεδομένων JSON με βαρύτητα σε URLLC
 python scripts/data_generation/synthetic_generator.py \
   --records 5000 --profile urllc-heavy --embb-weight 0.5 --urllc-weight 1.0 \
   --mmtc-weight 0.2 --format json --output output/urllc_bias.json
 ```
 
-### Model Performance (LightGBM)
-*   **Top Features**: `acceleration`, `signal_trend`, `rsrp_stddev`, `heading_change_rate`.
-*   **Accuracy**: ~99% on validation sets (after calibration).
-*   **Latency**: P95 prediction time < 30ms (suitable for real-time control).
+### Απόδοση Μοντέλου (LightGBM)
+*   **Κορυφαία Χαρακτηριστικά**: `acceleration`, `signal_trend`, `rsrp_stddev`, `heading_change_rate`.
+*   **Ακρίβεια**: ~99% στα σύνολα επικύρωσης (μετά τη βαθμονόμηση).
+*   **Καθυστέρηση**: P95 χρόνος πρόβλεψης < 30ms (κατάλληλος για έλεγχο πραγματικού χρόνου).
 
 ---
 
-## Experimental Methodology
+## Πειραματική Μεθοδολογία
 
-The thesis results are derived from a fully automated, reproducible experiment pipeline: `scripts/run_thesis_experiment.sh`.
+Τα αποτελέσματα της διπλωματικής προέρχονται από μια πλήρως αυτοματοποιημένη, αναπαράξιμη πειραματική γραμμή: `scripts/run_thesis_experiment.sh`.
 
-### The Protocol
-1.  **Phase 0**: Pre-flight checks (Docker, dependencies).
-2.  **Phase 1 (ML Mode)**:
-    *   Spin up stack with `ML_HANDOVER_ENABLED=1`.
-    *   Initialize topology (1 gNB, 4 cells, 3 UEs).
-    *   Run for 10 minutes.
-    *   Collect metrics (Ping-pongs, Dwell time, QoS compliance).
-3.  **Phase 2 (A3 Mode)**:
-    *   Restart stack with `ML_HANDOVER_ENABLED=0`.
-    *   Run identical topology/mobility for 10 minutes.
-    *   Collect baseline metrics.
-4.  **Phase 3**: Generate comparison report and visualizations.
+### Το Πρωτόκολλο
+1.  **Φάση 0**: Προ-πτητικοί έλεγχοι (Docker, εξαρτήσεις).
+2.  **Φάση 1 (Λειτουργία ML)**:
+    *   Εκκίνηση στοίβας με `ML_HANDOVER_ENABLED=1`.
+    *   Αρχικοποίηση τοπολογίας (1 gNB, 4 κελιά, 3 UEs).
+    *   Εκτέλεση για 10 λεπτά.
+    *   Συλλογή μετρικών (Ping-pongs, χρόνος παραμονής, συμμόρφωση QoS).
+3.  **Φάση 2 (Λειτουργία A3)**:
+    *   Επανεκκίνηση στοίβας με `ML_HANDOVER_ENABLED=0`.
+    *   Εκτέλεση πανομοιότυπης τοπολογίας/κινητικότητας για 10 λεπτά.
+    *   Συλλογή μετρικών βάσης αναφοράς.
+4.  **Φάση 3**: Δημιουργία συγκριτικής αναφοράς και οπτικοποιήσεων.
 
-### Experiment Tiers
+### Επίπεδα Πειραμάτων
 
-| Tier | Scope | Duration |
-|------|-------|----------|
-| **Tier 1** | 40 runs (2 scenarios × 2 algorithms × 10 seeds) | 6-8 hours |
-| **Tier 2** | Extended sensitivity analysis | ~20 hours |
-| **Tier 3** | Full 270 combinations (future work) | ~40 hours |
+| Επίπεδο | Εύρος | Διάρκεια |
+|---------|-------|----------|
+| **Tier 1** | 40 εκτελέσεις (2 σενάρια × 2 αλγόριθμοι × 10 seeds) | 6-8 ώρες |
+| **Tier 2** | Εκτεταμένη ανάλυση ευαισθησίας | ~20 ώρες |
+| **Tier 3** | Πλήρεις 270 συνδυασμοί (μελλοντική εργασία) | ~40 ώρες |
 
-### Seed Strategy
+### Στρατηγική Seeds
 
 ```python
 class SeedStrategy(Enum):
     SEQUENTIAL = "sequential"  # 1, 2, 3, ...
     PRIMES = "primes"          # 2, 3, 5, 7, 11, ...
-    HASH_BASED = "hash"        # Deterministic from metadata
+    HASH_BASED = "hash"        # Ντετερμινιστικό από metadata
 ```
 
 ---
 
-## Validation Results
+## Αποτελέσματα Επικύρωσης
 
-Results from the final reference experiment (`fixed_system_final`):
+Αποτελέσματα από το τελικό πείραμα αναφοράς (`fixed_system_final`):
 
-| Metric | A3 Mode (Baseline) | ML Mode (System) | Improvement |
-|--------|-------------------|------------------|-------------|
-| **Ping-Pong Rate** | 37.5% | **0.0%** | **100% Reduction** |
-| **Median Dwell Time** | 25.6s | **133.7s** | **422% Increase** |
-| **Total Handovers** | 24 | 6 | **75% Reduction** |
-| **QoS Compliance** | N/A | 100% | **Perfect** |
+| Μετρική | Λειτουργία A3 (Βάση) | Λειτουργία ML (Σύστημα) | Βελτίωση |
+|---------|----------------------|-------------------------|----------|
+| **Ρυθμός Ping-Pong** | 37.5% | **0.0%** | **100% Εξάλειψη** |
+| **Διάμεσος Χρόνος Παραμονής** | 25.6s | **133.7s** | **422% Αύξηση** |
+| **Σύνολο Handovers** | 24 | 6 | **75% Μείωση** |
+| **Συμμόρφωση QoS** | Μ/Δ | 100% | **Τέλεια** |
 
-**Interpretation**: The ML system drastically stabilizes the network. By predicting user trajectories, it avoids unnecessary handovers to transiently strong cells (Ping-Pong), keeping UEs connected to optimal cells for longer periods.
+**Ερμηνεία**: Το σύστημα ML σταθεροποιεί δραματικά το δίκτυο. Προβλέποντας τις τροχιές των χρηστών, αποφεύγει τα περιττά handovers σε κελιά με παροδικά ισχυρό σήμα (Ping-Pong), διατηρώντας τα UEs συνδεδεμένα στα βέλτιστα κελιά για μεγαλύτερες χρονικές περιόδους.
 
-### Statistical Validation (Tier 1 Expected Ranges)
+### Στατιστική Επικύρωση (Αναμενόμενα Εύρη Tier 1)
 
-| Metric | ML Mean ± SD | A3 Mean ± SD | p-value |
-|--------|-------------|--------------|---------|
-| Handover Count | 15.2 ± 3.1 | 23.8 ± 5.2 | < 0.001 |
-| Ping-Pong Rate | 2.1% ± 1.0% | 8.5% ± 2.3% | < 0.001 |
-| RLF Count | 0.3 ± 0.5 | 1.2 ± 0.9 | < 0.01 |
-| Mean Throughput | 45.2 ± 4.1 Mbps | 42.1 ± 5.3 Mbps | < 0.05 |
+| Μετρική | Μέσος ML ± ΤΑ | Μέσος A3 ± ΤΑ | p-value |
+|---------|---------------|----------------|---------|
+| Αριθμός Handovers | 15.2 ± 3.1 | 23.8 ± 5.2 | < 0.001 |
+| Ρυθμός Ping-Pong | 2.1% ± 1.0% | 8.5% ± 2.3% | < 0.001 |
+| Αριθμός RLF | 0.3 ± 0.5 | 1.2 ± 0.9 | < 0.01 |
+| Μέση Ρυθμαπόδοση | 45.2 ± 4.1 Mbps | 42.1 ± 5.3 Mbps | < 0.05 |
 
-Statistical methods: paired t-test (not independent), Cohen's d_z for effect size, Bonferroni correction for multiple comparisons, and bootstrap CI maintaining pairing.
+Στατιστικές μέθοδοι: paired t-test (όχι ανεξάρτητο), Cohen's d_z για μέγεθος επίδρασης, διόρθωση Bonferroni για πολλαπλές συγκρίσεις και bootstrap CI διατηρώντας τη ζεύξη.
 
 ---
 
-## Thesis Claims Verification
+## Επαλήθευση Ισχυρισμών Διπλωματικής
 
-We implemented an automated test suite (`tests/thesis/test_ml_vs_a3_claims.py`) that programmatically validates every claim made in the thesis.
+Υλοποιήσαμε μια αυτοματοποιημένη σουίτα δοκιμών (`tests/thesis/test_ml_vs_a3_claims.py`) που επικυρώνει προγραμματιστικά κάθε ισχυρισμό της διπλωματικής.
 
-### Validated Claims
-1.  ✅ **ML Reduces Ping-Pong**: Test simulates rapid signal oscillation; ML suppresses 75%+ of swaps.
-2.  ✅ **QoS Compliance**: Test verifies higher confidence is enforced for URLLC slices.
-3.  ✅ **Load Balancing**: Test forces 10 UEs into a multi-cell overlap; ML distributes them across available antennas.
-4.  ✅ **Scalability**: Stress tests with 10 antennas confirm <50ms latency.
-5.  ✅ **Auto-Activation**: Test confirms ML engages exactly when antenna count ≥ 3.
+### Επικυρωμένοι Ισχυρισμοί
+1.  ✅ **Η ML Μειώνει το Ping-Pong**: Η δοκιμή προσομοιώνει ταχεία ταλάντωση σήματος· η ML καταστέλλει 75%+ των εναλλαγών.
+2.  ✅ **Συμμόρφωση QoS**: Η δοκιμή επαληθεύει ότι εφαρμόζεται υψηλότερη βεβαιότητα για URLLC slices.
+3.  ✅ **Εξισορρόπηση Φορτίου**: Η δοκιμή εξαναγκάζει 10 UEs σε ζώνη επικάλυψης πολλαπλών κελιών· η ML τα κατανέμει μεταξύ των διαθέσιμων κεραιών.
+4.  ✅ **Κλιμακωσιμότητα**: Δοκιμές πίεσης με 10 κεραίες επιβεβαιώνουν καθυστέρηση <50ms.
+5.  ✅ **Αυτόματη Ενεργοποίηση**: Η δοκιμή επιβεβαιώνει ότι η ML ενεργοποιείται ακριβώς όταν ο αριθμός κεραιών ≥ 3.
 
-To run these proofs:
+Για εκτέλεση αυτών των αποδείξεων:
 ```bash
 pytest -v -m thesis tests/thesis/test_ml_vs_a3_claims.py
 ```
 
 ---
 
-## Reproducibility Guide
+## Οδηγός Αναπαραγωγιμότητας
 
-### Environment Setup
+### Ρύθμιση Περιβάλλοντος
 
-| Requirement | Version |
-|-------------|---------|
-| **OS** | Ubuntu 22.04 LTS |
-| **Python** | 3.10.x (3.10.12 recommended) |
-| **Memory** | 16 GB RAM minimum |
-| **Storage** | 20 GB free space |
+| Απαίτηση | Έκδοση |
+|----------|--------|
+| **Λειτουργικό Σύστημα** | Ubuntu 22.04 LTS |
+| **Python** | 3.10.x (συνιστάται 3.10.12) |
+| **Μνήμη** | 16 GB RAM ελάχιστο |
+| **Αποθ. Χώρος** | 20 GB ελεύθερος χώρος |
 | **Docker** | 24.0+ |
 
 ```bash
-# Create virtual environment
+# Δημιουργία εικονικού περιβάλλοντος
 python3.10 -m venv thesis_venv
 source thesis_venv/bin/activate
 
-# Install locked dependencies
+# Εγκατάσταση κλειδωμένων εξαρτήσεων
 pip install --upgrade pip==24.0
 pip install -r requirements.lock
 ```
 
-### Dependency Locking
+### Κλείδωμα Εξαρτήσεων
 
-Scientific reproducibility requires identical execution environments. These packages directly affect results:
+Η επιστημονική αναπαραγωγιμότητα απαιτεί πανομοιότυπα περιβάλλοντα εκτέλεσης. Τα ακόλουθα πακέτα επηρεάζουν άμεσα τα αποτελέσματα:
 
-| Package | Locked Version | Impact |
-|---------|---------------|--------|
-| `numpy` | 1.26.4 | Random seeds, array operations |
-| `scipy` | 1.12.0 | Statistical tests |
+| Πακέτο | Κλειδωμένη Έκδοση | Επίδραση |
+|--------|-------------------|----------|
+| `numpy` | 1.26.4 | Random seeds, πράξεις πινάκων |
+| `scipy` | 1.12.0 | Στατιστικοί έλεγχοι |
 | `scikit-learn` | 1.5.2 | Train/test splits |
-| `lightgbm` | 4.3.0 | Model predictions |
-| `matplotlib` | 3.8.2 | Figure generation |
-| `shap` | 0.44.1 | Feature importance |
+| `lightgbm` | 4.3.0 | Προβλέψεις μοντέλου |
+| `matplotlib` | 3.8.2 | Παραγωγή γραφημάτων |
+| `shap` | 0.44.1 | Σημαντικότητα χαρακτηριστικών |
 
-Verify installation: `python scripts/verify_dependencies.py`
+Επαλήθευση εγκατάστασης: `python scripts/verify_dependencies.py`
 
-**DO NOT** update dependencies without running the full experiment matrix and comparing results.
+**ΜΗΝ** ενημερώνετε εξαρτήσεις χωρίς εκτέλεση του πλήρους πειραματικού πλαισίου και σύγκριση αποτελεσμάτων.
 
-### Git Version Control
+### Έλεγχος Εκδόσεων Git
 
-#### Tagging Protocol
+#### Πρωτόκολλο Tagging
 
 ```bash
-# Ensure clean working directory
-git status  # Should show "nothing to commit"
+# Εξασφάλιση καθαρού καταλόγου εργασίας
+git status  # Πρέπει να δείχνει "nothing to commit"
 
-# Create annotated tag for submission
+# Δημιουργία annotated tag για υποβολή
 HASH=$(python scripts/compute_experiment_hash.py)
 git tag -a v1.0.0-submission -m "Thesis submission: $HASH"
 git push origin v1.0.0-submission
 ```
 
-#### Reproducing from Tag
+#### Αναπαραγωγή από Tag
 
 ```bash
 git clone https://github.com/username/thesis.git
@@ -264,7 +264,7 @@ git checkout v1.0.0-submission
 
 #### Experiment Hash
 
-Every experiment run generates a hash combining git SHA, `requirements.lock` hash, configuration, and random seed:
+Κάθε εκτέλεση πειράματος παράγει ένα hash που συνδυάζει το Git SHA, το hash του `requirements.lock`, τις ρυθμίσεις πειράματος και το random seed:
 
 ```python
 from scripts.reproducibility import compute_experiment_hash
@@ -272,24 +272,24 @@ from scripts.reproducibility import compute_experiment_hash
 hash_value = compute_experiment_hash({
     "scenario": "highway", "algorithm": "ml", "seed": 2
 })
-# Output: "exp_highway_ml_2_abc123def456"
+# Έξοδος: "exp_highway_ml_2_abc123def456"
 ```
 
-### Running Experiments
+### Εκτέλεση Πειραμάτων
 
 ```bash
-# Quick validation (1 minute)
+# Γρήγορη επικύρωση (1 λεπτό)
 python scripts/run_enhanced_experiment.py \
     --scenario highway --algorithm ml --seed 2 --duration 60 \
     --output-dir thesis_results/validation
 
-# Tier 1 matrix (6-7 hours)
+# Πλαίσιο Tier 1 (6-7 ώρες)
 python scripts/experiments/experimental_config.py
 python scripts/run_experiment_matrix.py \
     --matrix thesis_results/experiment_matrix_tier1.json \
     --parallel 1 --output-dir thesis_results/tier1
 
-# Statistical analysis
+# Στατιστική ανάλυση
 python scripts/analysis/statistical_analysis.py \
     --ml-results thesis_results/tier1/ml_*.json \
     --a3-results thesis_results/tier1/a3_*.json \
@@ -298,30 +298,30 @@ python scripts/analysis/statistical_analysis.py \
 
 ---
 
-## Troubleshooting Experiments
+## Αντιμετώπιση Προβλημάτων Πειραμάτων
 
-### Different Random Results
-**Symptom**: Results don't match expected ranges.
+### Διαφορετικά Τυχαία Αποτελέσματα
+**Σύμπτωμα**: Τα αποτελέσματα δεν εμπίπτουν στα αναμενόμενα εύρη.
 ```bash
-python -c "import numpy; print(numpy.__version__)"  # Must be 1.26.4
+python -c "import numpy; print(numpy.__version__)"  # Πρέπει να είναι 1.26.4
 python scripts/run_enhanced_experiment.py --verify-reproducibility
 ```
 
-### Memory Errors
+### Σφάλματα Μνήμης
 ```bash
 export ML_BATCH_SIZE=32
 python scripts/run_experiment_matrix.py --parallel 1
 ```
 
-### SHAP Computation Timeout
+### Υπέρβαση Χρόνου Υπολογισμού SHAP
 ```bash
-export SHAP_MODE=off      # Disable for batch experiments
-# or
+export SHAP_MODE=off      # Απενεργοποίηση για μαζικά πειράματα
+# ή
 export SHAP_MODE=sampled
 export SHAP_SAMPLE_RATE=0.1
 ```
 
-### Docker Network Issues
+### Προβλήματα Δικτύου Docker
 ```bash
 docker-compose down -v
 docker network prune
@@ -330,5 +330,5 @@ docker-compose up -d
 
 ---
 
-*Document Version: 2.0 — Last Updated: March 2026*
-*Merged from THESIS.md + REPRODUCIBILITY.md*
+*Έκδοση Εγγράφου: 2.0 — Τελευταία Ενημέρωση: Μάρτιος 2026*
+*Συγχώνευση αρχείων THESIS.md + REPRODUCIBILITY.md*

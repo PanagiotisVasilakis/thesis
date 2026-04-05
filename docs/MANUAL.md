@@ -1,105 +1,105 @@
-# Operations Manual
+# Εγχειρίδιο Λειτουργίας
 
-This guide provides comprehensive instructions for deploying, configuring, and operating the 5G Network Optimization system.
+Αυτός ο οδηγός παρέχει αναλυτικές οδηγίες για την εγκατάσταση, ρύθμιση, ανάπτυξη και λειτουργία του συστήματος βελτιστοποίησης δικτύων 5G.
 
-## 📋 Table of Contents
-1. [Prerequisites & Installation](#prerequisites--installation)
-2. [Configuration](#configuration)
-3. [Deployment Options](#deployment-options)
-4. [Data Generation](#data-generation)
-5. [Model Training](#model-training)
-6. [Monitoring & Metrics](#monitoring--metrics)
-7. [Troubleshooting](#troubleshooting)
+## 📋 Πίνακας Περιεχομένων
+1. [Προαπαιτούμενα & Εγκατάσταση](#προαπαιτούμενα--εγκατάσταση)
+2. [Ρύθμιση Παραμέτρων](#ρύθμιση-παραμέτρων)
+3. [Επιλογές Ανάπτυξης](#επιλογές-ανάπτυξης)
+4. [Παραγωγή Δεδομένων](#παραγωγή-δεδομένων)
+5. [Εκπαίδευση Μοντέλου](#εκπαίδευση-μοντέλου)
+6. [Παρακολούθηση & Μετρικές](#παρακολούθηση--μετρικές)
+7. [Αντιμετώπιση Προβλημάτων](#αντιμετώπιση-προβλημάτων)
 
 ---
 
-## Prerequisites & Installation
+## Προαπαιτούμενα & Εγκατάσταση
 
-### System Requirements
-- **OS**: Linux, macOS, or Windows (WSL2)
+### Απαιτήσεις Συστήματος
+- **Λειτουργικό Σύστημα**: Linux, macOS ή Windows (WSL2)
 - **Docker**: v23.0+
 - **Python**: 3.10+
-- **Resources**: 8GB RAM, 10GB Disk
+- **Πόροι**: 8GB RAM, 10GB αποθηκευτικός χώρος
 
-### Installation
+### Εγκατάσταση
 ```bash
 cd ~/thesis
 
-# 1. Install system libraries (libcairo, etc.)
+# 1. Εγκατάσταση βιβλιοθηκών συστήματος (libcairo κ.λπ.)
 ./scripts/install_system_deps.sh
 
-# 2. Install Python dependencies
+# 2. Εγκατάσταση εξαρτήσεων Python
 ./scripts/install_deps.sh
 
-# 3. Set Python path
+# 3. Ρύθμιση Python path
 export PYTHONPATH="${PWD}:${PWD}/5g-network-optimization/services:${PYTHONPATH}"
 ```
 
 ---
 
-## Configuration
+## Ρύθμιση Παραμέτρων
 
-Control the system behavior using environment variables in `.env` or Docker Compose.
+Ο έλεγχος της συμπεριφοράς του συστήματος γίνεται μέσω μεταβλητών περιβάλλοντος στο αρχείο `.env` ή μέσω Docker Compose.
 
-### Core Settings
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ML_HANDOVER_ENABLED` | `unset` | `1`=ML, `0`=A3. Unset=Auto (uses ML if ≥3 antennas). |
-| `ML_CONFIDENCE_THRESHOLD` | `0.5` | Minimum confidence to predict an antenna. |
-| `MODEL_TYPE` | `lightgbm` | Options: `lightgbm`, `lstm`, `ensemble`. |
+### Βασικές Ρυθμίσεις
+| Μεταβλητή | Προεπιλογή | Περιγραφή |
+|-----------|------------|-----------|
+| `ML_HANDOVER_ENABLED` | `unset` | `1`=ML, `0`=A3. Χωρίς τιμή=Αυτόματο (χρήση ML εάν ≥3 κεραίες). |
+| `ML_CONFIDENCE_THRESHOLD` | `0.5` | Ελάχιστη βεβαιότητα πρόβλεψης για επιλογή κεραίας. |
+| `MODEL_TYPE` | `lightgbm` | Επιλογές: `lightgbm`, `lstm`, `ensemble`. |
 
-### Ping-Pong Prevention
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MIN_HANDOVER_INTERVAL_S` | `2.0` | Minimum seconds between handovers. |
-| `MAX_HANDOVERS_PER_MINUTE` | `3` | Max rate of handovers. |
-| `PINGPONG_WINDOW_S` | `10.0` | Logic window for return detections. |
+### Πρόληψη Φαινομένου Ping-Pong
+| Μεταβλητή | Προεπιλογή | Περιγραφή |
+|-----------|------------|-----------|
+| `MIN_HANDOVER_INTERVAL_S` | `2.0` | Ελάχιστα δευτερόλεπτα μεταξύ διαδοχικών handovers. |
+| `MAX_HANDOVERS_PER_MINUTE` | `3` | Μέγιστος ρυθμός handovers ανά λεπτό. |
+| `PINGPONG_WINDOW_S` | `10.0` | Χρονικό παράθυρο για ανίχνευση επιστροφής σε προηγούμενο κελί. |
 
-### QoS Settings
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `QOS_URLLC_MIN_CONFIDENCE` | `0.85` | Required confidence for URLLC slices. |
-| `QOS_EMBB_MIN_CONFIDENCE` | `0.70` | Required confidence for eMBB slices. |
+### Ρυθμίσεις QoS
+| Μεταβλητή | Προεπιλογή | Περιγραφή |
+|-----------|------------|-----------|
+| `QOS_URLLC_MIN_CONFIDENCE` | `0.85` | Απαιτούμενη βεβαιότητα για URLLC slices. |
+| `QOS_EMBB_MIN_CONFIDENCE` | `0.70` | Απαιτούμενη βεβαιότητα για eMBB slices. |
 
 ---
 
-## Deployment Options
+## Επιλογές Ανάπτυξης
 
-### 1. Docker Compose (Local Development)
+### 1. Docker Compose (Τοπική Ανάπτυξη)
 
-**ML Mode (Recommended)**
+**Λειτουργία ML (Συνιστάται)**
 ```bash
 ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
-- **Access**:
+- **Σημεία Πρόσβασης**:
     - NEF Emulator: `http://localhost:8080`
     - ML Service: `http://localhost:5050`
     - Prometheus: `http://localhost:9090`
     - Grafana: `http://localhost:3000` (admin/admin)
 
-**A3-Only Mode (Baseline)**
+**Λειτουργία A3 (Baseline)**
 ```bash
 ML_HANDOVER_ENABLED=0 docker compose -f 5g-network-optimization/docker-compose.yml up --build
 ```
 
-### 2. Kubernetes (Production)
-See [`5g-network-optimization/deployment/kubernetes/README.md`](../5g-network-optimization/deployment/kubernetes/README.md) for manifests and helm charts.
+### 2. Kubernetes (Παραγωγή)
+Ανατρέξτε στο [`5g-network-optimization/deployment/kubernetes/README.md`](../5g-network-optimization/deployment/kubernetes/README.md) για τα manifests και τα helm charts.
 
 ---
 
-## Data Generation
+## Παραγωγή Δεδομένων
 
-Generate synthetic 3GPP-compliant QoS datasets for training.
+Δημιουργία συνθετικών συνόλων δεδομένων QoS σύμφωνα με τις προδιαγραφές 3GPP, για χρήση στην εκπαίδευση.
 
 ```bash
-# Balanced dataset (eMBB, URLLC, mMTC)
+# Ισορροπημένο σύνολο δεδομένων (eMBB, URLLC, mMTC)
 python scripts/data_generation/synthetic_generator.py \
   --records 10000 \
   --profile balanced \
   --output output/qos_dataset.csv \
   --seed 42
 
-# URLLC-heavy profile
+# Προφίλ βαρύτητας σε URLLC
 python scripts/data_generation/synthetic_generator.py \
   --records 5000 \
   --profile urllc-heavy \
@@ -108,17 +108,17 @@ python scripts/data_generation/synthetic_generator.py \
 
 ---
 
-## Model Training
+## Εκπαίδευση Μοντέλου
 
-### Automatic Training
-The ML service automatically retrains on startup if no model exists or if data drift is detected (`AUTO_RETRAIN=true`).
+### Αυτόματη Εκπαίδευση
+Η υπηρεσία ML εκπαιδεύει αυτόματα το μοντέλο κατά την εκκίνηση, εφόσον δεν υπάρχει προηγούμενο μοντέλο ή εάν ανιχνευθεί data drift (`AUTO_RETRAIN=true`).
 
-### Manual Training API
+### Χειροκίνητη Εκπαίδευση μέσω API
 ```bash
-# 1. Get Token
+# 1. Λήψη Token αυθεντικοποίησης
 TOKEN=$(curl -s -X POST http://localhost:5050/api/login -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
 
-# 2. Trigger Training
+# 2. Ενεργοποίηση εκπαίδευσης
 curl -X POST http://localhost:5050/api/train \
   -H "Authorization: Bearer $TOKEN" \
   -d @output/training_data.json
@@ -126,69 +126,69 @@ curl -X POST http://localhost:5050/api/train \
 
 ---
 
-## Monitoring & Metrics
+## Παρακολούθηση & Μετρικές
 
-### Key Prometheus Metrics
-- `ml_prediction_requests_total`: Total predictions served.
-- `ml_prediction_latency_seconds`: Latency distribution (<30ms goal).
-- `ml_pingpong_suppressions_total`: Count of prevented ping-pongs.
-- `nef_handover_decisions_total`: Handovers executed vs skipped.
+### Βασικές Μετρικές Prometheus
+- `ml_prediction_requests_total`: Συνολικός αριθμός προβλέψεων που εξυπηρετήθηκαν.
+- `ml_prediction_latency_seconds`: Κατανομή καθυστέρησης (στόχος <30ms).
+- `ml_pingpong_suppressions_total`: Αριθμός αποτρεπόμενων ping-pong handovers.
+- `nef_handover_decisions_total`: Handovers που εκτελέστηκαν σε σύγκριση με αυτά που παρακάμφθηκαν.
 
-### Grafana Dashboards
-Access `http://localhost:3000` to view pre-built dashboards:
-1. **ML Service Overview**: Latency, heavy-hitter features, drift.
-2. **Network State**: Real-time UE positions, antenna loads.
-3. **comparative Analysis**: ML vs A3 performance metrics.
+### Dashboards Grafana
+Πρόσβαση στο `http://localhost:3000` για προβολή των προ-ρυθμισμένων dashboards:
+1. **Επισκόπηση ML Service**: Καθυστέρηση, βασικά χαρακτηριστικά, drift.
+2. **Κατάσταση Δικτύου**: Θέσεις UE σε πραγματικό χρόνο, φορτίο κεραιών.
+3. **Συγκριτική Ανάλυση**: Μετρικές απόδοσης ML έναντι A3.
 
 ---
 
-## Troubleshooting
+## Αντιμετώπιση Προβλημάτων
 
-### Verification Script
-Run the built-in system check:
+### Script Επαλήθευσης
+Εκτέλεση του ενσωματωμένου ελέγχου συστήματος:
 ```bash
 bash scripts/verify_system_ready.sh --ml
 ```
 
-### Common Issues
-1. **Service Won't Start**: Check `docker compose logs ml-service`.
-2. **Authorization Error**: Ensure `AUTH_USERNAME` matches `.env`.
-3. **No Handovers**: Verify UEs are moving (`/api/v1/ue_movement/start`).
+### Συχνά Προβλήματα
+1. **Η υπηρεσία δεν εκκινεί**: Ελέγξτε τα logs με `docker compose logs ml-service`.
+2. **Σφάλμα εξουσιοδότησης**: Βεβαιωθείτε ότι η μεταβλητή `AUTH_USERNAME` αντιστοιχεί στο αρχείο `.env`.
+3. **Δεν πραγματοποιούνται handovers**: Επαληθεύστε ότι τα UEs κινούνται (`/api/v1/ue_movement/start`).
 
 ---
 
-## Version Control & Release
+## Έλεγχος Εκδόσεων & Κυκλοφορία
 
-### Version File
-The repository root contains a `VERSION` file with the current semantic version (e.g., `1.0.0`). This file is the single source of truth for release versioning.
+### Αρχείο Έκδοσης
+Ο ριζικός κατάλογος του αποθετηρίου περιέχει ένα αρχείο `VERSION` με την τρέχουσα σημασιολογική έκδοση (π.χ. `1.0.0`). Αυτό το αρχείο αποτελεί τη μοναδική πηγή αλήθειας για τον αριθμό έκδοσης.
 
-### Git Tagging for Thesis Milestones
+### Git Tagging για Ορόσημα Διπλωματικής
 
-Use annotated tags to mark significant thesis milestones:
+Χρήση annotated tags για τη σήμανση σημαντικών σταδίων της διπλωματικής:
 
 ```bash
-# Read current version
+# Ανάγνωση τρέχουσας έκδοσης
 VERSION=$(cat VERSION)
 
-# Tag thesis submission
+# Tag για υποβολή διπλωματικής
 git tag -a "v${VERSION}-thesis-final" -m "Thesis final submission - ML-based handover optimization"
 
-# Tag defense version (if updates made)
+# Tag για έκδοση υποστήριξης (σε περίπτωση ενημερώσεων)
 git tag -a "v${VERSION}-defense" -m "Thesis defense demonstration version"
 
-# Push tags to remote
+# Αποστολή tags στο απομακρυσμένο αποθετήριο
 git push origin --tags
 ```
 
-### Tag Naming Convention
-- **Format**: `v{VERSION}-{milestone}`
-- **Examples**:
-  - `v1.0.0-thesis-final` — Submitted thesis version
-  - `v1.0.0-defense` — Defense demonstration version  
-  - `v1.0.1-camera-ready` — Post-review camera-ready version
+### Σύμβαση Ονοματοδοσίας Tags
+- **Μορφή**: `v{VERSION}-{milestone}`
+- **Παραδείγματα**:
+  - `v1.0.0-thesis-final` — Υποβληθείσα έκδοση διπλωματικής
+  - `v1.0.0-defense` — Έκδοση παρουσίασης/υποστήριξης
+  - `v1.0.1-camera-ready` — Τελική έκδοση μετά την αξιολόγηση
 
-### Reproducibility
-To reproduce any tagged version:
+### Αναπαραγωγιμότητα
+Για αναπαραγωγή οποιασδήποτε σημειωμένης έκδοσης:
 ```bash
 git checkout v1.0.0-thesis-final
 docker compose up -d
@@ -196,6 +196,6 @@ docker compose up -d
 
 ---
 
-**End-to-End Demo Checklist**: See [`docs/THESIS.md`](THESIS.md) for the defense demonstration walkthrough.
+**Λίστα Ελέγχου End-to-End Demo**: Ανατρέξτε στο [`docs/THESIS.md`](THESIS.md) για την παρουσίαση υποστήριξης.
 
-**Full Architecture Reference**: See [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) for service details, data flows, and API reference.
+**Πλήρης Αναφορά Αρχιτεκτονικής**: Ανατρέξτε στο [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) για λεπτομέρειες υπηρεσιών, ροές δεδομένων και αναφορά API.

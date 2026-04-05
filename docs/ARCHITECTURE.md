@@ -1,114 +1,115 @@
-# System Architecture
+# Αρχιτεκτονική Συστήματος
 
-**Version:** 2.1 | **Last Updated:** March 2026 | **Author:** Thesis Implementation
+**Έκδοση:** 2.1 | **Τελευταία Ενημέρωση:** Μάρτιος 2026 | **Συγγραφέας:** Υλοποίηση Διπλωματικής
 
 ---
 
-## Table of Contents
+## Πίνακας Περιεχομένων
 
-1. [Executive Summary](#executive-summary)
-2. [High-Level Architecture](#high-level-architecture)
-3. [O-RAN Architecture Mapping](#o-ran-architecture-mapping)
-4. [Service Layer Details](#service-layer-details)
-   - [NEF Emulator (RAN Simulator)](#1-nef-emulator-ran-simulator)
+1. [Εκτελεστική Σύνοψη](#εκτελεστική-σύνοψη)
+2. [Αρχιτεκτονική Υψηλού Επιπέδου](#αρχιτεκτονική-υψηλού-επιπέδου)
+3. [Αντιστοίχιση Αρχιτεκτονικής O-RAN](#αντιστοίχιση-αρχιτεκτονικής-o-ran)
+4. [Λεπτομέρειες Επιπέδου Υπηρεσιών](#λεπτομέρειες-επιπέδου-υπηρεσιών)
+   - [NEF Emulator (Προσομοιωτής RAN)](#1-nef-emulator-προσομοιωτής-ran)
    - [ML Service](#2-ml-service)
    - [Kinisis UI](#3-kinisis-ui)
-5. [Core Subsystems](#core-subsystems)
-   - [Channel Model](#channel-model-subsystem)
-   - [Handover Engine](#handover-engine-subsystem)
-   - [Metrics & RLF Detection](#metrics--rlf-detection-subsystem)
-   - [ML Prediction Pipeline](#ml-prediction-pipeline)
-6. [Data Layer](#data-layer)
-7. [Scripts & Analysis Framework](#scripts--analysis-framework)
-8. [MLOps Pipeline](#mlops-pipeline)
-9. [Testing Infrastructure](#testing-infrastructure)
-10. [Deployment Architecture](#deployment-architecture)
-11. [Data Flows](#data-flows)
-12. [Configuration Reference](#configuration-reference)
-13. [API Reference](#api-reference)
+5. [Βασικά Υποσυστήματα](#βασικά-υποσυστήματα)
+   - [Μοντέλο Καναλιού](#υποσύστημα-μοντέλου-καναλιού)
+   - [Μηχανή Handover](#υποσύστημα-μηχανής-handover)
+   - [Μετρικές & Ανίχνευση RLF](#υποσύστημα-μετρικών--ανίχνευσης-rlf)
+   - [Γραμμή Πρόβλεψης ML](#γραμμή-πρόβλεψης-ml)
+6. [Επίπεδο Δεδομένων](#επίπεδο-δεδομένων)
+7. [Scripts & Πλαίσιο Ανάλυσης](#scripts--πλαίσιο-ανάλυσης)
+8. [Γραμμή MLOps](#γραμμή-mlops)
+9. [Υποδομή Δοκιμών](#υποδομή-δοκιμών)
+10. [Αρχιτεκτονική Ανάπτυξης](#αρχιτεκτονική-ανάπτυξης)
+11. [Ροές Δεδομένων](#ροές-δεδομένων)
+12. [Αναφορά Ρυθμίσεων](#αναφορά-ρυθμίσεων)
+13. [Αναφορά API](#αναφορά-api)
 
 ---
 
-## Executive Summary
+## Εκτελεστική Σύνοψη
 
-This system implements an **ML-assisted handover optimization framework** for 5G networks, designed to compare machine learning approaches against the standard **3GPP A3 event-based handover rule**. The architecture follows O-RAN Alliance principles with appropriate simplifications for research purposes.
+Το σύστημα αυτό υλοποιεί ένα **πλαίσιο βελτιστοποίησης handover υποβοηθούμενο από ML** για δίκτυα 5G, σχεδιασμένο για τη σύγκριση μεθόδων μηχανικής μάθησης έναντι του πρότυπου **κανόνα handover βασισμένου στο γεγονός A3 κατά 3GPP**. Η αρχιτεκτονική ακολουθεί τις αρχές του O-RAN Alliance με κατάλληλες απλοποιήσεις για ερευνητικούς σκοπούς.
 
-### Key Capabilities
+### Βασικές Δυνατότητες
 
-| Capability | Implementation |
-|------------|----------------|
-| **Handover Decision** | ML (LightGBM) vs 3GPP A3 baseline |
-| **Channel Modeling** | AR1 shadowing, Rayleigh fading, 3GPP path loss |
-| **Ping-Pong Prevention** | 3-layer protection (dwell time, ML features, QoS bias) |
-| **Explainability** | SHAP-based model interpretability |
-| **Real-time Visualization** | WebSocket-based metrics streaming |
-| **Statistical Analysis** | Paired tests, bootstrap CI, Bonferroni correction |
+| Δυνατότητα | Υλοποίηση |
+|------------|-----------|
+| **Απόφαση Handover** | ML (LightGBM) έναντι baseline 3GPP A3 |
+| **Μοντελοποίηση Καναλιού** | AR1 shadowing, Rayleigh fading, 3GPP path loss |
+| **Πρόληψη Ping-Pong** | Προστασία 3 επιπέδων (χρόνος παραμονής, χαρακτηριστικά ML, μεροληψία QoS) |
+| **Ερμηνευσιμότητα** | Ερμηνευσιμότητα μοντέλου βασισμένη σε SHAP |
+| **Οπτικοποίηση Πραγματικού Χρόνου** | Μετάδοση μετρικών μέσω WebSocket |
+| **Στατιστική Ανάλυση** | Ζευγαρωτές δοκιμές, bootstrap CI, διόρθωση Bonferroni |
 
-### Validated Results
+### Επικυρωμένα Αποτελέσματα
 
-| Metric | ML Mode | A3 Baseline | Improvement |
-|--------|---------|-------------|-------------|
-| Ping-Pong Rate | 0% | 40-60% | **100% elimination** |
-| Handover Count | Reduced | Baseline | **~75% reduction** |
-| Avg Dwell Time | 5.22s | ~1.0s | **422% increase** |
-| Coverage Loss | Maintained | Baseline | Equivalent |
+|      Μετρική       | Λειτουργία ML |  Baseline A3  |       Βελτίωση        |
+|--------------------|---------------|---------------|----------------------|
+| Ρυθμός Ping-Pong   |      0%       |    40-60%     | **100% εξάλειψη**    |
+| Αριθμός Handovers  |   Μειωμένος   |   Baseline    | **~75% μείωση**      |
+| Μέσος Χρ. Παραμονής|    5.22s      |    ~1.0s      | **422% αύξηση**      |
+| Απώλεια Κάλυψης    | Διατηρήθηκε   |   Baseline    |    Ισοδύναμη         |
 
 ---
 
-## High-Level Architecture
+## Αρχιτεκτονική Υψηλού Επιπέδου
+
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                    PRESENTATION LAYER                                     │
+│                                    PRESENTATION LAYER                                    │
 │  ┌────────────────────────────────────────────────────────────────────────────────────┐  │
-│  │                              Kinisis UI (React 18 + Vite)                           │  │
-│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐            │  │
-│  │  │  MapPage  │ │ Dashboard │ │ Scenarios │ │  Metrics  │ │  Config   │            │  │
-│  │  │ (Leaflet) │ │  (Charts) │ │  (Select) │ │  (Live)   │ │  (Forms)  │            │  │
-│  │  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘            │  │
-│  │  ┌──────────────────────────────────────────────────────────────────────────────┐ │  │
-│  │  │  SignalPanel | RealTimeMetrics | RetryModal | AntennaMarkers | UETrajectory  │ │  │
-│  │  └──────────────────────────────────────────────────────────────────────────────┘ │  │
+│  │                              Kinisis UI (React 18 + Vite)                          │  │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐             │  │
+│  │  │  MapPage  │ │ Dashboard │ │ Scenarios │ │  Metrics  │ │  Config   │             │  │
+│  │  │ (Leaflet) │ │  (Charts) │ │  (Select) │ │  (Live)   │ │  (Forms)  │             │  │
+│  │  └───────────┘ └───────────┘ └───────────┘ └───────────┘ └───────────┘             │  │
+│  │  ┌──────────────────────────────────────────────────────────────────────────────┐  │  │
+│  │  │  SignalPanel | RealTimeMetrics | RetryModal | AntennaMarkers | UETrajectory  │  │  │
+│  │  └──────────────────────────────────────────────────────────────────────────────┘  │  │
 │  └────────────────────────────────────────────────────────────────────────────────────┘  │
 │                                          │ HTTP/REST + WebSocket                         │
 └──────────────────────────────────────────┼───────────────────────────────────────────────┘
                                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       API LAYER                                           │
-│  ┌────────────────────────────────────┐    ┌────────────────────────────────────────┐   │
-│  │    NEF Emulator / RAN Simulator     │    │           ML Service                    │   │
-│  │         (FastAPI - Port 8080)       │    │       (Flask - Port 5050)               │   │
-│  │  ┌──────────────────────────────┐  │    │  ┌──────────────────────────────────┐  │   │
-│  │  │ REST Endpoints:              │  │    │  │ REST Endpoints:                  │  │   │
-│  │  │  • /api/v1/ue/*              │  │◄──►│  │  • POST /predict                 │  │   │
-│  │  │  • /api/v1/cells/*           │  │    │  │  • POST /predict/batch           │  │   │
-│  │  │  • /api/v1/handover/*        │  │    │  │  • GET  /health                  │  │   │
-│  │  │  • /api/v1/scenarios/*       │  │    │  │  • GET  /metrics                 │  │   │
-│  │  │  • /api/v1/experiments/*     │  │    │  │  • POST /feedback                │  │   │
-│  │  │  • WS /ws/metrics            │  │    │  │  • GET  /model/info              │  │   │
-│  │  └──────────────────────────────┘  │    │  └──────────────────────────────────┘  │   │
-│  └────────────────────────────────────┘    └────────────────────────────────────────┘   │
+│                                       API LAYER                                          │
+│  ┌────────────────────────────────────┐    ┌────────────────────────────────────────┐    │
+│  │    NEF Emulator / RAN Simulator    │    │           ML Service                   │    │
+│  │         (FastAPI - Port 8080)      │    │       (Flask - Port 5050)              │    │
+│  │  ┌──────────────────────────────┐  │    │  ┌──────────────────────────────────┐  │    │
+│  │  │ REST Endpoints:              │  │    │  │ REST Endpoints:                  │  │    │
+│  │  │  • /api/v1/ue/*              │  │◄──►│  │  • POST /predict                 │  │    │
+│  │  │  • /api/v1/cells/*           │  │    │  │  • POST /predict/batch           │  │    │
+│  │  │  • /api/v1/handover/*        │  │    │  │  • GET  /health                  │  │    │
+│  │  │  • /api/v1/scenarios/*       │  │    │  │  • GET  /metrics                 │  │    │
+│  │  │  • /api/v1/experiments/*     │  │    │  │  • POST /feedback                │  │    │
+│  │  │  • WS /ws/metrics            │  │    │  │  • GET  /model/info              │  │    │
+│  │  └──────────────────────────────┘  │    │  └──────────────────────────────────┘  │    │
+│  └────────────────────────────────────┘    └────────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                   BUSINESS LOGIC LAYER                                    │
-│                                                                                           │
+│                                   BUSINESS LOGIC LAYER                                   │
+│                                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                              HANDOVER ENGINE (engine.py)                             │ │
+│  │                              HANDOVER ENGINE (engine.py)                            │ │
 │  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐                   │ │
 │  │  │    ML Mode       │  │    A3 Mode       │  │   Hybrid Mode    │                   │ │
 │  │  │  (LightGBM)      │  │  (3GPP TS 38.331)│  │  (ML + fallback) │                   │ │
 │  │  └────────┬─────────┘  └────────┬─────────┘  └────────┬─────────┘                   │ │
-│  │           └─────────────────────┴─────────────────────┘                              │ │
-│  │                                     │                                                 │ │
-│  │  ┌──────────────────────────────────┴──────────────────────────────────┐             │ │
-│  │  │   Per-UE TTT Timers  │  Ping-Pong Prevention  │  QoS-Aware Boost   │             │ │
-│  │  └──────────────────────────────────────────────────────────────────────┘             │ │
+│  │           └─────────────────────┴─────────────────────┘                             │ │
+│  │                                     │                                               │ │
+│  │  ┌──────────────────────────────────┴──────────────────────────────────┐            │ │
+│  │  │   Per-UE TTT Timers  │  Ping-Pong Prevention  │  QoS-Aware Boost    │            │ │
+│  │  └─────────────────────────────────────────────────────────────────────┘            │ │
 │  └─────────────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                           │
+│                                                                                          │
 │  ┌────────────────────────────┐  ┌────────────────────────────┐                          │
-│  │      A3EventRule           │  │    NetworkStateManager      │                          │
+│  │      A3EventRule           │  │    NetworkStateManager     │                          │
 │  │  ┌──────────────────────┐  │  │  ┌──────────────────────┐  │                          │
 │  │  │ • Hysteresis (2dB)   │  │  │  │ • UE State Tracking  │  │                          │
 │  │  │ • TTT Support        │  │  │  │ • Feature Extraction │  │                          │
@@ -116,9 +117,9 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 │  │  │ • 3GPP Compliance    │  │  │  │ • Cell Management    │  │                          │
 │  │  └──────────────────────┘  │  │  └──────────────────────┘  │                          │
 │  └────────────────────────────┘  └────────────────────────────┘                          │
-│                                                                                           │
+│                                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                            CHANNEL MODEL (rf_models/)                                │ │
+│  │                            CHANNEL MODEL (rf_models/)                               │ │
 │  │  ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────────┐  │ │
 │  │  │    Path Loss Models   │ │  AR1 Shadowing Model  │ │  Rayleigh Fading Model    │  │ │
 │  │  │  • ABG (3GPP 38.901)  │ │  • σ_SF = 4-8 dB      │ │  • Doppler-aware          │  │ │
@@ -126,9 +127,9 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 │  │  │  • UMa/UMi variants   │ │  • Spatial correlation│ │  • Division-by-0 safe     │  │ │
 │  │  └───────────────────────┘ └───────────────────────┘ └───────────────────────────┘  │ │
 │  └─────────────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                           │
+│                                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                          METRICS & RLF DETECTION (metrics/)                          │ │
+│  │                          METRICS & RLF DETECTION (metrics/)                         │ │
 │  │  ┌───────────────────────┐ ┌───────────────────────┐ ┌───────────────────────────┐  │ │
 │  │  │    RLF Detector       │ │ Throughput Calculator │ │  Interruption Tracker     │  │ │
 │  │  │  • T310 timer (1s)    │ │  • Shannon capacity   │ │  • Queue-based tracking   │  │ │
@@ -139,12 +140,12 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 └──────────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       ML/AI LAYER                                         │
-│  ┌─────────────────────────────────────────────────────────────────────────────────────┐ │
-│  │                           LightGBM Handover Model                                    │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │  INPUT FEATURES (12):                                                          │ │ │
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       ML/AI LAYER                                       │
+│  ┌────────────────────────────────────────────────────────────────────────────────────┐ │
+│  │                           LightGBM Handover Model                                  │ │
+│  │  ┌───────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  INPUT FEATURES (12):                                                         │ │ │
 │  │  │  ┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐               │ │ │
 │  │  │  │ Signal Features  │ │ Distance Features│ │ Mobility Features│               │ │ │
 │  │  │  │ • rsrp_serving   │ │ • dist_serving   │ │ • velocity       │               │ │ │
@@ -152,16 +153,16 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 │  │  │  │ • rsrp_diff      │ │ • dist_diff      │ │ • time_since_ho  │               │ │ │
 │  │  │  │ • sinr_serving   │ └──────────────────┘ │ • ho_count_1min  │               │ │ │
 │  │  │  │ • sinr_neighbor  │                      └──────────────────┘               │ │ │
-│  │  │  │ • sinr_diff      │                                                          │ │ │
-│  │  │  └──────────────────┘                                                          │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  │  ┌────────────────────────────────────────────────────────────────────────────────┐ │ │
-│  │  │  OUTPUT: handover_probability (0.0 - 1.0)                                      │ │ │
-│  │  │  THRESHOLD: ML_CONFIDENCE_THRESHOLD (default: 0.5, QoS-adjusted: 0.6)          │ │ │
-│  │  │  CALIBRATION: Isotonic regression for improved probability estimates           │ │ │
-│  │  └────────────────────────────────────────────────────────────────────────────────┘ │ │
-│  └─────────────────────────────────────────────────────────────────────────────────────┘ │
-│                                                                                           │
+│  │  │  │ • sinr_diff      │                                                         │ │ │
+│  │  │  └──────────────────┘                                                         │ │ │
+│  │  └───────────────────────────────────────────────────────────────────────────────┘ │ │
+│  │  ┌───────────────────────────────────────────────────────────────────────────────┐ │ │
+│  │  │  OUTPUT: handover_probability (0.0 - 1.0)                                     │ │ │
+│  │  │  THRESHOLD: ML_CONFIDENCE_THRESHOLD (default: 0.5, QoS-adjusted: 0.6)         │ │ │
+│  │  │  CALIBRATION: Isotonic regression for improved probability estimates          │ │ │
+│  │  └───────────────────────────────────────────────────────────────────────────────┘ │ │
+│  └────────────────────────────────────────────────────────────────────────────────────┘ │
+│                                                                                         │
 │  ┌────────────────────────────────┐  ┌────────────────────────────────────────────────┐ │
 │  │    SHAP Interpretability       │  │         Ping-Pong Prevention Stack             │ │
 │  │  ┌──────────────────────────┐  │  │  ┌──────────────────────────────────────────┐  │ │
@@ -170,25 +171,25 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 │  │  │ • SAMPLED (10%)          │  │  │  │ Layer 3: QoS-aware confidence boost      │  │ │
 │  │  │ • ALWAYS (demo)          │  │  │  └──────────────────────────────────────────┘  │ │
 │  │  │ TreeExplainer + safety   │  │  └────────────────────────────────────────────────┘ │
-│  │  └──────────────────────────┘  │                                                      │
-│  └────────────────────────────────┘                                                      │
-└──────────────────────────────────────────────────────────────────────────────────────────┘
+│  │  └──────────────────────────┘  │                                                     │
+│  └────────────────────────────────┘                                                     │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
-┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│                                       DATA LAYER                                          │
-│  ┌─────────────────────┐ ┌─────────────────────┐ ┌──────────────────────────────────┐   │
-│  │    PostgreSQL       │ │      MongoDB        │ │       Feast Feature Store        │   │
-│  │    (Port 5432)      │ │    (Port 27017)     │ │                                  │   │
-│  │  ┌───────────────┐  │ │  ┌───────────────┐  │ │  ┌────────────────────────────┐ │   │
-│  │  │ • UE Records  │  │ │  │ • Time Series │  │ │  │ feature_repo/              │ │   │
-│  │  │ • Cell Config │  │ │  │ • ML Predictions│ │ │  │  • ue_features.py         │ │   │
-│  │  │ • Handover Log│  │ │  │ • Raw Signals │  │ │  │  • cell_features.py        │ │   │
-│  │  │ • Experiments │  │ │  │ • SHAP Values │  │ │  │ Offline: Parquet files     │ │   │
-│  │  │ • Scenarios   │  │ │  │ • Metrics Hist│  │ │  │ Online: Redis/SQLite       │ │   │
-│  │  └───────────────┘  │ │  └───────────────┘  │ │  └────────────────────────────┘ │   │
-│  └─────────────────────┘ └─────────────────────┘ └──────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                       DATA LAYER                                           │
+│  ┌─────────────────────┐ ┌───────────────────────┐ ┌──────────────────────────────────┐    │
+│  │    PostgreSQL       │ │      MongoDB          │ │       Feast Feature Store        │    │
+│  │    (Port 5432)      │ │    (Port 27017)       │ │                                  │    │
+│  │  ┌───────────────┐  │ │  ┌─────────────────┐  │ │  ┌────────────────────────────┐  │    │
+│  │  │ • UE Records  │  │ │  │ • Time Series   │  │ │  │ feature_repo/              │  │    │
+│  │  │ • Cell Config │  │ │  │ • ML Predictions│  │ │  │  • ue_features.py          │  │    │
+│  │  │ • Handover Log│  │ │  │ • Raw Signals   │  │ │  │  • cell_features.py        │  │    │
+│  │  │ • Experiments │  │ │  │ • SHAP Values   │  │ │  │ Offline: Parquet files     │  │    │
+│  │  │ • Scenarios   │  │ │  │ • Metrics Hist  │  │ │  │ Online: Redis/SQLite       │  │    │
+│  │  └───────────────┘  │ │  └─────────────────┘  │ │  └────────────────────────────┘  │    │
+│  └─────────────────────┘ └───────────────────────┘ └──────────────────────────────────┘    │
+└────────────────────────────────────────────────────────────────────────────────────────────┘
                                            │
                                            ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -218,11 +219,12 @@ This system implements an **ML-assisted handover optimization framework** for 5G
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
 ---
 
-## O-RAN Architecture Mapping
+## Αντιστοίχιση Αρχιτεκτονικής O-RAN
 
-This implementation maps to O-RAN Alliance reference architecture:
+Η υλοποίηση αντιστοιχίζεται στην αρχιτεκτονική αναφοράς του O-RAN Alliance:
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
@@ -262,34 +264,36 @@ This implementation maps to O-RAN Alliance reference architecture:
 └──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Protocol Simplifications
 
-| Real O-RAN | This Implementation | Rationale |
-|------------|---------------------|-----------|
-| ASN.1 + SCTP + E2AP | JSON + HTTP REST | Research focus on algorithms, not protocols |
-| E2SM-KPM/RC schemas | Custom JSON schemas | Flexibility for rapid experimentation |
-| Complex subscription | Request-response / WebSocket | Simpler to implement and debug |
-| Formal Service Models | Custom metrics & controls | Thesis-specific requirements |
+### Απλοποιήσεις Πρωτοκόλλων
 
-### Preserved Architectural Principles
+| Πραγματικό O-RAN | Αυτή η Υλοποίηση | Αιτιολόγηση |
+|-------------------|-------------------|-------------|
+| ASN.1 + SCTP + E2AP | JSON + HTTP REST | Ερευνητική εστίαση σε αλγορίθμους, όχι πρωτόκολλα |
+| E2SM-KPM/RC schemas | Προσαρμοσμένα JSON schemas | Ευελιξία για γρήγορο πειραματισμό |
+| Σύνθετη συνδρομή | Request-response / WebSocket | Απλούστερη υλοποίηση και αποσφαλμάτωση |
+| Τυπικά Service Models | Προσαρμοσμένες μετρικές & έλεγχοι | Απαιτήσεις ειδικές για τη διπλωματική |
 
-- ✅ **Separation of concerns**: RAN simulator ↔ Intelligent controller
-- ✅ **Clear interface boundaries**: Well-defined API contracts
-- ✅ **Near-RT latency**: <1 second decision loop
-- ✅ **Metrics reporting**: Analogous to E2 Indication
-- ✅ **Control actions**: Analogous to E2 Control
+### Διατηρημένες Αρχιτεκτονικές Αρχές
+
+- ✅ **Διαχωρισμός ευθυνών**: Προσομοιωτής RAN ↔ Ευφυής ελεγκτής
+- ✅ **Σαφή όρια διεπαφών**: Καλά ορισμένα συμβόλαια API
+- ✅ **Καθυστέρηση Near-RT**: Βρόχος αποφάσεων <1 δευτερόλεπτο
+- ✅ **Αναφορά μετρικών**: Ανάλογη με E2 Indication
+- ✅ **Ενέργειες ελέγχου**: Ανάλογες με E2 Control
 
 ---
 
-## Service Layer Details
+## Λεπτομέρειες Επιπέδου Υπηρεσιών
 
-### 1. NEF Emulator (RAN Simulator)
+### 1. NEF Emulator (Προσομοιωτής RAN)
 
-**Location:** `5g-network-optimization/services/nef-emulator/`
-**Technology:** FastAPI (Python 3.10+)
-**Port:** 8080
+**Τοποθεσία:** `5g-network-optimization/services/nef-emulator/`
+**Τεχνολογία:** FastAPI (Python 3.10+)
+**Θύρα:** 8080
 
-#### Directory Structure
+#### Δομή Καταλόγου
+
 
 ```
 nef-emulator/
@@ -325,39 +329,41 @@ nef-emulator/
 └── tests/
 ```
 
-#### Key Classes
 
-| Class | File | Responsibility |
-|-------|------|----------------|
-| `HandoverEngine` | `handover/engine.py` | Orchestrates ML/A3 decisions, manages TTT timers |
-| `A3EventRule` | `handover/a3_rule.py` | 3GPP TS 38.331 compliant A3 event |
-| `NetworkStateManager` | `network/state_manager.py` | UE state, feature extraction |
+#### Βασικές Κλάσεις
+
+| Κλάση | Αρχείο | Αρμοδιότητα |
+|-------|--------|-------------|
+| `HandoverEngine` | `handover/engine.py` | Ενορχήστρωση αποφάσεων ML/A3, διαχείριση χρονοδιακοπτών TTT |
+| `A3EventRule` | `handover/a3_rule.py` | Συμμόρφωση με 3GPP TS 38.331 γεγονός A3 |
+| `NetworkStateManager` | `network/state_manager.py` | Κατάσταση UE, εξαγωγή χαρακτηριστικών |
 | `ChannelModel` | `rf_models/channel_model.py` | AR1 shadowing, Rayleigh fading |
-| `RLFDetector` | `metrics/rlf_detector.py` | Radio Link Failure detection |
-| `ThroughputCalculator` | `metrics/rlf_detector.py` | SINR-to-throughput mapping |
-| `HandoverInterruptionTracker` | `metrics/rlf_detector.py` | Queue-based interruption tracking |
+| `RLFDetector` | `metrics/rlf_detector.py` | Ανίχνευση αποτυχίας ραδιοζεύξης (Radio Link Failure) |
+| `ThroughputCalculator` | `metrics/rlf_detector.py` | Αντιστοίχιση SINR σε ρυθμαπόδοση |
+| `HandoverInterruptionTracker` | `metrics/rlf_detector.py` | Παρακολούθηση διακοπών βασισμένη σε ουρά |
 
-#### Handover Modes
+#### Λειτουργίες Handover
 
 ```python
 class HandoverEngine:
-    # Three operational modes
+    # Τρεις λειτουργικές καταστάσεις
     handover_mode: Literal["ml", "a3", "hybrid"]
     
-    # ML mode: Pure ML-based decisions
-    # A3 mode: Pure 3GPP A3 rule
-    # Hybrid mode: ML with A3 fallback (recommended)
+    # ML mode: Αποκλειστικά αποφάσεις βασισμένες σε ML
+    # A3 mode: Αποκλειστικά κανόνας 3GPP A3
+    # Hybrid mode: ML με εφεδρικό A3 (συνιστάται)
 ```
 
 ---
 
 ### 2. ML Service
 
-**Location:** `5g-network-optimization/services/ml-service/`
-**Technology:** Flask (Python 3.10+)
-**Port:** 5050
+**Τοποθεσία:** `5g-network-optimization/services/ml-service/`
+**Τεχνολογία:** Flask (Python 3.10+)
+**Θύρα:** 5050
 
-#### Directory Structure
+#### Δομή Καταλόγου
+
 
 ```
 ml-service/ml_service/app/
@@ -385,7 +391,9 @@ ml-service/ml_service/app/
 └── monitoring/                 # Metrics export
 ```
 
-#### Model Architecture
+
+#### Αρχιτεκτονική Μοντέλου
+
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
@@ -429,13 +437,14 @@ ml-service/ml_service/app/
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-#### SHAP Configuration (Fixes #14, #15, #28)
+
+#### Ρύθμιση SHAP (Διορθώσεις #14, #15, #28)
 
 ```python
 class SHAPMode(Enum):
-    OFF = "off"           # Disabled (fastest, for batch experiments)
-    SAMPLED = "sampled"   # Computed for X% of decisions (default 10%)
-    ALWAYS = "always"     # Computed for every decision (UI/demo)
+    OFF = "off"           # Απενεργοποιημένο (ταχύτερο, για μαζικά πειράματα)
+    SAMPLED = "sampled"   # Υπολογισμός για X% των αποφάσεων (προεπιλογή 10%)
+    ALWAYS = "always"     # Υπολογισμός για κάθε απόφαση (UI/demo)
 
 @dataclass
 class SHAPConfig:
@@ -449,11 +458,12 @@ class SHAPConfig:
 
 ### 3. Kinisis UI
 
-**Location:** `5g-network-optimization/services/kinisis_ui/`
-**Technology:** React 18 + Vite + Leaflet
-**Port:** 3001
+**Τοποθεσία:** `5g-network-optimization/services/kinisis_ui/`
+**Τεχνολογία:** React 18 + Vite + Leaflet
+**Θύρα:** 3001
 
-#### Directory Structure
+#### Δομή Καταλόγου
+
 
 ```
 kinisis_ui/
@@ -480,15 +490,17 @@ kinisis_ui/
 └── vite.config.js
 ```
 
+
 ---
 
-## Core Subsystems
+## Βασικά Υποσυστήματα
 
-### Channel Model Subsystem
+### Υποσύστημα Μοντέλου Καναλιού
 
-**Location:** `nef-emulator/rf_models/channel_model.py`
+**Τοποθεσία:** `nef-emulator/rf_models/channel_model.py`
 
-Implements thesis Fixes #3, #24, #25:
+Υλοποιεί τις Διορθώσεις #3, #24, #25 της διπλωματικής:
+
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
@@ -528,9 +540,11 @@ Implements thesis Fixes #3, #24, #25:
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Handover Engine Subsystem
 
-**Location:** `nef-emulator/backend/app/app/handover/engine.py`
+### Υποσύστημα Μηχανής Handover
+
+**Τοποθεσία:** `nef-emulator/backend/app/app/handover/engine.py`
+
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
@@ -586,11 +600,13 @@ Implements thesis Fixes #3, #24, #25:
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Metrics & RLF Detection Subsystem
 
-**Location:** `nef-emulator/backend/app/app/metrics/rlf_detector.py`
+### Υποσύστημα Μετρικών & Ανίχνευσης RLF
 
-Implements thesis Fixes #4, #5, #6, #26, #27:
+**Τοποθεσία:** `nef-emulator/backend/app/app/metrics/rlf_detector.py`
+
+Υλοποιεί τις Διορθώσεις #4, #5, #6, #26, #27 της διπλωματικής:
+
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
@@ -658,7 +674,9 @@ Implements thesis Fixes #4, #5, #6, #26, #27:
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### ML Prediction Pipeline
+
+### Γραμμή Πρόβλεψης ML
+
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
@@ -709,11 +727,13 @@ Implements thesis Fixes #4, #5, #6, #26, #27:
 └───────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
 ---
 
-## Data Layer
+## Επίπεδο Δεδομένων
 
-### Database Schema Overview
+### Επισκόπηση Σχήματος Βάσεων Δεδομένων
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -776,24 +796,26 @@ Implements thesis Fixes #4, #5, #6, #26, #27:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
 ### Feast Feature Store
 
-**Location:** `mlops/feast_repo/`
+**Τοποθεσία:** `mlops/feast_repo/`
 
 ```
 feast_repo/
-├── feature_store.yaml          # Feast configuration
-├── feature_repo.py             # Feature definitions
-├── constants.py                # Feature constants
+├── feature_store.yaml          # Ρύθμιση Feast
+├── feature_repo.py             # Ορισμοί χαρακτηριστικών
+├── constants.py                # Σταθερές χαρακτηριστικών
 └── data/
-    └── *.parquet               # Offline feature data
+    └── *.parquet               # Offline δεδομένα χαρακτηριστικών
 ```
 
 ---
 
-## Scripts & Analysis Framework
+## Scripts & Πλαίσιο Ανάλυσης
 
-**Location:** `scripts/`
+**Τοποθεσία:** `scripts/`
+
 
 ```
 scripts/
@@ -820,63 +842,65 @@ scripts/
 └── run_enhanced_experiment.py  # Main experiment runner
 ```
 
-### Statistical Analysis (Fixes #16-19)
+
+### Στατιστική Ανάλυση (Διορθώσεις #16-19)
 
 ```python
-# Fix #16: Paired t-test (not independent)
+# Διόρθωση #16: Ζευγαρωτό t-test (όχι ανεξάρτητο)
 from scipy.stats import ttest_rel, wilcoxon
 
-# Fix #17: Cohen's d_z for paired data
+# Διόρθωση #17: Cohen's d_z για ζευγαρωτά δεδομένα
 def calculate_cohens_d_z(differences):
     return np.mean(differences) / np.std(differences, ddof=1)
 
-# Fix #18: Bonferroni correction
+# Διόρθωση #18: Διόρθωση Bonferroni
 def apply_bonferroni(p_value, n_comparisons):
     return min(p_value * n_comparisons, 1.0)
 
-# Fix #19: Bootstrap CI (maintains pairing)
+# Διόρθωση #19: Bootstrap CI (διατηρεί τη ζεύξη)
 def bootstrap_ci(a3_values, ml_values, n_iterations=10000):
-    # Resample PAIRS, not independently
+    # Επαναδειγματοληψία ΖΕΥΓΑΡΙΩΝ, όχι ανεξάρτητα
     ...
 ```
 
-### Experimental Configuration (Fixes #11-13)
+### Πειραματική Διαμόρφωση (Διορθώσεις #11-13)
 
 ```python
-# Fix #11: Tier-based experiment matrix
-# Tier 1: 40 runs (2 scenarios × 2 algorithms × 10 seeds)
-# Tier 2: Extended sensitivity analysis
-# Tier 3: Full 270 combinations (future work)
+# Διόρθωση #11: Πειραματικό πλαίσιο βασισμένο σε επίπεδα
+# Tier 1: 40 εκτελέσεις (2 σενάρια × 2 αλγόριθμοι × 10 seeds)
+# Tier 2: Εκτεταμένη ανάλυση ευαισθησίας
+# Tier 3: Πλήρεις 270 συνδυασμοί (μελλοντική εργασία)
 
-# Fix #12: Seed selection strategy
+# Διόρθωση #12: Στρατηγική επιλογής seed
 class SeedStrategy(Enum):
     SEQUENTIAL = "sequential"  # 1, 2, 3, ...
     PRIMES = "primes"          # 2, 3, 5, 7, 11, ...
-    HASH_BASED = "hash"        # Deterministic from metadata
+    HASH_BASED = "hash"        # Ντετερμινιστικό από metadata
 
-# Fix #13: Realistic runtime estimation
-# Per-run: 8-10 minutes average
-# Tier 1 (40 runs): 6-8 hours
+# Διόρθωση #13: Ρεαλιστική εκτίμηση χρόνου εκτέλεσης
+# Ανά εκτέλεση: 8-10 λεπτά κατά μέσο όρο
+# Tier 1 (40 εκτελέσεις): 6-8 ώρες
 ```
 
 ---
 
-## MLOps Pipeline
+## Γραμμή MLOps
 
-**Location:** `mlops/`
+**Τοποθεσία:** `mlops/`
 
 ```
 mlops/
 ├── data_pipeline/
-│   └── nef_collector.py        # Collect training data from NEF
+│   └── nef_collector.py        # Συλλογή δεδομένων εκπαίδευσης από NEF
 ├── feast_repo/
-│   ├── feature_store.yaml      # Feast config
-│   └── feature_repo.py         # Feature definitions
+│   ├── feature_store.yaml      # Ρύθμιση Feast
+│   └── feature_repo.py         # Ορισμοί χαρακτηριστικών
 └── feature_store/
-    └── feature_repo/           # Feature repository
+    └── feature_repo/           # Αποθετήριο χαρακτηριστικών
 ```
 
-### Training Data Pipeline
+### Γραμμή Δεδομένων Εκπαίδευσης
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -900,13 +924,14 @@ mlops/
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
 ---
 
-## Testing Infrastructure
+## Υποδομή Δοκιμών
 
-**Location:** `tests/`
+**Τοποθεσία:** `tests/`
 
-```
+
 tests/
 ├── conftest.py                 # Pytest configuration (portable paths)
 ├── core/
@@ -928,21 +953,23 @@ tests/
     └── test_shap_validation.py # Fixes #14,28,29 tests
 ```
 
-### Test Categories
 
-| Category | Purpose | Key Tests |
-|----------|---------|-----------|
-| **Unit Tests** | Component isolation | Channel model, RLF detector |
-| **Integration Tests** | Service interaction | Handover flow, API contracts |
-| **Validation Tests** | Thesis fix verification | All 29 fixes covered |
-| **ML System Tests** | Model behavior | SHAP, predictions, calibration |
-| **Thesis Claims Tests** | Result validation | Ping-pong elimination, improvements |
+### Κατηγορίες Δοκιμών
+
+| Κατηγορία | Σκοπός | Βασικές Δοκιμές |
+|-----------|--------|-----------------|
+| **Μοναδιαίες Δοκιμές (Unit)** | Απομόνωση συνιστωσών | Μοντέλο καναλιού, ανιχνευτής RLF |
+| **Δοκιμές Ολοκλήρωσης (Integration)** | Αλληλεπίδραση υπηρεσιών | Ροή handover, συμβόλαια API |
+| **Δοκιμές Επικύρωσης (Validation)** | Επαλήθευση διορθώσεων διπλωματικής | Κάλυψη και των 29 διορθώσεων |
+| **Δοκιμές Συστήματος ML** | Συμπεριφορά μοντέλου | SHAP, προβλέψεις, βαθμονόμηση |
+| **Δοκιμές Ισχυρισμών Διπλωματικής** | Επικύρωση αποτελεσμάτων | Εξάλειψη ping-pong, βελτιώσεις |
 
 ---
 
-## Deployment Architecture
+## Αρχιτεκτονική Ανάπτυξης
 
-### Docker Compose (Development/Testing)
+### Docker Compose (Ανάπτυξη/Δοκιμές)
+
 
 ```yaml
 # docker-compose.yml structure
@@ -981,9 +1008,10 @@ services:
     ports: ["3000:3000"]
 ```
 
-### Kubernetes (Production)
 
-**Location:** `deployment/kubernetes/`
+### Kubernetes (Παραγωγή)
+
+**Τοποθεσία:** `deployment/kubernetes/`
 
 ```
 kubernetes/
@@ -1003,9 +1031,10 @@ kubernetes/
 
 ---
 
-## Data Flows
+## Ροές Δεδομένων
 
-### Real-Time Metrics Flow
+### Ροή Μετρικών Πραγματικού Χρόνου
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1035,7 +1064,9 @@ kubernetes/
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Handover Decision Flow
+
+### Ροή Αποφάσεων Handover
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -1075,82 +1106,73 @@ kubernetes/
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+
 ---
 
-## Configuration Reference
+## Αναφορά Ρυθμίσεων
 
-### Environment Variables
+### Μεταβλητές Περιβάλλοντος
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Μεταβλητή | Προεπιλογή | Περιγραφή |
+|-----------|------------|-----------|
 | **NEF Emulator** | | |
-| `A3_HYSTERESIS_DB` | 2.0 | A3 hysteresis margin in dB |
-| `A3_TTT_S` | 0.0 | Time-to-Trigger (0 = per-UE) |
-| `MIN_DWELL_TIME_S` | 3.0 | Minimum time in cell |
-| `ML_HANDOVER_ENABLED` | true | Enable ML mode |
-| `ML_SERVICE_URL` | http://ml-service:5050 | ML service endpoint |
-| `ML_CONFIDENCE_THRESHOLD` | 0.5 | Decision threshold |
+| `A3_HYSTERESIS_DB` | 2.0 | Περιθώριο υστέρησης A3 σε dB |
+| `A3_TTT_S` | 0.0 | Χρόνος μέχρι ενεργοποίηση (0 = ανά UE) |
+| `MIN_DWELL_TIME_S` | 3.0 | Ελάχιστος χρόνος παραμονής σε κελί |
+| `ML_HANDOVER_ENABLED` | true | Ενεργοποίηση λειτουργίας ML |
+| `ML_SERVICE_URL` | http://ml-service:5050 | Τελικό σημείο ML service |
+| `ML_CONFIDENCE_THRESHOLD` | 0.5 | Κατώφλι απόφασης |
 | **ML Service** | | |
-| `N_ESTIMATORS` | 100 | LightGBM trees |
-| `CALIBRATE_CONFIDENCE` | true | Enable calibration |
-| `SHAP_ENABLED` | false | Enable SHAP |
+| `N_ESTIMATORS` | 100 | Αριθμός δέντρων LightGBM |
+| `CALIBRATE_CONFIDENCE` | true | Ενεργοποίηση βαθμονόμησης |
+| `SHAP_ENABLED` | false | Ενεργοποίηση SHAP |
 | `SHAP_MODE` | off | off/sampled/always |
-| `SHAP_SAMPLE_RATE` | 0.1 | Sampling rate |
-| **Reproducibility** | | |
-| `EXPERIMENT_SEED` | 42 | Random seed |
+| `SHAP_SAMPLE_RATE` | 0.1 | Ρυθμός δειγματοληψίας |
+| **Αναπαραγωγιμότητα** | | |
+| `EXPERIMENT_SEED` | 42 | Τυχαίος σπόρος |
 
-### Configuration Files
+### Αρχεία Ρυθμίσεων
 
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Service orchestration |
-| `requirements.lock` | Locked Python dependencies (Fix #21) |
-| `feature_store.yaml` | Feast configuration |
-| `prometheus.yml` | Metrics collection |
-| `grafana/dashboards/*.json` | Pre-built dashboards |
-
----
-
-## API Reference
-
-### NEF Emulator API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/ue/` | GET | List all UEs |
-| `/api/v1/ue/{ue_id}` | GET | Get UE details |
-| `/api/v1/ue/{ue_id}/state` | GET | Get UE signal state |
-| `/api/v1/cells/` | GET | List all cells |
-| `/api/v1/cells/{cell_id}` | GET | Get cell details |
-| `/api/v1/handover/trigger` | POST | Trigger handover |
-| `/api/v1/handover/evaluate` | POST | Evaluate decision |
-| `/api/v1/scenarios/` | GET | List scenarios |
-| `/api/v1/scenarios/{id}/start` | POST | Start scenario |
-| `/api/v1/experiments/start` | POST | Start experiment |
-| `/api/v1/experiments/stop` | POST | Stop experiment |
-| `/ws/metrics` | WS | Real-time metrics |
-
-### ML Service API
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/predict` | POST | Get handover prediction |
-| `/predict/batch` | POST | Batch predictions |
-| `/health` | GET | Health check |
-| `/metrics` | GET | Model metrics |
-| `/model/info` | GET | Model information |
-| `/feedback` | POST | Submit feedback |
+| Αρχείο | Σκοπός |
+|--------|--------|
+| `docker-compose.yml` | Ενορχήστρωση υπηρεσιών |
+| `requirements.lock` | Κλειδωμένες εξαρτήσεις Python (Διόρθωση #21) |
+| `feature_store.yaml` | Ρύθμιση Feast |
+| `prometheus.yml` | Συλλογή μετρικών |
+| `grafana/dashboards/*.json` | Προ-κατασκευασμένα dashboards |
 
 ---
 
-## Document History
+## Αναφορά API
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 2.1 | March 2026 | Consolidated from SYSTEM_ARCHITECTURE_FULL.md; removed duplicate quick-start |
-| 2.0 | January 2026 | Complete rewrite with all 29 thesis fixes documented |
-| 1.0 | December 2025 | Initial architecture documentation |
+### API του NEF Emulator
+
+| Τελικό Σημείο | Μέθοδος | Περιγραφή |
+|---------------|---------|-----------|
+| `/api/v1/ue/` | GET | Λίστα όλων των UEs |
+| `/api/v1/ue/{ue_id}` | GET | Λεπτομέρειες UE |
+| `/api/v1/ue/{ue_id}/state` | GET | Κατάσταση σήματος UE |
+| `/api/v1/cells/` | GET | Λίστα όλων των κελιών |
+| `/api/v1/cells/{cell_id}` | GET | Λεπτομέρειες κελιού |
+| `/api/v1/handover/trigger` | POST | Ενεργοποίηση handover |
+| `/api/v1/handover/evaluate` | POST | Αξιολόγηση απόφασης |
+| `/api/v1/scenarios/` | GET | Λίστα σεναρίων |
+| `/api/v1/scenarios/{id}/start` | POST | Έναρξη σεναρίου |
+| `/api/v1/experiments/start` | POST | Έναρξη πειράματος |
+| `/api/v1/experiments/stop` | POST | Τερματισμός πειράματος |
+| `/ws/metrics` | WS | Μετρικές πραγματικού χρόνου |
+
+### API του ML Service
+
+| Τελικό Σημείο | Μέθοδος | Περιγραφή |
+|---------------|---------|-----------|
+| `/predict` | POST | Λήψη πρόβλεψης handover |
+| `/predict/batch` | POST | Μαζικές προβλέψεις |
+| `/health` | GET | Έλεγχος υγείας |
+| `/metrics` | GET | Μετρικές μοντέλου |
+| `/model/info` | GET | Πληροφορίες μοντέλου |
+| `/feedback` | POST | Υποβολή ανατροφοδότησης |
 
 ---
 
-*This document provides the complete technical architecture of the 5G Network Optimization thesis implementation. For O-RAN terminology clarification, see [ORAN_TERMINOLOGY.md](../5g-network-optimization/services/nef-emulator/docs/ORAN_TERMINOLOGY.md). For operations and deployment, see [MANUAL.md](./MANUAL.md). For thesis methodology and reproducibility, see [THESIS.md](./THESIS.md).*
+*Αυτό το έγγραφο παρέχει την πλήρη τεχνική αρχιτεκτονική της υλοποίησης της διπλωματικής για Βελτιστοποίηση Δικτύων 5G. Για διευκρίνιση ορολογίας O-RAN, ανατρέξτε στο [ORAN_TERMINOLOGY.md](../5g-network-optimization/services/nef-emulator/docs/ORAN_TERMINOLOGY.md). Για λειτουργίες και ανάπτυξη, ανατρέξτε στο [MANUAL.md](./MANUAL.md). Για μεθοδολογία διπλωματικής και αναπαραγωγιμότητα, ανατρέξτε στο [THESIS.md](./THESIS.md).*
