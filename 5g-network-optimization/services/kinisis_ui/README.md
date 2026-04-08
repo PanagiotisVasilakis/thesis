@@ -1,108 +1,108 @@
 # Kinisis UI
 
-Modern React-based UI for the 5G Network Emulator (NEF).
+Σύγχρονο UI βασισμένο σε React για τον Εξομοιωτή Δικτύου 5G (NEF).
 
-## 🚀 Quick Start
+## 🚀 Γρήγορη Εκκίνηση
 
-### Development
+### Ανάπτυξη
 
 ```bash
-# Install dependencies
+# Εγκατάσταση εξαρτήσεων
 npm install
 
-# Start dev server
+# Εκκίνηση dev server
 npm run dev
 ```
 
-Visit `http://localhost:3000`
+Επισκεφτείτε `http://localhost:3000`
 
-### Production (Docker)
+### Παραγωγή (Docker)
 
 ```bash
-# Build and run with Docker
+# Κατασκευή και εκτέλεση με Docker
 docker build -t kinisis-ui .
 docker run -p 3000:80 kinisis-ui
 ```
 
-Or add to your existing docker-compose.yml (see `docker-compose.example.yml`)
+Ή προσθέστε στο υπάρχον `docker-compose.yml` (βλ. `docker-compose.example.yml`)
 
-## 📦 Features
+## 📦 Λειτουργίες
 
-- 🗺️ **Interactive Map** - Leaflet with cells, UEs, and paths
-- 🧠 **ML Control** - Toggle between ML and A3 handover modes
-- 🏛️ **Entity Management** - Full CRUD for gNBs, Cells, UEs, Paths
-- 📊 **Analytics** - Charts comparing ML vs A3 performance
-- 📥 **Scenarios** - Load pre-built or custom test scenarios
-- 📤 **Export** - Download results as CSV/JSON
+- 🗺️ **Διαδραστικός Χάρτης** — Leaflet με cells, UEs και διαδρομές
+- 🧠 **Έλεγχος ML** — Εναλλαγή μεταξύ λειτουργιών handover ML και A3
+- 🏛️ **Διαχείριση Οντοτήτων** — Πλήρες CRUD για gNBs, Cells, UEs, Paths
+- 📊 **Αναλυτικά Στοιχεία** — Γραφήματα σύγκρισης επιδόσεων ML έναντι A3
+- 📥 **Σενάρια** — Φόρτωση προκατασκευασμένων ή προσαρμοσμένων δοκιμαστικών σεναρίων
+- 📤 **Εξαγωγή** — Λήψη αποτελεσμάτων ως CSV/JSON
 
-## 🛠️ Tech Stack
+## 🛠️ Τεχνολογική Στοίβα
 
-- **React 18** + **Vite** - Fast dev and build
-- **Tailwind CSS** - Modern styling
-- **TanStack Table** - Advanced data tables
-- **React-Leaflet** - Map visualization
-- **Recharts** - Analytics charts
-- **Zod** - Form validation
-- **React Hot Toast** - Notifications
+- **React 18** + **Vite** — Γρήγορη ανάπτυξη και κατασκευή
+- **Tailwind CSS** — Σύγχρονο styling
+- **TanStack Table** — Προηγμένοι πίνακες δεδομένων
+- **React-Leaflet** — Οπτικοποίηση χάρτη
+- **Recharts** — Γραφήματα αναλυτικών στοιχείων
+- **Zod** — Επικύρωση φορμών
+- **React Hot Toast** — Ειδοποιήσεις
 
-## 📁 Project Structure
+## 📁 Δομή Έργου
 
 ```
 src/
 ├── api/              # API clients (nefClient, mlClient)
-├── components/       # Reusable components
+├── components/       # Επαναχρησιμοποιήσιμα components
 │   ├── shared/       # DataTable, Modal, Loading, ErrorBoundary
-│   ├── forms/        # Entity forms with validation
+│   ├── forms/        # Φόρμες οντοτήτων με επικύρωση
 │   ├── Layout/       # Sidebar, Header
-│   ├── Map/          # Map components
-│   ├── ML/           # ML controls and panels
-│   ├── Dashboard/    # Stats cards
-│   └── Analytics/    # Charts
-├── pages/            # Route pages
-│   ├── entities/     # Entity management tabs
+│   ├── Map/          # Στοιχεία χάρτη
+│   ├── ML/           # Στοιχεία ελέγχου και πίνακες ML
+│   ├── Dashboard/    # Κάρτες στατιστικών
+│   └── Analytics/    # Γραφήματα
+├── pages/            # Σελίδες διαδρομών
+│   ├── entities/     # Καρτέλες διαχείρισης οντοτήτων
 │   └── ...
-└── styles/           # Global CSS
+└── styles/           # Καθολικό CSS
 ```
 
-## 🔧 Configuration
+## 🔧 Ρύθμιση Παραμέτρων
 
-### Environment Variables
+### Μεταβλητές Περιβάλλοντος
 
 ```env
 VITE_API_URL=/api/v1
 ```
 
-### API Proxy (Development)
+### Proxy API (Ανάπτυξη)
 
-In `vite.config.js`, API calls are proxied to `https://localhost:4443` during development.
+Στο `vite.config.js`, τα αιτήματα API διαβιβάζονται μέσω proxy στο `https://localhost:4443` κατά την ανάπτυξη.
 
-### Production
+### Παραγωγή
 
-In production (Docker), nginx proxies `/api/*` to the backend service.
+Στην παραγωγή (Docker), το nginx διαβιβάζει `/api/*` στην backend υπηρεσία.
 
 ## 🐳 Docker
 
-The app uses a multi-stage build:
-1. **Build stage** - Compiles React app with Vite
-2. **Production stage** - Serves static files with Nginx
+Η εφαρμογή χρησιμοποιεί multi-stage build:
+1. **Στάδιο κατασκευής** — Μεταγλωττίζει την εφαρμογή React με Vite
+2. **Στάδιο παραγωγής** — Εξυπηρετεί στατικά αρχεία με Nginx
 
-Health check: `http://localhost:3000/health`
+Έλεγχος υγείας: `http://localhost:3000/health`
 
-## 📚 Available Routes
+## 📚 Διαθέσιμες Διαδρομές
 
-| Route | Description |
-|-------|-------------|
-| `/dashboard` | Overview and quick actions |
-| `/entities` | Manage gNBs, Cells, UEs, Paths |
-| `/map` | Interactive network map |
-| `/import` | Load scenarios |
-| `/export` | Export configurations |
-| `/analytics` | Performance charts |
+| Διαδρομή | Περιγραφή |
+|----------|-----------|
+| `/dashboard` | Επισκόπηση και γρήγορες ενέργειες |
+| `/entities` | Διαχείριση gNBs, Cells, UEs, Paths |
+| `/map` | Διαδραστικός χάρτης δικτύου |
+| `/import` | Φόρτωση σεναρίων |
+| `/export` | Εξαγωγή ρυθμίσεων |
+| `/analytics` | Γραφήματα επιδόσεων |
 
-## 🔒 Authentication
+## 🔒 Αυθεντικοποίηση
 
-Uses JWT tokens stored in localStorage. Login at `/login` (default: admin/admin).
+Χρησιμοποιεί JWT tokens αποθηκευμένα στο localStorage. Σύνδεση στο `/login` (προεπιλογή: admin/admin).
 
 ---
 
-**Part of the 5G Network Optimization thesis project**
+**Μέρος του έργου διπλωματικής εργασίας Βελτιστοποίησης Δικτύου 5G**

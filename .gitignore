@@ -8,3 +8,4 @@ mlops/feast_repo/data/*
 thesis_venv/
 .DS_Store
 .github/copilot-instructions.md
+thesis_md_files.txt

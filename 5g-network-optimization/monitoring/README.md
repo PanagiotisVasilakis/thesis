@@ -1,12 +1,12 @@
-# Monitoring Stack
+# Στοίβα Παρακολούθησης
 
-This directory contains configuration for Prometheus and Grafana used during development. When `docker-compose` is started from the project root, these services collect metrics from the NEF emulator and the ML service.
+Αυτός ο φάκελος περιέχει τις ρυθμίσεις για το Prometheus και το Grafana που χρησιμοποιούνται κατά την ανάπτυξη. Όταν εκκινείται το `docker-compose` από τον ριζικό φάκελο του έργου, αυτές οι υπηρεσίες συλλέγουν μετρικές από τον εξομοιωτή NEF και την υπηρεσία ML.
 
-The ML service exposes metrics at `http://localhost:5050/metrics` when running locally.
+Η υπηρεσία ML εκθέτει μετρικές στη διεύθυνση `http://localhost:5050/metrics` κατά την τοπική εκτέλεση.
 
 ## Prometheus
 
-Prometheus scrapes the `/metrics` endpoint exposed by each service. The scrape targets are defined in `prometheus/prometheus.yml`:
+Το Prometheus συλλέγει το endpoint `/metrics` που εκθέτει κάθε υπηρεσία. Οι στόχοι συλλογής ορίζονται στο `prometheus/prometheus.yml`:
 
 ```yaml
 scrape_configs:
@@ -20,24 +20,23 @@ scrape_configs:
       - targets: ["nef-emulator:8080"]
 ```
 
-The configuration also includes a job for Prometheus itself. Adjust the targets if the service names or ports change.
+Η ρύθμιση περιλαμβάνει επίσης ένα job για το ίδιο το Prometheus. Προσαρμόστε τους στόχους αν αλλάξουν τα ονόματα υπηρεσιών ή οι θύρες.
 
-The NEF emulator exposes counters like `nef_handover_decisions_total` and the
-`nef_request_duration_seconds` histogram on this endpoint. The ML service
-provides additional gauges for drift and operational metrics:
+Ο εξομοιωτής NEF εκθέτει μετρητές όπως `nef_handover_decisions_total` και το
+histogram `nef_request_duration_seconds` σε αυτό το endpoint. Η υπηρεσία ML
+παρέχει επιπλέον gauges για drift και λειτουργικές μετρικές:
 
-- `ml_data_drift_score` – average change in feature distributions.
-- `ml_prediction_error_rate` – fraction of prediction requests that failed.
-- `ml_cpu_usage_percent` – CPU utilisation of the service.
-- `ml_memory_usage_bytes` – resident memory usage.
+- `ml_data_drift_score` – μέση μεταβολή στις κατανομές χαρακτηριστικών.
+- `ml_prediction_error_rate` – κλάσμα αιτημάτων πρόβλεψης που απέτυχαν.
+- `ml_cpu_usage_percent` – χρήση CPU της υπηρεσίας.
+- `ml_memory_usage_bytes` – κατανάλωση μνήμης (resident memory).
 
-Start Prometheus with Docker Compose, or run the container manually and mount this directory at `/etc/prometheus`.
+Εκκινήστε το Prometheus με Docker Compose ή εκτελέστε το container χειροκίνητα και προσαρτήστε αυτόν τον φάκελο στο `/etc/prometheus`.
 
 ## Grafana
 
-Grafana reads data from Prometheus and provides dashboards. The sample dashboard under `grafana/dashboards/ml_service.json` visualizes request latency, prediction counts, training statistics and the new drift/usage gauges from the ML service. When Grafana is launched via Docker Compose it automatically picks up dashboards from `grafana/dashboards`.
+Το Grafana διαβάζει δεδομένα από το Prometheus και παρέχει dashboards. Το δείγμα dashboard στο `grafana/dashboards/ml_service.json` οπτικοποιεί την καθυστέρηση αιτημάτων, τους αριθμούς προβλέψεων, τα στατιστικά εκπαίδευσης και τα νέα gauges drift/χρήσης από την υπηρεσία ML. Όταν το Grafana εκκινείται μέσω Docker Compose, φορτώνει αυτόματα τα dashboards από το `grafana/dashboards`.
 
-Dashboard provisioning is configured in `grafana/provisioning/dashboards.yml`, which instructs Grafana to load any JSON dashboards from that directory on startup.
+Η παροχή dashboards ρυθμίζεται στο `grafana/provisioning/dashboards.yml`, το οποίο οδηγεί το Grafana να φορτώνει οποιαδήποτε JSON dashboards από αυτόν τον φάκελο κατά την εκκίνηση.
 
-Login with the default admin credentials (`admin` / `admin`) and add the Prometheus data source at `http://prometheus:9090` if it is not preconfigured. You can then import or customize dashboards to monitor additional metrics.
-
+Συνδεθείτε με τα προεπιλεγμένα διαπιστευτήρια διαχειριστή (`admin` / `admin`) και προσθέστε την πηγή δεδομένων Prometheus στο `http://prometheus:9090` αν δεν είναι προρυθμισμένη. Στη συνέχεια μπορείτε να εισάγετε ή να προσαρμόσετε dashboards για την παρακολούθηση επιπλέον μετρικών.

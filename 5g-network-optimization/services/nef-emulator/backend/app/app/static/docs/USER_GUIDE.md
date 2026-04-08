@@ -1,189 +1,189 @@
-# NEF Emulator User Guide
+# Οδηγός Χρήστη Εξομοιωτή NEF
 
-Welcome to the NEF (Network Exposure Function) Emulator! This guide will help you get started with creating and running 5G network simulations.
-
----
-
-## Table of Contents
-
-1. [Quick Start](#quick-start)
-2. [Understanding 5G Terminology](#understanding-5g-terminology)
-3. [Dashboard Overview](#dashboard-overview)
-4. [Creating Your First Scenario](#creating-your-first-scenario)
-5. [Running Simulations](#running-simulations)
-6. [Import/Export Scenarios](#importexport-scenarios)
-7. [API Access](#api-access)
-8. [Troubleshooting](#troubleshooting)
+Καλώς ήρθατε στον Εξομοιωτή NEF (Network Exposure Function)! Αυτός ο οδηγός θα σας βοηθήσει να ξεκινήσετε με τη δημιουργία και εκτέλεση προσομοιώσεων δικτύου 5G.
 
 ---
 
-## Quick Start
+## Πίνακας Περιεχομένων
 
-1. **Login** at `/login` with your credentials
-2. **Create a gNB** (base station) from the dashboard
-3. **Add Cells** (coverage areas) to your gNB
-4. **Create UEs** (mobile devices) and assign them to cells
-5. **Define Paths** for UE movement
-6. **Go to Map** to start the simulation
-
----
-
-## Understanding 5G Terminology
-
-| Term | Full Name | Description |
-|------|-----------|-------------|
-| **gNB** | gNodeB | 5G base station - the radio equipment that provides wireless coverage |
-| **Cell** | Cell | Coverage area served by an antenna. Each gNB can have multiple cells |
-| **UE** | User Equipment | Mobile devices like phones, tablets, or IoT sensors |
-| **SUPI** | Subscription Permanent ID | Unique 15-digit identifier for each UE (e.g., `202010000000001`) |
-| **Path** | Movement Path | GPS trajectory that a UE follows during simulation |
+1. [Γρήγορη Εκκίνηση](#γρήγορη-εκκίνηση)
+2. [Κατανόηση Ορολογίας 5G](#κατανόηση-ορολογίας-5g)
+3. [Επισκόπηση Πίνακα Ελέγχου](#επισκόπηση-πίνακα-ελέγχου)
+4. [Δημιουργία Πρώτου Σεναρίου](#δημιουργία-πρώτου-σεναρίου)
+5. [Εκτέλεση Προσομοιώσεων](#εκτέλεση-προσομοιώσεων)
+6. [Εισαγωγή/Εξαγωγή Σεναρίων](#εισαγωγήεξαγωγή-σεναρίων)
+7. [Πρόσβαση στο API](#πρόσβαση-στο-api)
+8. [Αντιμετώπιση Προβλημάτων](#αντιμετώπιση-προβλημάτων)
 
 ---
 
-## Dashboard Overview
+## Γρήγορη Εκκίνηση
 
-The dashboard (`/dashboard`) is your main control center:
-
-### Stat Cards (Top Row)
-- **gNBs** - Number of base stations
-- **Cells** - Number of coverage areas  
-- **UEs** - Number of mobile devices
-- **Paths** - Number of movement trajectories
-
-### Data Tables
-Each table lets you **Create**, **Edit**, and **Delete** items:
-- Click the **+** button to add new items
-- Click the **pencil icon** to edit
-- Click the **trash icon** to delete
+1. **Σύνδεση** στο `/login` με τα διαπιστευτήριά σας
+2. **Δημιουργία gNB** (βασικός σταθμός) από τον πίνακα ελέγχου
+3. **Προσθήκη Cells** (περιοχές κάλυψης) στο gNB σας
+4. **Δημιουργία UEs** (κινητές συσκευές) και ανάθεσή τους σε cells
+5. **Ορισμός Διαδρομών** για την κίνηση των UE
+6. **Μεταβείτε στον Χάρτη** για να ξεκινήσετε την προσομοίωση
 
 ---
 
-## Creating Your First Scenario
+## Κατανόηση Ορολογίας 5G
 
-### Step 1: Create a gNB (Base Station)
-1. Click the **+** button in the gNBs section
-2. Fill in:
-   - **gNB_id**: 6-character identifier (e.g., `AAAAA1`)
-   - **Name**: Human-readable name (e.g., `Tower-1`)
-   - **Location**: Description of location
-3. Click **Save**
-
-### Step 2: Add a Cell
-1. Click the **+** button in the Cells section
-2. Fill in:
-   - **cell_id**: Unique cell identifier
-   - **Name**: Human-readable name
-   - **Select gNB**: Choose the parent base station
-3. **Click on the map** to set location
-4. **Adjust radius** (5-500 meters)
-5. Click **Save**
-
-### Step 3: Create a UE
-1. Click the **+** button in the UEs section
-2. Fill in:
-   - **SUPI**: 15-digit ID (e.g., `202010000000001`)
-   - **Name**: Device name (e.g., `Phone-1`)
-   - **IPv4/IPv6**: Network addresses
-   - **Path**: Select a movement path (optional)
-   - **Speed**: LOW or HIGH
-3. Click **Save**
-
-### Step 4: Define a Path
-1. Click the **+** button in the Paths section
-2. **Click on the map** to add waypoints
-3. Choose a **color** for the path
-4. Click **Save**
+| Όρος | Πλήρες Όνομα | Περιγραφή |
+|------|-------------|-----------|
+| **gNB** | gNodeB | Βασικός σταθμός 5G — ο ραδιοεξοπλισμός που παρέχει ασύρματη κάλυψη |
+| **Cell** | Κελί | Περιοχή κάλυψης που εξυπηρετείται από μια κεραία. Κάθε gNB μπορεί να έχει πολλαπλά cells |
+| **UE** | User Equipment | Κινητές συσκευές όπως τηλέφωνα, tablet ή αισθητήρες IoT |
+| **SUPI** | Subscription Permanent ID | Μοναδικό 15-ψήφιο αναγνωριστικό για κάθε UE (π.χ. `202010000000001`) |
+| **Path** | Διαδρομή Κίνησης | Τροχιά GPS που ακολουθεί ένα UE κατά την προσομοίωση |
 
 ---
 
-## Running Simulations
+## Επισκόπηση Πίνακα Ελέγχου
 
-### Map Page (`/map`)
+Ο πίνακας ελέγχου (`/dashboard`) είναι το κύριο κέντρο ελέγχου σας:
 
-1. Navigate to **Emulator → Map** in the sidebar
-2. You'll see:
-   - **Map** with cells (red circles) and UEs (walking icons)
-   - **UE Buttons** below the map
-   - **Events Table** showing API activity
+### Κάρτες Στατιστικών (Επάνω Σειρά)
+- **gNBs** — Αριθμός βασικών σταθμών
+- **Cells** — Αριθμός περιοχών κάλυψης
+- **UEs** — Αριθμός κινητών συσκευών
+- **Paths** — Αριθμός τροχιών κίνησης
 
-### Starting UE Movement
-- Click individual UE buttons to start/stop that UE
-- Click **Start All** to move all UEs simultaneously
-- Use the **refresh dropdown** to set update frequency (1s, 2s, 5s...)
-
-### Understanding Map Markers
-- **Red pins with 📶**: Cell locations
-- **Blue walking icons**: UE positions
-- **Colored lines**: Movement paths
-- **Grey walking icons**: UEs not connected to any cell
+### Πίνακες Δεδομένων
+Κάθε πίνακας σάς επιτρέπει να **δημιουργείτε**, **επεξεργάζεστε** και **διαγράφετε** στοιχεία:
+- Κάντε κλικ στο κουμπί **+** για προσθήκη νέων στοιχείων
+- Κάντε κλικ στο **εικονίδιο μολυβιού** για επεξεργασία
+- Κάντε κλικ στο **εικονίδιο κάδου** για διαγραφή
 
 ---
 
-## Import/Export Scenarios
+## Δημιουργία Πρώτου Σεναρίου
 
-### Exporting
-1. Go to **Emulator → Export**
-2. Click **Copy** to copy JSON to clipboard
-3. Or click **Save** to download as file
+### Βήμα 1: Δημιουργία gNB (Βασικός Σταθμός)
+1. Κάντε κλικ στο κουμπί **+** στην ενότητα gNBs
+2. Συμπληρώστε:
+   - **gNB_id**: Αναγνωριστικό 6 χαρακτήρων (π.χ. `AAAAA1`)
+   - **Name**: Αναγνώσιμο όνομα (π.χ. `Tower-1`)
+   - **Location**: Περιγραφή τοποθεσίας
+3. Κάντε κλικ στο **Save**
 
-### Importing
-1. Go to **Emulator → Import**
-2. Paste or load your JSON scenario
-3. Click **Import**
+### Βήμα 2: Προσθήκη Cell
+1. Κάντε κλικ στο κουμπί **+** στην ενότητα Cells
+2. Συμπληρώστε:
+   - **cell_id**: Μοναδικό αναγνωριστικό cell
+   - **Name**: Αναγνώσιμο όνομα
+   - **Select gNB**: Επιλέξτε τον γονικό βασικό σταθμό
+3. **Κάντε κλικ στον χάρτη** για ορισμό τοποθεσίας
+4. **Ρυθμίστε την ακτίνα** (5-500 μέτρα)
+5. Κάντε κλικ στο **Save**
 
-> ⚠️ **Note**: Import works best on an empty database. Use `make db-reset` before importing.
+### Βήμα 3: Δημιουργία UE
+1. Κάντε κλικ στο κουμπί **+** στην ενότητα UEs
+2. Συμπληρώστε:
+   - **SUPI**: 15-ψήφιο ID (π.χ. `202010000000001`)
+   - **Name**: Όνομα συσκευής (π.χ. `Phone-1`)
+   - **IPv4/IPv6**: Διευθύνσεις δικτύου
+   - **Path**: Επιλογή διαδρομής κίνησης (προαιρετικό)
+   - **Speed**: LOW ή HIGH
+3. Κάντε κλικ στο **Save**
 
----
-
-## API Access
-
-### Swagger UI (Interactive API Docs)
-- **Internal APIs**: `/docs`
-- **3GPP Northbound APIs**: `/nef/docs`
-
-### ReDoc (Reference Documentation)
-- **Internal APIs**: `/redoc`
-- **Northbound APIs**: `/nef/redoc`
-
-### Key Endpoints
-| Endpoint | Description |
-|----------|-------------|
-| `POST /api/v1/login/access-token` | Get authentication token |
-| `GET /api/v1/gNBs` | List all base stations |
-| `GET /api/v1/Cells` | List all cells |
-| `GET /api/v1/UEs` | List all UEs |
-| `POST /api/v1/ue_movement/start-loop` | Start UE movement |
-
----
-
-## Troubleshooting
-
-### Login Issues
-- Check your username/password
-- Ensure the backend service is running
-- Clear browser cache and localStorage
-
-### Map Not Loading
-- Check if cells exist (required for map bounds)
-- Verify browser supports Leaflet.js
-- Check browser console for errors
-
-### UE Not Moving
-- Verify UE has a path assigned
-- Check that path has waypoints
-- Ensure "Start" button was clicked
-
-### API Errors
-- Check authentication token is valid
-- Verify Content-Type is `application/json`
-- Review error response for details
+### Βήμα 4: Ορισμός Διαδρομής
+1. Κάντε κλικ στο κουμπί **+** στην ενότητα Paths
+2. **Κάντε κλικ στον χάρτη** για προσθήκη waypoints
+3. Επιλέξτε ένα **χρώμα** για τη διαδρομή
+4. Κάντε κλικ στο **Save**
 
 ---
 
-## Getting Help
+## Εκτέλεση Προσομοιώσεων
 
-- **API Documentation**: `/docs` and `/nef/docs`
-- **Source Code**: Check the `backend/app/` directory
-- **Logs**: `docker compose logs -f backend`
+### Σελίδα Χάρτη (`/map`)
 
-Happy simulating! 🚀
+1. Μεταβείτε στο **Emulator → Map** από το πλαϊνό μενού
+2. Θα δείτε:
+   - **Χάρτη** με cells (κόκκινοι κύκλοι) και UEs (εικονίδια βάδισης)
+   - **Κουμπιά UE** κάτω από τον χάρτη
+   - **Πίνακα Συμβάντων** που εμφανίζει δραστηριότητα API
+
+### Εκκίνηση Κίνησης UE
+- Κάντε κλικ σε μεμονωμένα κουμπιά UE για εκκίνηση/διακοπή εκείνου του UE
+- Κάντε κλικ στο **Start All** για ταυτόχρονη κίνηση όλων των UEs
+- Χρησιμοποιήστε το **αναπτυσσόμενο refresh** για ρύθμιση συχνότητας ενημέρωσης (1s, 2s, 5s...)
+
+### Κατανόηση Δεικτών Χάρτη
+- **Κόκκινες καρφίτσες με 📶**: Τοποθεσίες cells
+- **Μπλε εικονίδια βάδισης**: Θέσεις UE
+- **Χρωματιστές γραμμές**: Διαδρομές κίνησης
+- **Γκρι εικονίδια βάδισης**: UEs που δεν συνδέονται σε κανένα cell
+
+---
+
+## Εισαγωγή/Εξαγωγή Σεναρίων
+
+### Εξαγωγή
+1. Μεταβείτε στο **Emulator → Export**
+2. Κάντε κλικ στο **Copy** για αντιγραφή JSON στο πρόχειρο
+3. Ή κάντε κλικ στο **Save** για λήψη ως αρχείο
+
+### Εισαγωγή
+1. Μεταβείτε στο **Emulator → Import**
+2. Επικολλήστε ή φορτώστε το JSON σενάριο σας
+3. Κάντε κλικ στο **Import**
+
+> ⚠️ **Σημείωση**: Η εισαγωγή λειτουργεί καλύτερα σε κενή βάση δεδομένων. Χρησιμοποιήστε `make db-reset` πριν την εισαγωγή.
+
+---
+
+## Πρόσβαση στο API
+
+### Swagger UI (Διαδραστική Τεκμηρίωση API)
+- **Εσωτερικά APIs**: `/docs`
+- **APIs 3GPP Northbound**: `/nef/docs`
+
+### ReDoc (Τεκμηρίωση Αναφοράς)
+- **Εσωτερικά APIs**: `/redoc`
+- **APIs Northbound**: `/nef/redoc`
+
+### Βασικά Endpoints
+| Endpoint | Περιγραφή |
+|----------|-----------|
+| `POST /api/v1/login/access-token` | Λήψη token αυθεντικοποίησης |
+| `GET /api/v1/gNBs` | Εμφάνιση όλων των βασικών σταθμών |
+| `GET /api/v1/Cells` | Εμφάνιση όλων των cells |
+| `GET /api/v1/UEs` | Εμφάνιση όλων των UEs |
+| `POST /api/v1/ue_movement/start-loop` | Εκκίνηση κίνησης UE |
+
+---
+
+## Αντιμετώπιση Προβλημάτων
+
+### Θέματα Σύνδεσης
+- Ελέγξτε το όνομα χρήστη/κωδικό σας
+- Βεβαιωθείτε ότι η backend υπηρεσία εκτελείται
+- Εκκαθαρίστε cache περιηγητή και localStorage
+
+### Ο Χάρτης Δεν Φορτώνει
+- Ελέγξτε αν υπάρχουν cells (απαιτούνται για τα όρια χάρτη)
+- Επαληθεύστε ότι ο περιηγητής υποστηρίζει Leaflet.js
+- Ελέγξτε την κονσόλα περιηγητή για σφάλματα
+
+### Το UE Δεν Κινείται
+- Επαληθεύστε ότι το UE έχει ανατεθεί σε διαδρομή
+- Ελέγξτε ότι η διαδρομή έχει waypoints
+- Βεβαιωθείτε ότι πατήθηκε το κουμπί «Start»
+
+### Σφάλματα API
+- Ελέγξτε ότι το token αυθεντικοποίησης είναι έγκυρο
+- Επαληθεύστε ότι το Content-Type είναι `application/json`
+- Ανασκοπήστε την απόκριση σφάλματος για λεπτομέρειες
+
+---
+
+## Λήψη Βοήθειας
+
+- **Τεκμηρίωση API**: `/docs` και `/nef/docs`
+- **Πηγαίος Κώδικας**: Ελέγξτε τον φάκελο `backend/app/`
+- **Αρχεία Καταγραφής**: `docker compose logs -f backend`
+
+Καλή προσομοίωση! 🚀

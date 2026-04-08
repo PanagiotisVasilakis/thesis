@@ -1,33 +1,33 @@
-# Mobility Models
+# Μοντέλα Κινητικότητας
 
-This directory hosts lightweight mobility models used by the NEF emulator. Each model exposes `generate_trajectory(duration_seconds, time_step=1.0)` and returns a list of points in `(x, y, z)` coordinates with timestamps.
+Αυτός ο φάκελος φιλοξενεί ελαφριά μοντέλα κινητικότητας που χρησιμοποιούνται από τον εξομοιωτή NEF. Κάθε μοντέλο εκθέτει τη μέθοδο `generate_trajectory(duration_seconds, time_step=1.0)` και επιστρέφει μια λίστα σημείων σε συντεταγμένες `(x, y, z)` με χρονικές σφραγίδες.
 
-## Available classes
+## Διαθέσιμες Κλάσεις
 
 ### `LinearMobilityModel`
-Moves a UE from `start_position` to `end_position` at constant speed following 3GPP TR 38.901 §7.6.3.2.
+Μετακινεί ένα UE από `start_position` σε `end_position` με σταθερή ταχύτητα σύμφωνα με το 3GPP TR 38.901 §7.6.3.2.
 
 ### `LShapedMobilityModel`
-Represents a 90‑degree turn. The path is formed by two linear segments: start → corner → end.
+Αναπαριστά μια στροφή 90 μοιρών. Η διαδρομή σχηματίζεται από δύο γραμμικά τμήματα: αρχή → γωνία → τέλος.
 
 ### `RandomWaypointModel`
-Chooses random waypoints inside the given bounds, travels at a random speed between `v_min` and `v_max`, then pauses for `pause_time` before selecting the next waypoint.
+Επιλέγει τυχαία waypoints εντός των ορισμένων ορίων, κινείται με τυχαία ταχύτητα μεταξύ `v_min` και `v_max`, κατόπιν σταματά για `pause_time` πριν επιλέξει το επόμενο waypoint.
 
 ### `ManhattanGridMobilityModel`
-Simulates movement along orthogonal city blocks. The UE travels along X/Y axes on a grid and randomly turns left, right, or continues straight at intersections.
+Προσομοιώνει κίνηση κατά μήκος ορθογωνίων αστικών τετραγώνων. Το UE κινείται κατά μήκος των αξόνων X/Y σε πλέγμα και στρίβει τυχαία αριστερά, δεξιά ή συνεχίζει ευθεία στις διασταυρώσεις.
 
 ### `ReferencePointGroupMobilityModel`
-Follows a moving group centre (itself driven by another mobility model). Each UE position is the group centre plus a random offset up to `d_max` metres.
+Ακολουθεί ένα κινούμενο κέντρο ομάδας (που καθοδηγείται και αυτό από κάποιο άλλο μοντέλο κινητικότητας). Η θέση κάθε UE είναι το κέντρο της ομάδας συν μια τυχαία απόκλιση έως `d_max` μέτρα.
 
 ### `RandomDirectionalMobilityModel`
-Moves in a randomly chosen direction with constant speed, changing direction after exponentially distributed time intervals. The direction is reflected when hitting the area bounds.
+Κινείται σε τυχαία επιλεγμένη κατεύθυνση με σταθερή ταχύτητα, αλλάζοντας κατεύθυνση μετά από εκθετικά κατανεμημένα χρονικά διαστήματα. Η κατεύθυνση ανακλάται όταν φτάσει στα όρια της περιοχής.
 
 ### `UrbanGridMobilityModel`
-A more flexible grid model parameterised by block `grid_size` and `turn_probability` at intersections.
+Ένα πιο ευέλικτο μοντέλο πλέγματος που παραμετροποιείται από το μέγεθος τετραγώνου `grid_size` και την πιθανότητα στροφής `turn_probability` στις διασταυρώσεις.
 
 ## `nef_adapter.py`
 
-The helper `nef_adapter.py` converts trajectories into NEF‑friendly JSON. `generate_nef_path_points(model_type, **kwargs)` builds the requested mobility class, calls `generate_trajectory`, and formats each point as:
+Ο βοηθός `nef_adapter.py` μετατρέπει τροχιές σε JSON φιλικό προς το NEF. Η συνάρτηση `generate_nef_path_points(model_type, **kwargs)` κατασκευάζει την ζητούμενη κλάση κινητικότητας, καλεί τη `generate_trajectory` και διαμορφώνει κάθε σημείο ως εξής:
 ```json
 {
   "latitude": X,
@@ -35,6 +35,6 @@ The helper `nef_adapter.py` converts trajectories into NEF‑friendly JSON. `gen
   "description": "<model>_<index>"
 }
 ```
-`save_path_to_json(points, filename)` simply dumps this list to a file.
+Η `save_path_to_json(points, filename)` αποθηκεύει απλώς αυτή τη λίστα σε ένα αρχείο.
 
-> **Tip:** Before running any tests, install the required Python dependencies (e.g. `pip install -r requirements.txt`). Some libraries are optional but tests may fail without them.
+> **Υπόδειξη:** Πριν εκτελέσετε οποιαδήποτε tests, εγκαταστήστε τις απαιτούμενες εξαρτήσεις Python (π.χ. `pip install -r requirements.txt`). Μερικές βιβλιοθήκες είναι προαιρετικές αλλά τα tests ενδέχεται να αποτύχουν χωρίς αυτές.

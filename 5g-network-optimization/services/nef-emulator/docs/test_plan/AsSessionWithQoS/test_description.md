@@ -1,283 +1,284 @@
-# Functional Tests for NEF Emulator / Northbound APIs
+# Λειτουργικές Δοκιμές για τον Εξομοιωτή NEF / Northbound APIs
 
-## Test Plan for AsSessionWithQoS API
+## Σχέδιο Δοκιμών για το AsSessionWithQoS API
 
-### Tests for HTTP POST Method
-* [Test Case 1: Create subscription by Authorized NetApp](#-test-case-1-create-subscription-by-authorized-netapp)
-* [Test Case 2: Create subscription when there is already an active subscription for a registered UE](#-test-case-2-create-subscription-when-there-is-already-an-active-subscription-for-a-registered-ue)
-* [Test Case 3: Create subscription by unAuthorized NetApp](#-test-case-3-create-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP POST
+* [Δοκιμαστική Περίπτωση 1: Δημιουργία συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-1-δημιουργία-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 2: Δημιουργία συνδρομής όταν υπάρχει ήδη ενεργή συνδρομή για καταχωρημένο UE](#-δοκιμαστική-περίπτωση-2-δημιουργία-συνδρομής-όταν-υπάρχει-ήδη-ενεργή-συνδρομή-για-καταχωρημένο-ue)
+* [Δοκιμαστική Περίπτωση 3: Δημιουργία συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-3-δημιουργία-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP GET Method
-* [Test Case 4: Read all active subscriptions by Authorized NetApp](#-test-case-4-read-all-active-subscriptions-by-authorized-netapp)
-* [Test Case 5: Read all active subscriptions by Authorized NetApp (no active subscriptions available)](#-test-case-5-read-all-active-subscriptions-by-authorized-netapp-no-active-subscriptions-available)
-* [Test Case 6: Read individual subscription by Authorized NetApp](#-test-case-6-read-individual-subscription-by-authorized-netapp)
-* [Test Case 7: Read individual subscription by Authorized NetApp with invalid subscription id](#-test-case-7-read-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test Case 8: Read all active subscriptions by unAuthorized NetApp](#-test-case-8-read-all-active-subscriptions-by-unauthorized-netapp) 
-* [Test case 9: Read individual subscription by unAuthorized NetApp](#-test-case-9-read-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP GET
+* [Δοκιμαστική Περίπτωση 4: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-4-ανάκτηση-όλων-ενεργών-συνδρομών-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 5: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp (χωρίς διαθέσιμες ενεργές συνδρομές)](#-δοκιμαστική-περίπτωση-5-ανάκτηση-όλων-ενεργών-συνδρομών-από-εξουσιοδοτημένη-netapp-χωρίς-ενεργές-συνδρομές)
+* [Δοκιμαστική Περίπτωση 6: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-6-ανάκτηση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 7: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-7-ανάκτηση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 8: Ανάκτηση όλων ενεργών συνδρομών από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-8-ανάκτηση-όλων-ενεργών-συνδρομών-από-μη-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 9: Ανάκτηση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-9-ανάκτηση-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP PUT Method
-* [Test Case 10: Update individual subscription by Authorized NetApp](#-test-case-10-update-individual-subscription-by-authorized-netapp)
-* [Test Case 11: Update individual subscription by Authorized NetApp with invalid subscription id](#-test-case-11-update-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test case 12: Update individual subscription by unAuthorized NetApp](#-test-case-12-update-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP PUT
+* [Δοκιμαστική Περίπτωση 10: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-10-ενημέρωση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 11: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-11-ενημέρωση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 12: Ενημέρωση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-12-ενημέρωση-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP DELETE Method
-* [Test Case 13: Delete individual subscription by Authorized NetApp](#-test-case-13-delete-individual-subscription-by-authorized-netapp)
-* [Test Case 14: Delete individual subscription by Authorized NetApp with invalid subscription id](#-test-case-14-delete-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test case 15: Delete individual subscription by unAuthorized NetApp](#-test-case-15-delete-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP DELETE
+* [Δοκιμαστική Περίπτωση 13: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-13-διαγραφή-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 14: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-14-διαγραφή-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 15: Διαγραφή επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-15-διαγραφή-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
 
-## ✔ Test Case 1: Create subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 1: Δημιουργία συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check that the NetApp creates a subscription successfully to the AsSessionWithQoS for a registered UE
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι η NetApp δημιουργεί επιτυχώς συνδρομή στο AsSessionWithQoS για καταχωρημένο UE.
 
-* Pre-Conditions:
-    1. The UE exists in the DB
-    2. NetApp subscribes to the AsSessionWithQoS for a UE that has not an active subscription (in DB)
-    3. Request includes only one of UE's identifiers 👉(ipv4, ipv6, mac address)
-    4. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Το UE υπάρχει στη βάση δεδομένων
+    2. Η NetApp εγγράφεται στο AsSessionWithQoS για UE που δεν έχει ενεργή συνδρομή (στη βάση δεδομένων)
+    3. Το αίτημα περιέχει μόνο ένα από τα αναγνωριστικά του UE 👉(ipv4, ipv6, διεύθυνση mac)
+    4. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp subscribes to AsSessionWithQoS API with an HTTP POST request for a registered UE
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο AsSessionWithQoS API με αίτημα HTTP POST για καταχωρημένο UE
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
-    3. Request Body: [request body]
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 201 Created response
-    2. Response body: [response body]
-    3. The URI of the created resource is returned in the 'Location' HTTP header  according to the structure: 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 201 Created
+    2. Σώμα Απόκρισης: [response body]
+    3. Το URI του δημιουργηθέντος πόρου επιστρέφεται στην επικεφαλίδα HTTP 'Location' σύμφωνα με τη δομή: 
 <kbd>**{apiRoot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionId}**</kbd>
 
-## ❌ Test Case 2: Create subscription when there is already an active subscription for a registered UE
+## ❌ Δοκιμαστική Περίπτωση 2: Δημιουργία συνδρομής όταν υπάρχει ήδη ενεργή συνδρομή για καταχωρημένο UE
 
-This test case will check that whether the NetApp tries to subscribe to the AsSessionWithQoS API for a registered UE, that has an active subscription, the request is rejected.
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι, εάν η NetApp επιχειρήσει να εγγραφεί στο AsSessionWithQoS API για καταχωρημένο UE που έχει ήδη ενεργή συνδρομή, το αίτημα απορρίπτεται.
 
-* Pre-Conditions:
-    1. The UE exists in the DB
-    2. There is already an active subscription associated with this UE
-    3. Request includes only one of UE's identifiers 👉(ipv4, ipv6, mac address)
-    4. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Το UE υπάρχει στη βάση δεδομένων
+    2. Υπάρχει ήδη ενεργή συνδρομή που σχετίζεται με αυτό το UE
+    3. Το αίτημα περιέχει μόνο ένα από τα αναγνωριστικά του UE 👉(ipv4, ipv6, διεύθυνση mac)
+    4. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp subscribes to AsSessionWithQoS API with an HTTP POST request for a registered UE
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο AsSessionWithQoS API με αίτημα HTTP POST για καταχωρημένο UE
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
-    3. Request Body: [request body]
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 409 Conflict / There is already an active subscription for UE with (ipv4, ipv6, mac address) '*(ipv4, ipv6, mac address)*'
+* Συνθήκες Μετά την Εκτέλεση:
+    1. 409 Conflict / Υπάρχει ήδη ενεργή συνδρομή για UE με (ipv4, ipv6, διεύθυνση mac) '*(ipv4, ipv6, mac address)*'
 
-## ⛔ Test Case 3: Create subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 3: Δημιουργία συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot create a subscription to the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να δημιουργήσει συνδρομή στο AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp subscribes to AsSessionWithQoS API with an HTTP POST request
-    2. Request includes only one of UE's identifiers 👉(ipv4, ipv6, mac address)
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd> 
-    4. Request Body: [request body]
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο AsSessionWithQoS API με αίτημα HTTP POST
+    2. Το αίτημα περιέχει μόνο ένα από τα αναγνωριστικά του UE 👉(ipv4, ipv6, διεύθυνση mac)
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
+    4. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 4: Read all active subscriptions by Authorized NetApp 
+## ✔ Δοκιμαστική Περίπτωση 4: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp 
 
-This test case will check if the active subscriptions are retrieved successfully by the NetApp from the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν οι ενεργές συνδρομές ανακτώνται επιτυχώς από τη NetApp μέσω του AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. There is at least one active subscription associated with this NetApp in the db
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει τουλάχιστον μία ενεργή συνδρομή που σχετίζεται με αυτή τη NetApp στη βάση δεδομένων
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
-    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
-    
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body] (list of this json example) 
-    3. A list with the retrieved subscriptions 
-
-
-## ✔ Test Case 5: Read all active subscriptions by Authorized NetApp (no active subscriptions available)
-
-This test case will check if there are no active subscription to be retrieved by the NetApp from the AsSessionWithQoS API
-
-* Pre-Conditions:
-    1. There are no active subscription associated with this NetApp in the db
-    2. NetApp is authorised, i.e., has an active OAuth2 token
-
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body] (λίστα αυτού του παραδείγματος json)
+    3. Λίστα με τις ανακτηθείσες συνδρομές 
+
+
+## ✔ Δοκιμαστική Περίπτωση 5: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp (χωρίς ενεργές συνδρομές)
+
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν δεν υπάρχουν ενεργές συνδρομές προς ανάκτηση από τη NetApp μέσω του AsSessionWithQoS API.
+
+* Προϋποθέσεις:
+    1. Δεν υπάρχουν ενεργές συνδρομές που σχετίζονται με αυτή τη NetApp στη βάση δεδομένων
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
+
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
+    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
+    
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
 
-## ✔ Test Case 6: Read individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 6: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from AsSessionWithQoS API is sucessfully retrieved
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή ανακτάται επιτυχώς από τη NetApp μέσω του AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. Subscription id is a valid uuid (24-character hex string)
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which was initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body]
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body]
 
-## ❌ Test Case 7: Read individual subscription by Authorized NetApp with invalid subscription id
-This test case will check if the individual subscription retrieved by the NetApp from AsSessionWithQoS API has an invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 7: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db 
-    2. Subscription id is a valid uuid (24-character hex string)
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που ανακτάται από τη NetApp μέσω του AsSessionWithQoS API έχει μη έγκυρο subscription id.
+
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων 
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
 
-## ⛔ Test Case 8: Read all active subscriptions by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 8: Ανάκτηση όλων ενεργών συνδρομών από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve all active subscriptions from the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει όλες τις ενεργές συνδρομές από το AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
-    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
+    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ⛔ Test case 9: Read individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 9: Ανάκτηση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve an individual subscription from the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει επιμέρους συνδρομή από το AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP GET request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 10: Update individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 10: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from AsSessionWithQoS API is sucessfully updated
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή ενημερώνεται επιτυχώς από τη NetApp μέσω του AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. Subscription id is a valid uuid (24-character hex string)
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP PUT request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which was initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
-    4. Request body: [request body]
+    4. Σώμα αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body]
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body]
 
-## ❌ Test Case 11: Update individual subscription by Authorized NetApp with invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 11: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-This test case will check if the individual subscription that the NetApp tries to update from AsSessionWithQoS API has an invalid subscription id
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που η NetApp επιχειρεί να ενημερώσει μέσω του AsSessionWithQoS API έχει μη έγκυρο subscription id.
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db 
-    2. Subscription id is a valid uuid (24-character hex string)
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων 
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP PUT request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
-    4. Request body: [request body]
+    4. Σώμα αιτήματος: [request body]
 
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
     
-## ⛔ Test case 12: Update individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 12: Ενημέρωση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot update an individual subscription from the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ενημερώσει επιμέρους συνδρομή μέσω του AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP PUT request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
-    4. Request body: [response body]
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
+    4. Σώμα αιτήματος: [response body]
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 13: Delete individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 13: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from AsSessionWithQoS API is sucessfully deleted
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή διαγράφεται επιτυχώς από τη NetApp μέσω του AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. Subscription id is a valid uuid (24-character hex string)
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP DELETE request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which was initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body]
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body]
 
-## ❌ Test Case 14: Delete individual subscription by Authorized NetApp with invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 14: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-This test case will check if the individual subscription that the NetApp tries to delete from AsSessionWithQoS API has an invalid subscription id
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που η NetApp επιχειρεί να διαγράψει μέσω του AsSessionWithQoS API έχει μη έγκυρο subscription id.
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db
-    2. Subscription id is a valid uuid (24-character hex string) 
-    3. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων
+    2. Το subscription id είναι έγκυρο uuid (16ψήφια συμβολοσειρά hex)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP DELETE request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
 
-## ⛔ Test case 15: Delete individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 15: Διαγραφή επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve an individual subscription from the AsSessionWithQoS API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει/διαγράψει επιμέρους συνδρομή από το AsSessionWithQoS API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP DELETE request to AsSessionWithQoS API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο AsSessionWithQoS API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-as-session-with-qos/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
 [request body]: ./request.json

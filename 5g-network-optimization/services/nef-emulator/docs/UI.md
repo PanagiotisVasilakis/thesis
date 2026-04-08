@@ -1,42 +1,42 @@
-# 📃 User Interface documentation
+# 📃 Τεκμηρίωση Διεπαφής Χρήστη
 
-Topics: `FASTAPI`, `JAVASCRIPT`, `AUTH`, `PAGE-TEMPLATES`, `PAGE-ROUTES`
+Θέματα: `FASTAPI`, `JAVASCRIPT`, `AUTH`, `PAGE-TEMPLATES`, `PAGE-ROUTES`
 
 
 <br>
 
 ## tl;dr
 
-Current library dependencies:
+Τρέχουσες εξαρτήσεις βιβλιοθηκών:
 
- - pure HTML / CSS / Javascript (+jQuery) statically served from `fastapi`
- - [`coreui`](https://coreui.io/) for the dasboard + general page template
- - [`datatables`](https://datatables.net/) for displaying tabular data
- - [`leaflet.js`](https://leafletjs.com/) for the map
- - [`codemirror`](https://codemirror.net/) for formating `json` in a textarea
- - [`toastr`](https://codeseven.github.io/toastr/) for displaying notifications to the user
+ - καθαρό HTML / CSS / Javascript (+jQuery) στατικά εξυπηρετούμενα από το `fastapi`
+ - [`coreui`](https://coreui.io/) για τον πίνακα ελέγχου + γενικό template σελίδας
+ - [`datatables`](https://datatables.net/) για εμφάνιση δεδομένων σε μορφή πίνακα
+ - [`leaflet.js`](https://leafletjs.com/) για τον χάρτη
+ - [`codemirror`](https://codemirror.net/) για μορφοποίηση `json` σε textarea
+ - [`toastr`](https://codeseven.github.io/toastr/) για εμφάνιση ειδοποιήσεων στον χρήστη
 
-Where to look in the code:
+Πού να κοιτάξετε στον κώδικα:
 
 ```
 /app
 │   main.py    ( fastapi + page routes )
 │
-└───/static    ( folder with assets and js libraries )
+└───/static    ( φάκελος με assets και js βιβλιοθήκες )
 │
-└───/ui        ( folder with HTML templates)
+└───/ui        ( φάκελος με HTML templates )
 ```
 
 
 
 <br><br>
 
-## Contents
+## Περιεχόμενα
 
- - [First things first...](#first-things-first)
- - [How the UI "consumes" the `API`](#how-the-ui-consumes-the-api)
- - [Conventions](#conventions)
- - [Page routes](#page-routes)
+ - [Πρώτα πράγματα πρώτα...](#πρώτα-πράγματα-πρώτα)
+ - [Πώς χρησιμοποιεί το UI το `API`](#πώς-χρησιμοποιεί-το-ui-το-api)
+ - [Συμβάσεις](#συμβάσεις)
+ - [Διαδρομές Σελίδων](#διαδρομές-σελίδων)
    - [`/login`](#login)
    - [`/dashboard`](#dashboard)
    - [`/map`](#map)
@@ -46,45 +46,42 @@ Where to look in the code:
 
 
 
-
-
 <br><br>
 
-## First things first...
+## Πρώτα πράγματα πρώτα...
 
-This is the place to start, in case you need to understand better how the UI of `NEF_emulator` actually works.
+Αυτό είναι το σημείο εκκίνησης, σε περίπτωση που χρειάζεστε να κατανοήσετε καλύτερα πώς λειτουργεί στην πράξη το UI του `NEF_emulator`.
 
-**Historical context:**  
-At the very beginning we were considering `NEF_emulator` as a component that provides a REST API with its `Swagger` pages, to help the user consume it and read its documentation. Thus, a `fastapi` project would be simply enough and there were no plans for adding a UI.
+**Ιστορικό πλαίσιο:**  
+Αρχικά θεωρούσαμε το `NEF_emulator` ως ένα στοιχείο που παρέχει ένα REST API με τις σελίδες `Swagger`, για να βοηθά τον χρήστη να το χρησιμοποιεί και να διαβάζει την τεκμηρίωσή του. Έτσι, ένα project `fastapi` θα ήταν επαρκές και δεν υπήρχαν σχέδια για προσθήκη UI.
 
-So, we started as if `NEF_emulator` is a black box ⬛ and the user can do some things with it by "talking" to its REST api... This was ok, playing around with the `swagger-ui` and making sure that the endpoints are working fine were our main tasks, but then we reached a point where it would be useful for us having a quick, clear way of looking what's going on inside that box 📦 without looking to `json` responses. Then came the idea of adding a minimal UI!
+Ξεκινήσαμε λοιπόν σαν το `NEF_emulator` να ήταν ένα μαύρο κουτί ⬛ και ο χρήστης να μπορεί να κάνει κάποια πράγματα μέσω του REST API... Αυτό ήταν εντάξει — το παιχνίδι με το `swagger-ui` και η βεβαίωση ότι τα endpoints λειτουργούν σωστά ήταν οι κύριες εργασίες μας, αλλά στη συνέχεια φτάσαμε σε σημείο όπου ήταν χρήσιμο να έχουμε έναν γρήγορο, σαφή τρόπο να βλέπουμε τι συμβαίνει εντός αυτού του κουτιού 📦 χωρίς να κοιτάμε `json` αποκρίσεις. Τότε ήρθε η ιδέα να προστεθεί ένα minimal UI!
 
 
-**Tech decisions:**  
+**Τεχνολογικές Αποφάσεις:**  
 
-Having in mind the *"separation of concerns"* principle, we first tried to provide the UI with a separate `frontend` container. We also played a bit with `vue.js` but after spending a lot of time solving dependency / library / version problems and having identified that it would be better for us not to pick a community + framework that moves so fast, we took a step back and decided to use simpler tech.
+Έχοντας κατά νου την αρχή του *«διαχωρισμού ευθυνών»*, αρχικά προσπαθήσαμε να παρέχουμε το UI με ξεχωριστό container `frontend`. Παίξαμε επίσης λίγο με `vue.js` αλλά αφού αφιερώσαμε πολύ χρόνο επιλύοντας προβλήματα εξαρτήσεων/βιβλιοθηκών/εκδόσεων και διαπιστώσαμε ότι θα ήταν καλύτερο να μην επιλέξουμε μια κοινότητα+πλαίσιο που εξελίσσεται τόσο γρήγορα, κάναμε ένα βήμα πίσω και αποφασίσαμε να χρησιμοποιήσουμε απλούστερη τεχνολογία.
 
-This simplicity also made us neglect the separate-container approach and go directly to `NEF_emulator`. The prerequites though were:
+Αυτή η απλότητα μάς οδήγησε επίσης να εγκαταλείψουμε την προσέγγιση ξεχωριστού container και να ενσωματώσουμε απευθείας στο `NEF_emulator`. Οι προϋποθέσεις ωστόσο ήταν:
 
- - ✔ `NEF_emulator` still remains a REST service, with an API as its "heart"
- - ✔ the `UI` is provided mostly by serving "static" assets
- - ✔ no server-side templating
+ - ✔ Το `NEF_emulator` παραμένει υπηρεσία REST με API ως «καρδιά» του
+ - ✔ Το `UI` παρέχεται κυρίως εξυπηρετώντας «στατικά» assets
+ - ✔ Χωρίς server-side templating
 
-*(With the above approach, it would be easy (in case it didn't work) to go back to a more complicated one, with separate container and a heavier frontend framework).*
-
+*(Με την παραπάνω προσέγγιση, θα ήταν εύκολο, αν δεν λειτουργούσε, να επιστρέψουμε σε πιο σύνθετη με ξεχωριστό container και βαρύτερο frontend framework).*
 
 
 
 
 <br><br>
 
-## How the UI "consumes" the `API`
+## Πώς χρησιμοποιεί το UI το `API`
 
-💡 *This section contains information on how `fastapi` serves static files which work together with the REST API and a minimal UI for the `NEF_emulator` is  provided.*
+💡 *Αυτή η ενότητα περιέχει πληροφορίες για το πώς το `fastapi` εξυπηρετεί στατικά αρχεία που λειτουργούν μαζί με το REST API και παρέχεται ένα minimal UI για το `NEF_emulator`.*
 
 <br> 
 
-1️⃣ We add pure `HTML` files to [`/app/app/ui`](https://github.com/medianetlab/NEF_emulator/tree/main/backend/app/app/ui) and set new page routes to [`main.py`](https://github.com/medianetlab/NEF_emulator/blob/main/backend/app/app/main.py). For example, for the `/login` page:
+1️⃣ Προσθέτουμε καθαρά `HTML` αρχεία στο [`/app/app/ui`](https://github.com/medianetlab/NEF_emulator/tree/main/backend/app/app/ui) και ορίζουμε νέες διαδρομές σελίδων στο [`main.py`](https://github.com/medianetlab/NEF_emulator/blob/main/backend/app/app/main.py). Για παράδειγμα, για τη σελίδα `/login`:
 
 ```python
 @app.get("/login", response_class=HTMLResponse)
@@ -93,32 +90,32 @@ async def login(request: Request):
 ```
 
 
-2️⃣ CSS, Javascript and other assets (e.g. images) are all served from a `static` folder:
+2️⃣ CSS, Javascript και άλλα assets (π.χ. εικόνες) εξυπηρετούνται όλα από έναν φάκελο `static`:
 
 ```python
 app.mount("/static", StaticFiles(directory="/app/app/static"), name="static")
 ```
 
 
-3️⃣ page `onload()`
+3️⃣ `onload()` σελίδας
 
- - **authentication**: [`app.js`](https://github.com/medianetlab/NEF_emulator/blob/main/backend/app/app/static/app/app.js) is a file loaded by every page and the very first thing to do before anything else is to check whether the user is authenticated. Practically, from the browser's perspective this means to check whether a valid `bearer` token exists in the `localStorage`:
+ - **αυθεντικοποίηση**: Το [`app.js`](https://github.com/medianetlab/NEF_emulator/blob/main/backend/app/app/static/app/app.js) είναι ένα αρχείο που φορτώνεται από κάθε σελίδα και το πρώτο πράγμα που κάνει πριν από οτιδήποτε άλλο είναι να ελέγξει αν ο χρήστης είναι αυθεντικοποιημένος. Πρακτικά, από την οπτική γωνία του browser, αυτό σημαίνει έλεγχο αν υπάρχει έγκυρο `bearer` token στο `localStorage`:
 
 ```
-when a page loads, app.js runs first to:
-  - check local storage:
-    ⛔ if no bearer token is found --> redirect to login page
-    ✅ if    bearer token is found --> test its validity
+όταν φορτώνει μια σελίδα, το app.js εκτελείται πρώτο για:
+  - έλεγχο στο local storage:
+    ⛔ αν δεν βρεθεί bearer token --> ανακατεύθυνση στη σελίδα σύνδεσης
+    ✅ αν    βρεθεί bearer token --> έλεγχος εγκυρότητάς του
 
-  - check token
-    ⛔ if not valid --> redirect to login page
-    ✅ if     valid --> continue rendering the page
+  - έλεγχος token
+    ⛔ αν δεν είναι έγκυρο --> ανακατεύθυνση στη σελίδα σύνδεσης
+    ✅ αν     είναι έγκυρο --> συνέχιση απόδοσης σελίδας
 ```
 
 
- - **rendering:** after passing the authentication step, every page can fetch data from various endpoints and display them accordingly. If needed it may fetch data multiple times and reflect possible changes to the page.
+ - **απόδοση:** μετά το βήμα αυθεντικοποίησης, κάθε σελίδα μπορεί να φέρει δεδομένα από διάφορα endpoints και να τα εμφανίζει αναλόγως. Αν χρειάζεται, μπορεί να φέρει δεδομένα πολλές φορές και να αντανακλά πιθανές αλλαγές στη σελίδα.
 
-   The part of code that makes a page able to interact with the API is `app`, a global object defined inside `app.js`:
+   Το τμήμα κώδικα που επιτρέπει σε μια σελίδα να αλληλεπιδρά με το API είναι το `app`, ένα καθολικό αντικείμενο ορισμένο εντός του `app.js`:
 
    ```javascript
    var app = {
@@ -128,7 +125,7 @@ when a page loads, app.js runs first to:
    };
    ```
 
-   This object, `app`, is accessed every time a call to the API is being made in order to get the `api_url` and the `access_token`. For example, to `GET` the list of `gNBs`:
+   Αυτό το αντικείμενο, `app`, αξιοποιείται κάθε φορά που γίνεται κλήση στο API για να ληφθεί το `api_url` και το `access_token`. Για παράδειγμα, για `GET` της λίστας `gNBs`:
 
    ```javascript
    var url = app.api_url + '/gNBs?skip=0&limit=100';
@@ -143,44 +140,45 @@ when a page loads, app.js runs first to:
    ...
    ```
 
-   After a successful response, the javascript of the page handles the data and updates the UI. There's no standard way here, for example the `/dashboard` page has js that creates or updates the `datatable` instances and `/map` page has js that paints entities on the `leaflet` map.
+   Μετά από επιτυχή απόκριση, η JavaScript της σελίδας χειρίζεται τα δεδομένα και ενημερώνει το UI. Δεν υπάρχει τυποποιημένος τρόπος εδώ — για παράδειγμα η σελίδα `/dashboard` έχει js που δημιουργεί ή ενημερώνει τα instances του `datatable` και η σελίδα `/map` έχει js που σχεδιάζει οντότητες στον χάρτη `leaflet`.
+
 
 
 
 <br><br>
 
-## Conventions
+## Συμβάσεις
 
-💡 *This section describes some of the practices followed regarding: naming files & functions, starting points of javascript execution and callbacks.*
+💡 *Αυτή η ενότητα περιγράφει ορισμένες από τις πρακτικές που ακολουθούνται σχετικά με: ονοματολογία αρχείων & συναρτήσεων, σημεία εκκίνησης εκτέλεσης JavaScript και callbacks.*
 
 <br>
 
- 1. **Files**: every `/page` most probably has an equivalent `page.css` and a `page.js` (inside `/static/css/` and `/static/js/` respectively).
+ 1. **Αρχεία**: κάθε `/page` πιθανότατα έχει ισοδύναμο `page.css` και `page.js` (εντός `/static/css/` και `/static/js/` αντίστοιχα).
  
- 2. **Document ready**: the starting point for every `page.js` is the `$( document ).ready(function() {...});`
+ 2. **Document ready**: το σημείο εκκίνησης για κάθε `page.js` είναι το `$( document ).ready(function() {...});`
 
- 3. **Naming prefixes**:
-     - `api_<HTTP-VERB>`: functions that contain `Ajax` calls to the API
-     - `ui_` : functions that affect the `DOM`
-     - `helper_`: functions that manipulate the data already fetched and stored locally to js objects
+ 3. **Προθέματα Ονοματολογίας**:
+     - `api_<HTTP-VERB>`: συναρτήσεις που περιέχουν κλήσεις `Ajax` στο API
+     - `ui_` : συναρτήσεις που επηρεάζουν το `DOM`
+     - `helper_`: συναρτήσεις που χειρίζονται δεδομένα ήδη ληφθέντα και αποθηκευμένα τοπικά σε αντικείμενα js
 
  4. **Callbacks**:
-     - Most of the `api_` functions need a callback function. This makes them usable by different parts of the code which send requests to the same API endpoint but do slightly different things with a successful response.
+     - Οι περισσότερες `api_` συναρτήσεις χρειάζονται callback συνάρτηση. Αυτό τις καθιστά χρησιμοποιήσιμες από διαφορετικά τμήματα κώδικα που στέλνουν αιτήματα στο ίδιο API endpoint αλλά κάνουν ελαφρώς διαφορετικά πράγματα με μια επιτυχή απόκριση.
 
 
 
 
 <br><br>
 
-## Page routes
+## Διαδρομές Σελίδων
 
-💡 *This section contains some of the major page routes and relevant information for each one on how they load / render / refresh their page components.*
+💡 *Αυτή η ενότητα περιέχει ορισμένες από τις κύριες διαδρομές σελίδων και σχετικές πληροφορίες για κάθε μία σχετικά με το πώς φορτώνουν/αποδίδουν/ανανεώνουν τα components σελίδας τους.*
 
 <br>
 
 ### `/login`
 
-Simple `username` / `password` form for submiting credentials and getting back a valid access token. Successful submission triggers the creation of a `localStorage` item named `app_ath` inside the browser, which is later used by other pages.
+Απλή φόρμα `username` / `password` για υποβολή διαπιστευτηρίων και επιστροφή έγκυρου access token. Η επιτυχής υποβολή ενεργοποιεί τη δημιουργία ενός στοιχείου `localStorage` με όνομα `app_auth` εντός του browser, που χρησιμοποιείται αργότερα από άλλες σελίδες.
 
     localStorage.setItem('app_auth', ...)
 
@@ -189,34 +187,34 @@ Simple `username` / `password` form for submiting credentials and getting back a
 
 ### `/dashboard`
 
-#### Main goals:
+#### Κύριοι Στόχοι:
 
- - provide a tabular way of seeing what's inside a `NEF_emulator` database
- - provide a way for adding/editing objects and generating custom *scenarios* with the guidance of a simple UI which uses:
-    - 📄 Forms: for managing text details and needed bindings (e.g. *UE-Path*, *Cell-gNB*)
-    - 🗺 Maps: for managing objects which have a location (Cells, UEs)
-    - 📍 Path-drawing: for generating UE paths on the map with just a few clicks
+ - παροχή ενός πίνακα-οπτικού τρόπου εμφάνισης του περιεχομένου μιας βάσης δεδομένων `NEF_emulator`
+ - παροχή τρόπου προσθήκης/επεξεργασίας αντικειμένων και δημιουργίας προσαρμοσμένων *σεναρίων* με τη βοήθεια ενός απλού UI που χρησιμοποιεί:
+    - 📄 Φόρμες: για διαχείριση λεπτομερειών κειμένου και απαιτούμενων συνδέσεων (π.χ. *UE-Path*, *Cell-gNB*)
+    - 🗺 Χάρτες: για διαχείριση αντικειμένων που έχουν τοποθεσία (Cells, UEs)
+    - 📍 Σχεδίαση Διαδρομής: για δημιουργία διαδρομών UE στον χάρτη με λίγα κλικ
 
-#### Javascript split:
+#### Διανομή JavaScript:
 
-This page has a lot of functionalities because it offers `CRUD` operations for all the entities of `NEF_emulator` (gNBs, Cells, UEs and Paths). Practically this means:
+Αυτή η σελίδα έχει πολλές λειτουργίες επειδή προσφέρει λειτουργίες `CRUD` για όλες τις οντότητες του `NEF_emulator` (gNBs, Cells, UEs και Paths). Πρακτικά αυτό σημαίνει:
 
- - 4 modal windows with their dedicated instance of `leaflet.js` map for **creating** new objects (**C**RUD)
- - 4 instances of `Datatables` for displaying (**reading**) object details (C**R**UD)
- - 4 modal windows with their dedicated instance of `leaflet.js` map for **updating** new objects (CR**U**D)
- - buttons for **deleting** objects (CRU**D**)
+ - 4 modal παράθυρα με αποκλειστικό instance χάρτη `leaflet.js` για **δημιουργία** νέων αντικειμένων (**C**RUD)
+ - 4 instances του `Datatables` για εμφάνιση (**ανάγνωση**) λεπτομερειών αντικειμένων (C**R**UD)
+ - 4 modal παράθυρα με αποκλειστικό instance χάρτη `leaflet.js` για **ενημέρωση** αντικειμένων (CR**U**D)
+ - κουμπιά για **διαγραφή** αντικειμένων (CRU**D**)
 
-For this reason a split has been made:
+Για αυτόν τον λόγο έγινε διανομή:
 
- - `dashboard.js`: contains the document ready() function with the basic code structure. Most function-calls use function definitions from the following files:
+ - `dashboard.js`: περιέχει τη συνάρτηση document ready() με τη βασική δομή κώδικα. Οι περισσότερες κλήσεις-συναρτήσεων χρησιμοποιούν ορισμούς συναρτήσεων από τα εξής αρχεία:
      - `dashboard-gnbs.js`
      - `dashboard-cells.js`
      - `dashboard-ues.js`
      - `dashboard-paths.js`
 
-#### Issues:
+#### Θέματα:
 
-See: #7 #35 
+Βλ.: #7 #35 
 
 
 
@@ -225,25 +223,24 @@ See: #7 #35
 
 ### `/map`
 
-#### Main goals:
+#### Κύριοι Στόχοι:
 
- - provide a way of seeing live the location of objects and observing their potential movement
- - start / stop the movement of UEs
- - provide a way of watching callback notifications to NetApps
+ - παροχή τρόπου ζωντανής παρακολούθησης της θέσης αντικειμένων και παρατήρησης της πιθανής κίνησής τους
+ - εκκίνηση/διακοπή κίνησης UEs
+ - παροχή τρόπου παρακολούθησης ειδοποιήσεων callback σε NetApps
 
-#### Polling mechanism:
+#### Μηχανισμός Polling:
 
- - this page implements a polling approach to fetch the new locations of UEs every X seconds and update the map
- - this also happens for the callback events in the following way:
-     - every event has a unique number/ID
-     - the backend keeps on-the-fly a dictionary with the 100 latest events. This way the frontend is able to show the latest 100 events after a page reload
-     - on "page load/reload" the frontend asks and displays the above list of events
-     - on "polling for new events" the frontend provides the number/ID of the latest event that has already received to the backend and the latter will send back the new events that may have been occurred. For example, the frontend provides that it has received up to event 154 and the backend sends back events 155, 156 and 157 which have taken place in the meanwhile (time between two polling requests)
+ - Αυτή η σελίδα υλοποιεί προσέγγιση polling για λήψη των νέων τοποθεσιών UE κάθε X δευτερόλεπτα και ενημέρωση του χάρτη
+ - Αυτό γίνεται επίσης για τα συμβάντα callback ως εξής:
+     - κάθε συμβάν έχει έναν μοναδικό αριθμό/ID
+     - το backend διατηρεί εν κινήσει ένα λεξικό με τα 100 πιο πρόσφατα συμβάντα. Έτσι το frontend μπορεί να εμφανίσει τα 100 τελευταία συμβάντα μετά από επαναφόρτωση σελίδας
+     - κατά «φόρτωση/επαναφόρτωση σελίδας» το frontend ζητά και εμφανίζει την παραπάνω λίστα συμβάντων
+     - κατά «polling νέων συμβάντων» το frontend παρέχει τον αριθμό/ID του τελευταίου συμβάντος που έχει ήδη λάβει στο backend και το τελευταίο στέλνει πίσω τα νέα συμβάντα που μπορεί να έχουν συμβεί. Για παράδειγμα, το frontend παρέχει ότι έχει λάβει μέχρι το συμβάν 154 και το backend στέλνει πίσω τα συμβάντα 155, 156 και 157 που έλαβαν χώρα στο μεταξύ (χρόνος μεταξύ δύο αιτημάτων polling)
 
+#### Θέματα:
 
-#### Issues:
-
-See: #8
+Βλ.: #8 
 
 
 
@@ -252,7 +249,7 @@ See: #8
 
 ### `/export`
 
-This page can be used to generate a `json` file with all the details of the scenario that is currently stored in `NEF_emulator`. The options provided are to either copy to clipboard or save to `.json` file. The structure of it is something like:
+Αυτή η σελίδα μπορεί να χρησιμοποιηθεί για δημιουργία ενός `json` αρχείου με όλες τις λεπτομέρειες του σεναρίου που είναι τρέχοντος αποθηκευμένο στο `NEF_emulator`. Οι διαθέσιμες επιλογές είναι αντιγραφή στο πρόχειρο ή αποθήκευση σε αρχείο `.json`. Η δομή του είναι κάπως έτσι:
 
 ```json
 {
@@ -268,6 +265,6 @@ This page can be used to generate a `json` file with all the details of the scen
 
 ### `/import`
 
-This page can be used to quickly import an already saved scenario (product of the previous `/export` page). The user can paste the generated `json` or drag-n-drop the `.json` file in the textarea and import the data.
+Αυτή η σελίδα μπορεί να χρησιμοποιηθεί για γρήγορη εισαγωγή ενός ήδη αποθηκευμένου σεναρίου (αποτέλεσμα της προηγούμενης σελίδας `/export`). Ο χρήστης μπορεί να επικολλήσει το παραγμένο `json` ή να σύρει και να αποθέσει το αρχείο `.json` στο textarea και να εισάγει τα δεδομένα.
 
-⚠ this step overwrites any pre-existing data in the database and loads only what is provided in the textarea.
+⚠ Αυτό το βήμα αντικαθιστά τυχόν προϋπάρχοντα δεδομένα στη βάση δεδομένων και φορτώνει μόνο ό,τι παρέχεται στο textarea.

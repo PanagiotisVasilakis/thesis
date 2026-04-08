@@ -1,295 +1,296 @@
-# Functional Tests for NEF Emulator / Northbound APIs
+# Λειτουργικές Δοκιμές για τον Εξομοιωτή NEF / Northbound APIs
 
-## Test Plan for Monitoring Event API - LOSS_OF_CONNECTIVITY
+## Σχέδιο Δοκιμών για το Monitoring Event API - LOSS_OF_CONNECTIVITY
 
-### Tests for HTTP POST Method
-* [Test Case 1: Create subscription by Authorized NetApp](#-test-case-1-create-subscription-by-authorized-netapp)
-* [Test Case 2: Create subscription with maximum_number_of_reports == 1](#-test-case-1-create-subscription-by-authorized-netapp)
-* [Test Case 3: Create subscription when there is already an active subscription for a registered UE](#-test-case-3-create-subscription-when-there-is-already-an-active-subscription-for-a-registered-ue)
-* [Test Case 4: Create subscription by unAuthorized NetApp](#-test-case-4-create-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP POST
+* [Δοκιμαστική Περίπτωση 1: Δημιουργία συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-1-δημιουργία-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 2: Δημιουργία συνδρομής με maximum_number_of_reports == 1](#-δοκιμαστική-περίπτωση-1-δημιουργία-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 3: Δημιουργία συνδρομής όταν υπάρχει ήδη ενεργή συνδρομή για καταχωρημένο UE](#-δοκιμαστική-περίπτωση-3-δημιουργία-συνδρομής-όταν-υπάρχει-ήδη-ενεργή-συνδρομή-για-καταχωρημένο-ue)
+* [Δοκιμαστική Περίπτωση 4: Δημιουργία συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-4-δημιουργία-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP GET Method
-* [Test Case 5: Read all active subscriptions by Authorized NetApp](#-test-case-5-read-all-active-subscriptions-by-authorized-netapp)
-* [Test Case 6: Read all active subscriptions by Authorized NetApp (no active subscriptions available)](#-test-case-6-read-all-active-subscriptions-by-authorized-netapp-no-active-subscriptions-available)
-* [Test Case 6: Read individual subscription by Authorized NetApp](#-test-case-7-read-individual-subscription-by-authorized-netapp)
-* [Test Case 8: Read individual subscription by Authorized NetApp with invalid subscription id](#-test-case-8-read-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test Case 9: Read all active subscriptions by unAuthorized NetApp](#-test-case-9-read-all-active-subscriptions-by-unauthorized-netapp) 
-* [Test case 10: Read individual subscription by unAuthorized NetApp](#-test-case-10-read-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP GET
+* [Δοκιμαστική Περίπτωση 5: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-5-ανάκτηση-όλων-ενεργών-συνδρομών-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 6: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp (χωρίς ενεργές συνδρομές)](#-δοκιμαστική-περίπτωση-6-ανάκτηση-όλων-ενεργών-συνδρομών-από-εξουσιοδοτημένη-netapp-χωρίς-ενεργές-συνδρομές)
+* [Δοκιμαστική Περίπτωση 7: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-7-ανάκτηση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 8: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-8-ανάκτηση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 9: Ανάκτηση όλων ενεργών συνδρομών από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-9-ανάκτηση-όλων-ενεργών-συνδρομών-από-μη-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 10: Ανάκτηση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-10-ανάκτηση-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP PUT Method
-* [Test Case 11: Update individual subscription by Authorized NetApp](#-test-case-11-update-individual-subscription-by-authorized-netapp)
-* [Test Case 12: Update individual subscription by Authorized NetApp with invalid subscription id](#-test-case-12-update-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test case 13: Update individual subscription by unAuthorized NetApp](#-test-case-13-update-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP PUT
+* [Δοκιμαστική Περίπτωση 11: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-11-ενημέρωση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 12: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-12-ενημέρωση-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 13: Ενημέρωση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-13-ενημέρωση-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
-### Tests for HTTP DELETE Method
-* [Test Case 14: Delete individual subscription by Authorized NetApp](#-test-case-14-delete-individual-subscription-by-authorized-netapp)
-* [Test Case 15: Delete individual subscription by Authorized NetApp with invalid subscription id](#-test-case-15-delete-individual-subscription-by-authorized-netapp-with-invalid-subscription-id)
-* [Test case 16: Delete individual subscription by unAuthorized NetApp](#-test-case-16-delete-individual-subscription-by-unauthorized-netapp)
+### Δοκιμές για Μέθοδο HTTP DELETE
+* [Δοκιμαστική Περίπτωση 14: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-14-διαγραφή-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp)
+* [Δοκιμαστική Περίπτωση 15: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id](#-δοκιμαστική-περίπτωση-15-διαγραφή-επιμέρους-συνδρομής-από-εξουσιοδοτημένη-netapp-με-μη-έγκυρο-subscription-id)
+* [Δοκιμαστική Περίπτωση 16: Διαγραφή επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp](#-δοκιμαστική-περίπτωση-16-διαγραφή-επιμέρους-συνδρομής-από-μη-εξουσιοδοτημένη-netapp)
 
 
-## ✔ Test Case 1: Create subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 1: Δημιουργία συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check that the NetApp creates a subscription successfully to the Monitoring Event API for a registered UE
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι η NetApp δημιουργεί επιτυχώς συνδρομή στο Monitoring Event API για καταχωρημένο UE.
 
-* Pre-Conditions:
-    1. The UE exists in the DB
-    2. NetApp subscribes to the Monitoring Event API for a UE that has not an active subscription (in DB)
-    3. Monitoring request is a non one-time reporting request 👉(maximum number of reports field on the request body is greater than 1)
-    4. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Το UE υπάρχει στη βάση δεδομένων
+    2. Η NetApp εγγράφεται στο Monitoring Event API για UE που δεν έχει ενεργή συνδρομή (στη βάση δεδομένων)
+    3. Το αίτημα παρακολούθησης ΔΕΝ είναι εφάπαξ αίτημα αναφοράς 👉(το πεδίο μέγιστου αριθμού αναφορών στο σώμα αιτήματος είναι μεγαλύτερο του 1)
+    4. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp subscribes to Monitoring Event API with an HTTP POST request for a registered UE
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο Monitoring Event API με αίτημα HTTP POST για καταχωρημένο UE
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
-    3. Request Body: [request body]
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 201 Created response 
-    2. Response body: [response body] 
-    3. The URI of the created resource is returned in the 'Location' HTTP header  according to the structure: 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 201 Created 
+    2. Σώμα Απόκρισης: [response body] 
+    3. Το URI του δημιουργηθέντος πόρου επιστρέφεται στην επικεφαλίδα HTTP 'Location' σύμφωνα με τη δομή: 
 <kbd>**{apiRoot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionId}**</kbd>
 
-## ✔ Test Case 2: Create subscription with maximum_number_of_reports == 1
+## ✔ Δοκιμαστική Περίπτωση 2: Δημιουργία συνδρομής με maximum_number_of_reports == 1
 
-This test case will check that the NetApp sends an one-time response request to the Monitoring Event API for a registered UE
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι η NetApp αποστέλλει εφάπαξ αίτημα απόκρισης στο Monitoring Event API για καταχωρημένο UE.
 
-* Pre-Conditions:
-    1.  The UE exists in the DB
-    2.  Monitoring request is a one-time reporting request 👉(maximum number of reports field on the request body equals to 1)
-    3.  NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Το UE υπάρχει στη βάση δεδομένων
+    2. Το αίτημα παρακολούθησης είναι εφάπαξ αίτημα αναφοράς 👉(το πεδίο μέγιστου αριθμού αναφορών στο σώμα αιτήματος ισούται με 1)
+    3. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP POST request to Monitoring Event API
+* Ενέργειες:
+    1. Η NetApp αποστέλλει αίτημα HTTP POST στο Monitoring Event API
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
-    3. Request Body: [request body]
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 403 Forbidden
-    2. Response body: [response body]
+    2. Σώμα Απόκρισης: [response body]
 
-## ❌ Test Case 3: Create subscription when there is already an active subscription for a registered UE
+## ❌ Δοκιμαστική Περίπτωση 3: Δημιουργία συνδρομής όταν υπάρχει ήδη ενεργή συνδρομή για καταχωρημένο UE
 
-This test case will check that whether the NetApp tries to subscribe to the Monitoring Event API for a registered UE, that has an active subscription, the request is rejected.
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι, εάν η NetApp επιχειρήσει να εγγραφεί στο Monitoring Event API για καταχωρημένο UE που έχει ήδη ενεργή συνδρομή, το αίτημα απορρίπτεται.
 
-* Pre-Conditions:
-    1. The UE exists in the DB
-    2. There is already an active subscription associated with this UE
-    3. Monitoring request is a non one-time reporting request (more info)
-    4. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Το UE υπάρχει στη βάση δεδομένων
+    2. Υπάρχει ήδη ενεργή συνδρομή που σχετίζεται με αυτό το UE
+    3. Το αίτημα παρακολούθησης ΔΕΝ είναι εφάπαξ αίτημα αναφοράς (περισσότερες πληροφορίες)
+    4. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp subscribes to Monitoring Event API with an HTTP POST request for a registered UE
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο Monitoring Event API με αίτημα HTTP POST για καταχωρημένο UE
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
-    3. Request Body: [request body]
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 409 Conflict / There is already an active subscription for UE with external id '*externalId*'
+* Συνθήκες Μετά την Εκτέλεση:
+    1. 409 Conflict / Υπάρχει ήδη ενεργή συνδρομή για UE με external id '*externalId*'
 
-## ⛔ Test Case 4: Create subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 4: Δημιουργία συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot create a subscription to the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να δημιουργήσει συνδρομή στο Monitoring Event API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp subscribes to Monitoring Event API with an HTTP POST request
-    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd> 
-    3. Request Body: [request body]
+* Ενέργειες:
+    1. Η NetApp εγγράφεται στο Monitoring Event API με αίτημα HTTP POST
+    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
+    3. Σώμα Αιτήματος: [request body]
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 5: Read all active subscriptions by Authorized NetApp 
+## ✔ Δοκιμαστική Περίπτωση 5: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp 
 
-This test case will check if the active subscriptions are retrieved successfully by the NetApp from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν οι ενεργές συνδρομές ανακτώνται επιτυχώς από τη NetApp μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. There is at least one active subscription associated with this NetApp in the db
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει τουλάχιστον μία ενεργή συνδρομή που σχετίζεται με αυτή τη NetApp στη βάση δεδομένων
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
     
-* Post-Conditions:
-    1. 200 OK response
-    2. Response body: [response body] (list of this json example) 
-    3. A list with the retrieved subscriptions 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK
+    2. Σώμα Απόκρισης: [response body] (λίστα αυτού του παραδείγματος json)
+    3. Λίστα με τις ανακτηθείσες συνδρομές 
 
 
-## ✔ Test Case 6: Read all active subscriptions by Authorized NetApp (no active subscriptions available)
+## ✔ Δοκιμαστική Περίπτωση 6: Ανάκτηση όλων ενεργών συνδρομών από Εξουσιοδοτημένη NetApp (χωρίς ενεργές συνδρομές)
 
-This test case will check if there are no active subscription to be retrieved by the NetApp from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν δεν υπάρχουν ενεργές συνδρομές προς ανάκτηση από τη NetApp μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. There are no active subscription associated with this NetApp in the db
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Δεν υπάρχουν ενεργές συνδρομές που σχετίζονται με αυτή τη NetApp στη βάση δεδομένων
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
     2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 204 No Content 
 
-## ✔ Test Case 7: Read individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 7: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from Monitoring Event API is sucessfully retrieved
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή ανακτάται επιτυχώς από τη NetApp μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body] 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body] 
 
-## ❌ Test Case 8: Read individual subscription by Authorized NetApp with invalid subscription id
-This test case will check if the individual subscription retrieved by the NetApp from Monitoring Event API has an invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 8: Ανάκτηση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db 
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που ανακτάται από τη NetApp μέσω του Monitoring Event API έχει μη έγκυρο subscription id.
+
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων 
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
 
-## ⛔ Test Case 9: Read all active subscriptions by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 9: Ανάκτηση όλων ενεργών συνδρομών από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve all active subscriptions from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει όλες τις ενεργές συνδρομές από το Monitoring Event API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
-    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
+    2. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ⛔ Test case 10: Read individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 10: Ανάκτηση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve an individual subscription from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει επιμέρους συνδρομή από το Monitoring Event API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP GET request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP GET στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 11: Update individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 11: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from Monitoring Event API is sucessfully updated
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή ενημερώνεται επιτυχώς από τη NetApp μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP PUT request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
-    4. Request body: [request body] 
+    4. Σώμα αιτήματος: [request body]
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body] 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body] 
 
-## ❌ Test Case 12: Update individual subscription by Authorized NetApp with invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 12: Ενημέρωση επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-This test case will check if the individual subscription that the NetApp tries to update from Monitoring Event API has an invalid subscription id
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που η NetApp επιχειρεί να ενημερώσει μέσω του Monitoring Event API έχει μη έγκυρο subscription id.
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db 
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων 
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP PUT request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
-    4. Request body: [request body] 
+    4. Σώμα αιτήματος: [request body]
 
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
     
-## ⛔ Test case 13: Update individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 13: Ενημέρωση επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot update an individual subscription from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ενημερώσει επιμέρους συνδρομή μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP PUT request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
-    4. Request body: [request body] 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP PUT στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
+    4. Σώμα αιτήματος: [request body]
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
-## ✔ Test Case 14: Delete individual subscription by Authorized NetApp
+## ✔ Δοκιμαστική Περίπτωση 14: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp
 
-This test case will check if the individual subscription by the NetApp from Monitoring Event API is sucessfully deleted
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή διαγράφεται επιτυχώς από τη NetApp μέσω του Monitoring Event API.
 
-* Pre-Conditions:
-    1. There is one active subscription associated with the NetApp with a unique subscription id
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Υπάρχει μία ενεργή συνδρομή που σχετίζεται με τη NetApp με μοναδικό subscription id
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
 
-* Actions:
-    1. Netapp sends an HTTP DELETE request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}, which initially retrieved in the creation of the subscription
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}, που ανακτήθηκε αρχικά κατά τη δημιουργία της συνδρομής
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
-    1. 200 OK response 
-    2. Response body: [response body] 
+* Συνθήκες Μετά την Εκτέλεση:
+    1. Απόκριση 200 OK 
+    2. Σώμα Απόκρισης: [response body] 
 
-## ❌ Test Case 15: Delete individual subscription by Authorized NetApp with invalid subscription id
+## ❌ Δοκιμαστική Περίπτωση 15: Διαγραφή επιμέρους συνδρομής από Εξουσιοδοτημένη NetApp με μη έγκυρο subscription id
 
-This test case will check if the individual subscription that the NetApp tries to delete from Monitoring Event API has an invalid subscription id
+Αυτή η δοκιμαστική περίπτωση ελέγχει εάν η επιμέρους συνδρομή που η NetApp επιχειρεί να διαγράψει μέσω του Monitoring Event API έχει μη έγκυρο subscription id.
 
-* Pre-Conditions:
-    1. The NetApp sends a subscription id which is not associated with a subscription in the db 
-    2. NetApp is authorised, i.e., has an active OAuth2 token
+* Προϋποθέσεις:
+    1. Η NetApp στέλνει subscription id που δεν σχετίζεται με κάποια συνδρομή στη βάση δεδομένων 
+    2. Η NetApp είναι εξουσιοδοτημένη, δηλαδή διαθέτει ενεργό OAuth2 token
     
-* Actions:
-    1. Netapp sends an HTTP DELETE request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
     3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 404 Not Found
 
-## ⛔ Test case 16: Delete individual subscription by unAuthorized NetApp
+## ⛔ Δοκιμαστική Περίπτωση 16: Διαγραφή επιμέρους συνδρομής από Μη Εξουσιοδοτημένη NetApp
 
-This test case will check that an unauthorised NetApp cannot retrieve an individual subscription from the Monitoring Event API
+Αυτή η δοκιμαστική περίπτωση ελέγχει ότι μη εξουσιοδοτημένη NetApp δεν μπορεί να ανακτήσει/διαγράψει επιμέρους συνδρομή από το Monitoring Event API.
 
-* Pre-Conditions:
-    1. NetApp is NOT authorised 
+* Προϋποθέσεις:
+    1. Η NetApp ΔΕΝ είναι εξουσιοδοτημένη 
 
-* Actions:
-    1. Netapp sends an HTTP DELETE request to Monitoring Event API
-    2. Netapp provides in the request the path parameter {subscriptionid}
-    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd> 
+* Ενέργειες:
+    1. Η NetApp στέλνει αίτημα HTTP DELETE στο Monitoring Event API
+    2. Η NetApp παρέχει στο αίτημα την παράμετρο διαδρομής {subscriptionid}
+    3. Endpoint: <kbd>**{apiroot}/nef/api/v1/3gpp-monitoring-event/v1/{scsAsId}/subscriptions/{subscriptionid}**</kbd>
     
-* Post-Conditions:
+* Συνθήκες Μετά την Εκτέλεση:
     1. 401 Unauthorized
 
 [request body]: ./subscription_request_loss_of_connectivity.json

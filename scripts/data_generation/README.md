@@ -1,11 +1,11 @@
-# Synthetic QoS Dataset Generator
+# Γεννήτρια Συνθετικού Συνόλου Δεδομένων QoS
 
-`scripts/data_generation/synthetic_generator.py` provides both a reusable Python
-API and a command-line utility for producing labelled QoS request datasets.
+Το `scripts/data_generation/synthetic_generator.py` παρέχει τόσο ένα επαναχρησιμοποιήσιμο Python
+API όσο και ένα εργαλείο γραμμής εντολών για την παραγωγή επισημασμένων συνόλων δεδομένων αιτημάτων QoS.
 
-## Usage
+## Χρήση
 
-### Command line
+### Γραμμή Εντολών
 
 ```bash
 python scripts/data_generation/synthetic_generator.py \
@@ -19,22 +19,22 @@ python scripts/data_generation/synthetic_generator.py \
     --format csv
 ```
 
-Key flags:
+Βασικές σημαίες:
 
-- `--records` – total number of synthetic requests to emit.
-- `--profile` – service mix preset. Choose from `balanced`, `embb-heavy`,
-  `urllc-heavy`, `mmtc-heavy`, or `uniform`. Presets normalise internally, so
-  custom ratios need only sum to a positive value if you extend the module.
-- `--embb-weight`, `--urllc-weight`, `--mmtc-weight` – optional raw weights for
-  the three 5G service classes. Provide any non-negative values; the generator
-  normalises them together with the preset (including the `default` class) so
-  the final mix always sums to 1. Supplying all three effectively defines a
-  custom mix without editing the code.
-- `--seed` – optional RNG seed for reproducible datasets. Omit to use system
-  entropy for exploratory runs.
-- `--output` – destination file path. Directories are created automatically.
-  Leave unset to stream the dataset to stdout.
-- `--format` – output serialization: `csv` (default) or `json`.
+- `--records` – συνολικός αριθμός συνθετικών αιτημάτων προς εκπομπή.
+- `--profile` – προεπιλεγμένη μίξη υπηρεσιών. Επιλέξτε από `balanced`, `embb-heavy`,
+  `urllc-heavy`, `mmtc-heavy` ή `uniform`. Οι προεπιλογές κανονικοποιούνται εσωτερικά, οπότε
+  οι προσαρμοσμένοι λόγοι αρκεί να αθροίζουν σε θετική τιμή αν επεκτείνετε το module.
+- `--embb-weight`, `--urllc-weight`, `--mmtc-weight` – προαιρετικά ακατέργαστα βάρη για
+  τις τρεις κλάσεις υπηρεσιών 5G. Δώστε οποιεσδήποτε μη-αρνητικές τιμές· η γεννήτρια
+  τις κανονικοποιεί μαζί με την προεπιλογή (συμπεριλαμβανομένης της κλάσης `default`) ώστε
+  η τελική μίξη να αθροίζει πάντα σε 1. Η παροχή και των τριών ορίζει ουσιαστικά
+  προσαρμοσμένη μίξη χωρίς επεξεργασία του κώδικα.
+- `--seed` – προαιρετικό seed γεννήτριας τυχαίων αριθμών για αναπαραγώγιμα σύνολα δεδομένων. Παραλείψτε για χρήση
+  εντροπίας συστήματος σε διερευνητικές εκτελέσεις.
+- `--output` – διαδρομή αρχείου προορισμού. Οι φάκελοι δημιουργούνται αυτόματα.
+  Αφήστε χωρίς ορισμό για ροή του συνόλου δεδομένων στο stdout.
+- `--format` – σειριοποίηση εξόδου: `csv` (προεπιλογή) ή `json`.
 
 ### Python API
 
@@ -44,24 +44,24 @@ from scripts.data_generation.synthetic_generator import generate_synthetic_reque
 data = generate_synthetic_requests(100, profile="balanced", seed=7)
 ```
 
-The API returns a list of dictionaries with the schema:
+Το API επιστρέφει μια λίστα λεξικών με το σχήμα:
 
 ```text
 request_id, service_type, latency_ms, reliability_pct, throughput_mbps, priority
 ```
 
-All records share the same keys, so downstream consumers can rely on a stable
-CSV header or JSON object structure. Use the optional `seed` argument to keep
-experiments deterministic across runs.
+Όλες οι εγγραφές μοιράζονται τα ίδια κλειδιά, έτσι οι μεταγενέστεροι καταναλωτές μπορούν να βασίζονται σε σταθερή
+επικεφαλίδα CSV ή δομή αντικειμένου JSON. Χρησιμοποιήστε το προαιρετικό όρισμα `seed` για να διατηρείτε
+τα πειράματα ντετερμινιστικά κατά τις εκτελέσεις.
 
-## Interpreting the dataset
+## Ερμηνεία του Συνόλου Δεδομένων
 
-- **Service types**: URLLC, eMBB, mMTC, and `default` align with 3GPP-inspired
-  profiles captured in the module's `SERVICE_PROFILES` map.
-- **Latency/Throughput/ Reliability**: Samples are drawn from triangular
-  distributions using the per-profile `min`, `max`, and `mode` values.
-- **Priority**: Integer score sampled uniformly within the configured bounds.
+- **Τύποι υπηρεσιών**: URLLC, eMBB, mMTC και `default` ευθυγραμμίζονται με
+  προφίλ εμπνευσμένα από 3GPP που καταγράφονται στον πίνακα `SERVICE_PROFILES` του module.
+- **Καθυστέρηση/Ρυθμαπόδοση/Αξιοπιστία**: Τα δείγματα λαμβάνονται από τριγωνικές
+  κατανομές χρησιμοποιώντας τις τιμές `min`, `max` και `mode` ανά προφίλ.
+- **Προτεραιότητα**: Ακέραιη βαθμολογία που δειγματοληπτείται ομοιόμορφα εντός των διαμορφωμένων ορίων.
 
-When extending the generator, update `SERVICE_PROFILES` and (optionally)
-`SERVICE_MIX_PROFILES`. New services are automatically normalised and sampled by
-`generate_synthetic_requests`.
+Κατά την επέκταση της γεννήτριας, ενημερώστε το `SERVICE_PROFILES` και (προαιρετικά)
+το `SERVICE_MIX_PROFILES`. Οι νέες υπηρεσίες κανονικοποιούνται και δειγματοληπτούνται αυτόματα από
+τη `generate_synthetic_requests`.

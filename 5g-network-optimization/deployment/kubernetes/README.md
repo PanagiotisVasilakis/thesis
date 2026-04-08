@@ -1,97 +1,97 @@
-# Kubernetes Deployment Guide
+# Οδηγός Ανάπτυξης Kubernetes
 
-This folder contains Kubernetes manifests and tips for running the NEF emulator and ML service in a cluster. The `nef-emulator.yaml` and `ml-service.yaml` files provide Deployment and Service definitions for both components.
+Αυτός ο φάκελος περιέχει manifests Kubernetes και συμβουλές για την εκτέλεση του εξομοιωτή NEF και της υπηρεσίας ML σε cluster. Τα αρχεία `nef-emulator.yaml` και `ml-service.yaml` παρέχουν ορισμούς Deployment και Service και για τα δύο στοιχεία.
 
-## Prerequisites
+## Προαπαιτούμενα
 
-- Kubernetes cluster (e.g. minikube, kind or managed provider)
-- Docker images for both services available in your registry
-- `kubectl` configured to access your cluster
+- Cluster Kubernetes (π.χ. minikube, kind ή διαχειριζόμενος πάροχος)
+- Docker images και για τις δύο υπηρεσίες διαθέσιμα στο μητρώο σας
+- `kubectl` ρυθμισμένο για πρόσβαση στο cluster σας
 
-## Environment Variables
+## Μεταβλητές Περιβάλλοντος
 
-Both deployments rely on the variables listed in the [root README](../../../README.md#environment-variables).
-Define them via `kubectl set env` or by editing the manifests before applying.
+Και οι δύο αναπτύξεις βασίζονται στις μεταβλητές που αναφέρονται στο [README της ρίζας](../../../README.md#environment-variables).
+Ορίστε τες μέσω `kubectl set env` ή επεξεργαζόμενοι τα manifests πριν την εφαρμογή τους.
 
-## 1. Build and Push Images
+## 1. Κατασκευή και Ανέβασμα Images
 
-Build the Docker images and push them to a registry accessible by your cluster.
-Refer to the [root README](../../../README.md#building-docker-images) for the exact commands.
-Update `nef-emulator.yaml` and `ml-service.yaml` to point to your registry images.
+Κατασκευάστε τα Docker images και ανεβάστε τα σε μητρώο προσβάσιμο από το cluster σας.
+Ανατρέξτε στο [README της ρίζας](../../../README.md#building-docker-images) για τις ακριβείς εντολές.
+Ενημερώστε τα `nef-emulator.yaml` και `ml-service.yaml` ώστε να δείχνουν στα images του μητρώου σας.
 
-## 2. Deploy the NEF Emulator
+## 2. Ανάπτυξη του Εξομοιωτή NEF
 
-Apply the manifest containing both the Deployment and Service:
+Εφαρμόστε το manifest που περιέχει και το Deployment και το Service:
 
 ```bash
 kubectl apply -f nef-emulator.yaml
 ```
 
-The file sets environment variables such as `ML_HANDOVER_ENABLED`, `A3_HYSTERESIS_DB`
-and `A3_TTT_S`. Edit it or use `kubectl set env` if you need to override them.
+Το αρχείο ορίζει μεταβλητές περιβάλλοντος όπως `ML_HANDOVER_ENABLED`, `A3_HYSTERESIS_DB`
+και `A3_TTT_S`. Επεξεργαστείτε το ή χρησιμοποιήστε `kubectl set env` αν χρειαστεί να τις παρακάμψετε.
 
-## 3. Deploy the ML Service
+## 3. Ανάπτυξη της Υπηρεσίας ML
 
-Apply the provided manifest:
+Εφαρμόστε το παρεχόμενο manifest:
 
 ```bash
 kubectl apply -f ml-service.yaml
 ```
 
-The manifest references the NEF emulator at `http://nef-emulator:8080`, so ensure the service name matches.
+Το manifest αναφέρεται στον εξομοιωτή NEF στο `http://nef-emulator:8080`, οπότε βεβαιωθείτε ότι το όνομα της υπηρεσίας ταιριάζει.
 
-## 4. Verify
+## 4. Επαλήθευση
 
-List running pods and services:
+Εμφάνιση των εκτελούμενων pods και υπηρεσιών:
 
 ```bash
 kubectl get pods
 kubectl get services
 ```
 
-Use port forwarding to access the services locally if needed:
+Χρησιμοποιήστε port forwarding για τοπική πρόσβαση στις υπηρεσίες αν χρειαστεί:
 
 ```bash
 kubectl port-forward svc/nef-emulator 8080:80
 kubectl port-forward svc/ml-service 5050:5050
 ```
 
-You can now send API requests to either service from your workstation.
+Τώρα μπορείτε να στέλνετε αιτήματα API σε οποιαδήποτε υπηρεσία από τον σταθμό εργασίας σας.
 
-## 5. Monitoring with Prometheus and Grafana
+## 5. Παρακολούθηση με Prometheus και Grafana
 
-The `monitoring/` folder in the repository provides configuration for Prometheus and Grafana. Prometheus scrapes metrics from both services at their `/metrics` endpoints, as shown in `monitoring/prometheus/prometheus.yml`. Grafana connects to the Prometheus service and ships with a sample dashboard for the ML service.
+Ο φάκελος `monitoring/` στο αποθετήριο παρέχει ρύθμιση για Prometheus και Grafana. Το Prometheus συλλέγει μετρικές από τις δύο υπηρεσίες στα endpoints `/metrics`, όπως φαίνεται στο `monitoring/prometheus/prometheus.yml`. Το Grafana συνδέεται στην υπηρεσία Prometheus και συνοδεύεται από ένα δείγμα dashboard για την υπηρεσία ML.
 
-To run the monitoring stack inside your cluster you can apply the `prometheus-grafana.yaml` manifest or create Deployments manually from these configurations. The same Docker Compose setup works for local testing. Make sure the scrape targets in `prometheus.yml` match the service names used in your manifests.
+Για να εκτελέσετε τη στοίβα παρακολούθησης εντός του cluster, μπορείτε να εφαρμόσετε το manifest `prometheus-grafana.yaml` ή να δημιουργήσετε Deployments χειροκίνητα από αυτές τις ρυθμίσεις. Η ίδια ρύθμιση Docker Compose λειτουργεί για τοπικές δοκιμές. Βεβαιωθείτε ότι οι στόχοι scrape στο `prometheus.yml` ταιριάζουν με τα ονόματα υπηρεσιών που χρησιμοποιείτε στα manifests.
 
-## Exposing Services
+## Έκθεση Υπηρεσιών
 
-Both `ml-service` and `nef-emulator` are published as ClusterIP services by default. To access them from outside the cluster you can either create `NodePort` services or configure an Ingress controller:
+Τόσο το `ml-service` όσο και το `nef-emulator` δημοσιεύονται ως υπηρεσίες ClusterIP από προεπιλογή. Για παρόχη πρόσβασης από εκτός του cluster, μπορείτε να δημιουργήσετε υπηρεσίες `NodePort` ή να ρυθμίσετε έναν ελεγκτή Ingress:
 
 ```bash
-# Example NodePort exposure
+# Παράδειγμα έκθεσης NodePort
 kubectl expose deployment ml-service --type=NodePort --port=5050
 kubectl expose deployment nef-emulator --type=NodePort --port=8080
 ```
 
-With an Ingress controller installed, update the manifests with ingress rules pointing at the corresponding services. This is the preferred approach in production environments.
+Με εγκατεστημένο ελεγκτή Ingress, ενημερώστε τα manifests με κανόνες ingress που δείχνουν στις αντίστοιχες υπηρεσίες. Αυτή είναι η προτιμητέα προσέγγιση σε περιβάλλοντα παραγωγής.
 
-## Multi-region Deployments
-To run the system across several regions you can replicate the manifests
-into separate Kubernetes clusters. Each cluster handles traffic for its
-geographic region while sharing the same Docker images and configuration.
+## Αναπτύξεις Πολλαπλών Περιοχών
 
-1. **Create a cluster per region** – provision a Kubernetes cluster in every
-   target region (for example using managed services like GKE, EKS or AKS).
-2. **Apply the manifests** – deploy `nef-emulator.yaml`, `ml-service.yaml`
-   and `prometheus-grafana.yaml` to each cluster using the respective
-   `kubectl` context.
-3. **Global routing** – place a cloud load balancer or DNS layer in front of
-   the regional clusters. Route users to the nearest region using geo DNS or
-   latency-based rules.
-4. **Synchronise models** – store trained models in a central registry
-   (e.g. object storage or MLflow). The pods in each region pull the model on
-   startup so predictions stay consistent.
+Για να εκτελέσετε το σύστημα σε πολλές γεωγραφικές περιοχές, μπορείτε να αναπαράγετε τα manifests
+σε ξεχωριστά clusters Kubernetes. Κάθε cluster χειρίζεται την κίνηση για τη γεωγραφική του
+περιοχή, ενώ μοιράζεται τα ίδια Docker images και τη ρύθμιση.
 
-With this setup you can scale the services closer to end users and achieve
-redundancy if an entire region goes down.
+1. **Δημιουργήστε ένα cluster ανά περιοχή** – προμηθευτείτε ένα cluster Kubernetes σε κάθε
+   περιοχή στόχο (για παράδειγμα χρησιμοποιώντας διαχειριζόμενες υπηρεσίες όπως GKE, EKS ή AKS).
+2. **Εφαρμόστε τα manifests** – αναπτύξτε τα `nef-emulator.yaml`, `ml-service.yaml`
+   και `prometheus-grafana.yaml` σε κάθε cluster χρησιμοποιώντας το αντίστοιχο context `kubectl`.
+3. **Καθολική δρομολόγηση** – τοποθετήστε έναν cloud load balancer ή επίπεδο DNS μπροστά από
+   τα περιφερειακά clusters. Δρομολογήστε τους χρήστες στην πλησιέστερη περιοχή χρησιμοποιώντας geo DNS ή
+   κανόνες βασισμένους σε καθυστέρηση.
+4. **Συγχρονισμός μοντέλων** – αποθηκεύστε εκπαιδευμένα μοντέλα σε κεντρικό μητρώο
+   (π.χ. object storage ή MLflow). Τα pods σε κάθε περιοχή φορτώνουν το μοντέλο κατά την
+   εκκίνηση, ώστε οι προβλέψεις να παραμένουν συνεπείς.
+
+Με αυτή τη ρύθμιση, μπορείτε να κλιμακώνετε τις υπηρεσίες πιο κοντά στους τελικούς χρήστες και να επιτυγχάνετε
+πλεονασμό σε περίπτωση άρνησης λειτουργίας ολόκληρης περιοχής.

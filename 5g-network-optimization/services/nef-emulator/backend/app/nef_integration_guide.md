@@ -1,23 +1,23 @@
-# Integrating 3GPP Mobility Models with NEF Emulator
+# Ενσωμάτωση Μοντέλων Κινητικότητας 3GPP με τον Εξομοιωτή NEF
 
-## Overview
+## Επισκόπηση
 
-This guide explains how to use our 3GPP-compliant mobility models with the existing NEF emulator without modifying its code.
+Αυτός ο οδηγός εξηγεί πώς να χρησιμοποιήσετε τα μοντέλα κινητικότητας που συμμορφώνονται με το 3GPP με τον υπάρχοντα εξομοιωτή NEF χωρίς τροποποίηση του κώδικά του.
 
-### Available Mobility Models
-- Linear and L-shaped paths
-- Random Waypoint and Random Directional movement
-- Manhattan Grid and Urban Grid models
-- Reference Point Group mobility
+### Διαθέσιμα Μοντέλα Κινητικότητας
+- Γραμμικές και L-σχήματος διαδρομές
+- Κίνηση τυχαίων waypoints και τυχαίας κατεύθυνσης
+- Μοντέλα Manhattan Grid και Urban Grid
+- Κινητικότητα ομάδας σημείου αναφοράς
 
-## Step 1: Generate Path Points
+## Βήμα 1: Δημιουργία Σημείων Διαδρομής
 
-Use our mobility models to generate path points in the NEF-compatible format:
+Χρησιμοποιήστε τα μοντέλα κινητικότητας για να δημιουργήσετε σημεία διαδρομής σε μορφή συμβατή με το NEF:
 
 ```python
 from mobility_models.nef_adapter import generate_nef_path_points, save_path_to_json
 
-# Generate a linear path
+# Δημιουργία γραμμικής διαδρομής
 params = {
     'ue_id': 'test_ue_1',
     'start_position': (0, 0, 0),
@@ -31,31 +31,31 @@ points = generate_nef_path_points('linear', **params)
 json_file = save_path_to_json(points, 'my_path.json')
 ```
 
-## Step 2: Import the Path into NEF Emulator
+## Βήμα 2: Εισαγωγή της Διαδρομής στον Εξομοιωτή NEF
 
-You can use the generated JSON file with the NEF emulator API:
+Μπορείτε να χρησιμοποιήσετε το παραγόμενο αρχείο JSON με το API του εξομοιωτή NEF:
 
-1. Login to the NEF emulator to get an access token
-2. Create a new path using the NEF API:
+1. Συνδεθείτε στον εξομοιωτή NEF για να αποκτήσετε access token
+2. Δημιουργήστε μια νέα διαδρομή χρησιμοποιώντας το NEF API:
 
 ```bash
-# Example using curl to create a path
+# Παράδειγμα χρήσης curl για τη δημιουργία διαδρομής
 curl -X POST "http://localhost:8080/api/v1/paths/" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d @linear_path.json
 ```
 
-3. Associate the path with a UE in the NEF emulator
-4. Start UE movement using the existing API
+3. Συσχετίστε τη διαδρομή με ένα UE στον εξομοιωτή NEF
+4. Ξεκινήστε την κίνηση του UE χρησιμοποιώντας το υπάρχον API
 
-## Integration in Python Script
+## Ενσωμάτωση σε Script Python
 
 ```python
 import requests
 import json
 
-# 1. Login to get token
+# 1. Σύνδεση για λήψη token
 login_url = "http://localhost:8080/api/v1/login/access-token"
 login_data = {
     "username": "your_username",
@@ -65,49 +65,49 @@ response = requests.post(login_url, data=login_data)
 token = response.json()["access_token"]
 headers = {"Authorization": f"Bearer {token}"}
 
-# 2. Create path
+# 2. Δημιουργία διαδρομής
 with open('linear_path.json', 'r') as f:
     path_data = json.load(f)
     
 path_url = "http://localhost:8080/api/v1/paths/"
 path_response = requests.post(path_url, json=path_data, headers=headers)
 path_id = path_response.json()["id"]
-# Example: log or print the created path id when running as a script
+# Παράδειγμα: καταγράψτε ή εκτυπώστε το id της δημιουργηθείσας διαδρομής κατά την εκτέλεση ως script
 # logger.info(f"Created path with ID: {path_id}")
 
-# 3. Update UE to use the path
-ue_id = "your_ue_id"  # Get this from your NEF emulator
+# 3. Ενημέρωση UE για χρήση της διαδρομής
+ue_id = "your_ue_id"  # Λάβετε αυτό από τον εξομοιωτή NEF
 ue_url = f"http://localhost:8080/api/v1/UE/{ue_id}"
 ue_data = {"path_id": path_id}
 ue_response = requests.put(ue_url, json=ue_data, headers=headers)
 
-# 4. Start UE movement
+# 4. Εκκίνηση κίνησης UE
 start_url = "http://localhost:8080/api/v1/ue-movement/start-loop"
-start_data = {"supi": "your_ue_supi"}  # Get SUPI from your UE
+start_data = {"supi": "your_ue_supi"}  # Λάβετε SUPI από το UE σας
 start_response = requests.post(start_url, json=start_data, headers=headers)
-# Example: log or notify that the UE movement has started
+# Παράδειγμα: καταγράψτε ή ειδοποιήστε ότι η κίνηση του UE ξεκίνησε
 # logger.info("UE movement started")
 ```
 
-### A3 Rule-Based Handover
-The emulator supports a basic 3GPP Event A3 rule. Disable machine learning by
-setting `ML_HANDOVER_ENABLED=0` and adjust `A3_HYSTERESIS_DB` and `A3_TTT_S` to
-control the hysteresis and time-to-trigger.
+### Handover βάσει Κανόνων A3
+Ο εξομοιωτής υποστηρίζει έναν βασικό κανόνα 3GPP Event A3. Απενεργοποιήστε τη μηχανική μάθηση ορίζοντας
+`ML_HANDOVER_ENABLED=0` και ρυθμίστε τα `A3_HYSTERESIS_DB` και `A3_TTT_S` για
+τον έλεγχο της υστέρεσης και του χρόνου ενεργοποίησης (time-to-trigger).
 
-### Local ML Mode
+### Τοπική Λειτουργία ML
 
-Set the environment variable `ML_LOCAL=1` to use the ML logic bundled in the
-NEF container instead of contacting the `ml-service` API. Provide the path to
-your LightGBM model with the `ml_model_path` argument when instantiating
+Ορίστε τη μεταβλητή περιβάλλοντος `ML_LOCAL=1` για χρήση της λογικής ML που συνοδεύει το
+container του NEF αντί για επικοινωνία με το API του `ml-service`. Παρέχετε τη διαδρομή προς
+το μοντέλο LightGBM με το όρισμα `ml_model_path` κατά την δημιουργία του
 `HandoverEngine`.
 
-Install the ML package during the image build:
+Εγκαταστήστε το πακέτο ML κατά την κατασκευή του image:
 
 ```Dockerfile
 RUN pip install -e services/ml-service
 ```
 
-When running with `ML_LOCAL` enabled you can omit the `ml-service` container in
+Κατά την εκτέλεση με ενεργοποιημένο `ML_LOCAL`, μπορείτε να παραλείψετε το container `ml-service` στο
 `docker-compose.yml`:
 
 ```yaml

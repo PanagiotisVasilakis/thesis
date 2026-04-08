@@ -1,50 +1,50 @@
-# ML Service
+# Υπηρεσία ML
 
-Flask-based microservice that predicts handover targets for user equipment (UE) and delivers training/monitoring tooling for the NEF emulator. Every behaviour described below is derived from the current codebase (`ml_service/app`).
+Μικρουπηρεσία βασισμένη σε Flask που προβλέπει στόχους handover για εξοπλισμό χρήστη (UE) και παρέχει εργαλεία εκπαίδευσης/παρακολούθησης για τον εξομοιωτή NEF. Κάθε συμπεριφορά που περιγράφεται παρακάτω προκύπτει από την τρέχουσα βάση κώδικα (`ml_service/app`).
 
-## Highlights
+## Βασικά Χαρακτηριστικά
 
-- Flask application factory (`ml_service.app.create_app`) with background model initialisation, structured logging, JWT auth, and Prometheus metrics.
-- Rich model manager supporting LightGBM, LSTM, Ensemble, and Online models selectable via `MODEL_TYPE`.
-- **Ping-pong prevention** in ML predictions to prevent rapid handover oscillations (critical for thesis demonstration).
-- JWT-protected REST API with rate limiting, QoS-aware `/api/predict-with-qos`, async prediction/training helpers, NEF integration, and feedback ingestion for drift handling.
-- Dedicated `/metrics` endpoint guarded by pluggable credentials (basic, API key, or JWT) plus helper endpoints to mint metrics tokens.
-- Visualization blueprint for coverage maps and trajectories saved under `output/`.
-- Extensive configuration surface via environment variables, all funnelled through `ml_service.app.config.constants`.
+- Factory εφαρμογής Flask (`ml_service.app.create_app`) με αρχικοποίηση μοντέλου στο παρασκήνιο, δομημένη καταγραφή, JWT αυθεντικοποίηση και μετρικές Prometheus.
+- Πλούσιος διαχειριστής μοντέλων που υποστηρίζει LightGBM, LSTM, Ensemble και Online μοντέλα επιλέξιμα μέσω `MODEL_TYPE`.
+- **Πρόληψη ping-pong** στις ML προβλέψεις για αποτροπή ταχείας ταλάντωσης handover (κρίσιμο για την επίδειξη της διπλωματικής).
+- REST API προστατευμένο με JWT, με rate limiting, QoS-aware `/api/predict-with-qos`, ασύγχρονους βοηθούς πρόβλεψης/εκπαίδευσης, ενσωμάτωση NEF και εισαγωγή ανατροφοδότησης για χειρισμό drift.
+- Αποκλειστικό endpoint `/metrics` προστατευμένο από αντικαταστάσιμα διαπιστευτήρια (basic, API key ή JWT) μαζί με βοηθητικά endpoints για έκδοση tokens μετρικών.
+- Blueprint οπτικοποίησης για χάρτες κάλυψης και τροχιές αποθηκευμένες στο `output/`.
+- Εκτεταμένη επιφάνεια ρύθμισης μέσω μεταβλητών περιβάλλοντος, όλες συναθροισμένες στο `ml_service.app.config.constants`.
 
-## Application lifecycle
+## Κύκλος Ζωής Εφαρμογής
 
-`create_app()` performs the following steps:
+Η `create_app()` εκτελεί τα εξής βήματα:
 
-1. Loads defaults (`NEF_API_URL`, `MODEL_PATH`, auth secrets, JWT expiry, etc.) and applies any overrides passed via the optional `config` mapping.
-2. Ensures the model directory exists and kicks off `ModelManager.initialize(..., background=True)` unless `app.testing` is set. This spawns a monitored thread that either loads an existing model or trains one using synthetic data; the placeholder instance returned immediately is replaced once training completes.
-3. Registers two blueprints: `/api` (core REST endpoints) and `/api/visualization` (image generation helpers). It also wires rate limiting (`Flask-Limiter` default: 100 requests/min) and global error handlers.
-4. Mounts Prometheus middleware (`MetricsMiddleware`) and starts a `MetricsCollector` background thread to publish latency, drift, and resource metrics.
-5. Exposes authenticated `/metrics`, `/metrics/auth/token`, and `/metrics/auth/stats` endpoints. Metrics authentication is skipped in testing but enforced in every other mode.
-6. Adds request/response logging with correlation IDs, making every log line traceable.
+1. Φορτώνει προεπιλογές (`NEF_API_URL`, `MODEL_PATH`, μυστικά auth, λήξη JWT, κ.λπ.) και εφαρμόζει τυχόν παρακάμψεις που διαβιβάζονται μέσω της προαιρετικής αντιστοίχισης `config`.
+2. Διασφαλίζει την ύπαρξη του φακέλου μοντέλου και εκκινεί `ModelManager.initialize(..., background=True)` εκτός αν το `app.testing` είναι ενεργό. Αυτό παράγει ένα παρακολουθούμενο thread που είτε φορτώνει υπάρχον μοντέλο είτε εκπαιδεύει ένα χρησιμοποιώντας συνθετικά δεδομένα. Το placeholder στιγμιότυπο που επιστρέφεται αμέσως αντικαθίσταται μόλις ολοκληρωθεί η εκπαίδευση.
+3. Καταχωρεί δύο blueprints: `/api` (βασικά REST endpoints) και `/api/visualization` (βοηθοί δημιουργίας εικόνων). Επίσης συνδέει rate limiting (`Flask-Limiter` προεπιλογή: 100 αιτήματα/λεπτό) και καθολικούς χειριστές σφαλμάτων.
+4. Προσαρτά middleware Prometheus (`MetricsMiddleware`) και εκκινεί ένα background thread `MetricsCollector` για δημοσίευση μετρικών καθυστέρησης, drift και πόρων.
+5. Εκθέτει αυθεντικοποιημένα endpoints `/metrics`, `/metrics/auth/token` και `/metrics/auth/stats`. Η αυθεντικοποίηση μετρικών παρακάμπτεται στις δοκιμές αλλά επιβάλλεται σε κάθε άλλη λειτουργία.
+6. Προσθέτει καταγραφή αιτημάτων/αποκρίσεων με correlation IDs, καθιστώντας κάθε γραμμή αρχείου καταγραφής ανιχνεύσιμη.
 
-`app.py` configures logging via `services/logging_config.py` and runs the Flask server on port `5050`, optionally wrapping it in TLS when `SSL_CERTFILE` and `SSL_KEYFILE` are present.
+Το `app.py` ρυθμίζει την καταγραφή μέσω `services/logging_config.py` και εκτελεί τον διακομιστή Flask στη θύρα `5050`, εναλλακτικά τυλίγοντάς τον σε TLS όταν υπάρχουν `SSL_CERTFILE` και `SSL_KEYFILE`.
 
-## Directory guide
+## Οδηγός Φακέλων
 
-- `app/api/routes.py` – synchronous and async REST endpoints (prediction, training, NEF connectivity, feedback, data collection, model management).
-- `app/api/visualization.py` – coverage-map and trajectory PNG generators backed by Matplotlib helpers.
-- `app/initialization/model_init.py` – `ModelManager`, synthetic training bootstrap, model version discovery (`MODEL_VERSION = 1.0.0`).
-- `app/monitoring/metrics.py` – custom Prometheus registry, middleware, drift monitor, and background collector.
-- `app/auth` – JWT issuance/verification (`create_access_token`, `verify_token`) and metrics authentication strategies.
-- `collect_training_data.py` – CLI utility to harvest NEF samples or delegate to `/api/collect-data`.
+- `app/api/routes.py` – σύγχρονα και ασύγχρονα REST endpoints (πρόβλεψη, εκπαίδευση, συνδεσιμότητα NEF, ανατροφοδότηση, συλλογή δεδομένων, διαχείριση μοντέλων).
+- `app/api/visualization.py` – γεννήτριες PNG χαρτών κάλυψης και τροχιών υποστηριζόμενες από βοηθούς Matplotlib.
+- `app/initialization/model_init.py` – `ModelManager`, εκκίνηση συνθετικής εκπαίδευσης, ανακάλυψη έκδοσης μοντέλου (`MODEL_VERSION = 1.0.0`).
+- `app/monitoring/metrics.py` – προσαρμοσμένο μητρώο Prometheus, middleware, παρακολουθητής drift και background collector.
+- `app/auth` – έκδοση/επαλήθευση JWT (`create_access_token`, `verify_token`) και στρατηγικές αυθεντικοποίησης μετρικών.
+- `collect_training_data.py` – βοηθητικό CLI για συλλογή δειγμάτων NEF ή ανάθεση στο `/api/collect-data`.
 
-## Running locally
+## Τοπική Εκτέλεση
 
 ```bash
 python -m venv .venv
-. .venv/Scripts/activate  # or source .venv/bin/activate on Linux/macOS
+. .venv/Scripts/activate  # ή source .venv/bin/activate σε Linux/macOS
 pip install -r ../../requirements.txt
 export AUTH_USERNAME=admin AUTH_PASSWORD=admin JWT_SECRET=change-me
 python app.py
 ```
 
-The service listens on `http://localhost:5050` by default. Set `SSL_CERTFILE`/`SSL_KEYFILE` to serve HTTPS.
+Η υπηρεσία ακούει στο `http://localhost:5050` από προεπιλογή. Ορίστε `SSL_CERTFILE`/`SSL_KEYFILE` για εξυπηρέτηση HTTPS.
 
 ### Docker
 
@@ -56,99 +56,99 @@ docker run -p 5050:5050 \
      ml-service
 ```
 
-The top-level `docker-compose.yml` in this repository starts the NEF emulator, ML service, and monitoring stack end-to-end.
+Το `docker-compose.yml` ανωτάτου επιπέδου σε αυτό το αποθετήριο εκκινεί τον εξομοιωτή NEF, την υπηρεσία ML και τη στοίβα παρακολούθησης από άκρο σε άκρο.
 
-## API overview
+## Επισκόπηση API
 
-All endpoints live under `/api` and return JSON. Rate limiting and JWT authentication apply to every route except where noted.
+Όλα τα endpoints βρίσκονται κάτω από το `/api` και επιστρέφουν JSON. Rate limiting και αυθεντικοποίηση JWT εφαρμόζονται σε κάθε διαδρομή εκτός αν αναφέρεται αλλιώς.
 
-| Endpoint | Method | Auth? | Purpose |
-|----------|--------|-------|---------|
-| `/api/health` | GET | No | Liveness probe. |
-| `/api/model-health` | GET | No | Reports `ModelManager.is_ready()` and the latest metadata (version, timestamps, metrics). |
-| `/api/login` | POST | No | Issues a JWT given `AUTH_USERNAME`/`AUTH_PASSWORD`. Body validated via `LoginRequest` Pydantic model. |
-| `/api/predict` | POST | Yes | Synchronous prediction. Uses `PredictionRequest`, calls `predict()` helper, records metrics & drift data. |
-| `/api/predict-with-qos` | POST | Yes | QoS-aware prediction that returns a `qos_compliance` verdict alongside the antenna suggestion. |
-| `/api/predict-async` | POST | Yes | Runs `model.predict_async` if the underlying selector supports it. |
-| `/api/train` | POST | Yes | Batch training. Accepts list of `TrainingSample` payloads (50 MB cap) and persists via `ModelManager.save_active_model`. |
-| `/api/train-async` | POST | Yes | Awaitable variant using `model.train_async`. |
-| `/api/collect-data` | POST | Yes | Asynchronously fetches samples from the NEF emulator using `NEFDataCollector.collect_training_data`. Optional credentials/duration/interval. |
-| `/api/nef-status` | GET | Yes | Health-checks the configured NEF URL through `NEFClient.get_status()`, returning version headers when reachable. |
-| `/api/models` | GET | Yes | Lists discovered `antenna_selector_v*.joblib` versions. |
-| `/api/models/<version>` | POST/PUT | Yes | Switches active model; validates via `model_version_validator` and raises structured errors on missing files/permissions. |
-| `/api/feedback` | POST | Yes | Accepts a list of `FeedbackSample` entries, feeding them into `ModelManager.feed_feedback` for drift-triggered retraining. |
+| Endpoint | Μέθοδος | Auth; | Σκοπός |
+|----------|---------|-------|--------|
+| `/api/health` | GET | Όχι | Έλεγχος ζωντανότητας. |
+| `/api/model-health` | GET | Όχι | Αναφέρει `ModelManager.is_ready()` και τα τελευταία μεταδεδομένα (έκδοση, χρονικές σφραγίδες, μετρικές). |
+| `/api/login` | POST | Όχι | Εκδίδει JWT με τα δεδομένα `AUTH_USERNAME`/`AUTH_PASSWORD`. Σώμα επικυρωμένο μέσω Pydantic model `LoginRequest`. |
+| `/api/predict` | POST | Ναι | Σύγχρονη πρόβλεψη. Χρησιμοποιεί `PredictionRequest`, καλεί βοηθό `predict()`, καταγράφει μετρικές & δεδομένα drift. |
+| `/api/predict-with-qos` | POST | Ναι | Πρόβλεψη QoS-aware που επιστρέφει ετυμηγορία `qos_compliance` παράλληλα με την πρόταση κεραίας. |
+| `/api/predict-async` | POST | Ναι | Εκτελεί `model.predict_async` αν ο υποκείμενος επιλογέας το υποστηρίζει. |
+| `/api/train` | POST | Ναι | Εκπαίδευση batch. Αποδέχεται λίστα `TrainingSample` payloads (όριο 50 MB) και αποθηκεύει μέσω `ModelManager.save_active_model`. |
+| `/api/train-async` | POST | Ναι | Αναμενόμενη παραλλαγή χρησιμοποιώντας `model.train_async`. |
+| `/api/collect-data` | POST | Ναι | Ασύγχρονη λήψη δειγμάτων από τον εξομοιωτή NEF μέσω `NEFDataCollector.collect_training_data`. Προαιρετικά διαπιστευτήρια/διάρκεια/διάστημα. |
+| `/api/nef-status` | GET | Ναι | Έλεγχος υγείας του διαμορφωμένου URL NEF μέσω `NEFClient.get_status()`, επιστρέφοντας επικεφαλίδες έκδοσης όταν είναι προσβάσιμο. |
+| `/api/models` | GET | Ναι | Εμφανίζει ανακαλυφθείσες εκδόσεις `antenna_selector_v*.joblib`. |
+| `/api/models/<version>` | POST/PUT | Ναι | Εναλλάσσει ενεργό μοντέλο· επικυρώνει μέσω `model_version_validator` και εγείρει δομημένα σφάλματα σε περίπτωση αρχείων που λείπουν/δικαιωμάτων. |
+| `/api/feedback` | POST | Ναι | Αποδέχεται λίστα καταχωρήσεων `FeedbackSample`, τροφοδοτώντας τες στη `ModelManager.feed_feedback` για επανεκπαίδευση που ενεργοποιείται από drift. |
 
-### Visualization endpoints
+### Endpoints Οπτικοποίησης
 
-- `GET /api/visualization/coverage-map` – generates a coverage heatmap. Will auto-train with synthetic data if the model is uninitialised.
-- `POST /api/visualization/trajectory` – consumes an array of UE snapshots and emits `trajectory.png` in the configured output directory.
+- `GET /api/visualization/coverage-map` – δημιουργεί heatmap κάλυψης. Θα εκπαιδεύσει αυτόματα με συνθετικά δεδομένα αν το μοντέλο δεν είναι αρχικοποιημένο.
+- `POST /api/visualization/trajectory` – καταναλώνει πίνακα στιγμιότυπων UE και εκπέμπει `trajectory.png` στον διαμορφωμένο φάκελο εξόδου.
 
-Example usage:
+Παράδειγμα χρήσης:
 
 ```bash
-# Acquire a JWT token
+# Απόκτηση JWT token
 TOKEN=$(curl -s -X POST http://localhost:5050/api/login \
      -H "Content-Type: application/json" \
      -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
 
-# Run a prediction
+# Εκτέλεση πρόβλεψης
 curl -X POST http://localhost:5050/api/predict \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
      -d '{
-                    "ue_id":"ue-42",
-                    "latitude":38.0,
-                    "longitude":23.7,
-                    "connected_to":"antenna_1",
-                    "rf_metrics": {
-                         "antenna_1": {"rsrp": -78, "sinr": 15, "rsrq": -9}
-                    }
-               }'
+                     "ue_id":"ue-42",
+                     "latitude":38.0,
+                     "longitude":23.7,
+                     "connected_to":"antenna_1",
+                     "rf_metrics": {
+                          "antenna_1": {"rsrp": -78, "sinr": 15, "rsrq": -9}
+                     }
+                }'
 ```
 
-## Metrics & authentication
+## Μετρικές & Αυθεντικοποίηση
 
-- `/metrics` returns Prometheus-formatted stats generated by `generate_latest(metrics.REGISTRY)`.
-- Requests must supply Basic credentials (`METRICS_AUTH_USERNAME`/`METRICS_AUTH_PASSWORD`), a bearer API key (`METRICS_API_KEY`), or a valid JWT minted with `/metrics/auth/token`.
-- `/metrics/auth/token` issues a JWT signed with `JWT_SECRET` and honours the expiry configured by `METRICS_JWT_EXPIRY_SECONDS`.
-- `/metrics/auth/stats` exposes failed-attempt counters and lockout information maintained by `MetricsAuthenticator`.
+- Το `/metrics` επιστρέφει στατιστικά μορφής Prometheus που παράγονται από `generate_latest(metrics.REGISTRY)`.
+- Τα αιτήματα πρέπει να παρέχουν διαπιστευτήρια Basic (`METRICS_AUTH_USERNAME`/`METRICS_AUTH_PASSWORD`), bearer API key (`METRICS_API_KEY`) ή έγκυρο JWT εκδοθέν με `/metrics/auth/token`.
+- Το `/metrics/auth/token` εκδίδει JWT υπογεγραμμένο με `JWT_SECRET` και τιμά τη λήξη που ρυθμίζεται από `METRICS_JWT_EXPIRY_SECONDS`.
+- Το `/metrics/auth/stats` εκθέτει μετρητές αποτυχημένων προσπαθειών και πληροφορίες kλειδώματος που διατηρεί ο `MetricsAuthenticator`.
 
-## Environment variables
+## Μεταβλητές Περιβάλλοντος
 
-### Core settings
+### Βασικές Ρυθμίσεις
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTH_USERNAME` / `AUTH_PASSWORD` | *(unset)* | Required for `/api/login`. If omitted, authentication is disabled and a warning is logged (only recommended for local experiments). |
-| `JWT_SECRET` | random per boot | HMAC key for JWTs. Provide a stable value for multi-instance deployments. |
-| `NEF_API_URL` | `http://localhost:8080` | Base URL consumed by NEF client calls and the data collector. |
-| `MODEL_PATH` | `ml_service/app/models/antenna_selector_v1.0.0.joblib` | Storage location for the active model and metadata. Parent folders are created automatically. |
-| `MODEL_TYPE` | `lightgbm` | Chooses selector class (`lightgbm`, `lstm`, `ensemble`, `online`). Metadata can override this. |
-| `NEIGHBOR_COUNT` | `3` | Passed to selector constructors to size neighbour-aware features. |
-| `LIGHTGBM_TUNE` | `0` | When `1`, runs randomized LightGBM tuning during bootstrap. Tweaked via `LIGHTGBM_TUNE_N_ITER` and `LIGHTGBM_TUNE_CV`. |
-| `PORT` / `HOST` | `5050` / `0.0.0.0` | Gunicorn/Flask bind address and port when launched via `app.py`. |
-| `RATE_LIMIT_PER_MINUTE` | `100` | Default `Flask-Limiter` quota. |
+| Μεταβλητή | Προεπιλογή | Περιγραφή |
+|-----------|-----------|-----------|
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | *(μη ορισμένες)* | Απαιτούνται για `/api/login`. Αν παραλειφθούν, η αυθεντικοποίηση απενεργοποιείται και καταγράφεται προειδοποίηση (συνιστάται μόνο για τοπικά πειράματα). |
+| `JWT_SECRET` | τυχαίο ανά εκκίνηση | HMAC κλειδί για JWTs. Παρέχετε σταθερή τιμή για αναπτύξεις με πολλαπλές εκδόσεις. |
+| `NEF_API_URL` | `http://localhost:8080` | Βασικό URL που χρησιμοποιείται από τον NEF client και τον data collector. |
+| `MODEL_PATH` | `ml_service/app/models/antenna_selector_v1.0.0.joblib` | Τοποθεσία αποθήκευσης για το ενεργό μοντέλο και μεταδεδομένα. Οι γονικοί φάκελοι δημιουργούνται αυτόματα. |
+| `MODEL_TYPE` | `lightgbm` | Επιλέγει κλάση επιλογέα (`lightgbm`, `lstm`, `ensemble`, `online`). Τα μεταδεδομένα μπορούν να το παρακάμψουν. |
+| `NEIGHBOR_COUNT` | `3` | Διαβιβάζεται στους κατασκευαστές επιλογέα για διαστασιολόγηση χαρακτηριστικών με επίγνωση γειτόνων. |
+| `LIGHTGBM_TUNE` | `0` | Όταν `1`, εκτελεί τυχαιοποιημένη ρύθμιση LightGBM κατά την εκκίνηση. Τροποποιείται μέσω `LIGHTGBM_TUNE_N_ITER` και `LIGHTGBM_TUNE_CV`. |
+| `PORT` / `HOST` | `5050` / `0.0.0.0` | Διεύθυνση δέσμευσης Gunicorn/Flask και θύρα κατά την εκκίνηση μέσω `app.py`. |
+| `RATE_LIMIT_PER_MINUTE` | `100` | Προεπιλεγμένη ποσόστωση `Flask-Limiter`. |
 
-### Metrics auth options
+### Επιλογές Αυθεντικοποίησης Μετρικών
 
-| Variable | Default | Notes |
-|----------|---------|-------|
-| `METRICS_AUTH_ENABLED` | `true` | Flag consumed by helper scripts; the service itself always enforces authentication outside of testing. |
-| `METRICS_AUTH_USERNAME` | `metrics` | Basic auth username. Leave blank to disable basic auth. |
-| `METRICS_AUTH_PASSWORD` | *(unset)* | Basic auth password. |
-| `METRICS_API_KEY` | *(unset)* | Bearer API key alternative. |
-| `METRICS_JWT_EXPIRY_SECONDS` | `3600` | Token TTL for `/metrics/auth/token`. |
+| Μεταβλητή | Προεπιλογή | Σημειώσεις |
+|-----------|-----------|------------|
+| `METRICS_AUTH_ENABLED` | `true` | Σημαία που χρησιμοποιούν βοηθητικά scripts· η ίδια η υπηρεσία πάντα επιβάλλει αυθεντικοποίηση εκτός περιβάλλοντος δοκιμών. |
+| `METRICS_AUTH_USERNAME` | `metrics` | Όνομα χρήστη basic auth. Αφήστε κενό για απενεργοποίηση basic auth. |
+| `METRICS_AUTH_PASSWORD` | *(μη ορισμένο)* | Κωδικός basic auth. |
+| `METRICS_API_KEY` | *(μη ορισμένο)* | Εναλλακτικό Bearer API key. |
+| `METRICS_JWT_EXPIRY_SECONDS` | `3600` | TTL token για `/metrics/auth/token`. |
 
-### Logging and HTTPS
+### Καταγραφή και HTTPS
 
-- `LOG_LEVEL`, `LOG_FILE` influence `configure_logging`.
-- `SSL_CERTFILE`, `SSL_KEYFILE` enable TLS when set.
+- `LOG_LEVEL`, `LOG_FILE` επηρεάζουν το `configure_logging`.
+- `SSL_CERTFILE`, `SSL_KEYFILE` ενεργοποιούν TLS όταν ορίζονται.
 
-Refer to `ml_service/app/config/constants.py` for the complete list, including cache sizing, drift monitoring, async worker limits, and input sanitisation toggles.
+Ανατρέξτε στο `ml_service/app/config/constants.py` για την πλήρη λίστα, συμπεριλαμβανομένης της διαστασιολόγησης cache, παρακολούθησης drift, ορίων ασύγχρονων workers και εναλλαγών εξυγίανσης εισόδου.
 
-## Collecting and training data
+## Συλλογή και Εκπαίδευση Δεδομένων
 
-`collect_training_data.py` orchestrates NEF sampling and optional training.
+Το `collect_training_data.py` ενορχηστρώνει τη δειγματοληψία NEF και την προαιρετική εκπαίδευση.
 
 ```bash
 python collect_training_data.py \
@@ -157,23 +157,23 @@ python collect_training_data.py \
      --duration 300 --interval 1 --train
 ```
 
-- Uses `NEFDataCollector` to login, validate UE movement, and gather JSON samples under `ml_service/app/data/collected_data/`.
-- When `--ml-service-url` is supplied, the script delegates to `/api/collect-data` on a running ML service, automatically authenticating via `/api/login`.
-- If Feast helpers are available (`feature_store_utils`), samples are ingested before training.
+- Χρησιμοποιεί `NEFDataCollector` για σύνδεση, επικύρωση κίνησης UE και συλλογή δειγμάτων JSON στο `ml_service/app/data/collected_data/`.
+- Όταν παρέχεται `--ml-service-url`, το script αναθέτει στο `/api/collect-data` μιας εκτελούμενης υπηρεσίας ML, αυτόματα αυθεντικοποιούμενο μέσω `/api/login`.
+- Αν υπάρχουν βοηθοί Feast (`feature_store_utils`), τα δείγματα εισάγονται πριν την εκπαίδευση.
 
-## Testing & quality
+## Δοκιμές & Ποιότητα
 
 ```bash
 pytest tests
 ```
 
-The top-level scripts `scripts/setup_tests.sh` and `scripts/run_tests.sh` install dependencies, configure `PYTHONPATH`, and run the suite with coverage. Unit tests rely on tmp paths for generated artefacts, so the repository stays clean after execution.
+Τα scripts ανωτάτου επιπέδου `scripts/setup_tests.sh` και `scripts/run_tests.sh` εγκαθιστούν εξαρτήσεις, ρυθμίζουν `PYTHONPATH` και εκτελούν τη σουίτα με κάλυψη. Τα unit tests βασίζονται σε προσωρινές διαδρομές για παραγόμενα αντικείμενα, ώστε το αποθετήριο να παραμένει καθαρό μετά την εκτέλεση.
 
-## Troubleshooting
+## Αντιμετώπιση Προβλημάτων
 
-- **Model never becomes ready**: check logs for thread monitor entries (`model_background_init`). A failure reverts to the last good model path and surfaces in `/api/model-health` metadata.
-- **401 on `/metrics`**: ensure at least one metrics credential is configured. Use `/metrics/auth/token` to mint a short-lived JWT.
-- **`/api/collect-data` returns zero samples**: verify the NEF emulator has UEs in motion via its `/api/v1/movement` endpoints before invoking collection.
-- **Rate limit exceeded**: increase `RATE_LIMIT_PER_MINUTE` or tune specific routes by extending `Flask-Limiter` in `rate_limiter.py`.
+- **Το μοντέλο δεν ετοιμάζεται ποτέ**: ελέγξτε τα αρχεία καταγραφής για καταχωρήσεις παρακολούθησης thread (`model_background_init`). Μια αποτυχία επαναφέρεται στην τελευταία επιτυχή διαδρομή μοντέλου και εμφανίζεται στα μεταδεδομένα `/api/model-health`.
+- **401 στο `/metrics`**: βεβαιωθείτε ότι έχει διαμορφωθεί τουλάχιστον ένα διαπιστευτήριο μετρικών. Χρησιμοποιήστε `/metrics/auth/token` για έκδοση JWT βραχείας διάρκειας.
+- **Το `/api/collect-data` επιστρέφει μηδέν δείγματα**: επαληθεύστε ότι ο εξομοιωτής NEF έχει UEs σε κίνηση μέσω των endpoints `/api/v1/movement` πριν από την έναρξη συλλογής.
+- **Υπέρβαση ορίου ρυθμού**: αυξήστε το `RATE_LIMIT_PER_MINUTE` ή συντονίστε συγκεκριμένες διαδρομές επεκτείνοντας το `Flask-Limiter` στο `rate_limiter.py`.
 
-Everything above reflects the current code; adjust this README whenever API routes, defaults, or background services change.
+Όλα τα παραπάνω αντικατοπτρίζουν τον τρέχοντα κώδικα· ενημερώστε αυτό το README κάθε φορά που αλλάζουν διαδρομές API, προεπιλογές ή background υπηρεσίες.

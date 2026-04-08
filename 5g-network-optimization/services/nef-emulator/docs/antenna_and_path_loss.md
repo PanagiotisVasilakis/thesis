@@ -1,49 +1,49 @@
-# Antenna Models and Path-Loss Calculations
+# Μοντέλα Κεραιών και Υπολογισμοί Απώλειας Διαδρομής
 
-This document describes how the antenna models provided in `antenna_models/models.py` integrate the path‑loss models defined in `rf_models/path_loss.py`. It also points to the unit tests that reference these models.
+Αυτό το έγγραφο περιγράφει πώς τα μοντέλα κεραιών που παρέχονται στο `antenna_models/models.py` ενσωματώνουν τα μοντέλα απώλειας διαδρομής που ορίζονται στο `rf_models/path_loss.py`. Επίσης υποδεικνύει τα unit tests που αναφέρονται σε αυτά τα μοντέλα.
 
-## Usage of Path‑Loss Models
+## Χρήση Μοντέλων Απώλειας Διαδρομής
 
-`antenna_models/models.py` imports two path‑loss classes:
+Το `antenna_models/models.py` εισάγει δύο κλάσεις απώλειας διαδρομής:
 
 ```python
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel
 ```
 
-Each antenna model encapsulates one of these classes to perform link budget calculations:
+Κάθε μοντέλο κεραίας ενθυλακώνει μία από αυτές τις κλάσεις για να πραγματοποιεί υπολογισμούς link budget:
 
-- **MacroCellModel** – Instantiates a `CloseInPathLossModel` with environment‑specific parameters. The `path_loss_db()` method converts the antenna‑UE distance to a loss value by calling `calculate_path_loss()` on that instance.
-- **MicroCellModel** – Uses `ABGPathLossModel` to model urban micro path loss. The `calculate_path_loss()` method is invoked in the same way, passing the distance and carrier frequency in GHz.
-- **PicoCellModel** – Applies `CloseInPathLossModel` with a path‑loss exponent of 2 (free‑space). Again, `calculate_path_loss()` is used in `path_loss_db()`.
+- **MacroCellModel** – Δημιουργεί ένα `CloseInPathLossModel` με παραμέτρους ειδικές για το περιβάλλον. Η μέθοδος `path_loss_db()` μετατρέπει την απόσταση κεραίας-UE σε τιμή απώλειας καλώντας `calculate_path_loss()` σε αυτή την έκδοση.
+- **MicroCellModel** – Χρησιμοποιεί `ABGPathLossModel` για τη μοντελοποίηση αστικής μικρο-απώλειας διαδρομής. Η `calculate_path_loss()` καλείται με τον ίδιο τρόπο, περνώντας την απόσταση και τη συχνότητα φέροντος σε GHz.
+- **PicoCellModel** – Εφαρμόζει `CloseInPathLossModel` με εκθέτη απώλειας διαδρομής 2 (ελεύθερος χώρος). Και πάλι, η `calculate_path_loss()` χρησιμοποιείται στη `path_loss_db()`.
 
-Shadow fading can be enabled or disabled through the `include_shadowing` flag, which is forwarded directly to the path‑loss model.
+Το shadow fading μπορεί να ενεργοποιηθεί ή να απενεργοποιηθεί μέσω της σημαίας `include_shadowing`, η οποία προωθείται απευθείας στο μοντέλο απώλειας διαδρομής.
 
-The path‑loss models themselves live in `rf_models/path_loss.py`. They implement well‑known formulas from 3GPP TR 38.901, such as ABG and Close‑In, and optionally add log‑normal shadow fading.
+Τα ίδια τα μοντέλα απώλειας διαδρομής βρίσκονται στο `rf_models/path_loss.py`. Υλοποιούν γνωστούς τύπους από το 3GPP TR 38.901, όπως ABG και Close-In, και προσθέτουν προαιρετικά λογαριθμο-κανονική σκίαση.
 
-## Massive MIMO Pattern
+## Σχέδιο Massive MIMO
 
-`MassiveMIMOPattern` in `antenna_models/patterns.py` models a steerable antenna
-array for beamforming studies.  It exposes several parameters:
+Το `MassiveMIMOPattern` στο `antenna_models/patterns.py` μοντελοποιεί μια διευθυνόμενη διάταξη κεραιών
+για μελέτες beamforming. Εκθέτει αρκετές παραμέτρους:
 
-- **num_elements_horizontal** – elements along the azimuth axis
-- **num_elements_vertical** – elements along the elevation axis
-- **element_spacing** – spacing between elements in wavelengths
-- **carrier_frequency** – carrier frequency in GHz
-- **max_gain_dbi** – peak gain of the array
+- **num_elements_horizontal** – στοιχεία κατά μήκος του άξονα αζιμούθιου
+- **num_elements_vertical** – στοιχεία κατά μήκος του άξονα υψομέτρου
+- **element_spacing** – απόσταση μεταξύ στοιχείων σε μήκη κύματος
+- **carrier_frequency** – συχνότητα φέροντος σε GHz
+- **max_gain_dbi** – μέγιστο κέρδος της διάταξης
 
-Set the beam with `set_steering_direction(azimuth, elevation)` and use
-`calculate_gain()` to obtain the directional gain.
+Ρυθμίστε τη δέσμη με `set_steering_direction(azimuth, elevation)` και χρησιμοποιήστε
+`calculate_gain()` για να λάβετε το κατευθυντικό κέρδος.
 
-## References in Tests
+## Αναφορές στα Tests
 
-Two sets of tests exercise the code:
+Δύο σύνολα tests ασκούν τον κώδικα:
 
-- `tests/rf_models/test_antenna_models.py` instantiates `MacroCellModel`, `MicroCellModel`, and `PicoCellModel` and calls `path_loss_db()` and `sinr_db()` to verify behaviour.
-- `tests/rf_models/test_path_loss.py` directly tests `ABGPathLossModel`, `CloseInPathLossModel`, and `FastFading` by running path‑loss computations over varying distances and plotting the results.
-- `tests/rf_models/test_massive_mimo_pattern.py` verifies that `MassiveMIMOPattern.calculate_gain()` returns finite gains for a range of azimuth and elevation angles.
+- `tests/rf_models/test_antenna_models.py` – δημιουργεί `MacroCellModel`, `MicroCellModel` και `PicoCellModel` και καλεί `path_loss_db()` και `sinr_db()` για να επαληθεύσει τη συμπεριφορά.
+- `tests/rf_models/test_path_loss.py` – ελέγχει άμεσα τα `ABGPathLossModel`, `CloseInPathLossModel` και `FastFading` εκτελώντας υπολογισμούς απώλειας διαδρομής για διάφορες αποστάσεις και σχεδιάζοντας τα αποτελέσματα.
+- `tests/rf_models/test_massive_mimo_pattern.py` – επαληθεύει ότι το `MassiveMIMOPattern.calculate_gain()` επιστρέφει πεπερασμένα κέρδη για ένα εύρος γωνιών αζιμούθιου και υψομέτρου.
 
-Together these tests ensure that the antenna models correctly delegate to the underlying path‑loss functions and that the models themselves follow expected statistical properties.
+Αυτά τα tests μαζί διασφαλίζουν ότι τα μοντέλα κεραιών αναθέτουν σωστά στις υποκείμενες συναρτήσεις απώλειας διαδρομής και ότι τα ίδια τα μοντέλα ακολουθούν αναμενόμενες στατιστικές ιδιότητες.
 
 ---
 
-Take your time and aim for quality when extending or using these models—each class is designed with explicit parameters so that realistic scenarios can be modelled and validated through tests.
+Αφιερώστε χρόνο και στοχεύστε στην ποιότητα κατά την επέκταση ή χρήση αυτών των μοντέλων — κάθε κλάση έχει σχεδιαστεί με ρητές παραμέτρους ώστε να μπορούν να μοντελοποιηθούν και να επαληθευτούν ρεαλιστικά σενάρια μέσω tests.

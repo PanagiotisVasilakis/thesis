@@ -1,112 +1,112 @@
-# Architecture Terminology Clarification
+# Διευκρίνιση Ορολογίας Αρχιτεκτονικής
 
-## O-RAN Compliance Notes
+## Σημειώσεις Συμμόρφωσης O-RAN
 
-> **Important**: This document clarifies the relationship between this implementation and the O-RAN architecture. Please read before reviewing the codebase.
+> **Σημαντικό**: Αυτό το έγγραφο διευκρινίζει τη σχέση μεταξύ της παρούσας υλοποίησης και της αρχιτεκτονικής O-RAN. Παρακαλούμε διαβάστε το πριν ανασκοπήσετε τη βάση κώδικα.
 
-### Historical Naming vs Functional Reality
+### Ιστορική Ονομασία έναντι Λειτουργικής Πραγματικότητας
 
-The codebase uses "NEF Emulator" for historical reasons (early project scope included 5G Core integration). However, the implemented functionality is **RAN behavior simulation**, not 5G Core NEF.
+Η βάση κώδικα χρησιμοποιεί τον όρο «NEF Emulator» για ιστορικούς λόγους (στα αρχικά στάδια του έργου περιλαμβανόταν ενσωμάτωση 5G Core). Ωστόσο, η υλοποιημένη λειτουργικότητα είναι **προσομοίωση συμπεριφοράς RAN**, όχι NEF του 5G Core.
 
-#### What This Service Actually Implements
+#### Τι Υλοποιεί Πράγματι Αυτή η Υπηρεσία
 
-| Component | Description |
-|-----------|-------------|
-| **gNB Signal Propagation** | Path loss models (3GPP TR 38.901) for urban macro/micro cells |
-| **Cell Selection & Handover** | A3 event-based handover with hysteresis and TTT |
-| **Radio Channel Modeling** | Shadowing (AR1 correlated), fast fading (Rayleigh/Doppler) |
-| **UE Mobility Tracking** | Position updates, trajectory history, speed estimation |
-| **ML-Based Handover Optimization** | Integration with external ML service for intelligent handover decisions |
+| Στοιχείο | Περιγραφή |
+|----------|-----------|
+| **Διάδοση Σήματος gNB** | Μοντέλα απώλειας διαδρομής (3GPP TR 38.901) για αστικά macro/micro cells |
+| **Επιλογή Cell & Handover** | Handover βάσει συμβάντος A3 με υστέρεση και TTT |
+| **Μοντελοποίηση Ραδιοκαναλιού** | Shadow fading (AR1 συσχετισμένο), fast fading (Rayleigh/Doppler) |
+| **Παρακολούθηση Κινητικότητας UE** | Ενημερώσεις θέσης, ιστορικό τροχιάς, εκτίμηση ταχύτητας |
+| **Βελτιστοποίηση Handover με ML** | Ενσωμάτωση με εξωτερική υπηρεσία ML για ευφυείς αποφάσεις handover |
 
-#### What This Service Does NOT Implement
+#### Τι ΔΕΝ Υλοποιεί Αυτή η Υπηρεσία
 
-- Service-based architecture (SBA) interfaces
-- Network exposure to external applications (NEF's actual function)
-- QoS flow management at core level
-- AMF, SMF, UPF interactions
-- N1/N2 interface protocols
+- Διεπαφές αρχιτεκτονικής βάσει υπηρεσιών (SBA)
+- Έκθεση δικτύου σε εξωτερικές εφαρμογές (πραγματική λειτουργία του NEF)
+- Διαχείριση ροών QoS σε επίπεδο πυρήνα
+- Αλληλεπιδράσεις AMF, SMF, UPF
+- Πρωτόκολλα διεπαφής N1/N2
 
-### Correct O-RAN Mapping
+### Σωστή Αντιστοίχιση O-RAN
 
-| Our Component | Functional Role | O-RAN Equivalent | Thesis Terminology |
-|---------------|-----------------|------------------|-------------------|
-| "NEF Emulator" | RAN Simulator | E2 Node Simulation | **RAN Simulator** or **E2 Node Simulator** |
-| ML Service | Decision Engine | Near-RT RIC + xApp | **ML Handover xApp** |
-| A3 Rule Engine | Baseline Algorithm | Standard 3GPP Handover | **3GPP A3 Baseline** |
-| Network State Manager | State Tracking | E2 Node State | **E2 Node State Manager** |
+| Στοιχείο μας | Λειτουργικός Ρόλος | Αντίστοιχο O-RAN | Ορολογία Διπλωματικής |
+|--------------|-------------------|------------------|-----------------------|
+| «NEF Emulator» | Προσομοιωτής RAN | Προσομοίωση E2 Node | **Προσομοιωτής RAN** ή **Προσομοιωτής E2 Node** |
+| Υπηρεσία ML | Μηχανή Αποφάσεων | Near-RT RIC + xApp | **ML Handover xApp** |
+| Μηχανή Κανόνων A3 | Αλγόριθμος Βάσης | Τυπικό Handover 3GPP | **Βάση 3GPP A3** |
+| Διαχειριστής Κατάστασης Δικτύου | Παρακολούθηση Κατάστασης | Κατάσταση E2 Node | **Διαχειριστής Κατάστασης E2 Node** |
 
-### Protocol Simplification Scope
+### Εύρος Απλοποίησης Πρωτοκόλλου
 
-**What we simplified:**
+**Τι απλοποιήσαμε:**
 
-1. **Protocol Stack:**
-   - Real O-RAN: ASN.1 encoding + SCTP transport + E2AP protocol
-   - Our system: JSON encoding + HTTP REST + custom API
+1. **Στοίβα Πρωτοκόλλου:**
+   - Πραγματικό O-RAN: κωδικοποίηση ASN.1 + μεταφορά SCTP + πρωτόκολλο E2AP
+   - Σύστημά μας: κωδικοποίηση JSON + HTTP REST + προσαρμοσμένο API
 
-2. **Message Format:**
-   - Real O-RAN: Binary encoded with strict schema (E2SM)
-   - Our system: Human-readable JSON with flexible schema
+2. **Μορφή Μηνύματος:**
+   - Πραγματικό O-RAN: δυαδική κωδικοποίηση με αυστηρό σχήμα (E2SM)
+   - Σύστημά μας: JSON αναγνώσιμο από ανθρώπους με ευέλικτο σχήμα
 
-3. **Subscription Model:**
-   - Real O-RAN: Complex subscription management with timers
-   - Our system: Simple request-response or WebSocket streaming
+3. **Μοντέλο Συνδρομής:**
+   - Πραγματικό O-RAN: σύνθετη διαχείριση συνδρομών με χρονόμετρα
+   - Σύστημά μας: απλό αίτημα-απόκριση ή streaming WebSocket
 
-4. **Service Models:**
-   - Real O-RAN: Formal E2SM definitions (E2SM-KPM, E2SM-RC)
-   - Our system: Custom metrics and control messages
+4. **Μοντέλα Υπηρεσιών:**
+   - Πραγματικό O-RAN: τυπικοί ορισμοί E2SM (E2SM-KPM, E2SM-RC)
+   - Σύστημά μας: προσαρμοσμένες μετρικές και μηνύματα ελέγχου
 
-**What we preserved:**
+**Τι διατηρήσαμε:**
 
-1. **Architectural Separation:**
-   - RAN logic separate from intelligent controller ✓
-   - Clear interface boundary ✓
+1. **Αρχιτεκτονικός Διαχωρισμός:**
+   - Λογική RAN ξεχωριστή από τον ευφυή ελεγκτή ✓
+   - Σαφές όριο διεπαφής ✓
 
-2. **Functional Capabilities:**
-   - Metrics reporting (like E2 Indication) ✓
-   - Control actions (like E2 Control) ✓
-   - Real-time data streaming ✓
+2. **Λειτουργικές Δυνατότητες:**
+   - Αναφορά μετρικών (όπως E2 Indication) ✓
+   - Ενέργειες ελέγχου (όπως E2 Control) ✓
+   - Streaming δεδομένων πραγματικού χρόνου ✓
 
-3. **Latency Requirements:**
-   - Near-RT decision making (<1 second) ✓
+3. **Απαιτήσεις Καθυστέρησης:**
+   - Λήψη αποφάσεων Near-RT (<1 δευτερόλεπτο) ✓
 
-### Justification for Thesis
+### Αιτιολόγηση για τη Διπλωματική
 
-> "This simplification is appropriate for research focused on ML algorithm performance rather than protocol implementation. The architectural principles and functional outcomes are O-RAN-aligned, even though protocol compliance is not byte-for-byte."
+> «Αυτή η απλοποίηση είναι κατάλληλη για έρευνα εστιασμένη στην επίδοση αλγορίθμων ML παρά στην υλοποίηση πρωτοκόλλου. Οι αρχιτεκτονικές αρχές και τα λειτουργικά αποτελέσματα ευθυγραμμίζονται με το O-RAN, ακόμα κι αν η συμμόρφωση πρωτοκόλλου δεν είναι byte προς byte.»
 
-### Recommended Thesis Terminology
+### Συνιστώμενη Ορολογία Διπλωματικής
 
-When writing your thesis, use the following conventions:
+Κατά τη συγγραφή της διπλωματικής εργασίας, ακολουθήστε τις εξής συμβάσεις:
 
-1. **In Introduction:**
-   - Acknowledge naming is historical
-   - Explain the functional focus on handover optimization
+1. **Στην Εισαγωγή:**
+   - Αναγνωρίστε ότι η ονομασία είναι ιστορική
+   - Εξηγήστε τη λειτουργική εστίαση στη βελτιστοποίηση handover
 
-2. **In Architecture Chapter:**
-   - Use "RAN Simulator" or "E2 Node Simulator" instead of "NEF"
-   - Clearly map to O-RAN reference architecture
+2. **Στο Κεφάλαιο Αρχιτεκτονικής:**
+   - Χρησιμοποιήστε «Προσομοιωτής RAN» ή «Προσομοιωτής E2 Node» αντί για «NEF»
+   - Αντιστοιχίστε σαφώς με την αρχιτεκτονική αναφοράς O-RAN
 
-3. **In Code References:**
-   - Can mention "implemented in the nef-emulator service"
-   - But describe function, not name
+3. **Σε Αναφορές Κώδικα:**
+   - Μπορείτε να αναφέρετε «υλοποιήθηκε στην υπηρεσία nef-emulator»
+   - Αλλά να περιγράφετε τη λειτουργία, όχι το όνομα
 
-4. **Be Consistent:**
-   - Don't switch between NEF and RAN terminology
-   - Pick one and stick with it throughout
+4. **Να Είστε Συνεπείς:**
+   - Μην εναλλάσσετε ορολογία NEF και RAN
+   - Επιλέξτε μία και κρατήστε την σε όλη τη διπλωματική
 
-### Future Work
+### Μελλοντική Εργασία
 
-For production deployment or journal publication, consider:
+Για παραγωγική ανάπτυξη ή δημοσίευση σε επιστημονικό περιοδικό, εξετάστε:
 
-1. **Protocol Migration Path:**
-   - Implement ASN.1 encoding for E2AP messages
-   - Add SCTP transport layer
-   - Formal E2SM-RC service model
+1. **Μονοπάτι Μετάβασης Πρωτοκόλλου:**
+   - Υλοποίηση κωδικοποίησης ASN.1 για μηνύματα E2AP
+   - Προσθήκη επιπέδου μεταφοράς SCTP
+   - Τυπικό μοντέλο υπηρεσίας E2SM-RC
 
-2. **Near-RT RIC Integration:**
-   - Deploy actual O-RAN SC Near-RT RIC
-   - Register ML service as proper xApp
-   - Implement E2 interface handlers
+2. **Ενσωμάτωση Near-RT RIC:**
+   - Ανάπτυξη πραγματικού O-RAN SC Near-RT RIC
+   - Εγγραφή της υπηρεσίας ML ως κανονικό xApp
+   - Υλοποίηση χειριστών διεπαφής E2
 
 ---
 
-*This clarification document is part of Fix #9 and Fix #10 from the thesis implementation plan.*
+*Αυτό το έγγραφο διευκρίνισης αποτελεί μέρος των Διορθώσεων #9 και #10 από το σχέδιο υλοποίησης της διπλωματικής.*

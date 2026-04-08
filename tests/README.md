@@ -1,24 +1,24 @@
-# Test Dependencies
+# Εξαρτήσεις Δοκιμών
 
-This project relies on a fairly heavy stack of libraries for its automated test suite.
-The key runtime dependencies that the tests import include **Flask**, **matplotlib**,
-**scikit-learn**, **pandas**, and **LightGBM** in addition to the core services
-under `5g-network-optimization`.  A few of these packages (such as `matplotlib`)
-require system libraries like `libcairo` and `libjpeg` when installed in a clean
-environment.
+Αυτό το έργο βασίζεται σε ένα αρκετά βαρύ σύνολο βιβλιοθηκών για την αυτοματοποιημένη σουίτα δοκιμών του.
+Οι βασικές εξαρτήσεις χρόνου εκτέλεσης που εισάγουν τα tests περιλαμβάνουν **Flask**, **matplotlib**,
+**scikit-learn**, **pandas** και **LightGBM**, καθώς και τις βασικές υπηρεσίες
+υπό το `5g-network-optimization`. Μερικά από αυτά τα πακέτα (όπως το `matplotlib`)
+απαιτούν συστημικές βιβλιοθήκες όπως `libcairo` και `libjpeg` όταν εγκαθίστανται σε καθαρό
+περιβάλλον.
 
-Install all dependencies from the root of the repository:
+Εγκαταστήστε όλες τις εξαρτήσεις από τη ρίζα του αποθετηρίου:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-That file contains both application and test requirements.  If you only wish to
-install the minimal set used exclusively by the tests, run:
+Αυτό το αρχείο περιέχει τόσο τις εξαρτήσεις εφαρμογής όσο και τις εξαρτήσεις των tests. Αν επιθυμείτε να
+εγκαταστήσετε μόνο το ελάχιστο σύνολο που χρησιμοποιείται αποκλειστικά από τα tests, εκτελέστε:
 
 ```bash
 pip install -r tests/requirements.txt
 ```
 
-The test-only file simply references `pytest` and related utilities so that the
-full development stack does not need to be installed when running CI.
+Το αρχείο αποκλειστικά για tests απλώς αναφέρεται στο `pytest` και σχετικά βοηθητικά εργαλεία, ώστε
+να μην χρειάζεται η εγκατάσταση ολόκληρης της στοίβας ανάπτυξης κατά την εκτέλεση CI.
