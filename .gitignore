@@ -9,3 +9,17 @@ thesis_venv/
 .DS_Store
 .github/copilot-instructions.md
 thesis_md_files.txt
+
+# Editor / IDE
+.vscode/
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual Environments
+.env/
+venv/
+env/

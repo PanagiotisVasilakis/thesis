@@ -1,9 +1,1 @@
-{
-    "python.defaultInterpreterPath": "${workspaceFolder}/thesis_venv/bin/python",
-    "python.analysis.extraPaths": [
-        "./5g-network-optimization/services/ml-service"
-    ],
-    "cursorpyright.analysis.extraPaths": [
-        "./5g-network-optimization/services/ml-service"
-    ]
-}
+{"python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"}
