@@ -15,6 +15,7 @@ from ..errors import (
     RequestValidationError,
     ModelError,
     NEFConnectionError,
+    ModelNotReadyError,
 )
 from ..monitoring.metrics import track_prediction, track_training, QOS_FEEDBACK_EVENTS, ADAPTIVE_CONFIDENCE
 from ..schemas import PredictionRequest, TrainingSample, FeedbackSample
@@ -39,6 +40,14 @@ from ..validation import (
     model_version_validator,
 )
 from ..rate_limiter import limiter, limit_for
+
+
+def _require_model_ready() -> None:
+    """Fail model-backed runtime requests until initialization has completed."""
+    if current_app.testing:
+        return
+    if not ModelManager.is_ready():
+        raise ModelNotReadyError("ML model is not ready")
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -129,6 +138,7 @@ def predict():
     """Make antenna selection prediction based on UE data."""
     req = request.validated_data  # type: ignore[attr-defined]
 
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     request_payload = req.model_dump(exclude_none=True)
     result, features = predict_ue(request_payload, model=model)
@@ -159,6 +169,7 @@ def predict_with_qos():
     """Make antenna selection prediction considering QoS requirements."""
     req = request.validated_data  # type: ignore[attr-defined]
 
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     request_payload = req.model_dump(exclude_none=True)
     result, features = predict_ue(request_payload, model=model)
@@ -195,6 +206,7 @@ def qos_feedback():
         else {}
     )
 
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     model.record_qos_feedback(
         ue_id=payload.ue_id,
@@ -243,6 +255,7 @@ async def predict_async():
     """Make async antenna selection prediction based on UE data."""
     req = request.validated_data  # type: ignore[attr-defined]
 
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     request_payload = req.model_dump(exclude_none=True)
     features = model.extract_features(request_payload)
@@ -588,6 +601,7 @@ def explain_prediction():
     """
     req = request.validated_data  # type: ignore[attr-defined]
     
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     request_payload = req.model_dump(exclude_none=True)
     features = model.extract_features(request_payload)
@@ -635,6 +649,7 @@ def feature_importance():
     Returns:
         JSON with ranked feature importances
     """
+    _require_model_ready()
     model = load_model(current_app.config["MODEL_PATH"])
     
     if not hasattr(model.model, 'feature_importances_'):
@@ -932,6 +947,5 @@ def get_model_type():
         "model_type": os.getenv("MODEL_TYPE", "lightgbm"),
         "available_types": ["lightgbm", "lstm", "ensemble", "online"],
     })
-
 
 

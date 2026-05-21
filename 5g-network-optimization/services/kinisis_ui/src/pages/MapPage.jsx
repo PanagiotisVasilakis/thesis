@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polyline, useMap } from 'react-leaflet';
-import { getCells, getUEs, getPaths, getMovingUEs, startAllUEs, stopAllUEs, startUE, stopUE, importScenario, getRecentHandovers } from '../api/nefClient';
+import { getCells, getUEs, getPaths, getMovingUEs, startAllUEs, stopAllUEs, startUE, stopUE, getRecentHandovers } from '../api/nefClient';
 import { getMode, setMode, getUEState } from '../api/mlClient';
 import ModeToggle from '../components/ML/ModeToggle';
 import SignalPanel from '../components/ML/SignalPanel';
@@ -35,10 +35,10 @@ export default function MapPage() {
         duration,
         setDuration,
         scenarioName,
-        setScenarioName,
         handoverHistory,
         addHandover,
         clearAll,
+        resetActiveScenario,
         startRetries,
         stopRetries,
         prevUEsRef,
@@ -54,6 +54,7 @@ export default function MapPage() {
     const [showClearModal, setShowClearModal] = useState(false);
     const [handoverWsConnected, setHandoverWsConnected] = useState(false);
     const [handoverWsStatus, setHandoverWsStatus] = useState('disconnected');
+    const [statusMessage, setStatusMessage] = useState(null);
 
     const pollIntervalRef = useRef(null);
     const timerIntervalRef = useRef(null);
@@ -78,17 +79,9 @@ export default function MapPage() {
                 setPaths(pathsRes.data || []);
                 setMlMode(modeRes.data?.mode || 'hybrid');
 
-                // Store initial UE positions when data loads
-                if (uesRes.data?.length > 0) {
-                    setInitialUEPositions(uesRes.data.map(ue => ({
-                        supi: ue.supi,
-                        name: ue.name,
-                        latitude: ue.latitude,
-                        longitude: ue.longitude,
-                    })));
-                }
             } catch (error) {
                 console.error('Error fetching data:', error);
+                setStatusMessage({ type: 'error', text: 'Failed to load network data.' });
             }
         };
         fetchData();
@@ -198,6 +191,7 @@ export default function MapPage() {
                     }
                 } catch (error) {
                     console.error('Error polling UEs:', error);
+                    setStatusMessage({ type: 'error', text: 'Live UE polling failed.' });
                 }
             }, 1000);
         } else {
@@ -284,8 +278,15 @@ export default function MapPage() {
             }
 
             const token = localStorage.getItem('access_token');
+            if (!token) {
+                setHandoverWsConnected(false);
+                setHandoverWsStatus('disconnected');
+                setStatusMessage({ type: 'error', text: 'Sign in again to stream handover events.' });
+                return;
+            }
+
             const wsBase = buildWsUrl();
-            const wsUrl = `${wsBase}/ue_movement/ws/handovers?limit=50${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+            const wsUrl = `${wsBase}/ue_movement/ws/handovers?limit=50&token=${encodeURIComponent(token)}`;
             const ws = new WebSocket(wsUrl);
             handoverWsRef.current = ws;
             setHandoverWsStatus('connecting');
@@ -296,9 +297,13 @@ export default function MapPage() {
                 setHandoverWsStatus('connected');
             };
 
-            ws.onclose = () => {
+            ws.onclose = (event) => {
                 setHandoverWsConnected(false);
                 setHandoverWsStatus('disconnected');
+                if (event.code === 1008) {
+                    setStatusMessage({ type: 'error', text: 'Handover stream authentication failed. Sign in again.' });
+                    return;
+                }
                 const attempt = handoverReconnectAttemptRef.current + 1;
                 handoverReconnectAttemptRef.current = attempt;
                 const backoffMs = Math.min(30000, 1000 * (2 ** (attempt - 1)));
@@ -395,6 +400,7 @@ export default function MapPage() {
 
     const handleStart = async () => {
         try {
+            setStatusMessage(null);
             prevUEsRef.current = {};
             processedBackendIdsRef.current = new Set();
             await startAllUEs();
@@ -406,11 +412,13 @@ export default function MapPage() {
             }
         } catch (error) {
             console.error('Error starting:', error);
+            setStatusMessage({ type: 'error', text: 'Failed to start UE movement.' });
         }
     };
 
     const handleStop = async () => {
         try {
+            setStatusMessage(null);
             await stopAllUEs();
             setIsRunning(false);
             setTimeRemaining(0);
@@ -418,45 +426,63 @@ export default function MapPage() {
                 clearInterval(timerIntervalRef.current);
             }
 
-            // Reset scenario to ground-truth positions after run ends
             if (scenarioName) {
-                await importScenario({ name: scenarioName });
+                const reset = await resetActiveScenario();
+                if (!reset) {
+                    setStatusMessage({
+                        type: 'warning',
+                        text: 'Stopped movement, but no active scenario payload is available to reset positions.',
+                    });
+                }
             }
             const uesRes = await getUEs();
             setUEs(uesRes.data || []);
             setSelectedSignalData(null);
         } catch (error) {
             console.error('Error stopping:', error);
+            setStatusMessage({ type: 'error', text: 'Failed to stop movement cleanly.' });
         }
     };
 
     const handleModeChange = async (newMode) => {
         if (isRunning || isRetrying) {
-            alert('Cannot change mode during experiment. Stop current experiment first.');
+            setStatusMessage({ type: 'warning', text: 'Stop the current experiment before changing mode.' });
             return;
         }
         try {
+            setStatusMessage(null);
             await setMode(newMode);
             setMlMode(newMode);
         } catch (error) {
             console.error('Error setting mode:', error);
+            setStatusMessage({ type: 'error', text: 'Failed to update handover mode.' });
         }
     };
 
     // Retry system functions - using context
     const handleStartRetries = async (numRetries) => {
         setShowRetryModal(false);
-        await startRetries(numRetries);
-        // Refresh UE list after retries complete
-        const uesRes = await getUEs();
-        setUEs(uesRes.data || []);
+        try {
+            setStatusMessage(null);
+            await startRetries(numRetries);
+            const uesRes = await getUEs();
+            setUEs(uesRes.data || []);
+        } catch (error) {
+            console.error('Error running retries:', error);
+            setStatusMessage({ type: 'error', text: 'Automated retries failed.' });
+        }
     };
 
     const handleStopRetries = async () => {
-        await stopRetries();
-        // Refresh UE list
-        const uesRes = await getUEs();
-        setUEs(uesRes.data || []);
+        try {
+            setStatusMessage(null);
+            await stopRetries();
+            const uesRes = await getUEs();
+            setUEs(uesRes.data || []);
+        } catch (error) {
+            console.error('Error stopping retries:', error);
+            setStatusMessage({ type: 'error', text: 'Failed to stop automated retries.' });
+        }
     };
 
     const handleClearAll = () => {
@@ -476,6 +502,15 @@ export default function MapPage() {
                     <span>Handover feed: {handoverWsStatus}</span>
                 </div>
             </div>
+
+            {statusMessage && (
+                <div className={`p-3 rounded-lg text-sm ${statusMessage.type === 'error'
+                    ? 'bg-red-50 text-red-700 border border-red-200'
+                    : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                }`}>
+                    {statusMessage.text}
+                </div>
+            )}
 
             {/* Experiment Controls */}
             <div className="card">

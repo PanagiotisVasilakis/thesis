@@ -293,6 +293,11 @@ class HandoverRuntime:
                 result["confidence"] = decision.get("confidence")
                 use_ml = getattr(self.engine, "use_ml", False)
                 result["source"] = decision.get("source", "ml" if use_ml else "a3")
+                result["fallback_to_a3"] = bool(decision.get("fallback_to_a3", False))
+                if decision.get("fallback_reason"):
+                    result["fallback_reason"] = decision.get("fallback_reason")
+                if decision.get("ml_prediction"):
+                    result["ml_prediction"] = decision.get("ml_prediction")
             
             return result
 

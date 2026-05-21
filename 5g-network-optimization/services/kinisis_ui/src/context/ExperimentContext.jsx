@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useRef, useCallback } from 'react';
-import { startAllUEs, stopAllUEs, getUEs, importScenario } from '../api/nefClient';
+import { startAllUEs, stopAllUEs, importScenario } from '../api/nefClient';
 
 const ExperimentContext = createContext(null);
 
@@ -12,16 +12,30 @@ export function ExperimentProvider({ children }) {
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [sessionId, setSessionId] = useState(`session_${Date.now()}`);
     const [mlMode, setMlMode] = useState('hybrid');  // 'ml', 'a3', or 'hybrid'
+    const [activeScenario, setActiveScenarioState] = useState(() => {
+        try {
+            const saved = localStorage.getItem('kinisis_active_scenario');
+            return saved ? JSON.parse(saved) : null;
+        } catch {
+            localStorage.removeItem('kinisis_active_scenario');
+            return null;
+        }
+    });
     const [duration, setDuration] = useState(60);
-    const [scenarioName, setScenarioName] = useState('');
+    const [scenarioName, setScenarioName] = useState(activeScenario?.name || '');
 
     const stopRetryRef = useRef(false);
     const prevUEsRef = useRef({});
 
     // Handover history (persisted to localStorage)
     const [handoverHistory, setHandoverHistory] = useState(() => {
-        const saved = localStorage.getItem('handover_history');
-        return saved ? JSON.parse(saved) : [];
+        try {
+            const saved = localStorage.getItem('handover_history');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            localStorage.removeItem('handover_history');
+            return [];
+        }
     });
 
     // Add handover to history
@@ -42,6 +56,21 @@ export function ExperimentProvider({ children }) {
         prevUEsRef.current = {};
     }, []);
 
+    const setActiveScenario = useCallback((payload, name = 'Custom scenario') => {
+        const scenario = { name, payload };
+        setActiveScenarioState(scenario);
+        setScenarioName(name);
+        localStorage.setItem('kinisis_active_scenario', JSON.stringify(scenario));
+    }, []);
+
+    const resetActiveScenario = useCallback(async () => {
+        if (!activeScenario?.payload) {
+            return false;
+        }
+        await importScenario(activeScenario.payload);
+        return true;
+    }, [activeScenario]);
+
     // Start retries
     const startRetries = useCallback(async (numRetries, onProgress) => {
         setIsRetrying(true);
@@ -59,9 +88,8 @@ export function ExperimentProvider({ children }) {
             if (onProgress) onProgress(i, numRetries);
 
             try {
-                // Reset UEs to initial positions
-                if (scenarioName) {
-                    await importScenario({ name: scenarioName });
+                if (activeScenario?.payload) {
+                    await importScenario(activeScenario.payload);
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
 
@@ -100,13 +128,13 @@ export function ExperimentProvider({ children }) {
         // Reset UEs to start
         try {
             await stopAllUEs();
-            if (scenarioName) {
-                await importScenario({ name: scenarioName });
+            if (activeScenario?.payload) {
+                await importScenario(activeScenario.payload);
             }
         } catch (error) {
             console.error('Error resetting UE positions:', error);
         }
-    }, [duration, scenarioName]);
+    }, [duration, activeScenario]);
 
     // Stop retries
     const stopRetries = useCallback(async () => {
@@ -114,13 +142,13 @@ export function ExperimentProvider({ children }) {
         try {
             await stopAllUEs();
             setIsRunning(false);
-            if (scenarioName) {
-                await importScenario({ name: scenarioName });
+            if (activeScenario?.payload) {
+                await importScenario(activeScenario.payload);
             }
         } catch (error) {
             console.error('Error stopping retries:', error);
         }
-    }, [scenarioName]);
+    }, [activeScenario]);
 
     const value = {
         // State
@@ -133,6 +161,7 @@ export function ExperimentProvider({ children }) {
         mlMode,
         duration,
         scenarioName,
+        activeScenario,
         handoverHistory,
         prevUEsRef,
 
@@ -140,10 +169,12 @@ export function ExperimentProvider({ children }) {
         setMlMode,
         setDuration,
         setScenarioName,
+        setActiveScenario,
         setIsRunning,
         setTimeRemaining,
 
         // Actions
+        resetActiveScenario,
         startRetries,
         stopRetries,
         addHandover,

@@ -1,4 +1,3 @@
-from backend.app.app.tools import monitoring_callbacks, qos_callback
 import json
 import requests
 import pytest
@@ -33,6 +32,8 @@ app_pkg.db = types.ModuleType("app.db")
 app_pkg.db.session = db_session_mod
 sys.modules.setdefault("app.db", app_pkg.db)
 sys.modules.setdefault("app.db.session", db_session_mod)
+
+from backend.app.app.tools import monitoring_callbacks, qos_callback
 
 
 @pytest.fixture

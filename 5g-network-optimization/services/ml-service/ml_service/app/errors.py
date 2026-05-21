@@ -8,6 +8,10 @@ class ModelError(MLServiceError):
     """Raised for errors related to model loading or inference."""
 
 
+class ModelNotReadyError(ModelError):
+    """Raised when model-backed endpoints are called before initialization."""
+
+
 class RequestValidationError(MLServiceError):
     """Raised when a request fails validation or contains invalid data."""
 

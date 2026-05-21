@@ -333,35 +333,6 @@ def require_secure_headers():
     return decorator
 
 
-def rate_limit_by_ip(max_requests: int = 100, window_seconds: int = 3600):
-    """Decorator for IP-based rate limiting.
-    
-    Args:
-        max_requests: Maximum requests per window
-        window_seconds: Time window in seconds
-    """
-    def decorator(func: Callable) -> Callable:
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            client_ip = request.environ.get('REMOTE_ADDR', 'unknown')
-            
-            # This is a placeholder for rate limiting logic
-            # In a real implementation, you'd use Redis or similar
-            # to track request counts per IP
-            
-            # For now, just log the request
-            logger.debug("Rate limit check for IP %s in %s", client_ip, func.__name__)
-            
-            # Store rate limiting info
-            g.rate_limit_checked = True
-            g.client_ip = client_ip
-            
-            return func(*args, **kwargs)
-        
-        return wrapper
-    return decorator
-
-
 def _format_pydantic_errors(error: ValidationError, context: str = "") -> str:
     """Format Pydantic validation errors for user-friendly display.
     

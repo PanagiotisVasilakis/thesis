@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Annotated, List, Optional
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, IPvAnyAddress
 from enum import Enum
 
@@ -75,10 +75,12 @@ class AsSessionWithQoSSubscription(AsSessionWithQoSSubscriptionCreate):
 class AccumulatedUsage(UsageThreshold):
     pass
 
+NonNegativeDelay = Annotated[int, Field(ge=0)]
+
 class QoSMonitoringReport(BaseModel):
-    dlDelays: List[int] = Field(None, description="Downlink packet delay", ge=0, min_length=1)
-    ulDelays: List[int] = Field(None, description="Uplink packet delay", ge=0, min_length=1)
-    rtDelays: List[int] = Field(None, description="Round trip packet delay", ge=0, min_length=1)
+    dlDelays: List[NonNegativeDelay] = Field(None, description="Downlink packet delay", min_length=1)
+    ulDelays: List[NonNegativeDelay] = Field(None, description="Uplink packet delay", min_length=1)
+    rtDelays: List[NonNegativeDelay] = Field(None, description="Round trip packet delay", min_length=1)
 
 class UserPlaneEvent(str, Enum):
     gqos = "QOS_GUARANTEED"

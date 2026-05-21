@@ -43,6 +43,16 @@ def test_predict_invalid_request(client, auth_header):
         assert data["correlation_id"]
 
 
+def test_predict_returns_503_when_model_not_ready(client, auth_header, monkeypatch):
+    monkeypatch.setattr("ml_service.app.api.routes.ModelManager.is_ready", lambda: False)
+    client.application.testing = False
+
+    resp = client.post("/api/predict", json={"ue_id": "u1"}, headers=auth_header)
+
+    assert resp.status_code == 503
+    assert resp.get_json()["type"] == "ModelNotReadyError"
+
+
 def test_train_route(client, auth_header):
     mock_model = MagicMock()
     mock_model.train.return_value = {"samples": 1, "classes": 1}

@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ml-service-config
+data:
+  NEF_API_URL: "http://nef-emulator:8080"
+  MODEL_PATH: "/app/models/antenna_selector_v1.0.0.joblib"
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -47,9 +55,40 @@ spec:
           periodSeconds: 20
         env:
         - name: NEF_API_URL
-          value: "http://nef-emulator:8080"
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: NEF_API_URL
         - name: MODEL_PATH
-          value: "/app/models/antenna_selector_v1.0.0.joblib"
+          valueFrom:
+            configMapKeyRef:
+              name: ml-service-config
+              key: MODEL_PATH
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: SECRET_KEY
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: JWT_SECRET
+        - name: JWT_REFRESH_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: JWT_REFRESH_SECRET
+        - name: AUTH_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: AUTH_USERNAME
+        - name: AUTH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: ml-service-secrets
+              key: AUTH_PASSWORD
         volumeMounts:
         - name: model-storage
           mountPath: /app/models

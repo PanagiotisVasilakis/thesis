@@ -2,7 +2,7 @@ import types
 from types import SimpleNamespace
 
 import pytest
-from conftest import TestClient
+from tests.conftest import TestClient
 from httpx import ASGITransport
 
 

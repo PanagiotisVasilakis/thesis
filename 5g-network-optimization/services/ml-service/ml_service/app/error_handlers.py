@@ -6,6 +6,7 @@ import uuid
 from .errors import (
     MLServiceError,
     ModelError,
+    ModelNotReadyError,
     RequestValidationError,
     NEFConnectionError,
     ResourceNotFoundError,
@@ -29,6 +30,10 @@ def register_error_handlers(app):
         app.logger.error("Model error: %s [cid=%s]", err, getattr(g, "correlation_id", ""))
         return jsonify(_format_error(err)), 500
 
+    def handle_model_not_ready(err):
+        app.logger.warning("Model not ready: %s [cid=%s]", err, getattr(g, "correlation_id", ""))
+        return jsonify(_format_error(err)), 503
+
     def handle_nef_error(err):
         app.logger.error("NEF connection error: %s [cid=%s]", err, getattr(g, "correlation_id", ""))
         return jsonify(_format_error(err)), 502
@@ -42,6 +47,7 @@ def register_error_handlers(app):
         return jsonify(_format_error(err)), 500
 
     app.register_error_handler(RequestValidationError, handle_request_validation)
+    app.register_error_handler(ModelNotReadyError, handle_model_not_ready)
     app.register_error_handler(ModelError, handle_model_error)
     app.register_error_handler(NEFConnectionError, handle_nef_error)
     app.register_error_handler(ResourceNotFoundError, handle_not_found)

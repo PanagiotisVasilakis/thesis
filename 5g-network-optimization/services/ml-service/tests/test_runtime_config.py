@@ -1,0 +1,37 @@
+import pytest
+
+
+def test_create_app_requires_runtime_config(monkeypatch):
+    from ml_service.app import create_app
+
+    for key in (
+        "NEF_API_URL",
+        "SECRET_KEY",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "AUTH_USERNAME",
+        "AUTH_PASSWORD",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    with pytest.raises(ValueError, match="Missing required runtime configuration"):
+        create_app()
+
+
+def test_create_app_uses_runtime_env(monkeypatch):
+    from ml_service.app import create_app
+    from ml_service.app.initialization.model_init import ModelManager
+
+    monkeypatch.setenv("NEF_API_URL", "http://nef-emulator:80")
+    monkeypatch.setenv("SECRET_KEY", "secret-key")
+    monkeypatch.setenv("JWT_SECRET", "jwt-secret")
+    monkeypatch.setenv("JWT_REFRESH_SECRET", "refresh-secret")
+    monkeypatch.setenv("AUTH_USERNAME", "ml-admin")
+    monkeypatch.setenv("AUTH_PASSWORD", "ml-password")
+    monkeypatch.setattr(ModelManager, "initialize", lambda *args, **kwargs: None)
+
+    app = create_app()
+
+    assert app.config["NEF_API_URL"] == "http://nef-emulator:80"
+    assert app.config["JWT_SECRET"] == "jwt-secret"
+    assert app.config["JWT_REFRESH_SECRET"] == "refresh-secret"

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI
-from conftest import TestClient
+from tests.conftest import TestClient
 from httpx import ASGITransport
 from pydantic import BaseModel, ConfigDict
 

@@ -10,6 +10,7 @@ def create_app(config=None):
     """Create and configure the Flask application."""
     # Import heavy dependencies lazily to keep module import light-weight
     import os
+    import secrets
     import uuid
     from flask import Response, g, request
     from prometheus_client import generate_latest
@@ -43,20 +44,21 @@ def create_app(config=None):
             "circuit_breaker": os.getenv("RATELIMIT_CIRCUIT_BREAKER", "20 per minute"),
         }
 
-    # Load default configuration
+    # Load default configuration. Runtime secrets and service URLs are required
+    # for non-test deployments; tests receive isolated ephemeral values below.
     default_roles = _parse_roles(os.getenv("AUTH_ROLES"))
     if not default_roles:
         default_roles = ["admin"]
     default_config = dict(
-        SECRET_KEY=os.getenv("SECRET_KEY", os.urandom(32).hex()),
-        NEF_API_URL="http://localhost:8080",
+        SECRET_KEY=os.getenv("SECRET_KEY"),
+        NEF_API_URL=os.getenv("NEF_API_URL"),
         MODEL_PATH=os.path.join(
             os.path.dirname(__file__),
             f"models/antenna_selector_v{MODEL_VERSION}.joblib",
         ),
         AUTH_USERNAME=os.getenv("AUTH_USERNAME"),
         AUTH_PASSWORD=os.getenv("AUTH_PASSWORD"),
-        JWT_SECRET=os.getenv("JWT_SECRET", os.urandom(32).hex()),
+        JWT_SECRET=os.getenv("JWT_SECRET"),
         JWT_EXPIRES_MINUTES=int(os.getenv("JWT_EXPIRES_MINUTES", "30")),
         JWT_REFRESH_SECRET=os.getenv("JWT_REFRESH_SECRET"),
         JWT_REFRESH_EXPIRES_MINUTES=int(os.getenv("JWT_REFRESH_EXPIRES_MINUTES", "4320")),
@@ -67,6 +69,8 @@ def create_app(config=None):
         REDIS_URL=os.getenv("REDIS_URL", ""),
         REDIS_REFRESH_TOKEN_PREFIX=os.getenv("REDIS_REFRESH_TOKEN_PREFIX", "ml:refresh:"),
     )
+    if os.getenv("MODEL_PATH"):
+        default_config["MODEL_PATH"] = os.getenv("MODEL_PATH")
     app.config.from_mapping(default_config)
     
     # Ensure required auth configuration is provided
@@ -74,28 +78,37 @@ def create_app(config=None):
         app.config.update(config)
         app.config["AUTH_ROLES"] = _parse_roles(app.config.get("AUTH_ROLES")) or default_roles
 
-    if not app.config.get("AUTH_USERNAME") or not app.config.get("AUTH_PASSWORD"):
-        # Check if we're in test mode - in which case allow no auth
-        if not app.testing:
+    required_runtime_config = [
+        "NEF_API_URL",
+        "SECRET_KEY",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "AUTH_USERNAME",
+        "AUTH_PASSWORD",
+    ]
+    if app.testing:
+        if not app.config.get("NEF_API_URL"):
+            app.config["NEF_API_URL"] = "http://test-nef"
+        for key in ("SECRET_KEY", "JWT_SECRET", "JWT_REFRESH_SECRET"):
+            if not app.config.get(key):
+                app.config[key] = secrets.token_urlsafe(32)
+        if not app.config.get("AUTH_USERNAME"):
+            app.config["AUTH_USERNAME"] = os.getenv("TEST_AUTH_USERNAME", "test_user")
+        if not app.config.get("AUTH_PASSWORD"):
+            app.config["AUTH_PASSWORD"] = os.getenv(
+                "TEST_AUTH_PASSWORD", "test_secure_password_123!"
+            )
+    else:
+        missing = [key for key in required_runtime_config if not app.config.get(key)]
+        if missing:
             app.logger.error(
-                "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
-                "Authentication is required for production deployment."
+                "Missing required runtime configuration: %s",
+                ", ".join(sorted(missing)),
             )
-            # Raise an error to prevent the application from starting without authentication in production
             raise ValueError(
-                "Authentication credentials must be provided via AUTH_USERNAME and AUTH_PASSWORD environment variables for production deployments"
+                "Missing required runtime configuration: "
+                + ", ".join(sorted(missing))
             )
-        else:
-            app.logger.warning(
-                "AUTH_USERNAME and AUTH_PASSWORD environment variables are not set. "
-                "Applying default credentials for tests only."
-            )
-            if not app.config.get("AUTH_USERNAME"):
-                app.config["AUTH_USERNAME"] = os.getenv("TEST_AUTH_USERNAME", "test_user")
-            if not app.config.get("AUTH_PASSWORD"):
-                app.config["AUTH_PASSWORD"] = os.getenv(
-                    "TEST_AUTH_PASSWORD", "test_secure_password_123!"
-                )
 
     # Create models directory if it doesn't exist
     os.makedirs(os.path.dirname(app.config["MODEL_PATH"]), exist_ok=True)

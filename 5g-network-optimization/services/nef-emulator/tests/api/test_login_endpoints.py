@@ -1,4 +1,3 @@
-from app import crud
 import importlib.util
 import os
 import sys
@@ -6,14 +5,23 @@ import types
 from types import SimpleNamespace
 from pathlib import Path
 
+if "sqlalchemy" in sys.modules and not hasattr(sys.modules["sqlalchemy"], "Column"):
+    for module_name in list(sys.modules):
+        if module_name == "sqlalchemy" or module_name.startswith("sqlalchemy."):
+            del sys.modules[module_name]
+
 try:
     import sqlalchemy
+    import sqlalchemy.orm as sqlalchemy_orm
 except ImportError:  # pragma: no cover - optional dependency
     sqlalchemy = types.ModuleType("sqlalchemy")
     sys.modules["sqlalchemy"] = sqlalchemy
-    sqlalchemy.orm = types.ModuleType("sqlalchemy.orm")
-    sqlalchemy.orm.Session = object
-    sys.modules["sqlalchemy.orm"] = sqlalchemy.orm
+    sqlalchemy_orm = types.ModuleType("sqlalchemy.orm")
+    sys.modules["sqlalchemy.orm"] = sqlalchemy_orm
+
+if not hasattr(sqlalchemy_orm, "Session"):
+    sqlalchemy_orm.Session = object
+sqlalchemy.orm = sqlalchemy_orm
 
 try:
     import pymongo

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { importScenario } from '../api/nefClient';
+import { useExperiment } from '../context/ExperimentContext';
 
 const SCENARIOS = [
     { id: 'ncsrd_campus', name: '🏛️ NCSRD Campus', desc: '4 cells, 3 UEs - Basic demo' },
@@ -9,6 +10,7 @@ const SCENARIOS = [
 ];
 
 export default function ImportPage() {
+    const { setActiveScenario } = useExperiment();
     const [selectedScenario, setSelectedScenario] = useState('');
     const [jsonText, setJsonText] = useState('');
     const [loading, setLoading] = useState(false);
@@ -19,6 +21,9 @@ export default function ImportPage() {
         setLoading(true);
         try {
             const res = await fetch(`/static/scenarios/${selectedScenario}.json`);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}`);
+            }
             const data = await res.json();
             setJsonText(JSON.stringify(data, null, 2));
             setMessage({ type: 'success', text: 'Scenario loaded! Click Import to apply.' });
@@ -38,6 +43,8 @@ export default function ImportPage() {
         try {
             const data = JSON.parse(jsonText);
             await importScenario(data);
+            const scenarioLabel = selectedScenario || data.name || 'Custom scenario';
+            setActiveScenario(data, scenarioLabel);
             setMessage({ type: 'success', text: 'Scenario imported successfully!' });
         } catch (error) {
             setMessage({ type: 'error', text: 'Import failed: ' + error.message });

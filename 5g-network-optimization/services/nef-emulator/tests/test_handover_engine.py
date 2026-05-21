@@ -11,6 +11,25 @@ from backend.app.app.monitoring import metrics
 from tests.conftest import DummyAntenna, patch_handover_time
 
 
+@pytest.mark.asyncio
+async def test_websocket_auth_requires_token():
+    from backend.app.app.api.websocket_auth import require_websocket_user
+
+    class DummyWebSocket:
+        query_params = {}
+
+        def __init__(self):
+            self.closed = None
+
+        async def close(self, code):
+            self.closed = code
+
+    websocket = DummyWebSocket()
+
+    assert await require_websocket_user(websocket) is False
+    assert websocket.closed == 1008
+
+
 def test_rule_based_handover(monkeypatch):
     base = datetime(2025, 1, 1)
     times = [base, base + timedelta(seconds=1.1)]
@@ -151,6 +170,64 @@ def test_engine_auto_switch_runtime(monkeypatch):
     del nsm.antenna_list["C"]
     eng._update_mode()
     assert eng.use_ml is False
+
+
+def test_decide_with_features_pure_ml_does_not_fallback(monkeypatch):
+    nsm = NetworkStateManager()
+    nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    eng = HandoverEngine(nsm, use_ml=True)
+    eng.handover_mode = "ml"
+
+    monkeypatch.setattr(eng, "_select_ml_with_features", lambda ue_id, fv: None)
+
+    def fail_rule(*args, **kwargs):
+        raise AssertionError("pure ML mode must not call A3 fallback")
+
+    monkeypatch.setattr(eng, "_select_rule_with_features", fail_rule)
+
+    assert eng.decide_with_features("u1", {"connected_to": "A"}) is None
+
+
+def test_decide_with_features_hybrid_records_fallback(monkeypatch):
+    nsm = NetworkStateManager()
+    nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    eng = HandoverEngine(nsm, use_ml=True)
+    eng.handover_mode = "hybrid"
+    eng._last_ml_error_reason = "ml_http_5xx"
+
+    monkeypatch.setattr(eng, "_select_ml_with_features", lambda ue_id, fv: None)
+    monkeypatch.setattr(eng, "_select_rule_with_features", lambda ue_id, fv: "B")
+
+    decision = eng.decide_with_features("u1", {"connected_to": "A"})
+
+    assert decision == {
+        "antenna_id": "B",
+        "source": "a3_fallback",
+        "fallback_to_a3": True,
+        "fallback_reason": "ml_http_5xx",
+    }
+
+
+def test_decide_with_features_hybrid_low_confidence_fallback(monkeypatch):
+    nsm = NetworkStateManager()
+    nsm.antenna_list = {"A": DummyAntenna(-80), "B": DummyAntenna(-70)}
+    eng = HandoverEngine(nsm, use_ml=True, confidence_threshold=0.8)
+    eng.handover_mode = "hybrid"
+
+    monkeypatch.setattr(
+        eng,
+        "_select_ml_with_features",
+        lambda ue_id, fv: {"antenna_id": "C", "confidence": 0.2, "source": "ml_remote"},
+    )
+    monkeypatch.setattr(eng, "_select_rule_with_features", lambda ue_id, fv: "B")
+
+    decision = eng.decide_with_features("u1", {"connected_to": "A"})
+
+    assert decision["antenna_id"] == "B"
+    assert decision["source"] == "a3_fallback"
+    assert decision["fallback_to_a3"] is True
+    assert decision["fallback_reason"] == "low_confidence"
+    assert decision["ml_prediction"] == "C"
 
 
 def test_select_ml(monkeypatch):

@@ -24,6 +24,8 @@ crud_mod.cell = types.SimpleNamespace()
 crud_mod.ue = types.SimpleNamespace()
 crud_mod.path = types.SimpleNamespace()
 crud_mod.points = types.SimpleNamespace()
+crud_mod.crud_mongo = types.SimpleNamespace()
+crud_mod.user = types.SimpleNamespace()
 app_pkg.crud = crud_mod
 
 models_mod = types.ModuleType("app.models")
@@ -59,6 +61,7 @@ class scenario(BaseModel):
 schemas_mod.monitoringevent = monitoringevent_mod
 schemas_mod.UserPlaneNotificationData = UserPlaneNotificationData
 schemas_mod.scenario = scenario
+schemas_mod.Scenario = scenario
 api_pkg = types.ModuleType("app.api")
 deps_mod = types.ModuleType("app.api.deps")
 deps_mod.get_db = lambda: None

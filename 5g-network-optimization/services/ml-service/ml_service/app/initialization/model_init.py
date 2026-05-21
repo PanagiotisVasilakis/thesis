@@ -117,6 +117,19 @@ class ModelManager:
             return sorted(cls._model_paths.keys())
 
     @classmethod
+    def _restore_previous_state(
+        cls,
+        previous_model,
+        previous_path: str | None,
+    ) -> None:
+        cls._model_instance = previous_model
+        cls._last_good_model_path = previous_path
+        if previous_model is None:
+            cls._init_event.clear()
+        else:
+            cls._init_event.set()
+
+    @classmethod
     def _initialize_sync(
         cls,
         model_path: str | None,
@@ -224,9 +237,7 @@ class ModelManager:
         except (OSError, IOError) as e:
             logger.error("File system error during model initialization: %s", e)
             with cls._lock:
-                cls._model_instance = previous_model
-                cls._last_good_model_path = previous_path
-                cls._init_event.set()
+                cls._restore_previous_state(previous_model, previous_path)
             # Report as critical since model initialization is essential
             get_thread_monitor().report_failure(
                 "model_initialization",
@@ -238,9 +249,7 @@ class ModelManager:
         except (ValueError, TypeError) as e:
             logger.error("Configuration error during model initialization: %s", e)
             with cls._lock:
-                cls._model_instance = previous_model
-                cls._last_good_model_path = previous_path
-                cls._init_event.set()
+                cls._restore_previous_state(previous_model, previous_path)
             get_thread_monitor().report_failure(
                 "model_initialization",
                 e,
@@ -251,9 +260,7 @@ class ModelManager:
         except ImportError as e:
             logger.error("Missing dependency for model initialization: %s", e)
             with cls._lock:
-                cls._model_instance = previous_model
-                cls._last_good_model_path = previous_path
-                cls._init_event.set()
+                cls._restore_previous_state(previous_model, previous_path)
             get_thread_monitor().report_failure(
                 "model_initialization",
                 e,
@@ -264,9 +271,7 @@ class ModelManager:
         except Exception as e:
             logger.critical("Unexpected error during model initialization: %s", e)
             with cls._lock:
-                cls._model_instance = previous_model
-                cls._last_good_model_path = previous_path
-                cls._init_event.set()
+                cls._restore_previous_state(previous_model, previous_path)
             get_thread_monitor().report_failure(
                 "model_initialization",
                 e,

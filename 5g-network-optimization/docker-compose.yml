@@ -35,8 +35,8 @@ services:
     env_file:
       - .env
     environment:
-      - SERVER_NAME=localhost
-      - SERVER_HOST=http://localhost
+      - SERVER_NAME=${SERVER_NAME:?SERVER_NAME must be set}
+      - SERVER_HOST=${SERVER_HOST:?SERVER_HOST must be set}
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
       - ML_HANDOVER_ENABLED=${ML_HANDOVER_ENABLED:-1}
@@ -59,7 +59,7 @@ services:
     env_file:
       - .env
     environment:
-      - NEF_API_URL=http://nef-emulator:80
+      - NEF_API_URL=${NEF_API_URL:-http://nef-emulator:80}
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
     depends_on:
@@ -88,7 +88,7 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD must be set}
     depends_on:
       - prometheus
     networks:
@@ -103,6 +103,7 @@ services:
       - "3001:80"
     environment:
       - VITE_API_URL=/api/v1
+      - NGINX_API_UPSTREAM=${NGINX_API_UPSTREAM:-http://nef-emulator:80}
     depends_on:
       - nef-emulator
     networks:

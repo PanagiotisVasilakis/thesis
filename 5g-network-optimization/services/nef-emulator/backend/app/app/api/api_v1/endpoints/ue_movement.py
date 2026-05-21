@@ -10,6 +10,7 @@ from app.tools.distance import check_distance
 from app.tools import qos_callback
 from app.db.session import SessionLocal, client
 from app.api import deps
+from app.api.websocket_auth import require_websocket_user
 from app.api.api_v1.state_manager import state_manager
 
 logger = logging.getLogger(__name__)
@@ -825,22 +826,13 @@ def live_metrics(
 @router.websocket("/ws/ue-metrics")
 async def ws_live_metrics(websocket: WebSocket):
     supi = websocket.query_params.get("supi")
-    token = websocket.query_params.get("token")
 
     if not supi:
         await websocket.close(code=1008)
         return
 
-    if token:
-        try:
-            db = SessionLocal()
-            try:
-                deps.get_current_user(db=db, token=token)
-            finally:
-                db.close()
-        except Exception:
-            await websocket.close(code=1008)
-            return
+    if not await require_websocket_user(websocket):
+        return
 
     await websocket.accept()
 
@@ -858,7 +850,6 @@ async def ws_live_metrics(websocket: WebSocket):
 
 @router.websocket("/ws/handovers")
 async def ws_handovers(websocket: WebSocket):
-    token = websocket.query_params.get("token")
     limit_param = websocket.query_params.get("limit", "50")
 
     try:
@@ -866,16 +857,8 @@ async def ws_handovers(websocket: WebSocket):
     except ValueError:
         limit = 50
 
-    if token:
-        try:
-            db = SessionLocal()
-            try:
-                deps.get_current_user(db=db, token=token)
-            finally:
-                db.close()
-        except Exception:
-            await websocket.close(code=1008)
-            return
+    if not await require_websocket_user(websocket):
+        return
 
     await websocket.accept()
 

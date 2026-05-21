@@ -166,21 +166,74 @@ class HandoverEngine:
             Decision dict with 'antenna_id' and metadata, or None
         """
         self._update_mode()
-        
-        if self.use_ml:
-            result = self._select_ml_with_features(ue_id, fv)
-            if result is None:
-                # ML unavailable, fallback to A3 rule
-                target = self._select_rule_with_features(ue_id, fv)
-                if target:
-                    return {"antenna_id": target, "source": "a3_fallback"}
-                return None
-            return result
-        else:
+        current_mode = getattr(self, "handover_mode", "hybrid" if self.use_ml else "a3")
+
+        if current_mode == "a3":
             target = self._select_rule_with_features(ue_id, fv)
             if target:
-                return {"antenna_id": target, "source": "a3_rule"}
+                return {
+                    "antenna_id": target,
+                    "source": "a3_rule",
+                    "fallback_to_a3": False,
+                }
             return None
+
+        result = self._select_ml_with_features(ue_id, fv)
+        if result is None:
+            if current_mode == "ml":
+                return None
+
+            fallback_reason = self._last_ml_error_reason or "ml_service_unavailable"
+            target = self._select_rule_with_features(ue_id, fv)
+            self._record_fallback_metrics(None, fallback_reason)
+            metrics.HANDOVER_FALLBACKS.inc()
+            if target:
+                return {
+                    "antenna_id": target,
+                    "source": "a3_fallback",
+                    "fallback_to_a3": True,
+                    "fallback_reason": fallback_reason,
+                }
+            return None
+
+        result.setdefault("source", "ml_remote")
+        result["fallback_to_a3"] = False
+
+        if current_mode != "hybrid":
+            return result
+
+        confidence = result.get("confidence")
+        if confidence is None:
+            confidence = 0.0
+
+        qos_comp = result.get("qos_compliance")
+        fallback_reason = None
+        service_type = None
+        violations = None
+        if isinstance(qos_comp, dict):
+            service_type = (qos_comp.get("details") or {}).get("service_type")
+            violations = qos_comp.get("violations")
+            if not bool(qos_comp.get("service_priority_ok", True)):
+                fallback_reason = "qos_compliance_failed"
+        elif confidence < self.confidence_threshold:
+            fallback_reason = "low_confidence"
+
+        if not fallback_reason:
+            return result
+
+        target = self._select_rule_with_features(ue_id, fv)
+        self._record_fallback_metrics(service_type, fallback_reason, violations)
+        metrics.HANDOVER_FALLBACKS.inc()
+        if target:
+            return {
+                "antenna_id": target,
+                "source": "a3_fallback",
+                "confidence": confidence,
+                "fallback_to_a3": True,
+                "fallback_reason": fallback_reason,
+                "ml_prediction": result.get("antenna_id"),
+            }
+        return None
     
     def _select_ml_with_features(self, ue_id: str, fv: dict) -> Optional[dict]:
         """Make ML prediction using pre-computed features (no state_mgr access).
