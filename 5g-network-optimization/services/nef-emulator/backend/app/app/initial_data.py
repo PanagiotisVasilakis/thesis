@@ -6,24 +6,7 @@ import requests
 try:
     from evolved5g.sdk import CAPIFProviderConnector
 except (ImportError, AttributeError):
-    class CAPIFProviderConnector:  # pragma: no cover - optional dependency fallback
-        """Minimal stub when evolved5g SDK is unavailable."""
-
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
-
-        def register_and_onboard_provider(self):
-            logging.getLogger(__name__).warning(
-                "evolved5g SDK not installed; skipping CAPIF provider onboarding"
-            )
-            return False
-
-        def publish_services(self, service_api_description_json_full_path: str):
-            logging.getLogger(__name__).info(
-                "Skipping CAPIF publish for %s", service_api_description_json_full_path
-            )
-            return False
+    CAPIFProviderConnector = None
 from app.db.init_db import init_db
 from app.db.session import SessionLocal
 from app.core.config import settings
@@ -45,14 +28,23 @@ def init() -> None:
 def capif_nef_connector():
     """Connect to CAPIF and register NEF as a provider."""
     try:
-        # All CAPIF credentials from environment variables (with defaults for backward compat)
+        if CAPIFProviderConnector is None:
+            logger.error("evolved5g SDK is required for CAPIF provider onboarding")
+            return False
+
+        capif_username = os.getenv("CAPIF_NETAPP_USERNAME")
+        capif_password = os.getenv("CAPIF_NETAPP_PASSWORD")
+        if not capif_username or not capif_password:
+            logger.error("CAPIF_NETAPP_USERNAME and CAPIF_NETAPP_PASSWORD must be set")
+            return False
+
         capif_connector = CAPIFProviderConnector(
             certificates_folder="app/core/certificates",
             capif_host=settings.CAPIF_HOST,
             capif_http_port=settings.CAPIF_HTTP_PORT,
             capif_https_port=settings.CAPIF_HTTPS_PORT,
-            capif_netapp_username=os.getenv("CAPIF_NETAPP_USERNAME", "test_nef01"),
-            capif_netapp_password=os.getenv("CAPIF_NETAPP_PASSWORD", "test_netapp_password"),
+            capif_netapp_username=capif_username,
+            capif_netapp_password=capif_password,
             description=os.getenv("CAPIF_APP_DESCRIPTION", "NEF Emulator"),
             csr_common_name=os.getenv("CAPIF_CSR_COMMON_NAME", "apfExpapfoser1502"),
             csr_organizational_unit=os.getenv("CAPIF_CSR_OU", "NEF"),

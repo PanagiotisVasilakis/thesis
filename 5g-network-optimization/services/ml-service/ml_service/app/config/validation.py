@@ -6,15 +6,13 @@ import warnings
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Union
 from urllib.parse import urlparse
-import secrets
-import string
 
 from pydantic import BaseModel, Field, ValidationError, validator
 
 
 class DatabaseConfig(BaseModel):
     """Configuration for database connections."""
-    host: str = Field(default="localhost", description="Database host")
+    host: str = Field(..., description="Database host")
     port: int = Field(default=5432, ge=1, le=65535, description="Database port")
     name: str = Field(..., min_length=1, description="Database name")
     username: str = Field(..., min_length=1, description="Database username")
@@ -99,7 +97,8 @@ class SecurityConfig(BaseModel):
     
     @validator('secret_key', 'jwt_secret')
     def validate_secrets(cls, v):
-        if v in ['dev', 'development', 'test', 'changeme']:
+        weak = v.strip().lower().replace("-", "").replace("_", "")
+        if weak in ['dev', 'development', 'test', 'changeme', 'default', 'secret']:
             raise ValueError("Secret must not use default/weak values")
         return v
     
@@ -107,6 +106,9 @@ class SecurityConfig(BaseModel):
     def validate_password_strength(cls, v):
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters long")
+
+        if v.strip().lower() in {"admin", "password", "pass", "changeme", "change-me"}:
+            raise ValueError("Password must not use a default/weak value")
         
         has_upper = any(c.isupper() for c in v)
         has_lower = any(c.islower() for c in v)
@@ -200,16 +202,12 @@ class ConfigValidator:
         self._config: Optional[MLServiceConfig] = None
         self._validation_errors: List[str] = []
     
-    def _generate_secure_key(self, length: int = 64) -> str:
-        """Generate a cryptographically secure random key."""
-        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-        return ''.join(secrets.choice(alphabet) for _ in range(length))
-    
     def _load_from_environment(self) -> Dict[str, Any]:
         """Load configuration from environment variables."""
+        testing = os.getenv("TESTING", "false").lower() == "true"
         config_data = {
             "debug": os.getenv("FLASK_DEBUG", "false").lower() == "true",
-            "testing": os.getenv("TESTING", "false").lower() == "true",
+            "testing": testing,
             "host": os.getenv("HOST", "0.0.0.0"),
             "port": int(os.getenv("PORT", "5050")),
             "environment": os.getenv("ENVIRONMENT", "development"),
@@ -244,45 +242,27 @@ class ConfigValidator:
         jwt_secret = os.getenv("JWT_SECRET")
         auth_username = os.getenv("AUTH_USERNAME")
         auth_password = os.getenv("AUTH_PASSWORD")
-        
-        # Generate secure defaults if not provided (with warnings)
-        if not secret_key:
-            secret_key = self._generate_secure_key()
-            key_hint = f"{secret_key[:4]}{'*' * (len(secret_key) - 8)}{secret_key[-4:]}"
-            self.logger.warning(
-                "SECRET_KEY not set, generated random key (hint: %s). "
-                "Key will not persist across restarts - set SECRET_KEY environment variable.",
-                key_hint
-            )
-        
-        if not jwt_secret:
-            jwt_secret = self._generate_secure_key()
-            jwt_hint = f"{jwt_secret[:4]}{'*' * (len(jwt_secret) - 8)}{jwt_secret[-4:]}"
-            self.logger.warning(
-                "JWT_SECRET not set, generated random key (hint: %s). "
-                "Key will not persist across restarts - set JWT_SECRET environment variable.",
-                jwt_hint
-            )
-        
-        if not auth_username:
-            auth_username = "admin"
-            self.logger.warning("AUTH_USERNAME not set, using default 'admin'")
-        
-        if not auth_password:
-            auth_password = self._generate_secure_key(16)
-            # Log password existence without revealing the actual password
-            password_hint = f"{auth_password[:2]}{'*' * (len(auth_password) - 4)}{auth_password[-2:]}"
-            self.logger.warning(
-                "AUTH_PASSWORD not set, generated random password (hint: %s). "
-                "For security, set AUTH_PASSWORD environment variable.",
-                password_hint
-            )
-            # Also provide secure storage recommendation
-            self.logger.info(
-                "Consider storing the generated password securely. "
-                "Password length: %d characters, complexity: high",
-                len(auth_password)
-            )
+
+        if testing:
+            secret_key = secret_key or "test-secret-key-for-ml-service-000001"
+            jwt_secret = jwt_secret or "test-jwt-secret-for-ml-service-000001"
+            auth_username = auth_username or "test_user"
+            auth_password = auth_password or "TestPassword123"
+        else:
+            missing = [
+                name for name, value in {
+                    "SECRET_KEY": secret_key,
+                    "JWT_SECRET": jwt_secret,
+                    "AUTH_USERNAME": auth_username,
+                    "AUTH_PASSWORD": auth_password,
+                }.items()
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    "Missing required runtime configuration: "
+                    + ", ".join(sorted(missing))
+                )
         
         config_data["security"] = {
             "secret_key": secret_key,
@@ -316,12 +296,18 @@ class ConfigValidator:
         # Optional database configuration
         db_host = os.getenv("DB_HOST")
         if db_host:
+            required_db = ["DB_NAME", "DB_USERNAME", "DB_PASSWORD"]
+            missing_db = [key for key in required_db if not os.getenv(key)]
+            if missing_db:
+                raise ValueError(
+                    "Missing required database configuration: " + ", ".join(missing_db)
+                )
             config_data["database"] = {
                 "host": db_host,
                 "port": int(os.getenv("DB_PORT", "5432")),
-                "name": os.getenv("DB_NAME", "mlservice"),
-                "username": os.getenv("DB_USERNAME", "mlservice"),
-                "password": os.getenv("DB_PASSWORD", ""),
+                "name": os.environ["DB_NAME"],
+                "username": os.environ["DB_USERNAME"],
+                "password": os.environ["DB_PASSWORD"],
                 "ssl_mode": os.getenv("DB_SSL_MODE", "prefer"),
             }
         

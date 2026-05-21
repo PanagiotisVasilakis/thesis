@@ -1,15 +1,11 @@
 import numpy as np
-import logging
 import threading
 import pytest
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
-from ml_service.app.models.antenna_selector import (
-    FALLBACK_ANTENNA_ID,
-    FALLBACK_CONFIDENCE,
-)
 from ml_service.app.models import antenna_selector
 from ml_service.app.features import pipeline
+from ml_service.app.errors import ModelError as RuntimeModelError
 
 
 def test_extract_features_defaults():
@@ -137,16 +133,16 @@ def test_train_metrics_and_prediction_flow(tmp_path):
 
     # Simulate untrained state
     model.model = object()
-    default_pred = model.predict(sample_features)
-    assert default_pred["antenna_id"] == FALLBACK_ANTENNA_ID
-    assert default_pred["confidence"] == pytest.approx(FALLBACK_CONFIDENCE)
+    with pytest.raises(RuntimeModelError, match="Model prediction failed"):
+        model.predict(sample_features)
 
     model._initialize_model()
-    metrics = model.train(data)
+    model.model.set_params(min_child_samples=1)
+    metrics = model.train(data, validation_split=0.0, early_stopping_rounds=None)
     assert metrics["samples"] == len(data)
     assert metrics["classes"] == 2
 
-    metrics = model.train(data)
+    metrics = model.train(data, validation_split=0.0, early_stopping_rounds=None)
     assert metrics["samples"] == len(data)
     assert metrics["classes"] == 2
 
@@ -306,7 +302,8 @@ def test_altitude_feature_in_training():
         sample["altitude"] = float(i)
 
     model = LightGBMSelector()
-    metrics = model.train(data)
+    model.model.set_params(min_child_samples=1)
+    metrics = model.train(data, validation_split=0.0, early_stopping_rounds=None)
 
     assert "altitude" in model.base_feature_names
     assert "time_since_handover" in model.base_feature_names
@@ -321,23 +318,15 @@ def test_altitude_feature_in_training():
     assert "sinr_stddev" in extracted
 
 
-def test_default_prediction_unfitted_model(tmp_path, caplog):
+def test_default_prediction_unfitted_model(tmp_path):
     """Predict on a fresh model without prior training."""
     model_path = tmp_path / "untrained.joblib"
     model = LightGBMSelector(model_path=str(model_path))
 
     features = model.extract_features({})
     features["ue_id"] = "u1"
-    caplog.set_level(logging.WARNING)
-    prediction = model.predict(features)
-
-    assert prediction["antenna_id"] == FALLBACK_ANTENNA_ID
-    assert prediction["confidence"] == pytest.approx(FALLBACK_CONFIDENCE)
-
-    assert any(
-        "default antenna" in rec.getMessage().lower() and "u1" in rec.getMessage()
-        for rec in caplog.records
-    )
+    with pytest.raises(RuntimeModelError, match="Model prediction failed"):
+        model.predict(features)
 
     if model_path.exists():
         model_path.unlink()

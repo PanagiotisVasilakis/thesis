@@ -43,8 +43,8 @@ services:
     env_file:
       - .env
     environment:
-      - SERVER_NAME=${DOMAIN:-localhost}
-      - SERVER_HOST=https://${DOMAIN:-localhost}
+      - SERVER_NAME=${SERVER_NAME:?SERVER_NAME must be set}
+      - SERVER_HOST=${SERVER_HOST:?SERVER_HOST must be set}
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
@@ -72,7 +72,7 @@ services:
       APP_NAME: "webserver"
       APP_DEBUG: "false"
       SERVICE_NAME: "webserver"
-    hostname: ${NEF_HOST:-localhost}
+    hostname: ${NEF_HOST:?NEF_HOST must be set}
     ports:
       - "${NGINX_HTTP:-8080}:80"
       - "${NGINX_HTTPS:-4443}:443"

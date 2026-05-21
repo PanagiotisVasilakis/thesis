@@ -67,8 +67,8 @@ PROJECT_NAME=NEF Emulator
 BACKEND_CORS_ORIGINS=["http://localhost:3000"]
 
 # Auth bootstrap
-FIRST_SUPERUSER=admin@my-email.com
-FIRST_SUPERUSER_PASSWORD=pass
+FIRST_SUPERUSER=admin@example.invalid
+FIRST_SUPERUSER_PASSWORD=<set-a-strong-password>
 USERS_OPEN_REGISTRATION=false
 USE_PUBLIC_KEY_VERIFICATION=false
 
@@ -81,7 +81,7 @@ POSTGRES_PASSWORD=postgres
 # MongoDB
 MONGO_CLIENT=mongodb://mongo_nef:27017
 MONGO_USER=root
-MONGO_PASSWORD=pass
+MONGO_PASSWORD=<set-a-strong-password>
 MONGO_EXPRESS_ENABLE_ADMIN=true
 
 # CAPIF (προσαρμόστε στην ανάπτυξή σας)
@@ -251,12 +251,12 @@ curl -k -X POST "https://localhost:${env:NGINX_HTTPS}/api/v1/ml/handover?ue_id=2
 | `SERVER_NAME` | ✅ | `nef-emulator` | Τίτλος FastAPI |
 | `SERVER_HOST` | ✅ | `https://localhost` | Εξωτερικό URL FastAPI για δημιουργία OpenAPI |
 | `BACKEND_CORS_ORIGINS` | ➖ | `[]` | Επιτρεπόμενες πηγές για CORS |
-| `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD` | ✅ | `admin@my-email.com`, `pass` | Διαπιστευτήρια bootstrap διαχειριστή |
+| `FIRST_SUPERUSER`, `FIRST_SUPERUSER_PASSWORD` | ✅ | `admin@example.invalid`, strong password | Διαπιστευτήρια bootstrap διαχειριστή |
 | `USERS_OPEN_REGISTRATION` | ➖ | `false` | Επιτρέπει αυτο-εγγραφή χρηστών |
 | `USE_PUBLIC_KEY_VERIFICATION` | ➖ | `false` | Επιβολή επικύρωσης πιστοποιητικού CAPIF |
 | `POSTGRES_SERVER`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | ✅ | `db`, `app`, `postgres`, `postgres` | Ρυθμίσεις σύνδεσης SQL |
 | `MONGO_CLIENT` | ✅ | `mongodb://mongo_nef:27017` | Mongo URI για συλλογές παρακολούθησης |
-| `MONGO_USER`, `MONGO_PASSWORD` | ✅ | `root`, `pass` | Διαπιστευτήρια που διαβιβάζονται στο container Mongo |
+| `MONGO_USER`, `MONGO_PASSWORD` | ✅ | `root`, strong password | Διαπιστευτήρια που διαβιβάζονται στο container Mongo |
 | `MONGO_EXPRESS_ENABLE_ADMIN` | ➖ | `true` | Ενεργοποιεί λειτουργία διαχειριστή στο Mongo Express όταν χρησιμοποιείται το debug profile |
 | `CAPIF_HOST`, `CAPIF_HTTP_PORT`, `CAPIF_HTTPS_PORT` | ✅ (όταν χρησιμοποιείται CAPIF) | `capifcore`, `8080`, `443` | Endpoints υπηρεσίας CAPIF API |
 | `EXTERNAL_NET` | ➖ | `true` | Επισύναψη στοίβας Compose στο docker network CAPIF |

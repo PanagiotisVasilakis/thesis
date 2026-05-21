@@ -12,17 +12,17 @@ class Speed(str, Enum):
 class UEBase(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    ip_address_v4: Optional[IPvAnyAddress] = Field(default='10.0.0.0', description="String identifying an Ipv4 address")
-    ip_address_v6: Optional[IPvAnyAddress] = Field(default="0:0:0:0:0:0:0:0", description="String identifying an Ipv6 address. Default value ::1/128 (loopback)")
-    mac_address: str = Field(
-        default='22-00-00-00-00-00',
+    ip_address_v4: Optional[IPvAnyAddress] = Field(default=None, description="String identifying an Ipv4 address")
+    ip_address_v6: Optional[IPvAnyAddress] = Field(default=None, description="String identifying an Ipv6 address")
+    mac_address: Optional[str] = Field(
+        default=None,
         pattern=r'^([0-9a-fA-F]{2})((-[0-9a-fA-F]{2}){5})$',
     )
-    dnn: Optional[str] = Field(default='province1.mnc01.mcc202.gprs', description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
-    mcc: Optional[int] = Field(default=202, description="Mobile Country Code (MCC) part of the Public Land Mobile Network (PLMN), comprising 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
-    mnc: Optional[int] = Field(default=1, description="Mobile Network Code (MNC) part of the Public Land Mobile Network (PLMN), comprising 2 or 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
+    dnn: Optional[str] = Field(default=None, description="String identifying the Data Network Name (i.e., Access Point Name in 4G). For more information check clause 9A of 3GPP TS 23.003")
+    mcc: Optional[int] = Field(default=None, description="Mobile Country Code (MCC) part of the Public Land Mobile Network (PLMN), comprising 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
+    mnc: Optional[int] = Field(default=None, description="Mobile Network Code (MNC) part of the Public Land Mobile Network (PLMN), comprising 2 or 3 digits, as defined in clause 9.3.3.5 of 3GPP TS 38.413")
     external_identifier: Optional[str] = Field(
-        "123456789@domain.com",
+        None,
         description=(
             "Globally unique identifier containing a Domain Identifier and a "
             "Local Identifier. <Local Identifier>@<Domain Identifier>"
@@ -34,7 +34,7 @@ class UEBase(BaseModel):
 
 class UECreate(UEBase):
     supi: str = Field(
-        default="202010000000000",
+        ...,
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
                                                                                              In the current version (v1.1.0) only IMSI is supported""",
     pattern=r'^[0-9]{15,16}$',
@@ -46,7 +46,7 @@ class UEUpdate(UEBase):
 class UEPath(BaseModel):
     """Schema for associating a UE with a path."""
     supi: str = Field(
-        default="202010000000000",
+        ...,
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
                                                                                               In the current version (v1.1.0) only IMSI is supported""",
     pattern=r'^[0-9]{15,16}$',
@@ -56,7 +56,7 @@ class UEPath(BaseModel):
 # Properties to return to client
 class UE(UEBase):
     supi: str = Field(
-        default="202010000000000",
+        ...,
         description="""String identifying a Supi that shall contain either an IMSI, a network specific identifier, a Global Cable Identifier (GCI) or a Global Line Identifier (GLI) as specified in clause 2.2A of 3GPP TS 23.003.
 
                                                                                       In the current version (v1.1.0) only IMSI is supported""",

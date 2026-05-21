@@ -922,7 +922,10 @@ class PrometheusClient:
     
     def __init__(self, url: str = None):
         import os
-        self.url = (url or os.environ.get("PROMETHEUS_URL", "http://localhost:9090")).rstrip('/')
+        resolved_url = url or os.environ.get("PROMETHEUS_URL")
+        if not resolved_url:
+            raise ValueError("PROMETHEUS_URL or --prometheus-url must be set")
+        self.url = resolved_url.rstrip('/')
         self.session = requests.Session()
     
     def query(self, query: str) -> Dict:
@@ -935,9 +938,8 @@ class PrometheusClient:
             )
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
-            logger.error("Prometheus query failed: %s", e)
-            return {'status': 'error', 'data': {'result': []}}
+        except requests.RequestException as e:
+            raise RuntimeError(f"Prometheus query failed: {e}") from e
     
     def query_range(self, query: str, start: float, end: float, step: int = 60) -> Dict:
         """Execute range query."""
@@ -954,9 +956,8 @@ class PrometheusClient:
             )
             resp.raise_for_status()
             return resp.json()
-        except Exception as e:
-            logger.error("Prometheus range query failed: %s", e)
-            return {'status': 'error', 'data': {'result': []}}
+        except requests.RequestException as e:
+            raise RuntimeError(f"Prometheus range query failed: {e}") from e
     
     def extract_value(self, result: Dict, default: float = 0.0) -> float:
         """Extract scalar value from query result."""
@@ -998,7 +999,7 @@ class MetricsCollector:
     
     def __init__(self, prometheus_url: str = None):
         import os
-        self.prom = PrometheusClient(prometheus_url or os.environ.get("PROMETHEUS_URL", "http://localhost:9090"))
+        self.prom = PrometheusClient(prometheus_url or os.environ.get("PROMETHEUS_URL"))
     
     def collect_instant_metrics(self) -> Dict:
         """Collect current instant metrics."""
@@ -2656,12 +2657,20 @@ class ExperimentRunner:
             return
         
         # Set required environment variables
+        first_superuser = os.getenv('FIRST_SUPERUSER')
+        first_superuser_password = os.getenv('FIRST_SUPERUSER_PASSWORD')
+        if not first_superuser or not first_superuser_password:
+            raise RuntimeError(
+                "FIRST_SUPERUSER and FIRST_SUPERUSER_PASSWORD must be set "
+                "before topology initialization"
+            )
+
         env = os.environ.copy()
         env.update({
-            'DOMAIN': 'localhost',
+            'DOMAIN': os.getenv('DOMAIN', 'localhost'),
             'NGINX_HTTPS': '8080',  # Docker Compose uses HTTP port
-            'FIRST_SUPERUSER': os.getenv('FIRST_SUPERUSER', 'admin@my-email.com'),
-            'FIRST_SUPERUSER_PASSWORD': os.getenv('FIRST_SUPERUSER_PASSWORD', 'pass')
+            'FIRST_SUPERUSER': first_superuser,
+            'FIRST_SUPERUSER_PASSWORD': first_superuser_password
         })
         
         try:
@@ -2675,12 +2684,13 @@ class ExperimentRunner:
             if result.returncode == 0:
                 logger.info("Topology initialized successfully")
             else:
-                logger.warning("Init script returned code %d", result.returncode)
                 logger.debug("Script output: %s", result.stdout)
+                logger.debug("Script error: %s", result.stderr)
+                raise RuntimeError(f"Topology init script returned code {result.returncode}")
         except subprocess.TimeoutExpired:
-            logger.warning("Init script timed out, continuing anyway")
-        except Exception as e:
-            logger.warning("Could not run init script: %s", e)
+            raise RuntimeError("Topology init script timed out") from None
+        except OSError as e:
+            raise RuntimeError(f"Could not run topology init script: {e}") from e
     
     def _start_ue_movement(self):
         """Start UE movement via NEF API."""
@@ -2691,25 +2701,32 @@ class ExperimentRunner:
         if ue_ids_str:
             try:
                 ue_ids = json.loads(ue_ids_str)
-            except json.JSONDecodeError:
-                ue_ids = default_ue_ids
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"Invalid UE_IDS JSON: {exc}") from exc
         else:
             ue_ids = default_ue_ids
         speeds = [5.0, 10.0, 15.0]
         
+        failures = []
         for ue_id, speed in zip(ue_ids, speeds):
             try:
+                nef_url = os.environ.get("NEF_URL")
+                if not nef_url:
+                    raise RuntimeError("NEF_URL must be set")
                 resp = requests.post(
-                    os.environ.get("NEF_URL", "http://localhost:8080") + "/api/v1/ue_movement/start",
+                    nef_url + "/api/v1/ue_movement/start",
                     json={"supi": ue_id, "speed": speed},
                     timeout=5
                 )
                 if resp.status_code == 200:
                     logger.info("Started UE %s at %s m/s", ue_id, speed)
                 else:
-                    logger.debug("Could not start UE %s: %s", ue_id, resp.status_code)
-            except Exception as e:
-                logger.debug("UE movement start failed for %s: %s", ue_id, e)
+                    failures.append(f"{ue_id}: HTTP {resp.status_code}")
+            except (requests.RequestException, RuntimeError) as e:
+                failures.append(f"{ue_id}: {e}")
+
+        if failures:
+            raise RuntimeError("UE movement start failed: " + "; ".join(failures))
 
 
 def main():
@@ -2736,8 +2753,8 @@ Examples:
                        help='Experiment duration in minutes per mode (default: 10)')
     parser.add_argument('--output', type=str, default='thesis_results/comparison',
                        help='Output directory for results (default: thesis_results/comparison)')
-    parser.add_argument('--prometheus-url', type=str, default=os.environ.get("PROMETHEUS_URL", "http://localhost:9090"),
-                       help='Prometheus URL (default: http://localhost:9090 or PROMETHEUS_URL env var)')
+    parser.add_argument('--prometheus-url', type=str, default=os.environ.get("PROMETHEUS_URL"),
+                       help='Prometheus URL (or PROMETHEUS_URL env var)')
     parser.add_argument('--docker-compose', type=str,
                        default='5g-network-optimization/docker-compose.yml',
                        help='Path to docker-compose.yml')
@@ -2955,4 +2972,3 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error("Experiment failed: %s", e, exc_info=True)
         sys.exit(1)
-

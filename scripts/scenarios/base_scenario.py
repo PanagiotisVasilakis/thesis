@@ -199,11 +199,18 @@ class BaseScenario(ABC):
     def __init__(self, 
                  nef_url: str = None,
                  username: str = None,
-                 password: str = None):
+        password: str = None):
         import os
-        self.nef_url = nef_url or os.environ.get("NEF_URL", "http://localhost:8080")
-        self.username = username or os.environ.get("NEF_USERNAME", "admin@my-email.com")
-        self.password = password or os.environ.get("NEF_PASSWORD", "pass")
+        self.nef_url = nef_url or os.environ.get("NEF_URL")
+        if not self.nef_url:
+            raise ValueError("NEF_URL is required")
+        self.username = username or os.environ.get("NEF_USERNAME") or os.environ.get("FIRST_SUPERUSER")
+        self.password = password or os.environ.get("NEF_PASSWORD") or os.environ.get("FIRST_SUPERUSER_PASSWORD")
+        if not self.username or not self.password:
+            raise ValueError(
+                "NEF credentials are required. Set NEF_USERNAME/NEF_PASSWORD "
+                "or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD."
+            )
         self.token: Optional[str] = None
         
         self.cells: List[CellConfig] = []

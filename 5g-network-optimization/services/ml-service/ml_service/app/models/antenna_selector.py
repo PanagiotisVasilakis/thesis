@@ -48,8 +48,8 @@ from ..utils.exception_handler import (
     ExceptionHandler,
     ModelError,
     handle_exceptions,
-    safe_execute
 )
+from ..errors import ModelError as RuntimeModelError
 from ..utils.resource_manager import (
     global_resource_manager,
     ResourceType
@@ -198,8 +198,8 @@ def _load_feature_config(path: str | Path) -> list[str]:
             if name and transform:
                 try:
                     register_feature_transform(str(name), str(transform))
-                except Exception:  # noqa: BLE001 - ignore invalid transforms
-                    pass
+                except (ImportError, AttributeError, KeyError, TypeError, ValueError) as exc:
+                    raise ValueError(f"Invalid transform for feature {name}: {transform}") from exc
         else:
             name = str(item)
         if name:
@@ -323,10 +323,8 @@ class AntennaSelector(AsyncModelInterface):
                 from ..core.qos_encoding import encode_service_type
 
                 prepared["service_type"] = encode_service_type(service_type_raw)
-            except Exception:
-                from ..core.qos_encoding import encode_service_type
-
-                prepared["service_type"] = encode_service_type(DEFAULT_QOS_FEATURES["service_type"])
+            except (ImportError, KeyError, TypeError, ValueError) as exc:
+                raise RuntimeModelError(f"Failed to encode service_type {service_type_raw!r}") from exc
         else:
             prepared["service_type"] = float(service_type_raw)
 
@@ -401,9 +399,17 @@ class AntennaSelector(AsyncModelInterface):
             if not names:
                 raise ValueError("No base features defined")
             self.base_feature_names = names
-        except Exception as exc:  # noqa: BLE001
+        except (OSError, ValueError, yaml.YAMLError, json.JSONDecodeError) as exc:
+            allow_fallback = (
+                os.getenv("ALLOW_FEATURE_CONFIG_FALLBACK", "").lower() in {"1", "true", "yes"}
+                or os.getenv("TESTING", "").lower() in {"1", "true", "yes"}
+            )
+            if not allow_fallback:
+                raise RuntimeModelError(f"Failed to load feature config {config_path}: {exc}") from exc
             logging.getLogger(__name__).warning(
-                "Failed to load feature config %s: %s; using defaults", config_path, exc
+                "Failed to load feature config %s: %s; using explicit fallback feature list",
+                config_path,
+                exc,
             )
             self.base_feature_names = list(_FALLBACK_FEATURES)
 
@@ -596,18 +602,17 @@ class AntennaSelector(AsyncModelInterface):
             features["observed_jitter_ms"] = obs_jitter
             features["observed_packet_loss_rate"] = obs_loss
 
-            req_latency = _safe_float(qos.get("latency_requirement_ms"), fallback=0.0)
-            req_throughput = _safe_float(qos.get("throughput_requirement_mbps"), fallback=0.0)
-            req_reliability = _safe_float(qos.get("reliability_pct"), fallback=0.0)
+            req_latency = safe_float(qos.get("latency_requirement_ms"), fallback=0.0)
+            req_throughput = safe_float(qos.get("throughput_requirement_mbps"), fallback=0.0)
+            req_reliability = safe_float(qos.get("reliability_pct"), fallback=0.0)
 
             features["latency_delta_ms"] = obs_latency - req_latency
             features["throughput_delta_mbps"] = obs_throughput - req_throughput
 
             observed_reliability = max(0.0, 100.0 - obs_loss)
             features["reliability_delta_pct"] = observed_reliability - req_reliability
-        except Exception:
-            # Non-fatal: if QoS derivation fails, continue with base features
-            pass
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(f"QoS feature derivation failed: {exc}") from exc
         # Preserve original `service_type` as provided (string) to remain
         # backward-compatible for callers and tests. Numeric encoding for
         # training is performed later when building the dataset.
@@ -645,9 +650,8 @@ class AntennaSelector(AsyncModelInterface):
             svc = prepared.get("service_type")
             if svc is not None and not isinstance(svc, (int, float)):
                 prepared["service_type"] = encode_service_type(svc)
-        except Exception:
-            # non-fatal; let the eventual conversion raise if still invalid
-            pass
+        except (ImportError, KeyError, TypeError, ValueError) as exc:
+            raise RuntimeModelError("Failed to encode service_type for prediction") from exc
 
         X = np.array([[prepared[name] for name in self.feature_names]], dtype=float)
         if self.scaler:
@@ -665,18 +669,11 @@ class AntennaSelector(AsyncModelInterface):
             time.time() - _stage_start
         )
 
-        fallback_payload = {
-            "antenna_id": FALLBACK_ANTENNA_ID,
-            "confidence": FALLBACK_CONFIDENCE,
-            "qos_bias_applied": False,
-            "_fallback_marker": True,
-        }
-
         def _perform_prediction():
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
                 if self.model is None:
-                    raise ModelError("Model is not initialized")
+                    raise RuntimeModelError("Model is not initialized")
 
                 # Use calibrated model if available (better confidence estimates)
                 # Otherwise use base model
@@ -731,35 +728,21 @@ class AntennaSelector(AsyncModelInterface):
             
             return result
         
-        # Use safe execution with fallback
         ue_id = prepared.get("ue_id", "unknown")
         
         # Start timing for model inference stage
         _inference_start = time.time()
-        result = safe_execute(
-            _perform_prediction,
-            context=f"Model prediction for UE {ue_id}",
-            default_return=fallback_payload,
-            exceptions=(lgb.basic.LightGBMError, NotFittedError, Exception),
-            logger_name="AntennaSelector"
-        )
+        try:
+            result = _perform_prediction()
+        except RuntimeModelError:
+            raise
+        except (lgb.basic.LightGBMError, NotFittedError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            logger.error("Model prediction failed for UE %s: %s", ue_id, exc)
+            raise RuntimeModelError(f"Model prediction failed for UE {ue_id}: {exc}") from exc
         # Record model inference latency
         metrics.PREDICTION_STAGE_LATENCY.labels(stage='model_inference').observe(
             time.time() - _inference_start
         )
-
-        fallback_used = bool(result.pop("_fallback_marker", False))
-        
-        if fallback_used:
-            logger.warning(
-                "Using default antenna for UE %s due to prediction error",
-                ue_id,
-            )
-            result.setdefault("anti_pingpong_applied", False)
-            # Record zero time for ping-pong stage when using fallback
-            # (ensures consistent metric cardinality)
-            metrics.PREDICTION_STAGE_LATENCY.labels(stage='ping_pong_check').observe(0.0)
-            return result
         
         predicted_antenna = str(result["antenna_id"])
         confidence = float(result.get("confidence", 0.0))

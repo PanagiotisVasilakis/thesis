@@ -461,6 +461,8 @@ class NEFDataCollector:
         """Initialize the data collector with optimized NEF client."""
         # Use environment-aware defaults
         nef_url = nef_url or env_constants.NEF_URL
+        if not nef_url:
+            raise ValueError("NEF_API_URL is required for NEF data collection")
         
         # Use connection pooling for better performance
         self.client = NEFClient(
@@ -802,6 +804,8 @@ class AsyncNEFDataCollector:
         """Initialize the async data collector."""
         # Use environment-aware defaults
         nef_url = nef_url or env_constants.NEF_URL
+        if not nef_url:
+            raise ValueError("NEF_API_URL is required for async NEF data collection")
         
         # Use async NEF client instead of sync client
         self.client = AsyncNEFClient(

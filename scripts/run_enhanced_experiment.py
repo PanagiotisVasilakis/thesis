@@ -52,22 +52,6 @@ SCENARIOS = {
         "description": "High-speed vehicle handover (8 cells, 10 vehicles at 120 km/h)",
         "recommended_duration": 10,
     },
-    # Future scenarios (placeholders)
-    "stadium": {
-        "class": None,  # StadiumEventScenario
-        "description": "Extreme density event (6 cells, 100 UEs) - Coming Soon",
-        "recommended_duration": 10,
-    },
-    "industrial": {
-        "class": None,  # IndustrialIoTScenario
-        "description": "Factory IoT deployment (12 cells, 200 sensors) - Coming Soon",
-        "recommended_duration": 15,
-    },
-    "emergency": {
-        "class": None,  # EmergencyServicesScenario
-        "description": "URLLC priority scenario (8 cells, 30 UEs) - Coming Soon",
-        "recommended_duration": 10,
-    },
 }
 
 
@@ -82,7 +66,7 @@ def list_scenarios() -> None:
     print("=" * 70)
     
     for name, info in SCENARIOS.items():
-        status = "✅ Ready" if info["class"] else "🔜 Coming Soon"
+        status = "✅ Ready"
         print(f"\n  {name}")
         print(f"    Status: {status}")
         print(f"    Description: {info['description']}")
@@ -106,15 +90,17 @@ def get_scenario(name: str) -> Optional[BaseScenario]:
     return scenario_class()
 
 
-def wait_for_services(nef_url: str = None,
-                       ml_url: str = None,
+def wait_for_services(nef_url: Optional[str] = None,
+                       ml_url: Optional[str] = None,
                        max_attempts: int = 30) -> bool:
     """Wait for NEF and ML services to be ready."""
     import os
     import requests
     
-    nef_url = nef_url or os.environ.get("NEF_URL", "http://localhost:8080")
-    ml_url = ml_url or os.environ.get("ML_URL", "http://localhost:5050")
+    nef_url = nef_url or os.environ.get("NEF_URL")
+    ml_url = ml_url or os.environ.get("ML_URL")
+    if not nef_url or not ml_url:
+        raise ValueError("NEF_URL and ML_URL must be set")
     
     print("⏳ Waiting for services to be ready...")
     
@@ -123,18 +109,18 @@ def wait_for_services(nef_url: str = None,
             # Check NEF
             nef_resp = requests.get(f"{nef_url}/docs", timeout=5)
             if nef_resp.status_code != 200:
-                raise Exception("NEF not ready")
+                raise RuntimeError(f"NEF not ready: HTTP {nef_resp.status_code}")
             
             # Check ML service
             ml_resp = requests.get(f"{ml_url}/api/health", timeout=5)
             if ml_resp.status_code != 200:
-                raise Exception("ML service not ready")
+                raise RuntimeError(f"ML service not ready: HTTP {ml_resp.status_code}")
             
             print("✅ All services ready")
             return True
             
-        except Exception:
-            print(f"   Attempt {attempt + 1}/{max_attempts}...")
+        except (requests.RequestException, RuntimeError) as exc:
+            print(f"   Attempt {attempt + 1}/{max_attempts}: {exc}")
             time.sleep(2)
     
     print("❌ Services failed to start")
@@ -146,7 +132,9 @@ def collect_prometheus_metrics(output_path: Path, mode: str) -> Dict:
     import requests
     
     import os
-    prom_url = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
+    prom_url = os.environ.get("PROMETHEUS_URL")
+    if not prom_url:
+        raise ValueError("PROMETHEUS_URL must be set")
     metrics = {}
     
     queries = {
@@ -171,9 +159,8 @@ def collect_prometheus_metrics(output_path: Path, mode: str) -> Dict:
                     metrics[name] = float(result["data"]["result"][0]["value"][1])
                 else:
                     metrics[name] = 0
-        except Exception as e:
-            print(f"⚠️  Failed to query {name}: {e}")
-            metrics[name] = 0
+        except requests.RequestException as e:
+            raise RuntimeError(f"Failed to query Prometheus metric {name}: {e}") from e
     
     # Save metrics
     metrics_file = output_path / f"{mode}_mode_metrics.json"
@@ -215,7 +202,7 @@ def generate_visualizations(output_dir: Path) -> bool:
             else:
                 print(f"⚠️  Visualization generation failed: {result.stderr[:200]}")
                 return False
-        except Exception as e:
+        except OSError as e:
             print(f"⚠️  Error generating visualizations: {e}")
             return False
     else:
@@ -310,20 +297,30 @@ def run_experiment(
     # Wait for ML model to be ready
     print("⏳ Waiting for ML model initialization...")
     import requests
-    for _ in range(60):
+    ml_url = os.environ.get("ML_URL")
+    if not ml_url:
+        raise ValueError("ML_URL must be set")
+    model_ready = False
+    for attempt in range(60):
         try:
-            resp = requests.get(os.environ.get("ML_URL", "http://localhost:5050") + "/api/model-health", timeout=5)
+            resp = requests.get(f"{ml_url}/api/model-health", timeout=5)
+            resp.raise_for_status()
             if resp.json().get("ready"):
                 print("✅ ML model ready")
+                model_ready = True
                 break
-        except Exception:
-            pass
+        except (requests.RequestException, ValueError) as exc:
+            print(f"   Model readiness attempt {attempt + 1}/60: {exc}")
         time.sleep(5)
+    if not model_ready:
+        print("❌ ML model did not report ready. Aborting.")
+        return False
     
     # Deploy scenario
     print("\n📍 Deploying scenario topology...")
     if not scenario.deploy():
-        print("⚠️  Scenario deployment had issues, but continuing...")
+        print("❌ Scenario deployment failed. Aborting.")
+        return False
     
     # Start UE movement
     print("\n▶️  Starting UE movement...")
@@ -384,13 +381,18 @@ def run_experiment(
         nef_ready = False
         for attempt in range(30):
             try:
-                resp = requests.get(os.environ.get("NEF_URL", "http://localhost:8080") + "/docs", timeout=5)
+                nef_url = os.environ.get("NEF_URL")
+                if not nef_url:
+                    raise RuntimeError("NEF_URL must be set")
+                resp = requests.get(nef_url + "/docs", timeout=5)
                 if resp.status_code == 200:
                     nef_ready = True
                     print("✅ NEF service ready")
                     break
-            except Exception:
-                pass
+            except (requests.RequestException, RuntimeError) as exc:
+                print(f"   Attempt {attempt + 1}/30: {exc}")
+                time.sleep(2)
+                continue
             print(f"   Attempt {attempt + 1}/30...")
             time.sleep(2)
         
@@ -401,7 +403,9 @@ def run_experiment(
         # Deploy scenario (fresh deployment)
         scenario2 = get_scenario(scenario_name)
         time.sleep(5)
-        scenario2.deploy()
+        if scenario2 is None or not scenario2.deploy():
+            print("❌ Scenario deployment failed for A3 mode")
+            return False
         scenario2.start_all_ues()
         
         # Run experiment

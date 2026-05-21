@@ -1,4 +1,5 @@
 from typing import Any, List, Optional
+import os
 from ipaddress import ip_address
 from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.encoders import jsonable_encoder
@@ -14,6 +15,9 @@ from app.tools.distance import check_distance
 try:
     from app.handover.runtime import runtime as handover_runtime
 except ModuleNotFoundError:  # pragma: no cover - fallback for tests
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
     class _FallbackRuntime:
         ensure_topology = staticmethod(lambda *args, **kwargs: None)
         upsert_ue_state = staticmethod(lambda *args, **kwargs: None)

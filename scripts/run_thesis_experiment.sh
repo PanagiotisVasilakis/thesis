@@ -36,10 +36,13 @@ fi
 COMPOSE_FILE="$REPO_ROOT/5g-network-optimization/docker-compose.yml"
 NEF_INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple_http.sh"
 
-NEF_SCHEME=${NEF_SCHEME:-http}
-NEF_HOST=${NEF_HOST:-localhost}
-NEF_PORT=${NEF_PORT:-8080}
-NEF_API_BASE="${NEF_SCHEME}://${NEF_HOST}:${NEF_PORT}/api/v1"
+: "${NEF_SCHEME:?NEF_SCHEME must be set}"
+: "${NEF_HOST:?NEF_HOST must be set}"
+: "${NEF_PORT:?NEF_PORT must be set}"
+NEF_BASE_URL="${NEF_BASE_URL:-${NEF_SCHEME}://${NEF_HOST}:${NEF_PORT}}"
+NEF_API_BASE="${NEF_BASE_URL}/api/v1"
+: "${ML_BASE_URL:?ML_BASE_URL must be set}"
+: "${PROMETHEUS_URL:?PROMETHEUS_URL must be set}"
 NEF_TOKEN=""
 
 UE_IDS=("202010000000001" "202010000000002" "202010000000003")
@@ -103,7 +106,7 @@ wait_for_service() {
 export_metrics() {
     local output_file=$1
     local metric_queries=$2
-    local prom_url="http://localhost:9090"
+    local prom_url="$PROMETHEUS_URL"
     
     log "Exporting metrics to $output_file"
     
@@ -146,8 +149,12 @@ ensure_nef_token() {
         return 0
     fi
 
-    local username="${FIRST_SUPERUSER:-admin@my-email.com}"
-    local password="${FIRST_SUPERUSER_PASSWORD:-pass}"
+    local username="${NEF_USERNAME:-${FIRST_SUPERUSER:-}}"
+    local password="${NEF_PASSWORD:-${FIRST_SUPERUSER_PASSWORD:-}}"
+    if [ -z "$username" ] || [ -z "$password" ]; then
+        warn "Set NEF_USERNAME/NEF_PASSWORD or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD"
+        return 1
+    fi
     local response
     if ! response=$(curl -sS -X POST "${NEF_API_BASE}/login/access-token" \
         -H 'accept: application/json' \
@@ -404,9 +411,9 @@ LOG_LEVEL=INFO \
 docker compose -f "$COMPOSE_FILE" up -d > "$OUTPUT_DIR/logs/ml_docker_up.log" 2>&1
 
 # Wait for services
-wait_for_service "http://localhost:8080/docs" "NEF Emulator" || exit 1
-wait_for_service "http://localhost:5050/api/health" "ML Service" || exit 1
-wait_for_service "http://localhost:9090/-/healthy" "Prometheus" || exit 1
+wait_for_service "${NEF_BASE_URL}/docs" "NEF Emulator" || exit 1
+wait_for_service "${ML_BASE_URL}/api/health" "ML Service" || exit 1
+wait_for_service "${PROMETHEUS_URL}/-/healthy" "Prometheus" || exit 1
 
 # Ensure the ML model finished its background initialization before
 # attempting any predictions; the health endpoint flips to OK first, so we
@@ -415,7 +422,7 @@ MODEL_READY_MAX_ATTEMPTS=90
 MODEL_READY_DELAY=5
 attempt=0
 while [ $attempt -lt $MODEL_READY_MAX_ATTEMPTS ]; do
-    ready=$(curl -s http://localhost:5050/api/model-health | jq -r '.ready // false' 2>/dev/null || echo "false")
+    ready=$(curl -s "${ML_BASE_URL}/api/model-health" | jq -r '.ready // false' 2>/dev/null || echo "false")
     if [ "$ready" = "true" ]; then
         log "ML model reports ready"
         break
@@ -439,9 +446,9 @@ if [ -f "$NEF_INIT_SCRIPT" ]; then
     
     export NEF_SCHEME=http
     export NEF_PORT=8080
-    export DOMAIN=localhost
-    export FIRST_SUPERUSER=${FIRST_SUPERUSER:-"admin@my-email.com"}
-    export FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-"pass"}
+    export DOMAIN=${DOMAIN:-localhost}
+    : "${FIRST_SUPERUSER:?FIRST_SUPERUSER must be set for topology initialization}"
+    : "${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD must be set for topology initialization}"
     
     if bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/ml_topology_init.log" 2>&1; then
         log "✅ Topology initialized successfully"
@@ -554,8 +561,8 @@ LOG_LEVEL=INFO \
 docker compose -f "$COMPOSE_FILE" up -d > "$OUTPUT_DIR/logs/a3_docker_up.log" 2>&1
 
 # Wait for services
-wait_for_service "http://localhost:8080/docs" "NEF Emulator" || exit 1
-wait_for_service "http://localhost:9090/-/healthy" "Prometheus" || exit 1
+wait_for_service "${NEF_BASE_URL}/docs" "NEF Emulator" || exit 1
+wait_for_service "${PROMETHEUS_URL}/-/healthy" "Prometheus" || exit 1
 
 log "Services ready (A3 mode starts faster - no ML training)"
 
@@ -565,9 +572,9 @@ if [ -f "$NEF_INIT_SCRIPT" ]; then
     
     export NEF_SCHEME=http
     export NEF_PORT=8080
-    export DOMAIN=localhost
-    export FIRST_SUPERUSER=${FIRST_SUPERUSER:-"admin@my-email.com"}
-    export FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:-"pass"}
+    export DOMAIN=${DOMAIN:-localhost}
+    : "${FIRST_SUPERUSER:?FIRST_SUPERUSER must be set for topology initialization}"
+    : "${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD must be set for topology initialization}"
     
     if bash "$NEF_INIT_SCRIPT" > "$OUTPUT_DIR/logs/a3_topology_init.log" 2>&1; then
         log "✅ Topology initialized successfully"
@@ -980,4 +987,3 @@ echo "=========================================="
 echo ""
 
 exit 0
-

@@ -1,4 +1,3 @@
-import secrets
 import json
 import os
 import logging
@@ -23,7 +22,7 @@ class Settings(BaseSettings):
 
     # ----- API & Auth -----
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
 
@@ -99,10 +98,6 @@ class Settings(BaseSettings):
     USE_PUBLIC_KEY_VERIFICATION: bool
 
 settings = Settings()
-if os.getenv("SECRET_KEY") is None:
-    logging.getLogger(__name__).warning(
-        "SECRET_KEY is not set; generated key will change on restart and invalidate tokens"
-    )
 
 
 class QoSSettings:

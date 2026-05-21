@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict
 
@@ -19,6 +20,9 @@ from app.api.api_v1.state_manager import state_manager
 try:
     from app.handover.runtime import runtime as handover_runtime
 except Exception:  # noqa: BLE001 - fallback when handover runtime not available
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
     class _FallbackRuntime:
         def reset_topology(self) -> None:
             return None
@@ -32,25 +36,7 @@ logger = logging.getLogger(__name__)
 try:
     from evolved5g.sdk import CAPIFLogger
 except (ImportError, AttributeError):
-    class CAPIFLogger:
-        """Minimal stub if evolved5g CAPIFLogger is unavailable."""
-
-        class LogEntry:
-            def __init__(self, **kwargs):
-                for k, v in kwargs.items():
-                    setattr(self, k, v)
-
-        def __init__(self, certificates_folder: str = "", capif_host: str = "", capif_https_port: int = 0):
-            self.certificates_folder = certificates_folder
-            self.capif_host = capif_host
-            self.capif_https_port = capif_https_port
-
-        def get_capif_service_description(self, capif_service_api_description_json_full_path: str):
-            _ = capif_service_api_description_json_full_path
-            return {"apiId": "dummy"}
-
-        def save_log(self, api_invoker_id: str, log_entries: list):
-            return True
+    CAPIFLogger = None
 
 
 class CCFLogRequest(BaseModel):
@@ -62,6 +48,9 @@ class CCFLogRequest(BaseModel):
 async def ccf_logs(input_request: Request, output_response: dict, service_api_description: str, invoker_id: str):
     
     try:
+        if CAPIFLogger is None:
+            raise RuntimeError("evolved5g SDK is required for CAPIF logging")
+
         capif_logger = CAPIFLogger(certificates_folder="app/core/certificates",
                                     capif_host=settings.CAPIF_HOST,
                                     capif_https_port=settings.CAPIF_HTTPS_PORT
@@ -418,23 +407,23 @@ def create_scenario(
 class callback(BaseModel):
     callbackurl: str
 
-@router.post("/test/callback")
+@router.post("/test/callback", include_in_schema=False)
 def get_test(
     item_in: callback
     ):
+    if os.getenv("ENABLE_TEST_CALLBACK_ENDPOINT", "").lower() not in {"1", "true", "yes"}:
+        raise HTTPException(status_code=404, detail="Not found")
     
     callbackurl = item_in.callbackurl
     logger.info(callbackurl)
-    payload = json.dumps({
-    "externalId" : "10000@domain.com",
-    "ipv4Addr" : "10.0.0.0",
-    "subscription" : "http://localhost:8888/api/v1/3gpp-monitoring-event/v1/myNetapp/subscriptions/whatever",
-    "monitoringType": "LOCATION_REPORTING",
-    "locationInfo": {
-        "cellId": "AAAAAAAAA",
-        "enodeBId": "AAAAAA"
-    }
-    })
+    try:
+        payload_obj = json.loads(os.environ["TEST_CALLBACK_PAYLOAD"])
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail="TEST_CALLBACK_PAYLOAD must be set") from exc
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="TEST_CALLBACK_PAYLOAD must be valid JSON") from exc
+
+    payload = json.dumps(payload_obj)
 
     headers = {
     'accept': 'application/json',

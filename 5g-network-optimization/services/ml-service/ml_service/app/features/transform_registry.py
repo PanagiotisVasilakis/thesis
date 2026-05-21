@@ -16,8 +16,11 @@ transform.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict
 import importlib
+import logging
+from typing import Any, Callable, Dict
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Transform function registry
@@ -40,6 +43,7 @@ def register_transform(name: str, func: Callable[[Any], Any]) -> None:
 # Built-in transforms available out of the box. These provide sensible defaults
 # for numerical features but can be replaced or extended by the application.
 register_transform("identity", lambda x: x)
+register_transform("str", lambda x: "" if x is None else str(x))
 register_transform("float", lambda x: float(x) if x is not None else 0.0)
 register_transform("int", lambda x: int(x) if x is not None else 0)
 register_transform(
@@ -118,8 +122,9 @@ def apply_feature_transforms(features: Dict[str, Any]) -> Dict[str, Any]:
         if name in features:
             try:
                 features[name] = func(features[name])
-            except Exception:  # pragma: no cover - ignore transformation errors
-                pass
+            except (TypeError, ValueError, KeyError, AttributeError) as exc:
+                logger.error("Feature transform failed for %s: %s", name, exc)
+                raise ValueError(f"Feature transform failed for {name}: {exc}") from exc
     return features
 
 

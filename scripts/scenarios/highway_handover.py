@@ -407,8 +407,8 @@ def main():
     )
     parser.add_argument(
         "--nef-url", 
-        default=os.environ.get("NEF_URL", "http://localhost:8080"),
-        help="NEF emulator URL"
+        default=os.environ.get("NEF_URL"),
+        help="NEF emulator URL (or NEF_URL env var)"
     )
     parser.add_argument(
         "--start-movement",

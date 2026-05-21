@@ -1,5 +1,6 @@
 # services/nef-emulator/backend/app/app/api/api_v1/endpoints/ml_api.py
 
+import os
 from enum import Enum
 from typing import Optional
 
@@ -9,6 +10,9 @@ from pydantic import BaseModel
 try:
     from app.handover.runtime import runtime
 except ImportError:  # pragma: no cover - fallback for test stubs
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
     runtime = None
     from app.network.state_manager import NetworkStateManager
     from app.handover.engine import HandoverEngine

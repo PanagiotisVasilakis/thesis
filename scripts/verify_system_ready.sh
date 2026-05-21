@@ -24,6 +24,8 @@ NEF_PORT=${NEF_PORT:-8080}
 NEF_API_BASE="http://${NEF_HOST}:${NEF_PORT}/api/v1"
 ML_HOST=${ML_HOST:-localhost}
 ML_PORT=${ML_PORT:-5050}
+NEF_USERNAME=${NEF_USERNAME:-${FIRST_SUPERUSER:-}}
+NEF_PASSWORD=${NEF_PASSWORD:-${FIRST_SUPERUSER_PASSWORD:-}}
 
 CHECK_ML=false
 if [ "${1:-}" = "--ml" ]; then
@@ -50,10 +52,15 @@ warn() {
 
 # Get authentication token
 get_token() {
+    if [ -z "$NEF_USERNAME" ] || [ -z "$NEF_PASSWORD" ]; then
+        fail "Set NEF_USERNAME/NEF_PASSWORD or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD"
+        return 1
+    fi
+
     curl -s -X 'POST' "${NEF_API_BASE}/login/access-token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
-        --data-urlencode 'username=admin@my-email.com' \
-        --data-urlencode 'password=pass' \
+        --data-urlencode "username=${NEF_USERNAME}" \
+        --data-urlencode "password=${NEF_PASSWORD}" \
         | jq -r '.access_token'
 }
 

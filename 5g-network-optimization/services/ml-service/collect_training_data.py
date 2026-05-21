@@ -25,12 +25,12 @@ def main():
     """Main entry point for data collection script."""
     configure_logging(level=os.getenv("LOG_LEVEL"), log_file=os.getenv("LOG_FILE"))
     parser = argparse.ArgumentParser(description='Collect training data from NEF emulator')
-    parser.add_argument('--url', type=str, default='http://localhost:8080',
-                        help='NEF emulator URL (default: http://localhost:8080)')
-    parser.add_argument('--username', type=str, default='admin',
-                        help='NEF emulator username (default: admin)')
-    parser.add_argument('--password', type=str, default='admin',
-                        help='NEF emulator password (default: admin)')
+    parser.add_argument('--url', type=str, default=os.getenv('NEF_URL'),
+                        help='NEF emulator URL (or NEF_URL env var)')
+    parser.add_argument('--username', type=str, default=os.getenv('NEF_USERNAME') or os.getenv('FIRST_SUPERUSER'),
+                        help='NEF emulator username')
+    parser.add_argument('--password', type=str, default=os.getenv('NEF_PASSWORD') or os.getenv('FIRST_SUPERUSER_PASSWORD'),
+                        help='NEF emulator password')
     parser.add_argument('--duration', type=int, default=300,
                         help='Data collection duration in seconds (default: 300)')
     parser.add_argument('--interval', type=int, default=1,
@@ -42,10 +42,14 @@ def main():
     parser.add_argument('--ml-service-url', type=str, default=None,
                         help='Call /api/collect-data on the given ML service instead of collecting locally')
     parser.add_argument('--train-url', type=str,
-                        default=os.getenv('ML_SERVICE_TRAIN_URL', 'http://localhost:5050/api/train'),
+                        default=os.getenv('ML_SERVICE_TRAIN_URL'),
                         help='Training endpoint for the ML service')
     
     args = parser.parse_args()
+    if not args.url:
+        parser.error("--url or NEF_URL is required")
+    if not args.username or not args.password:
+        parser.error("--username/--password or NEF_USERNAME/NEF_PASSWORD is required")
 
     if args.ml_service_url:
         import requests
@@ -159,6 +163,9 @@ def main():
     
     # Train model if requested
     if args.train:
+        if not args.train_url:
+            logger.error("--train-url or ML_SERVICE_TRAIN_URL is required when --train is set")
+            return 2
         import requests
 
         if fetch_training_data:

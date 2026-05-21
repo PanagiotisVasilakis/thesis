@@ -1,4 +1,4 @@
-from fastapi import WebSocket
+from fastapi import HTTPException, WebSocket
 
 
 async def require_websocket_user(websocket: WebSocket) -> bool:
@@ -14,7 +14,7 @@ async def require_websocket_user(websocket: WebSocket) -> bool:
     try:
         deps.get_current_user(db=db, token=token)
         return True
-    except Exception:
+    except HTTPException:
         await websocket.close(code=1008)
         return False
     finally:

@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/5g-network-optimization/docker-compose.yml"
 INIT_SCRIPT="$REPO_ROOT/5g-network-optimization/services/nef-emulator/backend/app/app/db/init_simple_http.sh"
+: "${NEF_BASE_URL:?NEF_BASE_URL must be set, for example http://localhost:8080}"
 
 echo "=============================================="
 echo " Topology Initialization Test"
@@ -32,7 +33,7 @@ fi
 # Wait for NEF to be ready
 echo "2. Waiting for NEF to be ready..."
 for i in {1..30}; do
-    if curl -sS http://localhost:8080/docs > /dev/null 2>&1; then
+    if curl -sS "${NEF_BASE_URL}/docs" > /dev/null 2>&1; then
         echo "   ✅ NEF is ready"
         break
     fi
@@ -49,9 +50,9 @@ echo ""
 
 export NEF_SCHEME=http
 export NEF_PORT=8080
-export DOMAIN=localhost
-export FIRST_SUPERUSER="admin@my-email.com"
-export FIRST_SUPERUSER_PASSWORD="pass"
+export DOMAIN=${DOMAIN:-localhost}
+: "${FIRST_SUPERUSER:?FIRST_SUPERUSER must be set}"
+: "${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD must be set}"
 
 if bash "$INIT_SCRIPT"; then
     echo ""
@@ -62,15 +63,15 @@ if bash "$INIT_SCRIPT"; then
     echo "4. Verifying entities..."
     
     # Get token
-    TOKEN=$(curl -sS -X POST "http://localhost:8080/api/v1/login/access-token" \
+    TOKEN=$(curl -sS -X POST "${NEF_BASE_URL}/api/v1/login/access-token" \
         -H 'Content-Type: application/x-www-form-urlencoded' \
-        --data-urlencode "username=admin@my-email.com" \
-        --data-urlencode "password=pass" \
+        --data-urlencode "username=${FIRST_SUPERUSER}" \
+        --data-urlencode "password=${FIRST_SUPERUSER_PASSWORD}" \
         -d "grant_type=" | jq -r '.access_token')
     
     # Check UEs
     UE_COUNT=$(curl -sS -H "Authorization: Bearer $TOKEN" \
-        "http://localhost:8080/api/v1/UEs" | jq '. | length')
+        "${NEF_BASE_URL}/api/v1/UEs" | jq '. | length')
     
     echo "   UEs found: $UE_COUNT (expected: 3)"
     

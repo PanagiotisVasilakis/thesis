@@ -14,8 +14,8 @@
  *   --output=X      Output file name (auto-generated if not specified)
  * 
  * Prerequisites:
- *   - NEF backend running at http://localhost:8080
- *   - ML service running at http://localhost:5050
+ *   - NEF backend URL exported as NEF_API
+ *   - ML service URL exported as ML_API
  *   - npm install axios (run in kinisis_ui directory)
  */
 
@@ -23,8 +23,12 @@ const axios = require('axios');
 const fs = require('fs');
 
 // Configuration
-const NEF_API = process.env.NEF_API || 'http://localhost:8080/api/v1';
-const ML_API = process.env.ML_API || 'http://localhost:5050';
+const NEF_API = process.env.NEF_API;
+const ML_API = process.env.ML_API;
+if (!NEF_API || !ML_API) {
+    console.error('Set NEF_API and ML_API before running experiments.');
+    process.exit(1);
+}
 
 // Parse command line arguments
 const args = {};
@@ -54,11 +58,18 @@ let axiosInstance = null;
 
 async function login() {
     console.log('🔐 Logging in to NEF API...');
+    const username = process.env.NEF_USERNAME || process.env.FIRST_SUPERUSER;
+    const password = process.env.NEF_PASSWORD || process.env.FIRST_SUPERUSER_PASSWORD;
+    if (!username || !password) {
+        console.error('❌ Set NEF_USERNAME/NEF_PASSWORD or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD');
+        return false;
+    }
+
     try {
         const res = await axios.post(`${NEF_API}/login/access-token`,
             new URLSearchParams({
-                username: 'admin@my-email.com',
-                password: 'pass'
+                username,
+                password
             }),
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );

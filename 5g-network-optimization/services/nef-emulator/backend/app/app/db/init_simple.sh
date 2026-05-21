@@ -10,17 +10,19 @@ SCHEME=${NEF_SCHEME:-http}
 PORT=${NEF_PORT:-${NGINX_HTTP:-8080}}
 DOMAIN=${DOMAIN:-localhost}
 URL="${SCHEME}://${DOMAIN}"
+FIRST_SUPERUSER=${FIRST_SUPERUSER:?FIRST_SUPERUSER must be set}
+FIRST_SUPERUSER_PASSWORD=${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD must be set}
 
 echo "Initializing NEF topology at ${URL}:${PORT}"
-echo "Using credentials: ${FIRST_SUPERUSER:-admin@my-email.com}"
+echo "Using credentials: ${FIRST_SUPERUSER}"
 
 # Authenticate and get token (remove -k flag since we're using HTTP)
 LOGIN_RESPONSE=$(curl -sS -X 'POST' \
   "${URL}:${PORT}/api/v1/login/access-token" \
   -H 'accept: application/json' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
-  --data-urlencode "username=${FIRST_SUPERUSER:-admin@my-email.com}" \
-  --data-urlencode "password=${FIRST_SUPERUSER_PASSWORD:-pass}" \
+  --data-urlencode "username=${FIRST_SUPERUSER}" \
+  --data-urlencode "password=${FIRST_SUPERUSER_PASSWORD}" \
   -d "grant_type=&scope=&client_id=&client_secret=")
 
 TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.access_token // empty')

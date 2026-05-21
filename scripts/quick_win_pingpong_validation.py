@@ -19,7 +19,9 @@ from pathlib import Path
 from typing import List, Tuple
 
 # Configuration
-NEF_BASE_URL = os.environ.get("NEF_URL", "http://localhost:8080")
+NEF_BASE_URL = os.environ.get("NEF_URL")
+if not NEF_BASE_URL:
+    raise SystemExit("NEF_URL must be set")
 API_PREFIX = f"{NEF_BASE_URL}/api/v1"
 ML_API_PREFIX = f"{API_PREFIX}/ml/ml"
 RESULTS_DIR = Path(__file__).parent.parent / "thesis_results" / "pingpong_validation"
@@ -53,12 +55,18 @@ class PingPongValidator:
     
     def get_nef_token(self) -> str:
         """Get authentication token from NEF."""
+        username = os.environ.get("NEF_USERNAME") or os.environ.get("FIRST_SUPERUSER")
+        password = os.environ.get("NEF_PASSWORD") or os.environ.get("FIRST_SUPERUSER_PASSWORD")
+        if not username or not password:
+            self.log("✗ Set NEF_USERNAME/NEF_PASSWORD or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD")
+            sys.exit(1)
+
         try:
             response = requests.post(
                 f"{API_PREFIX}/login/access-token",
                 data={
-                    "username": os.environ.get("NEF_USERNAME", "admin@my-email.com"),
-                    "password": os.environ.get("NEF_PASSWORD", "pass")
+                    "username": username,
+                    "password": password
                 }
             )
             response.raise_for_status()

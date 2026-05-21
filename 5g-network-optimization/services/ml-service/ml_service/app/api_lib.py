@@ -9,6 +9,7 @@ from .core.qos import qos_from_request
 from .core.qos_compliance import evaluate_qos_compliance
 from .core.adaptive_qos import adaptive_qos_manager
 from .monitoring import metrics
+from .errors import ModelError
 
 
 def load_model(
@@ -82,9 +83,9 @@ def predict(ue_data: dict, model: Any | None = None) -> tuple[dict, dict]:
             metrics.ADAPTIVE_CONFIDENCE.labels(service_type=service_type).set(adaptive_required)
         except Exception as exc:
             metrics.logger.debug("QoS compliance tracking failed: %s", exc)
-    except Exception as exc:
-        metrics.logger.debug("QoS evaluation failed, using defaults: %s", exc)
-        result.setdefault("qos_compliance", {"service_priority_ok": True, "details": {}})
+    except (KeyError, TypeError, ValueError) as exc:
+        metrics.logger.error("QoS evaluation failed: %s", exc)
+        raise ModelError(f"QoS evaluation failed: {exc}") from exc
     return result, features
 
 

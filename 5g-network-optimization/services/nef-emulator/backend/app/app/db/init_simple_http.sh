@@ -21,8 +21,8 @@ DOMAIN=${DOMAIN:-localhost}
 PORT=${NEF_PORT:-8080}
 URL="${SCHEME}://${DOMAIN}:${PORT}"
 
-USERNAME=${FIRST_SUPERUSER:-admin@my-email.com}
-PASSWORD=${FIRST_SUPERUSER_PASSWORD:-pass}
+USERNAME=${FIRST_SUPERUSER:?FIRST_SUPERUSER must be set}
+PASSWORD=${FIRST_SUPERUSER_PASSWORD:?FIRST_SUPERUSER_PASSWORD must be set}
 
 echo "=============================================="
 echo " NEF Topology Initialization"

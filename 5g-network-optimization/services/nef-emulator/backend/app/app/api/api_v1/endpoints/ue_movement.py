@@ -28,6 +28,9 @@ def log_timer_exception(ex: Exception) -> None:
 try:
     from app.monitoring import metrics
 except ModuleNotFoundError:  # pragma: no cover - used by unit tests loading a stub
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
     class _NoopMetric:
         def labels(self, *args, **kwargs):
             return self
@@ -49,6 +52,9 @@ except ModuleNotFoundError:  # pragma: no cover - used by unit tests loading a s
 try:
     from app.handover.runtime import runtime as handover_runtime
 except ModuleNotFoundError:  # pragma: no cover - fallback used only in tests
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
     class _FallbackRuntime:
         ensure_topology = staticmethod(lambda *args, **kwargs: None)
         upsert_ue_state = staticmethod(lambda *args, **kwargs: None)

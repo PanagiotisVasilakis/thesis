@@ -17,6 +17,13 @@ from ..config.constants import env_constants
 logger = logging.getLogger(__name__)
 
 
+def _resolve_nef_url(config) -> str:
+    nef_url = config.get('NEF_URL') or config.get('NEF_API_URL') or env_constants.NEF_URL
+    if not nef_url:
+        raise ValueError("NEF_API_URL is required for NEF-backed services")
+    return nef_url
+
+
 class DefaultModelService(ModelInterface):
     """Default implementation of ModelInterface using AntennaSelector."""
     
@@ -281,6 +288,8 @@ def configure_services(container: Optional[DIContainer] = None, **config_overrid
     # Override configuration if provided
     for key, value in config_overrides.items():
         config.set(key, value)
+
+    nef_url = _resolve_nef_url(config)
     
     # Logger service
     container.register_singleton(
@@ -308,21 +317,21 @@ def configure_services(container: Optional[DIContainer] = None, **config_overrid
     container.register_singleton(
         'NEFClientInterface',
         DefaultNEFClientService,
-        nef_url=config.get('NEF_URL', 'http://localhost:8080')
+        nef_url=nef_url
     )
     
     # Async NEF Client service
     container.register_singleton(
         'AsyncNEFClientInterface',
         DefaultAsyncNEFClientService,
-        base_url=config.get('NEF_URL', 'http://localhost:8080')
+        base_url=nef_url
     )
     
     # Data collector service
     container.register_singleton(
         'DataCollectorInterface',
         DefaultDataCollectorService,
-        nef_url=config.get('NEF_URL', 'http://localhost:8080')
+        nef_url=nef_url
     )
     
     # Metrics collector service

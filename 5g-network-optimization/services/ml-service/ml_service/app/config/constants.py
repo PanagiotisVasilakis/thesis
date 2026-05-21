@@ -1,10 +1,10 @@
 """Centralized constants and configuration values for the ML service."""
 
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 # Network and Service Configuration
-DEFAULT_NEF_URL = "http://localhost:8080"
+DEFAULT_NEF_URL = None
 DEFAULT_SERVICE_PORT = 5050
 DEFAULT_SERVICE_HOST = "0.0.0.0"
 DEFAULT_METRICS_PORT = 9090
@@ -108,7 +108,7 @@ DEFAULT_JWT_EXPIRY_HOURS = 24
 DEFAULT_SECRET_KEY_LENGTH = 64
 DEFAULT_JWT_SECRET_LENGTH = 64
 DEFAULT_PASSWORD_MIN_LENGTH = 8
-DEFAULT_AUTH_USERNAME = "admin"
+DEFAULT_AUTH_USERNAME = None
 
 # Redis Configuration
 DEFAULT_REDIS_URL = ""
@@ -247,7 +247,7 @@ def get_env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key, str(default)).lower()
     return value in ('true', '1', 'yes', 'on')
 
-def get_env_str(key: str, default: str) -> str:
+def get_env_str(key: str, default: Optional[str]) -> Optional[str]:
     """Get string environment variable with default."""
     return os.getenv(key, default)
 
@@ -375,6 +375,9 @@ class EnvironmentConstants:
         # Validate ranges
         if cls.SERVICE_PORT < 1024 or cls.SERVICE_PORT > 65535:
             errors["SERVICE_PORT"] = f"Port must be between 1024-65535, got {cls.SERVICE_PORT}"
+
+        if not cls.NEF_URL:
+            errors["NEF_API_URL"] = "NEF_API_URL is required"
         
         if cls.NEIGHBOR_COUNT < 0 or cls.NEIGHBOR_COUNT > 10:
             errors["NEIGHBOR_COUNT"] = f"Neighbor count must be 0-10, got {cls.NEIGHBOR_COUNT}"
