@@ -20,14 +20,13 @@ import os
 import sys
 import secrets
 import base64
-import time
 import logging
 from typing import Optional
 
 # Add the parent directory to the path so we can import ML service modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from ml_service.app.auth.metrics_auth import MetricsAuthenticator, MetricsAuthError
+from ml_service.app.auth.metrics_auth import MetricsAuthenticator
 from ml_service.app.config.constants import env_constants
 
 # Module logger

@@ -22,7 +22,7 @@ Reference: 3GPP TR 38.901 §7.6 (Urban Macro/Micro scenarios)
 
 import math
 import random
-from typing import Dict, List
+from typing import List
 
 from .base_scenario import (
     BaseScenario,
@@ -200,7 +200,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+1:03d}",
                 name=f"Pedestrian_{i+1}",
-                description=f"Pedestrian with smartphone in downtown area",
+                description="Pedestrian with smartphone in downtown area",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="LOW",
                 ue_type=UEType.SMARTPHONE,
@@ -215,7 +215,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+21:03d}",
                 name=f"Vehicle_{i+1}",
-                description=f"Urban vehicle (taxi/delivery) with mobile device",
+                description="Urban vehicle (taxi/delivery) with mobile device",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="MEDIUM",
                 ue_type=UEType.VEHICLE,
@@ -230,7 +230,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+31:03d}",
                 name=f"Tablet_{i+1}",
-                description=f"Stationary tablet in cafe/office",
+                description="Stationary tablet in cafe/office",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="LOW",
                 ue_type=UEType.TABLET,
@@ -249,7 +249,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+36:03d}",
                 name=f"FirstResponder_{i+1}",
-                description=f"First responder priority device",
+                description="First responder priority device",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="HIGH",
                 ue_type=UEType.FIRST_RESPONDER,
@@ -265,7 +265,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+41:03d}",
                 name=f"AutoVehicle_{i+1}",
-                description=f"Autonomous delivery vehicle",
+                description="Autonomous delivery vehicle",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="MEDIUM",
                 ue_type=UEType.VEHICLE,
@@ -285,7 +285,7 @@ class SmartCityDowntownScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+46:03d}",
                 name=f"Sensor_{i+1}",
-                description=f"Smart city sensor (air quality/traffic)",
+                description="Smart city sensor (air quality/traffic)",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="LOW",
                 ue_type=UEType.IOT_SENSOR,

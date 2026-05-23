@@ -75,7 +75,7 @@ ML_HANDOVER_ENABLED=1 docker compose -f 5g-network-optimization/docker-compose.y
     - NEF Emulator: `http://localhost:8080`
     - ML Service: `http://localhost:5050`
     - Prometheus: `http://localhost:9090`
-    - Grafana: `http://localhost:3000` (admin/admin)
+    - Grafana: `http://localhost:3000` (use `GF_SECURITY_ADMIN_PASSWORD` from the local environment)
 
 **Λειτουργία A3 (Baseline)**
 ```bash

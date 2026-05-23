@@ -3,7 +3,6 @@ import os
 from ipaddress import ip_address
 from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app import crud, models, schemas
@@ -186,7 +185,7 @@ def create_UE(
     db_payload['ip_address_v6'] = ipv6_str
     db_payload['Cell_id'] = cell_id
 
-    UE = crud.ue.create_with_owner(db=db, obj_in=db_payload, owner_id=current_user.id)
+    crud.ue.create_with_owner(db=db, obj_in=db_payload, owner_id=current_user.id)
 
     response_data = dict(db_payload)
     response_data.update({"supi": item_in.supi, "path_id": 0, "gNB_id": None})

@@ -109,6 +109,9 @@ def create_app(config=None):
                 "Missing required runtime configuration: "
                 + ", ".join(sorted(missing))
             )
+        from .config.validation import validate_startup_config
+
+        validate_startup_config()
 
     # Create models directory if it doesn't exist
     os.makedirs(os.path.dirname(app.config["MODEL_PATH"]), exist_ok=True)

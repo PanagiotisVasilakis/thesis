@@ -23,15 +23,15 @@ def test_create_app_uses_runtime_env(monkeypatch):
     from ml_service.app.initialization.model_init import ModelManager
 
     monkeypatch.setenv("NEF_API_URL", "http://nef-emulator:80")
-    monkeypatch.setenv("SECRET_KEY", "secret-key")
-    monkeypatch.setenv("JWT_SECRET", "jwt-secret")
-    monkeypatch.setenv("JWT_REFRESH_SECRET", "refresh-secret")
+    monkeypatch.setenv("SECRET_KEY", "runtime-secret-key-for-tests-000001")
+    monkeypatch.setenv("JWT_SECRET", "runtime-jwt-secret-for-tests-000001")
+    monkeypatch.setenv("JWT_REFRESH_SECRET", "runtime-refresh-secret-for-tests-000001")
     monkeypatch.setenv("AUTH_USERNAME", "ml-admin")
-    monkeypatch.setenv("AUTH_PASSWORD", "ml-password")
+    monkeypatch.setenv("AUTH_PASSWORD", "MlPassword123")
     monkeypatch.setattr(ModelManager, "initialize", lambda *args, **kwargs: None)
 
     app = create_app()
 
     assert app.config["NEF_API_URL"] == "http://nef-emulator:80"
-    assert app.config["JWT_SECRET"] == "jwt-secret"
-    assert app.config["JWT_REFRESH_SECRET"] == "refresh-secret"
+    assert app.config["JWT_SECRET"] == "runtime-jwt-secret-for-tests-000001"
+    assert app.config["JWT_REFRESH_SECRET"] == "runtime-refresh-secret-for-tests-000001"

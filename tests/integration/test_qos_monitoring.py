@@ -117,7 +117,7 @@ def test_handover_engine_sends_observed_qos(monkeypatch: pytest.MonkeyPatch) -> 
         captured["payload"] = json
         return DummyResponse(
             {
-                "predicted_antenna": "antA",
+                "predicted_antenna": "antB",
                 "confidence": 0.95,
                 "qos_compliance": {
                     "service_priority_ok": True,
@@ -155,4 +155,3 @@ def test_handover_engine_sends_observed_qos(monkeypatch: pytest.MonkeyPatch) -> 
     assert set(observed_payload.keys()).issuperset(
         {"latency_ms", "throughput_mbps", "jitter_ms", "packet_loss_rate"}
     )
-

@@ -38,7 +38,6 @@ import random
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
-from pathlib import Path
 
 import numpy as np
 
@@ -437,9 +436,8 @@ class ModelExplainer:
             if isinstance(shap_values, list):
                 # Average across all classes for overall importance
                 mean_abs_shap = np.mean([np.abs(sv) for sv in shap_values], axis=0)
-                shap_values_for_plot = shap_values[0]  # Use first class for visualization
+                shap_values_for_plot = mean_abs_shap
             else:
-                mean_abs_shap = np.abs(shap_values)
                 shap_values_for_plot = shap_values
             
             plt.figure(figsize=(12, 8))

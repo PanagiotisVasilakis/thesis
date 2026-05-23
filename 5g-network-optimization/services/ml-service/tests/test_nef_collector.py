@@ -103,10 +103,10 @@ def test_collect_sample_missing_cell_id(mock_nef_client):
 def test_collect_sample_selects_best_antenna(mock_nef_client):
     collector = NEFDataCollector(nef_url="http://nef")
     fv = {
-        "neighbor_rsrp_dbm": {"A": -80, "B": -75},
-        "neighbor_sinrs": {"A": 10, "B": 5},
-        "neighbor_rsrqs": {"A": -12, "B": -9},
-        "neighbor_cell_loads": {"A": 3, "B": 1},
+        "neighbor_rsrp_dbm": {"A": -80, "B": -65},
+        "neighbor_sinrs": {"A": 5, "B": 15},
+        "neighbor_rsrqs": {"A": -12, "B": -8},
+        "neighbor_cell_loads": {"A": 1, "B": 0},
     }
     mock_nef_client.get_feature_vector.return_value = fv
     collector.client = mock_nef_client
@@ -117,11 +117,13 @@ def test_collect_sample_selects_best_antenna(mock_nef_client):
     assert "altitude" in sample
     assert sample["altitude"] is None
     assert sample["connected_to"] == "A"
-    assert sample["optimal_antenna"] == "B"
+    assert sample["best_scoring_antenna"] == "B"
+    assert sample["optimal_antenna"] == "A"
+    assert sample["sample_reason"] in {"too_recent", "insufficient_margin", "stable_ue_hysteresis"}
     assert sample["altitude"] is None
     assert sample["rf_metrics"] == {
-        "A": {"rsrp": -80, "sinr": 10, "rsrq": -12, "cell_load": 3},
-        "B": {"rsrp": -75, "sinr": 5, "rsrq": -9, "cell_load": 1},
+        "A": {"rsrp": -80, "sinr": 5, "rsrq": -12, "cell_load": 1},
+        "B": {"rsrp": -65, "sinr": 15, "rsrq": -8, "cell_load": 0},
     }
     assert sample["rsrp_stddev"] == 0.0
     assert sample["sinr_stddev"] == 0.0
@@ -215,7 +217,8 @@ def test_async_collect_sample(tmp_path):
 
     assert sample["ue_id"] == "ue-async"
     assert sample["service_type"] == "embb"
-    assert sample["optimal_antenna"] == "B"
+    assert sample["best_scoring_antenna"] == "B"
+    assert sample["optimal_antenna"] == "A"
 
 
 def test_async_get_collection_stats():

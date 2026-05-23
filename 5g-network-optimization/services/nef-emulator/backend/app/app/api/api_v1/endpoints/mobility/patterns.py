@@ -1,5 +1,5 @@
 """API endpoints for mobility patterns."""
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel, Field
 

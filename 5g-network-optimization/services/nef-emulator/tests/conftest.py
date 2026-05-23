@@ -82,6 +82,14 @@ def patch_handover_time(monkeypatch, times: list):
         @classmethod
         def utcnow(cls):
             return next(it)
+
+        @classmethod
+        def now(cls, tz=None):
+            value = next(it)
+            if tz is not None and value.tzinfo is None:
+                return value.replace(tzinfo=tz)
+            return value
+
     monkeypatch.setattr(eng, 'datetime', FakeDT)
 
 

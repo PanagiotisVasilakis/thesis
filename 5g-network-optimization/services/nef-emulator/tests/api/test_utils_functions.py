@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from types import SimpleNamespace
-import json
+import os
 import pytest
 from fastapi import Request
 from pathlib import Path
@@ -12,6 +12,28 @@ import sys
 # Dynamically load the utils module under test
 UTILS_PATH = Path(__file__).resolve(
 ).parents[2] / "backend" / "app" / "app" / "api" / "api_v1" / "endpoints" / "utils.py"
+os.environ.setdefault("TESTING", "1")
+_STUBBED_MODULE_NAMES = [
+    "requests",
+    "app",
+    "app.crud",
+    "app.models",
+    "app.schemas",
+    "app.api",
+    "app.api.deps",
+    "app.api.api_v1",
+    "app.api.api_v1.endpoints",
+    "app.api.api_v1.endpoints.paths",
+    "app.api.api_v1.endpoints.ue_movement",
+    "app.api.api_v1.state_manager",
+    "app.core",
+    "app.core.config",
+    "app.core.constants",
+    "sqlalchemy",
+    "sqlalchemy.orm",
+    "sqlalchemy.orm.session",
+]
+_previous_modules = {name: sys.modules.get(name) for name in _STUBBED_MODULE_NAMES}
 # Stub optional external dependency 'requests' before loading the module
 requests_stub = sys.modules.setdefault(
     "requests", types.ModuleType("requests"))
@@ -140,7 +162,14 @@ sys.modules.setdefault("sqlalchemy.orm", sqlalchemy_mod.orm)
 sys.modules.setdefault("sqlalchemy.orm.session", sqlalchemy_mod.orm.session)
 spec = importlib.util.spec_from_file_location("utils", UTILS_PATH)
 utils = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(utils)
+try:
+    spec.loader.exec_module(utils)
+finally:
+    for name, previous in _previous_modules.items():
+        if previous is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = previous
 
 
 def _make_request(data: bytes, path: str = "/cb"):

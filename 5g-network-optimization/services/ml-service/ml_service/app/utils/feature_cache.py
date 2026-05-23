@@ -7,8 +7,6 @@ from typing import Dict, Any, Optional, Tuple
 from functools import lru_cache
 from dataclasses import dataclass
 from ..config.constants import (
-    DEFAULT_FEATURE_CACHE_SIZE,
-    DEFAULT_FEATURE_CACHE_TTL,
     DEFAULT_FALLBACK_RSRP,
     DEFAULT_FALLBACK_SINR,
     DEFAULT_FALLBACK_RSRQ,

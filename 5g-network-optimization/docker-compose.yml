@@ -50,7 +50,7 @@ services:
   ml-service:
     image: 5g-network-optimization/ml-service:latest
     profiles:
-      - "${ML_LOCAL:-ml}"
+      - "ml"
     build:
       context: ./services/ml-service
       dockerfile: Dockerfile

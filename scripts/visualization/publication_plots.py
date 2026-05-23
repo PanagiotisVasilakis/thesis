@@ -36,7 +36,6 @@ References:
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -568,7 +567,7 @@ def create_heatmap(
         ax.set_title(title)
     
     # Colorbar
-    cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     
     return im
 

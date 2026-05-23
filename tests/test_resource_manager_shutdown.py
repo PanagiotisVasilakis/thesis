@@ -1,6 +1,5 @@
 import importlib.util
 import pathlib
-import pytest
 
 
 # Import the module directly from its path to avoid pulling in the full

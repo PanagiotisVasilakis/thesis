@@ -21,7 +21,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import math
 from typing import Optional, Tuple
 
 from app.core.geo_utils import euclidean_distance_3d as euclidean_distance

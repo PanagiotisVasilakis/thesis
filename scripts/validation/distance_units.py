@@ -39,7 +39,7 @@ import functools
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,6 @@ UNIT_TO_METERS: Dict[DistanceUnit, float] = {
 
 class DistanceUnitsError(ValueError):
     """Raised when distance value appears to be in wrong units."""
-    pass
 
 
 @dataclass

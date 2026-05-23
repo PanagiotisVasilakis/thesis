@@ -5,7 +5,6 @@ import os
 import threading
 from collections import deque
 from datetime import datetime
-from packaging.version import Version, InvalidVersion
 from typing import Optional, Dict, List, Any
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -244,7 +243,7 @@ class SimplifiedModelManager:
             
             return model
             
-        except Exception as exc:
+        except Exception:
             with self._lock:
                 self._is_ready.set()
             raise

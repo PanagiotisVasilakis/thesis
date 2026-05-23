@@ -2,9 +2,7 @@
 
 import base64
 import hmac
-import hashlib
 import time
-import os
 import logging
 from typing import Any, Optional, Tuple
 from functools import wraps
@@ -29,7 +27,6 @@ def _resolve_request():
 
 class MetricsAuthError(SecurityError):
     """Authentication error for metrics endpoint."""
-    pass
 
 
 class MetricsAuthenticator:
@@ -254,14 +251,29 @@ class MetricsAuthenticator:
 
 # Global authenticator instance
 _metrics_authenticator: Optional[MetricsAuthenticator] = None
+_metrics_authenticator_key: Optional[tuple] = None
 
 
 def get_metrics_authenticator() -> MetricsAuthenticator:
     """Get or create the global metrics authenticator."""
-    global _metrics_authenticator
+    global _metrics_authenticator, _metrics_authenticator_key
+
+    kwargs = {}
+    key = None
+    if flask.has_app_context():
+        app_config = flask.current_app.config
+        kwargs = {
+            "username": app_config.get("METRICS_AUTH_USERNAME"),
+            "password": app_config.get("METRICS_AUTH_PASSWORD"),
+            "api_key": app_config.get("METRICS_API_KEY"),
+            "jwt_secret": app_config.get("METRICS_JWT_SECRET") or app_config.get("JWT_SECRET"),
+            "token_expiry_seconds": int(app_config.get("METRICS_JWT_EXPIRY_SECONDS", env_constants.METRICS_JWT_EXPIRY_SECONDS)),
+        }
+        key = tuple(sorted(kwargs.items()))
     
-    if _metrics_authenticator is None:
-        _metrics_authenticator = MetricsAuthenticator()
+    if _metrics_authenticator is None or key != _metrics_authenticator_key:
+        _metrics_authenticator = MetricsAuthenticator(**kwargs)
+        _metrics_authenticator_key = key
     
     return _metrics_authenticator
 

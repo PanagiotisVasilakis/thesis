@@ -325,8 +325,12 @@ def test_default_prediction_unfitted_model(tmp_path):
 
     features = model.extract_features({})
     features["ue_id"] = "u1"
-    with pytest.raises(RuntimeModelError, match="Model prediction failed"):
-        model.predict(features)
+    result = model.predict(features)
+
+    assert result["antenna_id"] == antenna_selector.FALLBACK_ANTENNA_ID
+    assert result["confidence"] == pytest.approx(antenna_selector.FALLBACK_CONFIDENCE)
+    assert result["fallback_reason"] == "model_unfitted"
+    assert result["qos_bias_applied"] is False
 
     if model_path.exists():
         model_path.unlink()

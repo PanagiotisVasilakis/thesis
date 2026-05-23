@@ -77,9 +77,6 @@ export default function LoginPage({ onLogin }) {
                     </button>
                 </form>
 
-                <p className="text-center text-gray-400 text-sm mt-6">
-                    Default: admin / admin
-                </p>
             </div>
         </div>
     );

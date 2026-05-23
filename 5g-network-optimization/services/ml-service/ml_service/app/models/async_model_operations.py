@@ -5,16 +5,14 @@ import logging
 import threading
 import time
 import concurrent.futures
-from typing import Any, Dict, List, Optional, Callable, Union, Tuple
+from typing import Any, Dict, List, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 import queue
-import weakref
 
-import numpy as np
 
-from ..utils.exception_handler import ModelError, safe_execute, ErrorSeverity
+from ..utils.exception_handler import ModelError
 from ..utils.resource_manager import global_resource_manager, ResourceType
 from ..config.constants import env_constants
 
@@ -73,17 +71,14 @@ class AsyncModelInterface(ABC):
     @abstractmethod
     async def predict_async(self, features: Dict[str, Any]) -> Dict[str, Any]:
         """Perform async prediction."""
-        pass
     
     @abstractmethod
     async def train_async(self, training_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Perform async training."""
-        pass
     
     @abstractmethod
     async def evaluate_async(self, test_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Perform async evaluation."""
-        pass
 
 
 class ModelOperationQueue:

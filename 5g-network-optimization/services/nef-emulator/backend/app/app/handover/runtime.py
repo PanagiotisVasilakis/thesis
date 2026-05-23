@@ -263,43 +263,30 @@ class HandoverRuntime:
                 return None
             current_cell = fv.get("connected_to")
         
-        # Step 2: Make HTTP call OUTSIDE lock (can take 5+ seconds)
-        # This allows other threads to proceed with their state updates
-        decision = self.engine.decide_with_features(supi, fv)
-        
-        # Step 3: Apply decision if still valid
-        if decision is None:
-            return None
-        
+        # Step 2: Evaluate with the same canonical orchestration path used by
+        # the API endpoint. The call is outside the runtime lock so ML HTTP
+        # latency does not block movement updates for other UEs.
+        result = self.engine.evaluate_and_apply_handover(
+            supi,
+            features=fv,
+            source="movement_runtime",
+        )
+
+        # Step 3: If the cell changed while the ML call was in flight, record
+        # the race and let the next movement tick reconcile the state.
         with self._lock:
-            # Verify state hasn't changed significantly during HTTP call
             try:
                 current_fv = self.state_manager.get_feature_vector(supi)
-                if current_fv.get("connected_to") != current_cell:
+                if current_fv.get("connected_to") != current_cell and result is None:
                     self.logger.info(
-                        "UE %s cell changed during ML call (%s -> %s), skipping apply",
+                        "UE %s cell changed during handover evaluation (%s -> %s)",
                         supi, current_cell, current_fv.get("connected_to")
                     )
-                    return None  # State changed, let caller retry on next iteration
             except KeyError:
-                self.logger.warning("UE %s removed during ML call", supi)
-                return None  # UE was removed
-            
-            result = self.engine.apply_decision(supi, decision, fv)
-            
-            # Merge ML confidence from original decision into result
-            # This ensures the confidence flows through to ue_movement.py
-            if result is not None:
-                result["confidence"] = decision.get("confidence")
-                use_ml = getattr(self.engine, "use_ml", False)
-                result["source"] = decision.get("source", "ml" if use_ml else "a3")
-                result["fallback_to_a3"] = bool(decision.get("fallback_to_a3", False))
-                if decision.get("fallback_reason"):
-                    result["fallback_reason"] = decision.get("fallback_reason")
-                if decision.get("ml_prediction"):
-                    result["ml_prediction"] = decision.get("ml_prediction")
-            
-            return result
+                self.logger.warning("UE %s removed during handover evaluation", supi)
+                return None
+
+        return result
 
     def get_cell_by_key(self, key: Optional[str]) -> Optional[dict]:
         if key is None:

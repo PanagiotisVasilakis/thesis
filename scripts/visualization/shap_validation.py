@@ -28,7 +28,6 @@ from scripts.visualization._utils import (
     MATPLOTLIB_AVAILABLE,
     SHAP_AVAILABLE,
     plt,
-    Figure,
     shap,
     save_figure_multiformat,
 )
@@ -406,7 +405,6 @@ def generate_thesis_shap_summary(
         from scripts.visualization.publication_plots import (
             setup_publication_style,
             DEFAULT_CONFIG,
-            COLORBLIND_PALETTE,
         )
         
         setup_publication_style()

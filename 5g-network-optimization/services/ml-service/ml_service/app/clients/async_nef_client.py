@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from urllib.parse import urljoin
 from enum import Enum
 from dataclasses import dataclass
@@ -15,8 +15,7 @@ from aiohttp import ClientTimeout, ClientSession, ClientError
 from ..utils.common_validators import StringValidator, ValidationError
 from ..utils.resource_manager import (
     global_resource_manager, 
-    ResourceType, 
-    ResourceState,
+    ResourceType,
 )
 
 
@@ -38,7 +37,6 @@ class CircuitBreakerConfig:
 
 class CircuitBreakerError(Exception):
     """Raised when circuit breaker is open."""
-    pass
 
 
 class AsyncCircuitBreaker:

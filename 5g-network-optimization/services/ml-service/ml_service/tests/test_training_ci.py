@@ -1,5 +1,4 @@
 import random
-import numpy as np
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 

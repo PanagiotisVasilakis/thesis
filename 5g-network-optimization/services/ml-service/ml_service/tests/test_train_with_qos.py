@@ -1,4 +1,3 @@
-import tempfile
 import random
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector

@@ -70,13 +70,13 @@ def init_db(db: Session) -> None:
             return
     
     for gNB_in in gNBs:
-        gNB = crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=user.id)
+        crud.gnb.create_with_owner(db=db, obj_in=gNB_in, owner_id=user.id)
 
     for cell_in in cells:
-        cell = crud.cell.create_with_owner(db=db, obj_in=cell_in, owner_id=user.id)
+        crud.cell.create_with_owner(db=db, obj_in=cell_in, owner_id=user.id)
 
     for ue_in in ues:
-        ue = crud.ue.create_with_owner(db=db, obj_in=ue_in, owner_id=user.id)
+        crud.ue.create_with_owner(db=db, obj_in=ue_in, owner_id=user.id)
 
     # Create paths and their points
     path_id_map = {}  # Track created paths by some identifier if needed

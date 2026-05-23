@@ -1,7 +1,5 @@
 import math
-import numpy as np
 from abc import ABC, abstractmethod
-from .patterns import AntennaPattern
 from rf_models.path_loss import ABGPathLossModel, CloseInPathLossModel
 
 class BaseAntennaModel(ABC):

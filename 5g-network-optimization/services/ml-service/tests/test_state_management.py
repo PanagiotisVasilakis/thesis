@@ -3,8 +3,7 @@
 import pytest
 import time
 import threading
-from unittest.mock import MagicMock, patch
-from typing import Dict, Any, List
+from unittest.mock import MagicMock
 
 from ml_service.app.state.state_management import (
     StateManager,
@@ -13,10 +12,7 @@ from ml_service.app.state.state_management import (
     GlobalStateRegistry,
     StateChange,
     StateChangeType,
-    StateObserver,
-    get_global_state_registry,
-    get_ue_state_manager,
-    get_model_state_manager
+    StateObserver
 )
 from ml_service.app.state.state_observers import (
     LoggingStateObserver,
@@ -29,8 +25,7 @@ from ml_service.app.state.state_observers import (
 from ml_service.app.state.state_integration import (
     StateIntegrationManager,
     StateAwareModelWrapper,
-    StateAwareUEProcessor,
-    get_state_integration_manager
+    StateAwareUEProcessor
 )
 
 
@@ -621,7 +616,7 @@ class TestStateIntegration:
         assert "processed_at" in result
         
         # Check if UE state was tracked
-        ue_state = processor.get_ue_state("ue_001")
+        processor.get_ue_state("ue_001")
         # Note: This might be None if state manager wasn't properly initialized
 
 

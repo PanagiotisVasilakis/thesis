@@ -1,13 +1,9 @@
 """Comprehensive integration tests for the ML pipeline."""
 
 import pytest
-import asyncio
 import tempfile
-import os
-import json
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
-import numpy as np
+from unittest.mock import patch, AsyncMock
 
 from ml_service.app.initialization.simplified_model_manager import SimplifiedModelManager
 from ml_service.app.initialization.hot_swap_manager import HotSwapModelManager
@@ -15,7 +11,6 @@ from ml_service.app.models.lightgbm_selector import LightGBMSelector
 from ml_service.app.models.lstm_selector import LSTMSelector
 from ml_service.app.models.ensemble_selector import EnsembleSelector
 from ml_service.app.clients.async_nef_client import AsyncNEFClient, AsyncNEFClientError
-from ml_service.app.errors import ModelError, RequestValidationError
 from ml_service.app.utils.synthetic_data import generate_synthetic_training_data
 
 
@@ -77,7 +72,7 @@ class TestMLPipelineIntegration:
             # Signal ranking features
             "top2_rsrp_gap": 5.0,
             "top2_sinr_gap": 3.0,
-            "optimal_score_margin": 2.0,
+            "optimal_score_margin": 1.0,
             "connected_signal_rank": 1.0,
             "rf_load_std": 0.1,
             # SLA pressure features
@@ -250,7 +245,7 @@ class TestMLPipelineIntegration:
         
         # Test initial prediction
         initial_model = manager.get_model()
-        initial_result = initial_model.predict(sample_features)
+        initial_model.predict(sample_features)
         
         # Perform hot swap to second model
         swap_success = await manager.hot_swap_model(str(model_path2), validate=True)
@@ -376,7 +371,7 @@ class TestMLPipelineIntegration:
 
     def test_model_validation_integration(self, sample_features):
         """Test input validation integration across models."""
-        from ml_service.app.validation import validate_json_input, LoginRequest
+        from ml_service.app.validation import LoginRequest
         from ml_service.app.schemas import PredictionRequest
         
         # Test schema validation

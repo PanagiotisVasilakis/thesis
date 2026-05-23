@@ -1,13 +1,8 @@
-"""Tests for handover synchronization utilities.
-
-Currently minimal as the sync module is a placeholder.
-Tests will be expanded when synchronization logic is implemented.
-"""
-
-import pytest
+"""Tests for canonical handover orchestration symbols."""
 
 
-def test_sync_module_imports():
-    """Verify the sync module can be imported without errors."""
-    from backend.app.app.handover import sync
-    assert hasattr(sync, '__all__')
+
+def test_handover_engine_exposes_canonical_api():
+    from backend.app.app.handover.engine import HandoverEngine
+
+    assert hasattr(HandoverEngine, "evaluate_and_apply_handover")

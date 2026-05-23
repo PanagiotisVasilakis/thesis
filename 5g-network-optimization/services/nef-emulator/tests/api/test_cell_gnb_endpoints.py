@@ -1,7 +1,5 @@
-import types
 from types import SimpleNamespace
 
-import pytest
 from tests.conftest import TestClient
 from httpx import ASGITransport
 
@@ -156,7 +154,7 @@ def test_update_gnb_not_owner(monkeypatch):
 
     resp = client.put("/api/v1/gNBs/AAAAAA",
                       json={"gNB_id": "AAAAAA", "name": "n"})
-    assert resp.status_code == 400
+    assert resp.status_code == 403
 
 
 def test_update_gnb_as_owner(monkeypatch):

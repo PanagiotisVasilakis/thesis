@@ -14,7 +14,6 @@ from sqlalchemy.orm.session import Session
 from app import crud, models, schemas
 from app.crud import crud_mongo, user
 from app.api import deps
-from app.api.api_v1.endpoints.paths import get_random_point
 from app.api.api_v1.endpoints.ue_movement import retrieve_ue_state
 from app.api.api_v1.state_manager import state_manager
 try:
@@ -444,14 +443,14 @@ def get_test(
         raise HTTPException(status_code=409, detail=f"Failed to send the callback request. Error: {ex}")
 
 @router.post("/session-with-qos/callback")
-async def create_item(_: UserPlaneNotificationData, request: Request):
+async def create_qos_callback_item(_: UserPlaneNotificationData, request: Request):
 
     http_response = JSONResponse(content={'ack' : 'TRUE'}, status_code=200)
     await add_notifications(request, http_response, True)
     return http_response
 
 @router.post("/monitoring/callback")
-async def create_item(_: monitoringevent.MonitoringNotification, request: Request):
+async def create_monitoring_callback_item(_: monitoringevent.MonitoringNotification, request: Request):
 
     http_response = JSONResponse(content={'ack' : 'TRUE'}, status_code=200)
     await add_notifications(request, http_response, True)

@@ -57,7 +57,11 @@ def _patch_request(monkeypatch):
         calls['timeout'] = timeout
         return "response"
 
+    def fake_post(url, headers=None, data=None, timeout=None, **kwargs):
+        return fake_request("POST", url, headers=headers, data=data, timeout=timeout)
+
     monkeypatch.setattr(requests, "request", fake_request)
+    monkeypatch.setattr(requests, "post", fake_post)
     return calls
 
 
@@ -117,6 +121,7 @@ def test_qos_notification_control_timeout(monkeypatch):
     from unittest.mock import MagicMock
     mock = MagicMock(side_effect=requests.exceptions.Timeout)
     monkeypatch.setattr(requests, "request", mock)
+    monkeypatch.setattr(requests, "post", mock)
 
     doc = {"notificationDestination": "http://cb",
            "link": "res", "qosReference": "5"}

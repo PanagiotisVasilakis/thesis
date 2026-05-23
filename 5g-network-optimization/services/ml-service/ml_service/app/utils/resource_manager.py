@@ -7,17 +7,12 @@ import weakref
 import atexit
 import gc
 import time
-import traceback
 from typing import Any, Dict, List, Optional, Protocol, Set, Union, Callable
 from contextlib import contextmanager, asynccontextmanager
-from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass
 
 from ..utils.exception_handler import (
-    ExceptionHandler,
-    ResourceError,
-    exception_context,
     safe_execute,
     ErrorSeverity
 )
@@ -332,7 +327,7 @@ class ResourceManager:
             Number of resources cleaned up
         """
         cleaned_count = 0
-        current_time = time.time()
+        time.time()
         
         with self._lock:
             resource_ids = self._resources_by_type.get(resource_type, set()).copy()
@@ -365,7 +360,7 @@ class ResourceManager:
             Number of resources cleaned up
         """
         cleaned_count = 0
-        current_time = time.time()
+        time.time()
         
         with self._lock:
             idle_resources = []

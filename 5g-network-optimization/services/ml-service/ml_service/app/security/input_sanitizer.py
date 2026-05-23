@@ -5,10 +5,9 @@ import html
 import json
 import logging
 import unicodedata
-from typing import Any, Dict, List, Optional, Union, Callable, Pattern
+from typing import Any, Dict, List, Optional, Union, Pattern
 from urllib.parse import urlparse, quote
 from pathlib import Path
-import base64
 
 from ..utils.exception_handler import SecurityError
 from ..config.constants import env_constants
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 class InputSanitizationError(SecurityError):
     """Raised when input sanitization fails or detects security issues."""
-    pass
 
 
 class SecurityPattern:

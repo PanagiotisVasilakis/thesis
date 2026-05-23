@@ -1,9 +1,8 @@
 """Standardized exception handling framework for the ML service."""
 
 import logging
-import traceback
 import functools
-from typing import Any, Callable, Optional, Type, Union, Dict, List, Tuple
+from typing import Any, Callable, Optional, Type, Union, Dict, Tuple
 from contextlib import contextmanager
 from enum import Enum
 

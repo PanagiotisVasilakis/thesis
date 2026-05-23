@@ -13,15 +13,13 @@ Aligned with 3GPP TR 38.901 and TS 23.501 specifications.
 
 import json
 import math
-import random
-import subprocess
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import requests
 
 
@@ -230,22 +228,18 @@ class BaseScenario(ABC):
     @abstractmethod
     def generate_cells(self) -> List[CellConfig]:
         """Generate cell configurations for this scenario."""
-        pass
     
     @abstractmethod
     def generate_ues(self) -> List[UEConfig]:
         """Generate UE configurations for this scenario."""
-        pass
     
     @abstractmethod
     def generate_paths(self) -> List[PathConfig]:
         """Generate mobility paths for this scenario."""
-        pass
     
     @abstractmethod
     def get_metadata(self) -> ScenarioMetadata:
         """Return metadata describing this scenario."""
-        pass
     
     # =========================================================================
     # Authentication
@@ -457,7 +451,7 @@ class BaseScenario(ABC):
                 return True
             else:
                 return False
-        except requests.RequestException as e:
+        except requests.RequestException:
             return False
     
     def start_all_ues(self, delay_between_starts: float = 3.0) -> int:
@@ -527,7 +521,7 @@ class BaseScenario(ABC):
             time.sleep(0.2)
         
         # Step 4: Generate and create paths
-        print(f"\n📍 Creating mobility paths...")
+        print("\n📍 Creating mobility paths...")
         self.paths = self.generate_paths()
         path_ids = []
         for path in self.paths:

@@ -24,7 +24,7 @@ import subprocess
 import sys
 import time
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -1760,8 +1760,8 @@ class ComparisonVisualizer:
             stds = [a3_stats['std'], ml_stats['std']]
             colors = ['#FF6B6B', '#51CF66']
             
-            bars = ax.bar(x_pos, means, yerr=stds, capsize=5,
-                         color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
+            ax.bar(x_pos, means, yerr=stds, capsize=5,
+                   color=colors, alpha=0.8, edgecolor='black', linewidth=1.5)
             
             ax.set_xticks(x_pos)
             ax.set_xticklabels(['A3 Mode', 'ML Mode'])

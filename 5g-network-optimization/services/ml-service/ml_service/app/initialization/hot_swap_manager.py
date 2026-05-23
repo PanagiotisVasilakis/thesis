@@ -4,14 +4,12 @@ import asyncio
 import logging
 import os
 import threading
-import time
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable
-import tempfile
 import shutil
 from datetime import datetime
 
-from .simplified_model_manager import SimplifiedModelManager, _load_metadata, _parse_version_from_path
+from .simplified_model_manager import SimplifiedModelManager
 from ..errors import ModelError
 
 
@@ -195,7 +193,7 @@ class HotSwapModelManager:
             
             # Atomic swap - this is the critical zero-downtime section
             with self._swap_lock:
-                old_active = self._active_manager
+                self._active_manager
                 self._active_manager = standby_manager
                 
                 # Log the successful swap

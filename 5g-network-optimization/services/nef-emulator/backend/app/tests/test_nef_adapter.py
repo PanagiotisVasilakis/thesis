@@ -2,7 +2,6 @@
 import sys
 import os
 import matplotlib.pyplot as plt
-import json
 import logging
 import shutil
 
@@ -30,7 +29,7 @@ def test_nef_adapter():
     logger.info(f"Generated {len(linear_points)} linear path points")
     
     # Save to JSON
-    linear_json = save_path_to_json(linear_points, 'linear_path.json')
+    save_path_to_json(linear_points, 'linear_path.json')
     os.remove('linear_path.json')
     
     # Generate L-shaped path
@@ -48,7 +47,7 @@ def test_nef_adapter():
     logger.info(f"Generated {len(l_shaped_points)} L-shaped path points")
     
     # Save to JSON
-    l_shaped_json = save_path_to_json(l_shaped_points, 'l_shaped_path.json')
+    save_path_to_json(l_shaped_points, 'l_shaped_path.json')
     os.remove('l_shaped_path.json')
     
     # Visualize both paths

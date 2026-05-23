@@ -310,7 +310,7 @@ def generate_synthetic_training_data(
 
         # -- Temporal derivative features --
         rsrp_current = rf_metrics[connected_antenna]["rsrp"]
-        sinr_current = rf_metrics[connected_antenna]["sinr"]
+        rf_metrics[connected_antenna]["sinr"]
         rsrp_accel = float(np.clip(rng.normal(0, 2), -10, 10))
         sinr_accel = float(np.clip(rng.normal(0, 1), -5, 5))
         speed_jerk_val = float(np.clip(rng.normal(0, 1), -5, 5))

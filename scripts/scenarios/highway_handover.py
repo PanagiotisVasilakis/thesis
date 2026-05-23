@@ -22,7 +22,7 @@ Reference: 3GPP TR 38.901 §7.6.2 (Rural Macro - Highway)
 
 import math
 import random
-from typing import Dict, List
+from typing import List
 
 from .base_scenario import (
     BaseScenario,
@@ -209,7 +209,7 @@ class HighwayHandoverScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+1:03d}",
                 name=f"Car_{i+1}",
-                description=f"Passenger vehicle with infotainment system",
+                description="Passenger vehicle with infotainment system",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="HIGH",
                 ue_type=UEType.VEHICLE,
@@ -228,7 +228,7 @@ class HighwayHandoverScenario(BaseScenario):
             ues.append(UEConfig(
                 supi=f"{supi_base}{i+6:03d}",
                 name=f"Truck_{i+1}",
-                description=f"Commercial truck with fleet tracking",
+                description="Commercial truck with fleet tracking",
                 cell_id=(i % self.NUM_CELLS) + 1,
                 speed_profile="MEDIUM",  # Slower than cars
                 ue_type=UEType.VEHICLE,
@@ -439,10 +439,10 @@ def main():
             
             # Calculate expected handovers
             print("\n📊 Expected handover metrics:")
-            print(f"   At 120 km/h with 1.25km inter-site distance:")
-            print(f"   Time between cells: ~37.5 seconds")
-            print(f"   Handovers per 10km trip: ~8 per vehicle")
-            print(f"   Total expected handovers: ~80 during full run")
+            print("   At 120 km/h with 1.25km inter-site distance:")
+            print("   Time between cells: ~37.5 seconds")
+            print("   Handovers per 10km trip: ~8 per vehicle")
+            print("   Total expected handovers: ~80 during full run")
     
     return 0 if success else 1
 

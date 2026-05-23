@@ -357,13 +357,6 @@ class NEFClient:
         self._api_breaker.reset()
         self.logger.info("All NEF client circuit breakers reset")
     
-    def close(self) -> None:
-        """Close the session and clean up connection pools."""
-        session = getattr(self, "session", None)
-        if session is not None and hasattr(session, "close"):
-            session.close()
-            self.logger.info("NEF client session closed and connection pools cleaned up")
-    
     def __enter__(self):
         """Context manager entry."""
         return self

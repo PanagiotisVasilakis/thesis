@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 import json
 import requests
-import pytest
 
 
 def _create_png(tmp_path, name):

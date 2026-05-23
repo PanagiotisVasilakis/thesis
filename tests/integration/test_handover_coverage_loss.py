@@ -36,7 +36,7 @@ def handover_engine(mock_state_manager):
     if str(nef_backend) not in sys.path:
         sys.path.insert(0, str(nef_backend))
     
-    from app.handover.engine import HandoverEngine
+    from backend.app.app.handover.engine import HandoverEngine
     
     engine = HandoverEngine(
         state_mgr=mock_state_manager,
@@ -62,7 +62,7 @@ def test_coverage_loss_forces_handover_even_if_target_equals_current(handover_en
     }
     
     # Mock A3 rule to return current antenna (normally would skip)
-    with patch.object(handover_engine, "_select_rule", return_value="antenna_1"):
+    with patch.object(handover_engine, "_select_rule_with_features", return_value="antenna_1"):
         # Mock nearest cell finder to return antenna_2
         with patch.object(handover_engine, "_find_nearest_cell", return_value="antenna_2"):
             result = handover_engine.decide_and_apply(ue_id, features)
@@ -87,7 +87,7 @@ def test_already_connected_skips_when_in_coverage(handover_engine, mock_state_ma
     }
     
     # Mock A3 rule to return current antenna
-    with patch.object(handover_engine, "_select_rule", return_value="antenna_1"):
+    with patch.object(handover_engine, "_select_rule_with_features", return_value="antenna_1"):
         result = handover_engine.decide_and_apply(ue_id, features)
     
     # Should skip handover (already connected and in coverage)
@@ -126,7 +126,7 @@ def test_coverage_loss_logged_in_decision_trace(handover_engine, mock_state_mana
         "connected_to": "antenna_1",
     }
     
-    with patch.object(handover_engine, "_select_rule", return_value="antenna_1"):
+    with patch.object(handover_engine, "_select_rule_with_features", return_value="antenna_1"):
         with patch.object(handover_engine, "_find_nearest_cell", return_value="antenna_2"):
             handover_engine.decide_and_apply(ue_id, features)
     

@@ -1,6 +1,5 @@
 """Test importing the mobility models in the NEF emulator environment."""
 
-import pytest
 
 
 def test_imports():

@@ -51,7 +51,7 @@ class NetworkStateManager:
         self.qos_simulator = QoSSimulator()
         self._cell_lookup = None
 
-    def get_feature_vector(self, ue_id):
+    def get_feature_vector(self, ue_id, *, simulate_qos: bool = True):
         """
         Return a dict of features for ML based on current state.
         """
@@ -119,25 +119,24 @@ class NetworkStateManager:
             "neighbor_cell_loads": antenna_loads,
         }
 
-        # Generate synthetic QoS observations for the current snapshot.
-        try:
-            simulation_context = {
-                "position": state["position"],
-                "speed": speed,
-                "connected_to": connected,
-                "neighbor_rsrp_dbm": rsrp_dbm,
-                "neighbor_cell_loads": antenna_loads,
-            }
-            simulated = self.qos_simulator.estimate(simulation_context)
-            if simulated:
-                self.qos_monitor.update_qos_metrics(ue_id, simulated)
-        except Exception:  # noqa: BLE001 - defensive
-            self.logger.exception("Failed to simulate QoS metrics for UE %s", ue_id)
+        if simulate_qos:
+            self.simulate_qos_observation(
+                ue_id,
+                position=state["position"],
+                speed=speed,
+                connected_to=connected,
+                neighbor_rsrp_dbm=rsrp_dbm,
+                neighbor_cell_loads=antenna_loads,
+            )
 
         observed_qos = self.qos_monitor.get_qos_metrics(ue_id)
         if observed_qos is not None:
             features["observed_qos"] = observed_qos
         return features
+
+    def peek_feature_vector(self, ue_id):
+        """Return ML features without mutating synthetic QoS observations."""
+        return self.get_feature_vector(ue_id, simulate_qos=False)
 
     # ------------------------------------------------------------------
     # QoS helpers
@@ -158,6 +157,31 @@ class NetworkStateManager:
             self.qos_monitor.update_qos_metrics(ue_id, metrics)
         except Exception:  # noqa: BLE001 - log and continue
             self.logger.exception("Failed to record QoS metrics for UE %s", ue_id)
+
+    def simulate_qos_observation(
+        self,
+        ue_id: str,
+        *,
+        position,
+        speed: float,
+        connected_to: Optional[str],
+        neighbor_rsrp_dbm: Dict[str, float],
+        neighbor_cell_loads: Dict[str, int],
+    ) -> None:
+        """Generate and record one synthetic QoS observation for an explicit tick."""
+        try:
+            simulation_context = {
+                "position": position,
+                "speed": speed,
+                "connected_to": connected_to,
+                "neighbor_rsrp_dbm": neighbor_rsrp_dbm,
+                "neighbor_cell_loads": neighbor_cell_loads,
+            }
+            simulated = self.qos_simulator.estimate(simulation_context)
+            if simulated:
+                self.qos_monitor.update_qos_metrics(ue_id, simulated)
+        except Exception:  # noqa: BLE001 - defensive
+            self.logger.exception("Failed to simulate QoS metrics for UE %s", ue_id)
 
     def get_observed_qos(self, ue_id: str) -> Optional[Dict[str, float]]:
         """Return observed QoS aggregates for ``ue_id`` if available."""
@@ -209,7 +233,8 @@ class NetworkStateManager:
             return None
         try:
             return self._cell_lookup(cell_key)
-        except Exception:  # noqa: BLE001 - defensive guard
+        except Exception as exc:  # noqa: BLE001 - defensive guard
+            self.logger.warning("Cell lookup failed for %s: %s", cell_key, exc)
             return None
 
     def get_position_at_time(self, ue_id, query_time):

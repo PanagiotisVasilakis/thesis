@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -17,6 +18,44 @@ from ..monitoring import metrics
 
 from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
+
+
+_FALLBACK_CELL_CONFIGS = {
+    "antenna_1": {"latitude": 0.0, "longitude": 0.0},
+    "antenna_2": {"latitude": 1000.0, "longitude": 0.0},
+    "antenna_3": {"latitude": 0.0, "longitude": 866.0},
+    "antenna_4": {"latitude": 1000.0, "longitude": 866.0},
+}
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Compute distance in meters without depending on the ML service package."""
+    radius_m = 6_371_000.0
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(delta_lat / 2.0) ** 2
+        + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2.0) ** 2
+    )
+    c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+    return radius_m * c
+
+
+def _get_cell_configs() -> dict:
+    try:
+        from ml_service.app.config.cells import CELL_CONFIGS
+
+        return CELL_CONFIGS
+    except Exception:
+        return _FALLBACK_CELL_CONFIGS
+
+
+def _cell_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    if max(abs(lat1), abs(lat2)) > 90.0 or max(abs(lon1), abs(lon2)) > 180.0:
+        return math.hypot(lat2 - lat1, lon2 - lon1)
+    return haversine_distance(lat1, lon1, lat2, lon2)
 
 
 class HandoverEngine:
@@ -44,9 +83,15 @@ class HandoverEngine:
         a3_hysteresis_db: float = 2.0,
         a3_ttt_s: float = 0.0,
         confidence_threshold: float = 0.5,
+        clock=None,
     ) -> None:
         self.state_mgr = state_mgr
-        self.logger = getattr(state_mgr, "logger", logging.getLogger("HandoverEngine"))
+        candidate_logger = getattr(state_mgr, "logger", None)
+        self.logger = (
+            candidate_logger
+            if isinstance(candidate_logger, logging.Logger)
+            else logging.getLogger("HandoverEngine")
+        )
         self.ml_model_path = ml_model_path
         self.ml_service_url = ml_service_url or os.getenv(
             "ML_SERVICE_URL", "http://ml-service:5050"
@@ -123,6 +168,12 @@ class HandoverEngine:
         self.coverage_margin_factor = parse_env_float("COVERAGE_MARGIN_FACTOR", float(self.COVERAGE_MARGIN_FACTOR))
         self._last_ml_error_reason: Optional[str] = None
         self._last_ml_http_status: Optional[int] = None
+        self._clock = clock
+
+    def _now(self) -> datetime:
+        if self._clock is not None:
+            return self._clock()
+        return datetime.now(timezone.utc)
 
     def _update_mode(self) -> None:
         """Update handover mode automatically based on antenna count."""
@@ -352,7 +403,7 @@ class HandoverEngine:
             logger.exception("Remote ML request failed", exc_info=exc)
             return None
     
-    def _select_rule_with_features(self, ue_id: str, fv: dict) -> Optional[str]:
+    def _select_rule_with_features(self, ue_id: str, fv: dict, now: Optional[datetime] = None) -> Optional[str]:
         """Make A3 rule decision using pre-computed features with per-UE TTT tracking.
         
         This implements proper 3GPP-compliant Time-to-Trigger (TTT) logic where each
@@ -363,7 +414,7 @@ class HandoverEngine:
         if not current:
             return None
         
-        now = datetime.now(timezone.utc)
+        now = now or self._now()
         rsrp_map = fv.get("neighbor_rsrp_dbm", {})
         rsrq_map = fv.get("neighbor_rsrqs", {})
         
@@ -391,7 +442,10 @@ class HandoverEngine:
             target_metrics = {"rsrp": rsrp, "rsrq": neighbor_rsrq} if neighbor_rsrq is not None else rsrp
             
             # Check A3 condition (without TTT - pure signal comparison)
-            a3_met = self.rule.check_condition(serving_metrics, target_metrics)
+            if hasattr(self.rule, "check_condition"):
+                a3_met = self.rule.check_condition(serving_metrics, target_metrics)
+            else:
+                a3_met = self.rule.check(serving_metrics, target_metrics, now)
             
             if a3_met:
                 active_targets.add(aid)
@@ -576,22 +630,29 @@ class HandoverEngine:
 
     # ------------------------------------------------------------------
 
-    def decide_and_apply(self, ue_id: str):
-        """Select the best antenna and apply the handover with structured logging."""
+    def evaluate_and_apply_handover(
+        self,
+        ue_id: str,
+        features: Optional[dict] = None,
+        source: str = "direct",
+    ):
+        """Evaluate one canonical handover decision and apply it if needed."""
         self._update_mode()
+        decision_time = self._now()
         
         # Initialize decision log for thesis analysis
         fv = None
         decision_log = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": decision_time.isoformat(),
             "ue_id": ue_id,
+            "source": source,
             "num_antennas": len(self.state_mgr.antenna_list),
             "ml_auto_activated": self._auto if hasattr(self, '_auto') else False,
         }
         
         try:
             # Get current state for logging
-            fv = self.state_mgr.get_feature_vector(ue_id)
+            fv = features if features is not None else self.state_mgr.get_feature_vector(ue_id)
             decision_log["current_antenna"] = fv.get("connected_to")
             decision_log["ue_speed"] = fv.get("speed", 0.0)
             decision_log["ue_position"] = {
@@ -612,12 +673,12 @@ class HandoverEngine:
                 "hysteresis_db": self._a3_params[0],
                 "ttt_seconds": self._a3_params[1]
             }
-            target = self._select_rule(ue_id)
+            target = self._select_rule_with_features(ue_id, fv, now=decision_time) if fv else self._select_rule(ue_id)
             decision_log["a3_target"] = target
             
         elif current_mode == "ml":
             # Pure ML mode - no A3 fallback
-            result = self._select_ml(ue_id)
+            result = self._select_ml_with_features(ue_id, fv) if fv else self._select_ml(ue_id)
             decision_log["ml_response"] = result
             
             if result is None:
@@ -637,7 +698,7 @@ class HandoverEngine:
                 
         else:
             # Hybrid mode (default) - ML with A3 fallback on failures
-            result = self._select_ml(ue_id)
+            result = self._select_ml_with_features(ue_id, fv) if fv else self._select_ml(ue_id)
             decision_log["ml_response"] = result
             
             if result is None:
@@ -649,7 +710,7 @@ class HandoverEngine:
                 decision_log["fallback_to_a3"] = True
                 metrics.HANDOVER_FALLBACKS.inc()
                 self._record_fallback_metrics(None, fallback_reason)
-                target = self._select_rule(ue_id)
+                target = self._select_rule_with_features(ue_id, fv, now=decision_time) if fv else self._select_rule(ue_id)
                 decision_log["a3_fallback_target"] = target
             else:
                 decision_log["ml_available"] = True
@@ -700,19 +761,8 @@ class HandoverEngine:
                             "qos_compliance_failed",
                             qos_comp.get("violations"),
                         )
-                        target = self._select_rule(ue_id)
+                        target = self._select_rule_with_features(ue_id, fv, now=decision_time) if fv else self._select_rule(ue_id)
                         decision_log["a3_fallback_target"] = target
-                        
-                        # If the rule-based selector found no candidate, use the
-                        # current serving cell as a safe fallback
-                        if not target:
-                            try:
-                                fv = self.state_mgr.get_feature_vector(ue_id)
-                                target = fv.get("connected_to")
-                                decision_log["final_fallback"] = "current_cell"
-                            except Exception:
-                                target = None
-                                decision_log["final_fallback"] = "none"
                 else:
                     # Legacy behavior: use confidence threshold
                     decision_log["qos_compliance"] = {"checked": False}
@@ -723,21 +773,11 @@ class HandoverEngine:
                         decision_log["confidence_threshold"] = self.confidence_threshold
                         metrics.HANDOVER_FALLBACKS.inc()
                         self._record_fallback_metrics(None, "low_confidence")
-                        target = self._select_rule(ue_id)
+                        target = self._select_rule_with_features(ue_id, fv, now=decision_time) if fv else self._select_rule(ue_id)
                         decision_log["a3_fallback_target"] = target
 
         resolved_current = self.state_mgr.resolve_antenna_id(decision_log.get("current_antenna"))
         resolved_target = self.state_mgr.resolve_antenna_id(target) if target else None
-
-        decision_log["final_target"] = resolved_target or target
-        decision_log["handover_triggered"] = target is not None
-
-        # Log structured JSON for thesis analysis
-        self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
-
-        if not target:
-            decision_log["outcome"] = "no_handover"
-            return None
 
         # COVERAGE LOSS DETECTION: Check if UE has moved outside current cell
         coverage_loss_detected = False
@@ -750,9 +790,7 @@ class HandoverEngine:
                 
                 if current_cell:
                     try:
-                        from ml_service.app.config.cells import haversine_distance
-                        
-                        distance_to_current = haversine_distance(
+                        distance_to_current = _cell_distance(
                             float(ue_lat), float(ue_lon),
                             float(current_cell.latitude), float(current_cell.longitude)
                         )
@@ -782,20 +820,32 @@ class HandoverEngine:
                                     resolved_target = self.state_mgr.resolve_antenna_id(nearest_cell)
                                     decision_log["forced_handover"] = True
                                     decision_log["fallback_reason"] = "coverage_loss"
-                                    decision_log["final_target"] = resolved_target or target
                                     metrics.COVERAGE_LOSS_HANDOVERS.inc()
                                     metrics.HANDOVER_DECISIONS.labels(outcome="forced_coverage_loss").inc()
-                    except ImportError:
-                        self.logger.debug("Cell config unavailable for coverage check")
                     except Exception as exc:  # noqa: BLE001
                         self.logger.debug("Coverage check failed: %s", exc)
+
+        resolved_target = self.state_mgr.resolve_antenna_id(target) if target else None
+        decision_log["final_target"] = resolved_target or target
+        decision_log["handover_triggered"] = target is not None
+
+        if not target:
+            decision_log["outcome"] = "no_handover"
+            self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
+            self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
+            return None
 
         # Check if already connected (only if no coverage loss)
         if resolved_target is not None and resolved_target == resolved_current:
             if not coverage_loss_detected:
                 decision_log["handover_triggered"] = False
                 decision_log["outcome"] = "already_connected"
+                self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
                 self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
+                try:
+                    self._send_qos_feedback(ue_id, decision_log, fv)
+                except Exception as exc:  # noqa: BLE001
+                    self.logger.exception("Failed to send QoS feedback", exc_info=exc)
                 return None
             # If coverage loss was detected, proceed with handover even if target == current
 
@@ -804,13 +854,19 @@ class HandoverEngine:
         if handover_result is None:
             decision_log["handover_triggered"] = False
             decision_log["outcome"] = "already_connected"
+            self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
             self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
+            try:
+                self._send_qos_feedback(ue_id, decision_log, fv)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.exception("Failed to send QoS feedback", exc_info=exc)
             return None
         
         decision_log["outcome"] = "applied"
         decision_log["handover_result"] = handover_result
         
         # Final log with complete decision trace
+        self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
         self.logger.info("HANDOVER_APPLIED: %s", json.dumps(decision_log))
  
         try:
@@ -819,6 +875,14 @@ class HandoverEngine:
             self.logger.exception("Failed to send QoS feedback", exc_info=exc)
 
         return handover_result
+
+    def decide_and_apply(self, ue_id: str, features: Optional[dict] = None):
+        """Backward-compatible wrapper for the canonical handover API."""
+        return self.evaluate_and_apply_handover(
+            ue_id,
+            features=features,
+            source="legacy_decide_and_apply",
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers for QoS-aware logging
@@ -914,7 +978,7 @@ class HandoverEngine:
             "observed_qos": observed_latest,
             "qos_requirements": qos_requirements,
             "violations": compliance.get("violations"),
-            "timestamp": datetime.now(timezone.utc).timestamp(),
+            "timestamp": self._now().timestamp(),
         }
 
         endpoint = f"{self.ml_service_url.rstrip('/')}/api/qos-feedback"
@@ -948,18 +1012,14 @@ class HandoverEngine:
         if ue_position[0] is None or ue_position[1] is None:
             return None
         
-        try:
-            from ml_service.app.config.cells import CELL_CONFIGS, haversine_distance
-        except ImportError:
-            self.logger.warning("Cell configuration not available for distance calculation")
-            return None
+        cell_configs = _get_cell_configs()
         
         nearest_cell = None
         min_distance = float('inf')
         
-        for antenna_id, config in CELL_CONFIGS.items():
+        for antenna_id, config in cell_configs.items():
             try:
-                distance = haversine_distance(
+                distance = _cell_distance(
                     ue_position[0], ue_position[1],
                     config["latitude"], config["longitude"]
                 )

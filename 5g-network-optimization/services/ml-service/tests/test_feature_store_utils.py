@@ -1,7 +1,7 @@
 import importlib
 import sys
 from pathlib import Path
-from types import SimpleNamespace, ModuleType
+from types import ModuleType
 
 
 def _reload_module(monkeypatch, dummy_class):

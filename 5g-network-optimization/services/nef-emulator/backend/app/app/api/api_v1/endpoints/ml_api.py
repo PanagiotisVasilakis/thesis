@@ -137,7 +137,7 @@ def apply_handover(ue_id: str):
     POST /api/v1/ml/handover?ue_id=<>
     """
     try:
-        result = engine.decide_and_apply(ue_id)
+        result = engine.evaluate_and_apply_handover(ue_id, source="ml_api")
         if result is None:
             metrics.HANDOVER_DECISIONS.labels(outcome="none").inc()
             raise HTTPException(status_code=400, detail="No handover triggered")

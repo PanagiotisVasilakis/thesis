@@ -1,9 +1,8 @@
 """Tests for async model operations functionality."""
 
 import pytest
-import asyncio
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from ml_service.app.models.async_model_operations import (
     AsyncModelManager,
@@ -13,9 +12,7 @@ from ml_service.app.models.async_model_operations import (
     ModelOperationQueue,
     AsyncModelWorker,
     get_async_model_manager,
-    predict_async,
-    train_async,
-    evaluate_async
+    predict_async
 )
 from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.utils.exception_handler import ModelError

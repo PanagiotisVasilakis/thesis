@@ -31,7 +31,6 @@ def find_assets(directory: Path, extensions: List[str]) -> List[Path]:
 def add_image_page(c: canvas.Canvas, image_path: Path, caption: str):
     width, height = letter
     margin = 0.5 * inch
-    available_height = height - 2 * margin - 0.5 * inch  # space for caption
 
     c.setFont("Helvetica", 12)
     c.drawCentredString(width / 2.0, margin / 2.0, caption)

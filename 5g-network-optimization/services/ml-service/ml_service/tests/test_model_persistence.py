@@ -1,4 +1,3 @@
-import tempfile
 import os
 
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
@@ -42,7 +41,7 @@ def make_sample(i):
 def test_save_and_load_model(tmp_path):
     samples = [make_sample(i) for i in range(15)]
     model = LightGBMSelector(model_path=None, n_estimators=5)
-    metrics = model.train(samples)
+    model.train(samples)
 
     out = tmp_path / "model.pkl"
     model_path = str(out)

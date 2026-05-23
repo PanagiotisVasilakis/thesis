@@ -71,7 +71,7 @@ class PingPongValidator:
             )
             response.raise_for_status()
             token = response.json()["access_token"]
-            self.log(f"✓ Obtained NEF auth token")
+            self.log("✓ Obtained NEF auth token")
             return token
         except Exception as e:
             self.log(f"✗ Failed to get NEF token: {e}")
@@ -283,7 +283,7 @@ class PingPongValidator:
             try:
                 payload = {k: v for k, v in ue_template.items() if k != "supi"}
                 payload.update({"latitude": lat, "longitude": lon})
-                update_response = requests.put(
+                requests.put(
                     f"{API_PREFIX}/UEs/{ue_id}",
                     json=payload,
                     headers=headers
@@ -315,7 +315,7 @@ class PingPongValidator:
                         last_handover_time = datetime.now()
                     
                     elif result.get("reason") == "ping_pong_prevention":
-                        self.log(f"  ✓ Ping-pong prevented by ML")
+                        self.log("  ✓ Ping-pong prevented by ML")
             
             except Exception as e:
                 self.log(f"  ⚠ Error during oscillation: {e}")
@@ -348,8 +348,8 @@ class PingPongValidator:
         self.section("PING-PONG PREVENTION VALIDATION")
         print(f"Test Duration: {TEST_DURATION_SECONDS}s per mode")
         print(f"Oscillation Interval: {OSCILLATION_INTERVAL_SECONDS}s")
-        print(f"Expected ML: 1-5 handovers (prevention active)")
-        print(f"Expected A3: 15-30 handovers (ping-pong active)")
+        print("Expected ML: 1-5 handovers (prevention active)")
+        print("Expected A3: 15-30 handovers (ping-pong active)")
         print()
         
         # Get authentication
@@ -396,7 +396,7 @@ class PingPongValidator:
             positions=positions,
         )
         
-        self.log(f"\nML Mode Results:")
+        self.log("\nML Mode Results:")
         self.log(f"  Handovers: {ml_handovers}")
         self.log(f"  Ping-pong events: {ml_pingpong}")
         
@@ -421,7 +421,7 @@ class PingPongValidator:
             positions=positions,
         )
         
-        self.log(f"\nA3 Mode Results:")
+        self.log("\nA3 Mode Results:")
         self.log(f"  Handovers: {a3_handovers}")
         self.log(f"  Ping-pong events: {a3_pingpong}")
         

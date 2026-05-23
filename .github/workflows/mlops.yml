@@ -1,16 +1,22 @@
 name: ML Ops Pipeline
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
+    inputs:
+      registry:
+        description: "Container registry, for example ghcr.io/owner"
+        required: true
+      deploy:
+        description: "Set to true only when kubectl and cluster credentials are configured"
+        required: true
+        default: "false"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     env:
-      REGISTRY: ghcr.io/my-org
-      MLFLOW_TRACKING_URI: http://mlflow.example.com
+      REGISTRY: ${{ github.event.inputs.registry }}
+      MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -29,7 +35,7 @@ jobs:
 
       - name: Build Docker images
         run: |
-          docker build -t $REGISTRY/nef-emulator:${{ github.sha }} 5g-network-optimization/services/nef-emulator
+          docker build -f 5g-network-optimization/services/nef-emulator/backend/Dockerfile.backend -t $REGISTRY/nef-emulator:${{ github.sha }} 5g-network-optimization
           docker build -t $REGISTRY/ml-service:${{ github.sha }} 5g-network-optimization/services/ml-service
           echo ${{ secrets.REGISTRY_TOKEN }} | docker login $REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
           docker push $REGISTRY/nef-emulator:${{ github.sha }}
@@ -40,11 +46,13 @@ jobs:
           python mlops/feast_repo/feature_repo.py
 
       - name: Train and register model
+        if: env.MLFLOW_TRACKING_URI != ''
         run: |
           python 5g-network-optimization/services/ml-service/collect_training_data.py --duration 30 --interval 1 --train
           mlflow models register -m mlruns/0/*/artifacts/model -n handover-model
 
       - name: Deploy with canary release
+        if: github.event.inputs.deploy == 'true'
         run: |
           kubectl set image deployment/ml-service ml-service=$REGISTRY/ml-service:${{ github.sha }} --record
           kubectl rollout status deployment/ml-service

@@ -1,5 +1,4 @@
 import math
-import pytest
 from ml_service.app.utils.synthetic_data import generate_synthetic_training_data
 
 

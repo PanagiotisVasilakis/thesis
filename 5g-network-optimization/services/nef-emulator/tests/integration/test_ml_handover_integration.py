@@ -66,6 +66,7 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
     """Return FastAPI TestClient for the NEF emulator routing."""
     backend_root = Path(__file__).resolve().parents[2] / "backend" / "app"
     monkeypatch.syspath_prepend(str(backend_root))
+    monkeypatch.setenv("TESTING", "1")
     monkeypatch.setenv("ML_HANDOVER_ENABLED", "1")
 
     for name in list(sys.modules.keys()):
@@ -134,7 +135,7 @@ def _create_nef_client(monkeypatch: pytest.MonkeyPatch, ml_client):
     spec_ml.loader.exec_module(ml_api)
 
     app = FastAPI()
-    app.include_router(ml_api.router, prefix="/api/v1")
+    app.include_router(ml_api.router, prefix="/api/v1/ml")
     # ASGITransport expects a concrete ASGI app; cast for type checkers
     transport = ASGITransport(app=cast(Any, app))
     return TestClient(transport=transport), ml_api
@@ -178,7 +179,8 @@ def test_handover_triggers_prediction(monkeypatch: pytest.MonkeyPatch) -> None:
     base_failed = metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="failed")._value.get()
     base_fallbacks = metrics_mod.HANDOVER_FALLBACKS._value.get()
     resp2 = nef_client.post("/api/v1/ml/handover", params={"ue_id": "u1"})
-    assert resp2.status_code == 200
-    # Fallback may choose same or different antenna; ensure fallback counter incremented
+    assert resp2.status_code == 400
+    assert resp2.json()["detail"] == "No handover triggered"
+    # Explicit hybrid fallback ran, but A3 had no better target from the current cell.
     assert metrics_mod.HANDOVER_COMPLIANCE.labels(outcome="failed")._value.get() == base_failed + 1
     assert metrics_mod.HANDOVER_FALLBACKS._value.get() == base_fallbacks + 1

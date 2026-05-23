@@ -6,8 +6,8 @@ from app.db.base_class import Base
 
 if TYPE_CHECKING:
     from .user import User  # noqa: F401
-    from .UE import UE  # noqa: F401
-    from .gNB import gNB  # noqa: F401
+    from .UE import UE as UEModel  # noqa: F401
+    from .gNB import gNB as GNBModel  # noqa: F401
 
 
 class Cell(Base):
@@ -30,4 +30,3 @@ class Cell(Base):
     owner = relationship("User", back_populates="Cells")
     UE = relationship("UE", back_populates="Cell")
     gNB = relationship("gNB", back_populates="Cells")
-

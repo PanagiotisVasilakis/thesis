@@ -41,7 +41,6 @@ class ThreadFailureHandler(ABC):
         Returns:
             True if the failure was handled successfully, False otherwise.
         """
-        pass
 
 
 class LoggingFailureHandler(ThreadFailureHandler):

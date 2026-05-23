@@ -11,11 +11,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..config.constants import (
     env_constants,
-    DEFAULT_COLLECTION_DURATION,
-    DEFAULT_COLLECTION_INTERVAL,
-    DEFAULT_NEF_TIMEOUT,
-    DEFAULT_COLLECTION_RETRIES,
-    DEFAULT_STATS_LOG_INTERVAL,
 )
 from ..utils.common_validators import (
     DataCollectionValidator,
@@ -290,10 +285,9 @@ class _CollectorComponents:
 
         stability = float(1.0 / (1.0 + heading_change_rate + path_curvature))
 
-        qos_payload = qos_requirements or {}
         optimal_antenna, antenna_scores = select_optimal_antenna(
             rf_metrics if rf_metrics else {connected_cell_id: serving_metrics},
-            qos_requirements=qos_payload,
+            qos_requirements=qos_requirements or {},
             service_type=service_type,
             service_priority=service_priority,
             stability=stability,
@@ -391,7 +385,7 @@ class _CollectorComponents:
             "rf_metrics": rf_metrics,
             "service_type": service_type,
             "service_priority": service_priority,
-            "qos_requirements": qos_payload,
+            "qos_requirements": qos_requirements,
             "stability": stability,
             "antenna_selection_scores": {k: float(v) for k, v in antenna_scores.items()},
             "optimal_score_margin": score_margin,
@@ -571,7 +565,9 @@ class NEFDataCollector:
             return None, None, None
         except Exception as exc:  # pragma: no cover - defensive logging
             self.logger.exception(
-                "Unexpected error retrieving QoS requirements for UE %s", ue_id
+                "Unexpected error retrieving QoS requirements for UE %s: %s",
+                ue_id,
+                exc,
             )
             return None, None, None
 
@@ -631,7 +627,7 @@ class NEFDataCollector:
 
     def get_ue_movement_state(self):
         """Get current state of all UEs in movement."""
-        with exception_context("Getting UE movement state", reraise=False, default_return={}) as handler:
+        with exception_context("Getting UE movement state", reraise=False, default_return={}):
             state = self.client.get_ue_movement_state()
             if state is not None:
                 ue_count = len(state.keys())
@@ -686,7 +682,7 @@ class NEFDataCollector:
         end_time = start_time + duration
 
         while time.time() < end_time:
-            with exception_context("Data collection iteration", reraise=False) as handler:
+            with exception_context("Data collection iteration", reraise=False):
                 # Log memory statistics periodically
                 self._log_memory_stats()
                 
@@ -910,7 +906,7 @@ class AsyncNEFDataCollector:
         end_time = start_time + duration
 
         while time.time() < end_time:
-            with exception_context("Async data collection iteration", reraise=False) as handler:
+            with exception_context("Async data collection iteration", reraise=False):
                 # Log memory statistics periodically
                 self._log_memory_stats()
                 
@@ -969,7 +965,11 @@ class AsyncNEFDataCollector:
                 self._missing_qos_logged.add(ue_id)
             return None, None, None
         except Exception as exc:  # pragma: no cover - defensive logging
-            self.logger.exception("Unexpected error retrieving QoS requirements for UE %s", ue_id)
+            self.logger.exception(
+                "Unexpected error retrieving QoS requirements for UE %s: %s",
+                ue_id,
+                exc,
+            )
             return None, None, None
 
         service_type, service_priority, qos_requirements = _normalize_qos_payload(

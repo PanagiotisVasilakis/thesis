@@ -4,9 +4,7 @@ Tests thread safety, seed propagation, and UE RNG caching.
 """
 import os
 import threading
-import time
 import unittest
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 
@@ -17,7 +15,7 @@ class TestReproducibility(unittest.TestCase):
     def setUp(self):
         """Reset state before each test."""
         # Import here to get fresh module state
-        from scripts.core.reproducibility import clear_all_ue_rngs, setup_reproducibility
+        from scripts.core.reproducibility import clear_all_ue_rngs
         clear_all_ue_rngs()
         # Clear environment
         if "EXPERIMENT_SEED" in os.environ:

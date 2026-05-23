@@ -1,9 +1,7 @@
 """Tests for input sanitization functionality."""
 
 import pytest
-import json
 from flask import Flask, request, jsonify
-from unittest.mock import patch
 
 from ml_service.app.security.input_sanitizer import (
     InputSanitizer,
@@ -16,7 +14,6 @@ from ml_service.app.security.input_sanitizer import (
 from ml_service.app.security.validation_decorators import (
     sanitize_and_validate_json,
     sanitize_path_params,
-    sanitize_query_params,
     sanitize_ue_id,
     sanitize_antenna_id,
     sanitize_model_version,

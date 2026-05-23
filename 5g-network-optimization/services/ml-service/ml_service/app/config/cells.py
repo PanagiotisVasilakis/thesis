@@ -55,3 +55,11 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     a = sin(delta_lat / 2.0) ** 2 + cos(lat1_rad) * cos(lat2_rad) * sin(delta_lon / 2.0) ** 2
     c = 2.0 * atan2(sqrt(a), sqrt(max(0.0, 1.0 - a)))
     return r * c
+
+
+def cell_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Distance for either real lat/lon pairs or the thesis synthetic grid."""
+
+    if max(abs(lat1), abs(lat2)) > 90.0 or max(abs(lon1), abs(lon2)) > 180.0:
+        return sqrt((lat2 - lat1) ** 2 + (lon2 - lon1) ** 2)
+    return haversine_distance(lat1, lon1, lat2, lon2)

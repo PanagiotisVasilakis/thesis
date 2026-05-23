@@ -46,7 +46,7 @@ def qos_notification_control(doc, ipv4, ues: dict, current_ue: dict):
 
     if qos_standardized.get('type') == 'GBR' or qos_standardized.get('type') == 'DC-GBR':
         try:
-            response = qos_callback(doc.get('notificationDestination'), doc.get('link'), gbr_status, ipv4)
+            qos_callback(doc.get('notificationDestination'), doc.get('link'), gbr_status, ipv4)
             logging.info("QoS callback sent to %s", doc.get('notificationDestination'))
         except requests.exceptions.Timeout as ex:
             logging.error("QoS callback timed out: %s", ex)

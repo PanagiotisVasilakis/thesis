@@ -1,10 +1,9 @@
 """API routes for ML Service."""
-from flask import jsonify, request, current_app, g
+from flask import jsonify, request, current_app
 import time
 import math
 from pathlib import Path
 import asyncio
-from pydantic import ValidationError
 
 from . import api_bp
 from .decorators import require_auth, require_roles, handle_model_errors

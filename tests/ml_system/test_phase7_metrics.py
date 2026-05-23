@@ -149,9 +149,12 @@ class TestPhase7Metrics:
     def test_coverage_loss_counter_exists(self):
         """Coverage loss counter should exist in NEF metrics."""
         # Skip if NEF not available (ML service tests only)
-        pytest.importorskip("app.monitoring.metrics", reason="NEF module not available")
-        
-        from app.monitoring import metrics as nef_metrics
+        pytest.importorskip(
+            "backend.app.app.monitoring.metrics",
+            reason="NEF module not available",
+        )
+
+        from backend.app.app.monitoring import metrics as nef_metrics
         
         # Should have coverage loss counter
         assert hasattr(nef_metrics, 'COVERAGE_LOSS_HANDOVERS')

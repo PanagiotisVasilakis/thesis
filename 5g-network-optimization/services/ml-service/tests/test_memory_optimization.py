@@ -2,7 +2,6 @@
 
 import pytest
 import time
-import gc
 from unittest.mock import patch, MagicMock
 
 from ml_service.app.utils.optimized_memory_dict import (

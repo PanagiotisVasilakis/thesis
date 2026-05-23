@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 from functools import wraps
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -123,8 +124,6 @@ def save_figure_multiformat(
         >>> saved = save_figure_multiformat(fig, Path("output/plot.png"))
         >>> print(saved)  # [Path("output/plot.png"), Path("output/plot.pdf")]
     """
-    from pathlib import Path
-    
     if not MATPLOTLIB_AVAILABLE or fig is None:
         return []
     

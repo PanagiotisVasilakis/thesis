@@ -1,14 +1,13 @@
 """State observers for monitoring and reacting to state changes."""
 
 import logging
-import time
 from typing import Dict, Any, List, Optional, Callable
 from collections import defaultdict
 import threading
 
-from .state_management import StateObserver, StateChange, StateChangeType
+from .state_management import StateObserver, StateChange
 from ..utils.exception_handler import safe_execute
-from ..monitoring.metrics import track_prediction, track_training
+from ..monitoring.metrics import track_prediction
 
 logger = logging.getLogger(__name__)
 

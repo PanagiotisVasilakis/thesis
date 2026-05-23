@@ -91,7 +91,7 @@ def _create_client(monkeypatch: pytest.MonkeyPatch):
     spec_ml.loader.exec_module(ml_api)
 
     app = FastAPI()
-    app.include_router(ml_api.router, prefix="/api/v1")
+    app.include_router(ml_api.router, prefix="/api/v1/ml")
     return TestClient(transport=ASGITransport(app=app)), ml_api, dummy_model
 
 

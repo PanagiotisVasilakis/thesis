@@ -55,13 +55,10 @@ from ..config.constants import (
     DEFAULT_DATA_DRIFT_MAX_SAMPLES,
     DEFAULT_SAMPLE_CHECK_INTERVAL,
     DEFAULT_METRICS_INTERVAL,
-    DEFAULT_METRICS_STOP_TIMEOUT,
-    env_constants
+    DEFAULT_METRICS_STOP_TIMEOUT
 )
 from ..utils.exception_handler import (
     ExceptionHandler,
-    ResourceError,
-    exception_context,
     safe_execute,
     ErrorSeverity
 )

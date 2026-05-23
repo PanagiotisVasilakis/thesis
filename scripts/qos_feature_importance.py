@@ -81,7 +81,7 @@ def apply_qos_defaults(sample: Dict[str, float | int | str]) -> None:
 
     latency_obs = float(sample.setdefault("observed_latency_ms", sample.get("latency_ms", latency_req)))
     throughput_obs = float(sample.setdefault("observed_throughput_mbps", sample.get("throughput_mbps", throughput_req)))
-    jitter_obs = float(sample.setdefault("observed_jitter_ms", sample.get("jitter_ms", DEFAULT_QOS_FEATURES["jitter_ms"])))
+    float(sample.setdefault("observed_jitter_ms", sample.get("jitter_ms", DEFAULT_QOS_FEATURES["jitter_ms"])))
     loss_obs = float(sample.setdefault("observed_packet_loss_rate", sample.get("packet_loss_rate", DEFAULT_QOS_FEATURES["packet_loss_rate"])))
 
     sample.setdefault("latency_delta_ms", latency_obs - latency_req)

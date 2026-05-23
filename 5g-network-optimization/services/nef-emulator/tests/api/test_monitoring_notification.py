@@ -86,6 +86,9 @@ def _setup_module(monkeypatch, user=None):
         return None
     utils_mod.add_notifications = _noop
     utils_mod.ccf_logs = _noop
+    utils_mod.log_to_capif = _noop
+    utils_mod.log_error_to_capif = _noop
+    utils_mod.get_valid_subscription = lambda *a, **k: None
     ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
     ue_move_mod.retrieve_ue_state = lambda *a, **k: False
     ue_move_mod.retrieve_ue = lambda *a, **k: {}
@@ -137,10 +140,6 @@ def _make_request(body: bytes = b"{}"):
     async def receive():
         return {"type": "http.request", "body": body, "more_body": False}
     return Request(scope, receive)
-
-
-import pytest
-
 
 @pytest.mark.asyncio
 async def test_monitoring_notification_success(monkeypatch):

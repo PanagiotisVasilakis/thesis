@@ -2,8 +2,6 @@ from fastapi import APIRouter
 
 from app.api.api_v1 import endpoints
 from .endpoints import (
-     monitoringevent,
-     qosInformation,
      mobility_patterns,
  )
 from .endpoints.ml_api import router as ml_router

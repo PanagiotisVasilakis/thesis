@@ -1,6 +1,5 @@
 """Antenna radiation patterns based on 3GPP specifications."""
 import numpy as np
-import math
 from abc import ABC, abstractmethod
 
 class AntennaPattern(ABC):

@@ -22,8 +22,6 @@ import logging
 import os
 import platform
 import statistics
-import subprocess
-import sys
 import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime

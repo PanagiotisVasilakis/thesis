@@ -1,4 +1,3 @@
-import pytest
 
 from ml_service.app.api_lib import predict
 from ml_service.app.monitoring import metrics

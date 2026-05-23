@@ -1,4 +1,3 @@
-import pytest
 from ml_service.app.models.online_handover_model import OnlineHandoverModel
 
 

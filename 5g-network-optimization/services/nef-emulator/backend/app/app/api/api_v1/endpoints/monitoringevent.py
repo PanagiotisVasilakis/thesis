@@ -4,11 +4,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app import models, schemas
-from app.crud import crud_mongo, user, ue
+from app.crud import crud_mongo, ue
 from app.api import deps
 from app import tools
 from app.db.session import client
-from app.api.api_v1.endpoints.utils import add_notifications, ccf_logs, log_to_capif, get_valid_subscription
+from app.api.api_v1.endpoints.utils import add_notifications, log_to_capif, get_valid_subscription
 from .ue_movement import retrieve_ue_state, retrieve_ue
 import logging
 

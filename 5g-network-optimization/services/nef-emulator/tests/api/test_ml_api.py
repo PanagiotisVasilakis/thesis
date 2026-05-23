@@ -30,6 +30,9 @@ class DummyEngine:
         self.sm = sm
 
     def decide_and_apply(self, ue_id: str):
+        return self.evaluate_and_apply_handover(ue_id)
+
+    def evaluate_and_apply_handover(self, ue_id: str, features=None, source="test"):
         if ue_id == "ue1":
             return {"ue_id": ue_id, "from": "A", "to": "B"}
         if ue_id == "ue_no":
@@ -41,6 +44,11 @@ class DummyEngine:
 def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Return a TestClient with dummy dependencies injected."""
     backend_root = Path(__file__).resolve().parents[2] / "backend" / "app"
+    monkeypatch.setenv("TESTING", "1")
+    for name in list(sys.modules.keys()):
+        if name == "app" or name.startswith("app."):
+            monkeypatch.delitem(sys.modules, name, raising=False)
+
     spec = importlib.util.spec_from_file_location(
         "ml_api", backend_root / "app" / "api" / "api_v1" / "endpoints" / "ml_api.py"
     )
@@ -74,13 +82,13 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app_pkg.network = network_pkg
     app_pkg.monitoring = monitoring_pkg
 
-    sys.modules.setdefault("app", app_pkg)
-    sys.modules.setdefault("app.handover", handover_pkg)
-    sys.modules.setdefault("app.handover.engine", engine_mod)
-    sys.modules.setdefault("app.network", network_pkg)
-    sys.modules.setdefault("app.network.state_manager", state_mod)
-    sys.modules.setdefault("app.monitoring", monitoring_pkg)
-    sys.modules.setdefault("app.monitoring.metrics", metrics_mod)
+    monkeypatch.setitem(sys.modules, "app", app_pkg)
+    monkeypatch.setitem(sys.modules, "app.handover", handover_pkg)
+    monkeypatch.setitem(sys.modules, "app.handover.engine", engine_mod)
+    monkeypatch.setitem(sys.modules, "app.network", network_pkg)
+    monkeypatch.setitem(sys.modules, "app.network.state_manager", state_mod)
+    monkeypatch.setitem(sys.modules, "app.monitoring", monitoring_pkg)
+    monkeypatch.setitem(sys.modules, "app.monitoring.metrics", metrics_mod)
     spec.loader.exec_module(ml_api)
 
     sm = DummyStateManager()
@@ -89,7 +97,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     monkeypatch.setattr(ml_api, "engine", eng)
 
     app = FastAPI()
-    app.include_router(ml_api.router, prefix="/api/v1")
+    app.include_router(ml_api.router, prefix="/api/v1/ml")
     return TestClient(transport=ASGITransport(app=app))
 
 

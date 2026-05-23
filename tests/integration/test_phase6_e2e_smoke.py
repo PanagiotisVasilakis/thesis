@@ -114,8 +114,8 @@ class TestPhase6E2ESmoke:
             # Prediction should be geographically reasonable
             cell_config = get_cell_config(predicted_antenna)
             if cell_config:
-                from ml_service.app.config.cells import haversine_distance
-                distance = haversine_distance(
+                from ml_service.app.config.cells import cell_distance
+                distance = cell_distance(
                     features["latitude"],
                     features["longitude"],
                     cell_config["latitude"],
@@ -139,7 +139,7 @@ class TestPhase6E2ESmoke:
             pytest.skip("Model not available")
         
         # Get baseline diversity warnings
-        before = metrics.LOW_DIVERSITY_WARNINGS._value.get()
+        metrics.LOW_DIVERSITY_WARNINGS._value.get()
         
         # Make 50 predictions on same sample (should trigger warning)
         sample_features = {
@@ -157,7 +157,7 @@ class TestPhase6E2ESmoke:
             extracted = selector.extract_features(sample_features)
             selector.predict(extracted)
         
-        after = metrics.LOW_DIVERSITY_WARNINGS._value.get()
+        metrics.LOW_DIVERSITY_WARNINGS._value.get()
         
         # Diversity monitoring tracks predictions
         assert len(selector._prediction_history) > 0

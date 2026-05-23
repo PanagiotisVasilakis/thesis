@@ -1,30 +1,20 @@
 """Tests for dependency injection functionality."""
 
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from typing import Dict, Any, List, Optional
 
 from ml_service.app.core.dependency_injection import (
     DIContainer,
-    get_container,
     inject,
-    autowired,
-    ServiceLocator,
-    singleton,
-    transient,
-    factory_method
+    autowired
 )
 from ml_service.app.core.interfaces import (
     ModelInterface,
-    NEFClientInterface,
-    CacheInterface,
-    MetricsCollectorInterface,
-    LoggerInterface
+    CacheInterface
 )
 from ml_service.app.core.service_configuration import (
     configure_services,
-    DefaultModelService,
-    DefaultCacheService,
     ServiceFactory
 )
 from ml_service.app.services.prediction_service import (
@@ -332,12 +322,13 @@ class TestDependencyInjection:
 class TestServiceConfiguration:
     """Test cases for service configuration."""
     
-    def test_configure_services(self):
+    def test_configure_services(self, monkeypatch):
         """Test service configuration."""
+        monkeypatch.setenv("NEF_API_URL", "http://nef")
         container = DIContainer()
         
         # Configure services
-        configure_services(container)
+        configure_services(container, NEF_API_URL="http://nef")
         
         # Check that core services are registered
         assert container.is_registered('ConfigurationInterface')

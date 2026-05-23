@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 
 
 def _setup_module(monkeypatch, user=None):
@@ -42,8 +42,6 @@ def _setup_module(monkeypatch, user=None):
     class AsSessionWithQoSSubscription(AsSessionWithQoSSubscriptionCreate):
         link: str | None = None
 
-    model_config = ConfigDict(from_attributes=True)
-
     class UserPlaneNotificationData(BaseModel):
         transaction: str
         eventReports: list
@@ -75,6 +73,9 @@ def _setup_module(monkeypatch, user=None):
 
     utils_mod.add_notifications = _noop
     utils_mod.ccf_logs = _noop
+    utils_mod.log_to_capif = _noop
+    utils_mod.log_error_to_capif = _noop
+    utils_mod.get_valid_subscription = lambda *a, **k: None
     qos_info_mod = types.ModuleType("app.api.api_v1.endpoints.qosInformation")
     qos_info_mod.qos_reference_match = lambda ref: {"type": "GBR"}
     ue_move_mod = types.ModuleType("app.api.api_v1.endpoints.ue_movement")
@@ -130,10 +131,6 @@ def _make_request(body: bytes = b"{}"):
     async def receive():
         return {"type": "http.request", "body": body, "more_body": False}
     return Request(scope, receive)
-
-
-import pytest
-
 
 @pytest.mark.asyncio
 async def test_qos_notification_success(monkeypatch):

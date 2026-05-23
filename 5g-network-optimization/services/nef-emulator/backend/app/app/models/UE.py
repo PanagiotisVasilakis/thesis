@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 #from sqlalchemy import Boolean, Column, Integer, String
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from sqlalchemy.orm import relationship
 
 from app.db.base_class import Base
@@ -9,7 +9,7 @@ from app.db.base_class import Base
 if TYPE_CHECKING:
     from .user import User  # noqa: F401
     from .gNB import gNB  # noqa: F401
-    from .Cell import Cell  # noqa: F401
+    from .Cell import Cell as CellModel  # noqa: F401
 
 
 class UE(Base):

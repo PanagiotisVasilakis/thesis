@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Protocol
-import asyncio
 
 
 class ModelInterface(Protocol):
@@ -51,12 +50,10 @@ class ClientInterface(ABC):
     @abstractmethod
     def get_status(self) -> Any:
         """Get service status."""
-        pass
     
     @abstractmethod
     def close(self) -> None:
         """Close client connections."""
-        pass
 
 
 class NEFClientInterface(ClientInterface):
@@ -65,17 +62,14 @@ class NEFClientInterface(ClientInterface):
     @abstractmethod
     def login(self) -> bool:
         """Authenticate with NEF service."""
-        pass
     
     @abstractmethod
     def get_ue_movement_state(self) -> Dict[str, Any]:
         """Get UE movement state."""
-        pass
     
     @abstractmethod
     def get_feature_vector(self, ue_id: str) -> Dict[str, Any]:
         """Get feature vector for UE."""
-        pass
 
 
 class AsyncNEFClientInterface(NEFClientInterface):
@@ -84,17 +78,14 @@ class AsyncNEFClientInterface(NEFClientInterface):
     @abstractmethod
     async def login_async(self) -> bool:
         """Async authentication with NEF service."""
-        pass
     
     @abstractmethod
     async def get_ue_movement_state_async(self) -> Dict[str, Any]:
         """Get UE movement state asynchronously."""
-        pass
     
     @abstractmethod
     async def batch_get_feature_vectors(self, ue_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """Get feature vectors for multiple UEs."""
-        pass
 
 
 class DataCollectorInterface(ABC):
@@ -103,22 +94,18 @@ class DataCollectorInterface(ABC):
     @abstractmethod
     def login(self) -> bool:
         """Authenticate with data source."""
-        pass
     
     @abstractmethod
     def get_ue_movement_state(self) -> Dict[str, Any]:
         """Get current UE movement state."""
-        pass
     
     @abstractmethod
     async def collect_training_data(self, duration: float, interval: float) -> List[Dict[str, Any]]:
         """Collect training data."""
-        pass
     
     @abstractmethod
     def cleanup_resources(self) -> None:
         """Clean up collector resources."""
-        pass
 
 
 class CacheInterface(ABC):
@@ -127,27 +114,22 @@ class CacheInterface(ABC):
     @abstractmethod
     def get(self, key: str) -> Any:
         """Get value from cache."""
-        pass
     
     @abstractmethod
     def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
         """Set value in cache."""
-        pass
     
     @abstractmethod
     def delete(self, key: str) -> None:
         """Delete value from cache."""
-        pass
     
     @abstractmethod
     def clear(self) -> None:
         """Clear all cache entries."""
-        pass
     
     @abstractmethod
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
-        pass
 
 
 class MetricsCollectorInterface(ABC):
@@ -156,22 +138,18 @@ class MetricsCollectorInterface(ABC):
     @abstractmethod
     def track_prediction(self, antenna_id: str, confidence: float) -> None:
         """Track prediction metrics."""
-        pass
     
     @abstractmethod
     def track_training(self, duration: float, samples: int, accuracy: Optional[float] = None) -> None:
         """Track training metrics."""
-        pass
     
     @abstractmethod
     def track_request(self, endpoint: str, status_code: int, duration: float) -> None:
         """Track request metrics."""
-        pass
     
     @abstractmethod
     def get_metrics(self) -> Dict[str, Any]:
         """Get collected metrics."""
-        pass
 
 
 class ValidatorInterface(ABC):
@@ -180,12 +158,10 @@ class ValidatorInterface(ABC):
     @abstractmethod
     def validate(self, data: Any, context: str = "") -> Any:
         """Validate data and return sanitized version."""
-        pass
     
     @abstractmethod
     def is_valid(self, data: Any) -> bool:
         """Check if data is valid."""
-        pass
 
 
 class ExceptionHandlerInterface(ABC):
@@ -194,12 +170,10 @@ class ExceptionHandlerInterface(ABC):
     @abstractmethod
     def handle_exception(self, exc: Exception, context: str = "") -> Any:
         """Handle exception and return appropriate response."""
-        pass
     
     @abstractmethod
     def log_exception(self, exc: Exception, context: str = "") -> None:
         """Log exception details."""
-        pass
 
 
 class ResourceManagerInterface(ABC):
@@ -208,22 +182,18 @@ class ResourceManagerInterface(ABC):
     @abstractmethod
     def register_resource(self, resource: Any, resource_type: str, **kwargs) -> str:
         """Register a resource for management."""
-        pass
     
     @abstractmethod
     def unregister_resource(self, resource_id: str, force_cleanup: bool = False) -> None:
         """Unregister a resource."""
-        pass
     
     @abstractmethod
     def cleanup_all_resources(self) -> None:
         """Clean up all registered resources."""
-        pass
     
     @abstractmethod
     def get_resource_stats(self) -> Dict[str, Any]:
         """Get resource management statistics."""
-        pass
 
 
 class AuthenticationInterface(ABC):
@@ -232,17 +202,14 @@ class AuthenticationInterface(ABC):
     @abstractmethod
     def authenticate(self, username: str, password: str) -> bool:
         """Authenticate user credentials."""
-        pass
     
     @abstractmethod
     def create_token(self, username: str) -> str:
         """Create authentication token."""
-        pass
     
     @abstractmethod
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify authentication token."""
-        pass
 
 
 class ConfigurationInterface(ABC):
@@ -251,22 +218,18 @@ class ConfigurationInterface(ABC):
     @abstractmethod
     def get(self, key: str, default: Any = None) -> Any:
         """Get configuration value."""
-        pass
     
     @abstractmethod
     def set(self, key: str, value: Any) -> None:
         """Set configuration value."""
-        pass
     
     @abstractmethod
     def get_all(self) -> Dict[str, Any]:
         """Get all configuration values."""
-        pass
     
     @abstractmethod
     def validate_config(self) -> Dict[str, str]:
         """Validate configuration and return errors."""
-        pass
 
 
 class LoggerInterface(ABC):
@@ -275,22 +238,18 @@ class LoggerInterface(ABC):
     @abstractmethod
     def info(self, message: str, *args, **kwargs) -> None:
         """Log info message."""
-        pass
     
     @abstractmethod
     def warning(self, message: str, *args, **kwargs) -> None:
         """Log warning message."""
-        pass
     
     @abstractmethod
     def error(self, message: str, *args, **kwargs) -> None:
         """Log error message."""
-        pass
     
     @abstractmethod
     def debug(self, message: str, *args, **kwargs) -> None:
         """Log debug message."""
-        pass
 
 
 class EventBusInterface(ABC):
@@ -299,17 +258,14 @@ class EventBusInterface(ABC):
     @abstractmethod
     def publish(self, event_type: str, data: Dict[str, Any]) -> None:
         """Publish an event."""
-        pass
     
     @abstractmethod
     def subscribe(self, event_type: str, handler: callable) -> str:
         """Subscribe to an event type."""
-        pass
     
     @abstractmethod
     def unsubscribe(self, subscription_id: str) -> None:
         """Unsubscribe from events."""
-        pass
 
 
 class ServiceFactoryInterface(ABC):
@@ -318,14 +274,11 @@ class ServiceFactoryInterface(ABC):
     @abstractmethod
     def create_model(self, model_type: str, **kwargs) -> ModelInterface:
         """Create a model instance."""
-        pass
     
     @abstractmethod
     def create_client(self, client_type: str, **kwargs) -> ClientInterface:
         """Create a client instance."""
-        pass
     
     @abstractmethod
     def create_cache(self, cache_type: str, **kwargs) -> CacheInterface:
         """Create a cache instance."""
-        pass

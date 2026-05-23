@@ -1,7 +1,7 @@
 """Common validation utilities to reduce code duplication across the ML service."""
 
 import logging
-from typing import Any, Optional, Union, List, Dict, Tuple
+from typing import Any, Optional, Union, Dict, Tuple
 from urllib.parse import urlparse
 
 from ..config.constants import (
@@ -18,7 +18,6 @@ from ..config.constants import (
 
 class ValidationError(ValueError):
     """Custom validation error for better error handling."""
-    pass
 
 
 class NumericValidator:

@@ -4,7 +4,7 @@ import os
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, ValidationError, validator

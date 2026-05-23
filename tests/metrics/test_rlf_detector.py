@@ -3,7 +3,6 @@
 Tests RLF detection, throughput calculation, and handover interruption tracking.
 """
 import unittest
-from collections import deque
 
 # Import paths are configured by conftest.py
 
@@ -13,7 +12,7 @@ class TestRLFDetector(unittest.TestCase):
     
     def setUp(self):
         """Create fresh detector for each test."""
-        from app.app.metrics.rlf_detector import RLFDetector
+        from backend.app.app.metrics.rlf_detector import RLFDetector
         self.detector = RLFDetector()
     
     def test_rlf_not_triggered_above_threshold(self):
@@ -97,7 +96,7 @@ class TestThroughputCalculator(unittest.TestCase):
     
     def setUp(self):
         """Create fresh calculator for each test."""
-        from app.app.metrics.rlf_detector import ThroughputCalculator
+        from backend.app.app.metrics.rlf_detector import ThroughputCalculator
         self.calc = ThroughputCalculator(bandwidth_hz=20e6)
     
     def test_zero_throughput_below_min_sinr(self):
@@ -143,7 +142,7 @@ class TestHandoverInterruptionTracker(unittest.TestCase):
     
     def setUp(self):
         """Create fresh tracker for each test."""
-        from app.app.metrics.rlf_detector import HandoverInterruptionTracker
+        from backend.app.app.metrics.rlf_detector import HandoverInterruptionTracker
         self.tracker = HandoverInterruptionTracker(interruption_duration_s=0.050)
     
     def test_record_handover_creates_interruption(self):
@@ -198,7 +197,7 @@ class TestMaxInterruptionQueueSize(unittest.TestCase):
     
     def test_queue_size_constant_exists(self):
         """MAX_INTERRUPTION_QUEUE_SIZE constant should be defined."""
-        from app.app.metrics.rlf_detector import MAX_INTERRUPTION_QUEUE_SIZE
+        from backend.app.app.metrics.rlf_detector import MAX_INTERRUPTION_QUEUE_SIZE
         
         self.assertIsInstance(MAX_INTERRUPTION_QUEUE_SIZE, int)
         self.assertGreater(MAX_INTERRUPTION_QUEUE_SIZE, 0)
@@ -209,7 +208,7 @@ class TestMetricsCollector(unittest.TestCase):
     
     def setUp(self):
         """Create fresh collector for each test."""
-        from app.app.metrics.rlf_detector import MetricsCollector
+        from backend.app.app.metrics.rlf_detector import MetricsCollector
         self.collector = MetricsCollector()
     
     def test_update_returns_metrics_dict(self):
@@ -274,7 +273,7 @@ class TestRLFDetectorThreadSafety(unittest.TestCase):
     
     def setUp(self):
         """Create fresh instances for each test."""
-        from app.app.metrics.rlf_detector import (
+        from backend.app.app.metrics.rlf_detector import (
             RLFDetector,
             HandoverInterruptionTracker,
             MetricsCollector,

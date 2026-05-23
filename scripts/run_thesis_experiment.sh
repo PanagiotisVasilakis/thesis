@@ -50,7 +50,7 @@ UE_SPEED_PROFILE=("LOW" "LOW" "HIGH")
 
 # Ensure docker compose sees the ML profile and resolves the ml-service dependency.
 export COMPOSE_PROFILES="${COMPOSE_PROFILES:-ml}"
-export ML_LOCAL="${ML_LOCAL:-ml}"
+export ML_LOCAL="${ML_LOCAL:-0}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -73,6 +73,26 @@ warn() {
 
 error() {
     echo -e "${RED}[$(date +%H:%M:%S)] ERROR:${NC} $1"
+}
+
+fatal() {
+    error "$1"
+    exit 1
+}
+
+replace_placeholder() {
+    local file="$1"
+    local placeholder="$2"
+    local replacement="$3"
+    python3 - "$file" "$placeholder" "$replacement" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+placeholder = sys.argv[2]
+replacement = sys.argv[3]
+path.write_text(path.read_text().replace(placeholder, replacement))
+PY
 }
 
 section() {
@@ -178,6 +198,20 @@ ensure_nef_token() {
     return 0
 }
 
+require_nef_credentials() {
+    local username="${NEF_USERNAME:-${FIRST_SUPERUSER:-}}"
+    local password="${NEF_PASSWORD:-${FIRST_SUPERUSER_PASSWORD:-}}"
+    if [ -z "$username" ] || [ -z "$password" ]; then
+        fatal "NEF credentials are required. Set NEF_USERNAME/NEF_PASSWORD or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD."
+    fi
+}
+
+require_nef_token() {
+    if ! ensure_nef_token; then
+        fatal "NEF authentication failed; aborting thesis experiment instead of skipping protected API calls."
+    fi
+}
+
 start_ue_movement() {
     local supi="$1"
     local profile="$2"
@@ -185,8 +219,7 @@ start_ue_movement() {
 
     for attempt in 1 2; do
         if ! ensure_nef_token; then
-            warn "Skipping UE ${supi}: authentication unavailable"
-            return 1
+            fatal "Cannot start UE ${supi}: authentication unavailable"
         fi
 
         local response_file
@@ -235,8 +268,7 @@ stop_ue_movement() {
 
     for attempt in 1 2; do
         if ! ensure_nef_token; then
-            warn "Skipping stop for UE ${supi}: authentication unavailable"
-            return 1
+            fatal "Cannot stop UE ${supi}: authentication unavailable"
         fi
 
         local response_file
@@ -296,8 +328,7 @@ dump_nef_cells_snapshot() {
     fi
 
     if ! ensure_nef_token; then
-        warn "Skipping NEF cells snapshot: authentication unavailable"
-        return 1
+        fatal "Cannot capture NEF cells snapshot: authentication unavailable"
     fi
 
     local response
@@ -345,6 +376,12 @@ for cmd in docker jq curl python3; do
         exit 1
     fi
 done
+
+if ! docker compose version > /dev/null 2>&1; then
+    fatal "Docker Compose plugin is required because this experiment uses 'docker compose'."
+fi
+
+require_nef_credentials
 
 # Check Python dependencies
 if ! python3 -c "import matplotlib, pandas, numpy" 2>/dev/null; then
@@ -414,6 +451,7 @@ docker compose -f "$COMPOSE_FILE" up -d > "$OUTPUT_DIR/logs/ml_docker_up.log" 2>
 wait_for_service "${NEF_BASE_URL}/docs" "NEF Emulator" || exit 1
 wait_for_service "${ML_BASE_URL}/api/health" "ML Service" || exit 1
 wait_for_service "${PROMETHEUS_URL}/-/healthy" "Prometheus" || exit 1
+require_nef_token
 
 # Ensure the ML model finished its background initialization before
 # attempting any predictions; the health endpoint flips to OK first, so we
@@ -767,11 +805,11 @@ All results will be identical given the same random seeds and configuration.
 
 EOFSUM
 
-# Replace placeholders
-sed -i '' "s/EXPERIMENT_NAME_PLACEHOLDER/$EXPERIMENT_NAME/g" "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md"
-sed -i '' "s/DATE_PLACEHOLDER/$(date +%Y-%m-%d)/g" "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md"
-sed -i '' "s/DURATION_PLACEHOLDER/$DURATION_MINUTES/g" "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md"
-sed -i '' "s/TOTAL_TIME_PLACEHOLDER/$((DURATION_MINUTES * 2 + 5))/g" "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md"
+# Replace placeholders portably across Linux and macOS.
+replace_placeholder "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md" "EXPERIMENT_NAME_PLACEHOLDER" "$EXPERIMENT_NAME"
+replace_placeholder "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md" "DATE_PLACEHOLDER" "$(date +%Y-%m-%d)"
+replace_placeholder "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md" "DURATION_PLACEHOLDER" "$DURATION_MINUTES"
+replace_placeholder "$OUTPUT_DIR/EXPERIMENT_SUMMARY.md" "TOTAL_TIME_PLACEHOLDER" "$((DURATION_MINUTES * 2 + 5))"
 
 log "✅ Experiment summary created"
 

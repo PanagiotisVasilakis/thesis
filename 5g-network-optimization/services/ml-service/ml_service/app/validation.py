@@ -2,9 +2,9 @@
 import inspect
 import re
 from functools import wraps
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, Optional, Type
 
-from flask import jsonify, request
+from flask import request
 from pydantic import BaseModel, Field, ValidationError
 
 from .errors import RequestValidationError

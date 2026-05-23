@@ -18,6 +18,7 @@ def _load_init_db(monkeypatch):
     sa.create_engine = lambda *a, **k: None
     sa.orm.sessionmaker = lambda *a, **k: None
     sa.asc = lambda x: x
+    sa.text = lambda x: x
     monkeypatch.setitem(sys.modules, "sqlalchemy", sa)
     monkeypatch.setitem(sys.modules, "sqlalchemy.orm", sa.orm)
     monkeypatch.setitem(sys.modules, "sqlalchemy.orm.session", sa.orm)
@@ -53,7 +54,7 @@ def _load_init_db(monkeypatch):
     crud_mod.cell = SimpleNamespace(create_with_owner=MagicMock())
     crud_mod.ue = SimpleNamespace(
         create_with_owner=MagicMock(),
-        get_supi=MagicMock(return_value={}),
+        get_supi=MagicMock(return_value={"supi": "a"}),
         update=MagicMock(),
     )
     crud_mod.path = SimpleNamespace(
@@ -99,12 +100,13 @@ def _load_init_db(monkeypatch):
 
 def test_init_db(monkeypatch):
     module, Base, crud = _load_init_db(monkeypatch)
+    monkeypatch.setenv("NEF_ALLOW_DB_RESET", "true")
     scenario = {
         "gNBs": [{"id": 1}],
         "cells": [{"id": 1}],
         "UEs": [{"id": 1}],
         "paths": [{"id": 1}],
-        "ue_path_association": [{"supi": "a"}],
+        "ue_path_association": [{"supi": "a", "path": 1}],
     }
 
     class DummyDB:
@@ -124,5 +126,5 @@ def test_init_db(monkeypatch):
     assert crud.ue.update.call_count == len(scenario["ue_path_association"])
     assert (
         db.executed
-        == "TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY"
+        == "TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY CASCADE"
     )

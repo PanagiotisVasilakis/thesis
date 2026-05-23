@@ -20,7 +20,6 @@ from ..features import pipeline
 from ..core.qos import qos_from_request
 from ..features.transform_registry import (
     register_feature_transform,
-    apply_feature_transforms,
 )
 from ..data.feature_extractor import HandoverTracker
 from ..data import AntennaQoSProfiler, QoSHistoryTracker
@@ -44,11 +43,6 @@ from ..config.constants import (
     env_constants,
 )
 from ..config.feature_specs import sanitize_feature_ranges, validate_feature_ranges
-from ..utils.exception_handler import (
-    ExceptionHandler,
-    ModelError,
-    handle_exceptions,
-)
 from ..errors import ModelError as RuntimeModelError
 from ..utils.resource_manager import (
     global_resource_manager,
@@ -59,13 +53,17 @@ from .async_model_operations import AsyncModelInterface, get_async_model_manager
 from .ping_pong_prevention import PingPongPrevention
 from .qos_bias import QoSBiasManager
 from ..monitoring import metrics
-from ..config.cells import CELL_CONFIGS, get_cell_config, haversine_distance
+from ..config.cells import CELL_CONFIGS, cell_distance, get_cell_config
 from ..initialization.model_version import MODEL_VERSION
 
 FALLBACK_ANTENNA_ID = DEFAULT_FALLBACK_ANTENNA_ID
 FALLBACK_CONFIDENCE = DEFAULT_FALLBACK_CONFIDENCE
 
 logger = logging.getLogger(__name__)
+
+
+def _cell_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    return cell_distance(lat1, lon1, lat2, lon2)
 
 DEFAULT_QOS_FEATURES = {
     "service_type": "default",
@@ -673,12 +671,28 @@ class AntennaSelector(AsyncModelInterface):
             # Perform a single prediction attempt via probabilities
             with self._model_lock:
                 if self.model is None:
-                    raise RuntimeModelError("Model is not initialized")
+                    return {
+                        "antenna_id": FALLBACK_ANTENNA_ID,
+                        "confidence": FALLBACK_CONFIDENCE,
+                        "fallback_reason": "model_not_initialized",
+                        "qos_bias_applied": False,
+                    }
 
                 # Use calibrated model if available (better confidence estimates)
                 # Otherwise use base model
                 prediction_model = getattr(self, 'calibrated_model', None) or self.model
                 model = cast(lgb.LGBMClassifier, prediction_model if hasattr(prediction_model, 'classes_') else self.model)
+
+                if (
+                    hasattr(prediction_model, "__sklearn_is_fitted__")
+                    and not prediction_model.__sklearn_is_fitted__()
+                ):
+                    return {
+                        "antenna_id": FALLBACK_ANTENNA_ID,
+                        "confidence": FALLBACK_CONFIDENCE,
+                        "fallback_reason": "model_unfitted",
+                        "qos_bias_applied": False,
+                    }
                 
                 # Ensure the returned probabilities are a NumPy array so
                 # indexing and numpy ops work correctly even if some
@@ -757,7 +771,7 @@ class AntennaSelector(AsyncModelInterface):
             cell_config = get_cell_config(predicted_antenna)
             if cell_config:
                 try:
-                    distance = haversine_distance(
+                    distance = _cell_distance(
                         float(ue_lat),
                         float(ue_lon),
                         float(cell_config["latitude"]),
@@ -778,7 +792,7 @@ class AntennaSelector(AsyncModelInterface):
                         nearest_distance = None
                         for antenna_id, config in CELL_CONFIGS.items():
                             try:
-                                dist = haversine_distance(
+                                dist = _cell_distance(
                                     float(ue_lat),
                                     float(ue_lon),
                                     float(config["latitude"]),

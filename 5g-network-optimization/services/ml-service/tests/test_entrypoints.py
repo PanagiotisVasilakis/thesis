@@ -37,6 +37,9 @@ def test_app_entrypoint_calls_create_app(monkeypatch):
 
 def test_collect_training_data_main_success(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script")
+    monkeypatch.setenv("NEF_URL", "http://nef")
+    monkeypatch.setenv("NEF_USERNAME", "user")
+    monkeypatch.setenv("NEF_PASSWORD", "Password123")
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1}}
@@ -48,7 +51,11 @@ def test_collect_training_data_main_success(monkeypatch):
         exceptions=SimpleNamespace(RequestException=Exception),
     )
     monkeypatch.setitem(sys.modules, "requests", requests_stub)
-    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--train"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["collect_training_data", "--train", "--train-url", "http://ml/api/train"],
+    )
     assert module.main() == 0
     collector.login.assert_called_once()
     collector.collect_training_data.assert_awaited_once()
@@ -56,6 +63,9 @@ def test_collect_training_data_main_success(monkeypatch):
 
 def test_collect_training_data_main_failure(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script_fail")
+    monkeypatch.setenv("NEF_URL", "http://nef")
+    monkeypatch.setenv("NEF_USERNAME", "user")
+    monkeypatch.setenv("NEF_PASSWORD", "Password123")
     collector = MagicMock()
     collector.login.return_value = False
     monkeypatch.setattr(module, "NEFDataCollector", lambda **kw: collector)
@@ -65,6 +75,9 @@ def test_collect_training_data_main_failure(monkeypatch):
 
 def test_collect_training_data_remote(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script_remote")
+    monkeypatch.setenv("NEF_URL", "http://nef")
+    monkeypatch.setenv("NEF_USERNAME", "user")
+    monkeypatch.setenv("NEF_PASSWORD", "Password123")
     response = MagicMock(status_code=200, json=lambda: {"samples": 3})
     mock_requests = SimpleNamespace(
         post=MagicMock(return_value=response),
@@ -78,6 +91,9 @@ def test_collect_training_data_remote(monkeypatch):
 
 def test_collect_training_data_remote_failure(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script_remote_fail")
+    monkeypatch.setenv("NEF_URL", "http://nef")
+    monkeypatch.setenv("NEF_USERNAME", "user")
+    monkeypatch.setenv("NEF_PASSWORD", "Password123")
     import requests
 
     def raise_exc(*args, **kwargs):
@@ -94,6 +110,9 @@ def test_collect_training_data_remote_failure(monkeypatch):
 
 def test_collect_training_data_training_errors(monkeypatch):
     module = load_module(COLLECT_ENTRY, "collect_script_train_errors")
+    monkeypatch.setenv("NEF_URL", "http://nef")
+    monkeypatch.setenv("NEF_USERNAME", "user")
+    monkeypatch.setenv("NEF_PASSWORD", "Password123")
     collector = MagicMock()
     collector.login.return_value = True
     collector.get_ue_movement_state.return_value = {"ue": {"Cell_id": "A", "latitude": 0, "longitude": 0, "speed": 1}}
@@ -111,7 +130,11 @@ def test_collect_training_data_training_errors(monkeypatch):
 
     mock_requests.post.side_effect = raise_req
     monkeypatch.setitem(sys.modules, "requests", mock_requests)
-    monkeypatch.setattr(sys, "argv", ["collect_training_data", "--train"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["collect_training_data", "--train", "--train-url", "http://ml/api/train"],
+    )
     assert module.main() == 3
 
     mock_requests.post.side_effect = None

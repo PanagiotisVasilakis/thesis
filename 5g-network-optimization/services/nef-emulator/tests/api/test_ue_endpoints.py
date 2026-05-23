@@ -34,6 +34,7 @@ def client(monkeypatch):
     }
     for k, v in env.items():
         monkeypatch.setenv(k, v)
+    monkeypatch.setenv("TESTING", "1")
 
     # Ensure a clean import state
     for name in list(sys.modules.keys()):
@@ -382,12 +383,13 @@ def test_create_update_delete_ue(client, monkeypatch):
     created = _dummy_ue()
     created.supi = payload["supi"]
     monkeypatch.setattr(crud.ue, "get_supi", lambda *a, **k: created)
-    monkeypatch.setattr(
-        crud.ue,
-        "update",
-        lambda db, db_obj, obj_in: SimpleNamespace(
-            path_id=0, ip_address_v4=obj_in["ip_address_v4"]),
-    )
+    def _updated_ue(db, db_obj, obj_in):
+        updated = _dummy_ue()
+        updated.supi = payload["supi"]
+        updated.ip_address_v4 = obj_in["ip_address_v4"]
+        return updated
+
+    monkeypatch.setattr(crud.ue, "update", _updated_ue)
 
     update_payload = payload.copy()
     update_payload["ip_address_v4"] = "10.0.0.22"

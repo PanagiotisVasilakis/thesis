@@ -1,4 +1,3 @@
-import types
 from unittest.mock import MagicMock
 
 from collections import deque

@@ -7,9 +7,9 @@ from pymongo.database import Database
 from sqlalchemy.orm import Session
 from app import models, schemas
 from app.api import deps
-from app.crud import crud_mongo, user, ue
+from app.crud import crud_mongo, ue
 from app.db.session import client
-from .utils import add_notifications, ccf_logs, log_to_capif, log_error_to_capif, get_valid_subscription
+from .utils import add_notifications, log_to_capif, log_error_to_capif, get_valid_subscription
 from .qosInformation import qos_reference_match
 
 router = APIRouter()
@@ -218,7 +218,7 @@ async def update_subscription(
     _ = scsAsId
     db_mongo = client.fastapi
 
-    retrieved_doc = await get_valid_subscription(
+    await get_valid_subscription(
         db_mongo, db_collection, subscriptionId, current_user, http_request, token_payload, "service_as_session_with_qos.json"
     )
 

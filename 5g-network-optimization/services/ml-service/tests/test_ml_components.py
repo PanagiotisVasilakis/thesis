@@ -56,9 +56,19 @@ def test_feature_extraction():
 def test_model_training_and_prediction(tmp_path):
     """Training on synthetic data should achieve reasonable accuracy."""
 
-    data = generate_synthetic_training_data(100, num_antennas=NUM_ANTENNAS)
+    data = generate_synthetic_training_data(
+        500,
+        num_antennas=NUM_ANTENNAS,
+        seed=42,
+        balance_classes=True,
+    )
 
-    train_data, test_data = train_test_split(data, test_size=0.2, random_state=42)
+    train_data, test_data = train_test_split(
+        data,
+        test_size=0.2,
+        random_state=42,
+        stratify=[sample["optimal_antenna"] for sample in data],
+    )
 
     model = LightGBMSelector()
     metrics = model.train(train_data)

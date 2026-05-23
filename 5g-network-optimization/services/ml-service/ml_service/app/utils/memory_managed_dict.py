@@ -4,10 +4,10 @@ import logging
 import sys
 import threading
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Set, Union, Callable, TypeVar, Generic
+from typing import Any, Dict, Optional, TypeVar, Generic
 import weakref
 
 K = TypeVar('K')

@@ -1,6 +1,6 @@
 """Ensemble model combining multiple selectors."""
 
-from .antenna_selector import AntennaSelector, FALLBACK_ANTENNA_ID, FALLBACK_CONFIDENCE
+from .antenna_selector import AntennaSelector, FALLBACK_ANTENNA_ID
 from .base_model_mixin import BaseModelMixin
 from .lightgbm_selector import LightGBMSelector
 from .lstm_selector import LSTMSelector

@@ -130,25 +130,41 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
         # Thread-safe model saving
         with self._model_lock:
             try:
-                temp_dir = None
                 save_path = os.fspath(save_path)
-                os.makedirs(os.path.dirname(save_path), exist_ok=True)
-                
-                # Save TensorFlow model to a temp directory first
-                temp_dir = tempfile.mkdtemp(prefix="lstm_model_", dir=os.path.dirname(save_path))
-                self.model.save(temp_dir)
+                save_dir = os.path.dirname(save_path) or "."
+                os.makedirs(save_dir, exist_ok=True)
 
-                backup_path = save_path + ".bak"
+                model_path = (
+                    save_path
+                    if save_path.endswith((".keras", ".h5"))
+                    else save_path + ".keras"
+                )
+
+                fd, temp_model_path = tempfile.mkstemp(
+                    prefix="lstm_model_",
+                    suffix=os.path.splitext(model_path)[1] or ".keras",
+                    dir=save_dir,
+                )
+                os.close(fd)
+                os.remove(temp_model_path)
+
+                self.model.save(temp_model_path)
+
+                backup_path = model_path + ".bak"
                 if os.path.exists(backup_path):
-                    shutil.rmtree(backup_path)
+                    os.remove(backup_path)
 
-                if os.path.exists(save_path):
-                    os.replace(save_path, backup_path)
+                if os.path.exists(model_path):
+                    os.replace(model_path, backup_path)
 
-                os.replace(temp_dir, save_path)
+                os.replace(temp_model_path, model_path)
 
                 if os.path.exists(backup_path):
-                    shutil.rmtree(backup_path)
+                    os.remove(backup_path)
+
+                if model_path != save_path:
+                    with open(save_path, "w", encoding="utf-8") as marker:
+                        marker.write(os.path.basename(model_path))
                 
                 # Save metadata atomically
                 meta_path = save_path + ".meta"
@@ -174,18 +190,17 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
                 import logging
                 logging.getLogger(__name__).error("Failed to save LSTM model to %s: %s", save_path, e)
                 # Clean up temporary files if they exist
-                for temp_file in [save_path + ".tmp", save_path + ".meta.tmp"]:
+                for temp_file in [
+                    locals().get("temp_model_path"),
+                    save_path + ".tmp",
+                    save_path + ".meta.tmp",
+                ]:
                     try:
-                        if os.path.exists(temp_file):
+                        if temp_file and os.path.exists(temp_file):
                             if os.path.isdir(temp_file):
                                 shutil.rmtree(temp_file)
                             else:
                                 os.remove(temp_file)
-                    except OSError:
-                        pass
-                if temp_dir and os.path.exists(temp_dir):
-                    try:
-                        shutil.rmtree(temp_dir)
                     except OSError:
                         pass
                 return False
@@ -193,14 +208,22 @@ class LSTMSelector(BaseModelMixin, AntennaSelector):
     def load(self, path=None):
         """Load model and metadata with thread safety."""
         load_path = path or self.model_path
-        if not load_path or not os.path.exists(load_path):
+        if not load_path:
             return False
         
         # Thread-safe model loading
         with self._model_lock:
             try:
                 load_path = os.fspath(load_path)
-                self.model = tf.keras.models.load_model(load_path)
+                model_path = (
+                    load_path
+                    if load_path.endswith((".keras", ".h5"))
+                    else load_path + ".keras"
+                )
+                if not os.path.exists(model_path):
+                    return False
+
+                self.model = tf.keras.models.load_model(model_path)
                 
                 meta_path = load_path + ".meta"
                 if os.path.exists(meta_path):

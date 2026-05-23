@@ -1,4 +1,3 @@
-import numpy as np
 from ml_service.app.models.lstm_selector import LSTMSelector
 
 

@@ -25,14 +25,14 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 # Add paths for imports
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.scenarios.base_scenario import BaseScenario, ScenarioMetadata
+from scripts.scenarios.base_scenario import BaseScenario
 from scripts.scenarios.smart_city_downtown import SmartCityDowntownScenario
 from scripts.scenarios.highway_handover import HighwayHandoverScenario
 
@@ -468,13 +468,13 @@ def run_experiment(
     print("=" * 70)
     print(f"\nScenario: {metadata.name}")
     print(f"Cells: {metadata.num_cells}, UEs: {metadata.num_ues}")
-    print(f"\nML Mode Results:")
+    print("\nML Mode Results:")
     print(f"  Total Handovers: {ml_metrics.get('total_handovers', 'N/A')}")
     print(f"  Ping-Pong Suppressions: {ml_metrics.get('pingpong_suppressions', 'N/A')}")
     print(f"  QoS Compliance: {ml_metrics.get('qos_compliance_ok', 'N/A')} passed")
     
     if a3_metrics:
-        print(f"\nA3 Mode Results:")
+        print("\nA3 Mode Results:")
         print(f"  Total Handovers: {a3_metrics.get('total_handovers', 'N/A')}")
     
     print(f"\n📁 Results saved to: {output_dir}")

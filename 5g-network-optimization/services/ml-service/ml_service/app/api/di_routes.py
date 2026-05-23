@@ -1,11 +1,8 @@
 """DI-enabled API routes for ML Service demonstrating dependency injection."""
 
 from flask import jsonify, request, current_app, g, Blueprint
-import time
-from pathlib import Path
 from functools import wraps
 import asyncio
-from pydantic import ValidationError
 
 from ..core.dependency_injection import inject, get_container
 from ..core.interfaces import (
@@ -22,12 +19,11 @@ from ..errors import (
     ModelError,
     NEFConnectionError,
 )
-from ..schemas import PredictionRequest, PredictionRequestWithQoS, TrainingSample, FeedbackSample
+from ..schemas import PredictionRequest, PredictionRequestWithQoS
 from ..validation import (
     validate_json_input,
     validate_request_size,
     validate_content_type,
-    LoginRequest,
     CollectDataRequest,
 )
 from ..rate_limiter import limiter, limit_for

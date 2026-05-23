@@ -4,7 +4,7 @@ import logging
 import os
 import threading
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime
 from packaging.version import Version, InvalidVersion
 
 from .thread_monitor import (

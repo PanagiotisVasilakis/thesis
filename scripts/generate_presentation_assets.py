@@ -9,7 +9,6 @@ and accompanying description text files are stored under
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 import logging

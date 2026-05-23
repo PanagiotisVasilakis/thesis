@@ -2,7 +2,6 @@
 
 from collections import deque
 from sklearn.linear_model import SGDClassifier
-from sklearn.preprocessing import StandardScaler
 import numpy as np
 
 from .antenna_selector import AntennaSelector

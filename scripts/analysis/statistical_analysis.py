@@ -37,7 +37,7 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -321,7 +321,7 @@ def run_paired_comparison(
     
     # Fix #18: Bonferroni correction
     p_corrected = min(p_value * n_comparisons, 1.0)
-    alpha_corrected = alpha / n_comparisons
+    alpha / n_comparisons
     is_significant = p_corrected < alpha
     
     # Fix #17: Cohen's d_z

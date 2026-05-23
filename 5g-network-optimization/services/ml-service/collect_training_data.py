@@ -6,7 +6,6 @@ import os
 import json
 import time
 import logging
-from datetime import datetime
 from services.logging_config import configure_logging
 from ml_service.app.data.nef_collector import NEFDataCollector
 

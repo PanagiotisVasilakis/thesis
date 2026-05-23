@@ -1,4 +1,3 @@
-import pytest
 
 from ml_service.app.core.qos import qos_from_request, DEFAULT_SERVICE_PRESETS
 from ml_service.app.models.antenna_selector import AntennaSelector

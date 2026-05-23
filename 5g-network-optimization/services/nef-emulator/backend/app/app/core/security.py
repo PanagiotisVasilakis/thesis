@@ -59,7 +59,7 @@ def extract_public_key(cert_path: str):
     try:
         with open(cert_path, 'r') as f:
             cert = f.read()
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         logger.error("Certificate file not found: %s", cert_path)
         raise  # Re-raise to prevent crash on undefined 'cert' variable
 

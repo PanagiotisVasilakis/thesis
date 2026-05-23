@@ -3,15 +3,13 @@
 import threading
 import time
 import logging
-from typing import Any, Dict, List, Optional, Callable, TypeVar, Generic
+from typing import Any, Dict, List, Optional, TypeVar, Generic
 from abc import ABC, abstractmethod
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 import json
-import weakref
 
-from ..utils.exception_handler import safe_execute, exception_context
+from ..utils.exception_handler import safe_execute
 from ..utils.resource_manager import global_resource_manager, ResourceType
 from ..config.constants import env_constants
 
@@ -56,7 +54,6 @@ class StateObserver(ABC):
     @abstractmethod
     def on_state_changed(self, change: StateChange) -> None:
         """Handle state change notification."""
-        pass
 
 
 class StateManager(Generic[T]):

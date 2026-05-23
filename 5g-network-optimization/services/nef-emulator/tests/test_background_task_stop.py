@@ -8,13 +8,18 @@ UE_PATH = (
     / "backend/app/app/api/api_v1/endpoints/ue_movement.py"
 )
 
-# Load the portion of the module containing BackgroundTasks
+# Load the portion of the module containing BackgroundTasks.
 with open(UE_PATH) as f:
-    lines = [next(f) for _ in range(320)]
+    lines = []
+    for line in f:
+        lines.append(line)
+        if line.startswith("BackgroundTasks ="):
+            break
 SOURCE = ''.join(lines)
 
 
 def load_module(monkeypatch):
+    monkeypatch.setenv("TESTING", "1")
     app_pkg = types.ModuleType("app")
     # crud stubs
     crud_mod = types.ModuleType("app.crud")
@@ -87,8 +92,16 @@ def load_module(monkeypatch):
 
     api_pkg = types.ModuleType("app.api")
     deps_mod = types.ModuleType("app.api.deps")
+    websocket_auth_mod = types.ModuleType("app.api.websocket_auth")
+    websocket_auth_mod.require_websocket_user = lambda *a, **k: True
     api_pkg.deps = deps_mod
     app_pkg.api = api_pkg
+
+    core_pkg = types.ModuleType("app.core")
+    env_utils_mod = types.ModuleType("app.core.env_utils")
+    env_utils_mod.parse_env_float = lambda *a, **k: a[1] if len(a) > 1 else 1.0
+    core_pkg.env_utils = env_utils_mod
+    app_pkg.core = core_pkg
 
     api_v1_pkg = types.ModuleType("app.api.api_v1")
     state_mod = types.ModuleType("app.api.api_v1.state_manager")
@@ -118,8 +131,11 @@ def load_module(monkeypatch):
         def all_ues(self):
             return self._ues
 
-        def increment_timer_error(self):
-            pass
+            def increment_timer_error(self):
+                pass
+
+            def record_handover(self, *a, **k):
+                pass
     state_mod.state_manager = DummySM()
     api_v1_pkg.state_manager = state_mod
     app_pkg.api.api_v1 = api_v1_pkg
@@ -153,6 +169,9 @@ def load_module(monkeypatch):
         "app.models": models_pkg,
         "app.api": api_pkg,
         "app.api.deps": deps_mod,
+        "app.api.websocket_auth": websocket_auth_mod,
+        "app.core": core_pkg,
+        "app.core.env_utils": env_utils_mod,
         "app.api.api_v1": api_v1_pkg,
         "app.api.api_v1.state_manager": state_mod,
         "app.db": db_pkg,
@@ -179,7 +198,7 @@ def test_thread_stops_quickly(monkeypatch):
         "Cell_id": None,
     }
     task = ue_module.BackgroundTasks(
-        args=(object(), "ue1", [], [{"latitude": 0, "longitude": 0}], True))
+        args=(types.SimpleNamespace(id=1), "ue1", [], [{"latitude": 0, "longitude": 0}], True))
     task.start()
     time.sleep(0.05)
     start = time.perf_counter()

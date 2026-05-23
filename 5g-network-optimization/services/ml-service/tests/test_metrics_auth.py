@@ -9,7 +9,6 @@ from unittest.mock import patch, MagicMock
 
 from ml_service.app.auth.metrics_auth import (
     MetricsAuthenticator,
-    MetricsAuthError,
     require_metrics_auth,
     get_metrics_authenticator,
     create_metrics_auth_token,
@@ -74,7 +73,12 @@ class TestMetricsAuthenticator:
         token = auth.generate_jwt_token()
         
         # Verify token can be decoded
-        payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])
+        payload = jwt.decode(
+            token,
+            jwt_secret,
+            algorithms=["HS256"],
+            audience="ml-service",
+        )
         assert payload["sub"] == "metrics"
         assert payload["aud"] == "ml-service"
         assert "exp" in payload

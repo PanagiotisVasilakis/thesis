@@ -2,13 +2,13 @@
 
 import functools
 import logging
-from typing import Any, Dict, Optional, Callable, Type, Union
-from flask import request, jsonify, g
+from typing import Any, Optional, Callable, Type
+from flask import request, g
 from pydantic import BaseModel, ValidationError
 
 from .input_sanitizer import get_input_sanitizer, InputSanitizationError, sanitize_request_data
 from ..errors import RequestValidationError
-from ..utils.exception_handler import SecurityError, exception_context
+from ..utils.exception_handler import SecurityError
 
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 class SecureValidationError(SecurityError):
     """Raised when secure validation fails."""
-    pass
 
 
 def sanitize_and_validate_json(
@@ -348,7 +347,7 @@ def _format_pydantic_errors(error: ValidationError, context: str = "") -> str:
     for err in error.errors():
         location = " -> ".join(str(loc) for loc in err["loc"]) if err["loc"] else "root"
         message = err["msg"]
-        error_type = err["type"]
+        err["type"]
         
         if context:
             full_location = f"{context}.{location}" if location != "root" else context

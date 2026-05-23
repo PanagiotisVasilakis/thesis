@@ -40,7 +40,7 @@
 python -m venv .venv
 . .venv/Scripts/activate  # ή source .venv/bin/activate σε Linux/macOS
 pip install -r ../../requirements.txt
-export AUTH_USERNAME=admin AUTH_PASSWORD=admin JWT_SECRET=change-me
+export AUTH_USERNAME=ml-admin AUTH_PASSWORD='<set-strong-local-password>' JWT_SECRET='<set-long-random-jwt-secret>'
 python app.py
 ```
 
@@ -51,7 +51,8 @@ python app.py
 ```bash
 docker build -t ml-service .
 docker run -p 5050:5050 \
-     -e AUTH_USERNAME=admin -e AUTH_PASSWORD=admin -e JWT_SECRET=change-me \
+     -e AUTH_USERNAME=ml-admin -e AUTH_PASSWORD='<set-strong-local-password>' \
+     -e JWT_SECRET='<set-long-random-jwt-secret>' \
      -e NEF_API_URL=http://localhost:8080 \
      ml-service
 ```

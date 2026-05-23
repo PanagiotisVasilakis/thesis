@@ -9,13 +9,7 @@ from backend.app.app.core import security
 
 def test_create_access_token_expiry(monkeypatch):
     fixed_now = datetime(2023, 1, 1, 0, 0, 0)
-
-    class DummyDatetime(datetime):
-        @classmethod
-        def utcnow(cls):
-            return fixed_now
-
-    monkeypatch.setattr(security, "datetime", DummyDatetime)
+    monkeypatch.setattr(security, "_now_utc", lambda: fixed_now)
     monkeypatch.setattr(security.settings, "SECRET_KEY",
                         "secret", raising=False)
 

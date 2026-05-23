@@ -7,7 +7,6 @@ import pytest
 import time
 from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.data.feature_extractor import HandoverTracker
-from ml_service.app.monitoring import metrics
 
 
 @pytest.fixture
@@ -321,14 +320,14 @@ def test_immediate_pingpong_detection(trained_selector, monkeypatch):
     }
     
     # Step 1: On antenna_1
-    result1 = selector.predict(base_features)
+    selector.predict(base_features)
     
     # Step 2: Move to antenna_2
     time.sleep(0.2)
     features2 = base_features.copy()
     features2["connected_to"] = "antenna_2"
     features2["rsrp_a2"] = -70.0  # antenna_2 best
-    result2 = selector.predict(features2)
+    selector.predict(features2)
     
     # Step 3: Try to return to antenna_1 quickly (ping-pong)
     time.sleep(0.2)
@@ -390,7 +389,7 @@ def test_handover_interval_metric_recorded(trained_selector):
     }
     
     # Make predictions
-    result1 = selector.predict(features)
+    selector.predict(features)
     
     time.sleep(3.0)  # Wait longer than minimum interval
     
@@ -712,7 +711,7 @@ def test_suppression_reason_in_result(trained_selector, monkeypatch):
     }
     
     # First prediction
-    result1 = selector.predict(features)
+    selector.predict(features)
     
     # Immediate second prediction (should be suppressed if suggests handover)
     time.sleep(0.5)

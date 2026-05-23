@@ -193,7 +193,7 @@ class FastFading:
         if self.doppler_model == "Jakes":
             # Simplified Jakes model
             time_points = np.arange(num_samples) * time_step
-            phase = 2 * np.pi * max_doppler * time_points
+            2 * np.pi * max_doppler * time_points
             fading = np.zeros(num_samples)
             
             # Sum contributions from multiple paths

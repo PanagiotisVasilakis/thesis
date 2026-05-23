@@ -28,7 +28,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "5g-network-optimization" / "services"))
 sys.path.insert(0, str(REPO_ROOT / "5g-network-optimization" / "services" / "ml-service"))
 
-from ml_service.app.models.antenna_selector import AntennaSelector
 from ml_service.app.models.lightgbm_selector import LightGBMSelector
 
 
@@ -60,7 +59,7 @@ def apply_qos_defaults(sample: Dict[str, float | int | str]) -> Dict[str, float 
 
     latency_obs = float(sample.setdefault('observed_latency_ms', sample.get('latency_ms', latency_req)))
     throughput_obs = float(sample.setdefault('observed_throughput_mbps', sample.get('throughput_mbps', throughput_req)))
-    jitter_obs = float(sample.setdefault('observed_jitter_ms', sample.get('jitter_ms', DEFAULT_QOS_FEATURES['jitter_ms'])))
+    float(sample.setdefault('observed_jitter_ms', sample.get('jitter_ms', DEFAULT_QOS_FEATURES['jitter_ms'])))
     loss_obs = float(sample.setdefault('observed_packet_loss_rate', sample.get('packet_loss_rate', DEFAULT_QOS_FEATURES['packet_loss_rate'])))
 
     sample.setdefault('latency_delta_ms', latency_obs - latency_req)
@@ -1101,7 +1100,7 @@ def test_thesis_scenario_overlapping_coverage_5_antennas():
     # This demonstrates considering multiple factors, not just RSRP like A3
     
     print(f"Thesis demo scenario: Selected {result['antenna_id']} with {result['confidence']:.2f} confidence")
-    print(f"This demonstrates ML considers load balancing, not just RSRP")
+    print("This demonstrates ML considers load balancing, not just RSRP")
     
     # Key thesis point: ML selected based on multiple factors
     assert result['confidence'] > 0.5, "Demonstrates informed decision-making"
@@ -1391,8 +1390,8 @@ def test_thesis_claim_ml_handles_3plus_antennas_better():
     print(f"Confidence: {result['confidence']:.2%}")
     print(f"Ping-pong prevented: {result.get('anti_pingpong_applied', False)}")
     print(f"Handover count: {result.get('handover_count_1min', 0)}")
-    print(f"\nKey insight: ML considers load balancing in addition to RSRP,")
-    print(f"selecting antenna_4 (light load) over antenna_3 (best RSRP, heavy load)")
+    print("\nKey insight: ML considers load balancing in addition to RSRP,")
+    print("selecting antenna_4 (light load) over antenna_3 (best RSRP, heavy load)")
     print(f"{'='*70}\n")
 
 
@@ -1465,7 +1464,7 @@ def test_prediction_latency_scales_with_antennas(num_antennas):
     latencies = []
     for _ in range(10):
         start = time.time()
-        result = selector.predict(features)
+        selector.predict(features)
         latency = time.time() - start
         latencies.append(latency * 1000)  # Convert to ms
         time.sleep(3.0)  # Avoid ping-pong prevention
@@ -1574,7 +1573,7 @@ def test_generate_thesis_demonstration_dataset(tmp_path):
               f"Selected {r['selected_antenna']} (confidence: {r['confidence']:.2f})")
     
     # Validate key thesis point
-    a3_mode_result = [r for r in results if not r['ml_activated']][0]
+    [r for r in results if not r['ml_activated']][0]
     ml_mode_results = [r for r in results if r['ml_activated']]
     
     assert len(ml_mode_results) == 4, "ML should activate for 3, 5, 7, 10 antennas"
@@ -1654,4 +1653,3 @@ def test_all_thesis_claims_summary():
 if __name__ == '__main__':
     # Allow running tests directly
     pytest.main([__file__, '-v', '-m', 'thesis'])
-

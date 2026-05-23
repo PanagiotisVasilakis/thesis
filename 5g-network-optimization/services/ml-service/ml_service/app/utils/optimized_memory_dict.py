@@ -4,9 +4,8 @@ import logging
 import threading
 import time
 import gc
-import weakref
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Set, Union, Callable, TypeVar, Generic, Tuple, List
+from typing import Any, Dict, Optional, TypeVar, Generic, Tuple, List
 import psutil
 import os
 
