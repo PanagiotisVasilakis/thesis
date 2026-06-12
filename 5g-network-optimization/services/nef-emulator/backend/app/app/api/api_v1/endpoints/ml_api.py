@@ -37,6 +37,10 @@ class HandoverMode(str, Enum):
     ML = "ml"           # Pure ML predictions, no fallback
     A3 = "a3"           # Pure 3GPP A3 rule-based decisions
     HYBRID = "hybrid"   # ML primary with A3 fallback on failures
+    FIXED_A3_BASELINE = "fixed_a3_baseline"
+    TUNED_A3_BASELINE = "tuned_a3_baseline"
+    COMPLEXITY_AWARE_ML_A3 = "complexity_aware_ml_a3"
+    TRACE_CAPTURE = "trace_capture"  # Measurement-only mode, no decisions applied
 
 
 class ModeRequest(BaseModel):
@@ -57,7 +61,15 @@ def _get_current_mode() -> str:
 def _set_engine_mode(mode: str) -> None:
     """Set the engine to the specified mode."""
     # Validate mode string
-    valid_modes = {"ml", "a3", "hybrid"}
+    valid_modes = {
+        "ml",
+        "a3",
+        "hybrid",
+        "fixed_a3_baseline",
+        "tuned_a3_baseline",
+        "complexity_aware_ml_a3",
+        "trace_capture",
+    }
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode: {mode}. Must be one of {valid_modes}")
     
@@ -65,7 +77,7 @@ def _set_engine_mode(mode: str) -> None:
     engine.handover_mode = mode
     
     # Also update use_ml for backward compatibility
-    engine.use_ml = mode in ("ml", "hybrid")
+    engine.use_ml = mode in ("ml", "hybrid", "complexity_aware_ml_a3")
     
     # Disable auto mode when manually setting mode
     try:
@@ -79,13 +91,13 @@ def get_mode():
     """Return the current handover mode for observability tools.
     
     Returns:
-        mode: Current mode ("ml", "a3", or "hybrid")
+        mode: Current mode
         use_ml: Legacy boolean for backward compatibility
     """
     current_mode = _get_current_mode()
     return {
         "mode": current_mode,
-        "use_ml": current_mode in ("ml", "hybrid"),
+        "use_ml": current_mode in ("ml", "hybrid", "complexity_aware_ml_a3"),
     }
 
 
@@ -93,10 +105,14 @@ def get_mode():
 def set_mode(payload: ModeRequest):
     """Set the handover engine mode.
     
-    Supports three modes for thesis experiments:
+    Supports explicit modes for thesis experiments:
     - ml: Pure ML predictions without A3 fallback
     - a3: Pure 3GPP A3 rule-based decisions  
     - hybrid: ML primary with A3 fallback on low confidence/QoS failures
+    - fixed_a3_baseline: standards-inspired non-ML baseline-service policy
+    - tuned_a3_baseline: non-ML baseline-service policy using saved tuned params
+    - complexity_aware_ml_a3: tuned A3 in sparse/moderate buckets, ML in high bucket
+    - trace_capture: measurement-only infrastructure mode with no decisions applied
     
     Also supports legacy use_ml boolean for backward compatibility.
     """
@@ -115,7 +131,7 @@ def set_mode(payload: ModeRequest):
     current_mode = _get_current_mode()
     return {
         "mode": current_mode,
-        "use_ml": current_mode in ("ml", "hybrid"),
+        "use_ml": current_mode in ("ml", "hybrid", "complexity_aware_ml_a3"),
     }
 
 @router.get("/state/{ue_id}")

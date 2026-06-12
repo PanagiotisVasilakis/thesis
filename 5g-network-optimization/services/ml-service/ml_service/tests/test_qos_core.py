@@ -32,7 +32,8 @@ def test_qos_from_request_with_nested_requirements():
     assert qos["reliability_pct"] == 100.0
 
 
-def test_extract_features_includes_qos(tmp_path):
+def test_extract_features_includes_qos(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALLOW_FEATURE_CONFIG_FALLBACK", "1")
     # Create a selector with default config and call extract_features with QoS fields
     selector = AntennaSelector(model_path=None, neighbor_count=0, config_path=str(tmp_path / "features.yaml"))
 

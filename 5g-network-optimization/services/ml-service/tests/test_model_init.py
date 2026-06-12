@@ -171,6 +171,109 @@ def test_initialize_model_type_mismatch(monkeypatch):
         ModelManager.initialize("foo", model_type="lightgbm", background=False)
 
 
+def test_initialize_model_final_mode_requires_existing_artifact(monkeypatch, tmp_path):
+    monkeypatch.setenv("REQUIRE_PRETRAINED_MODEL", "1")
+
+    with pytest.raises(model_init.ModelError, match="existing model artifact"):
+        ModelManager.initialize(str(tmp_path / "missing.joblib"), background=False)
+
+
+def test_initialize_model_final_mode_refuses_synthetic_bootstrap(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    feature_config_hash = model_init._sha256_file(model_init._default_feature_config_path())
+    model_path.write_text("not-a-real-model", encoding="utf-8")
+    (tmp_path / "model.joblib.scaler").write_bytes(b"scaler")
+    (tmp_path / "model.joblib.meta.json").write_text(
+        json.dumps(
+            {
+                "model_type": "dummy",
+                "trained_at": "2026-06-11T00:00:00+00:00",
+                "version": model_init.MODEL_VERSION,
+                "training_data_source": "unit-test",
+                "scenario_seeds": [41],
+                "dataset_size": 1,
+                "selected_features": ["rsrp"],
+                "validation_metrics": {"accuracy": 1.0},
+                "calibration_state": "unit-test",
+                "git_commit": "test",
+                "feature_config_sha256": feature_config_hash,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class DummySelector:
+        def __init__(self, model_path=None, **_):
+            self.model_path = model_path
+
+        def load(self, path=None):
+            return False
+
+        def train(self, data):
+            raise AssertionError("final mode must not train synthetic data")
+
+    monkeypatch.setenv("REQUIRE_PRETRAINED_MODEL", "1")
+    monkeypatch.setitem(model_init.MODEL_CLASSES, "dummy", DummySelector)
+
+    with pytest.raises(model_init.ModelError, match="refusing synthetic bootstrap"):
+        ModelManager.initialize(str(model_path), model_type="dummy", background=False)
+
+
+def test_initialize_model_final_mode_requires_complete_metadata(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    model_path.write_text("not-a-real-model", encoding="utf-8")
+    (tmp_path / "model.joblib.scaler").write_bytes(b"scaler")
+    (tmp_path / "model.joblib.meta.json").write_text(
+        json.dumps(
+            {
+                "model_type": "dummy",
+                "trained_at": "2026-06-11T00:00:00+00:00",
+                "version": model_init.MODEL_VERSION,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("REQUIRE_PRETRAINED_MODEL", "1")
+
+    with pytest.raises(model_init.ModelError, match="metadata missing"):
+        ModelManager.initialize(str(model_path), model_type="dummy", background=False)
+
+
+def test_model_metadata_includes_artifact_hashes(monkeypatch, tmp_path):
+    model_path = tmp_path / "model.joblib"
+    meta_path = tmp_path / "model.joblib.meta.json"
+    scaler_path = tmp_path / "model.joblib.scaler"
+    feature_config = tmp_path / "features.yaml"
+
+    model_path.write_bytes(b"model-bytes")
+    meta_path.write_text(
+        json.dumps(
+            {
+                "model_type": "lightgbm",
+                "trained_at": "2026-06-11T00:00:00+00:00",
+                "version": model_init.MODEL_VERSION,
+            }
+        ),
+        encoding="utf-8",
+    )
+    scaler_path.write_bytes(b"scaler-bytes")
+    feature_config.write_text("base_features: []\n", encoding="utf-8")
+
+    ModelManager._last_good_model_path = str(model_path)
+    monkeypatch.setenv("FEATURE_CONFIG_PATH", str(feature_config))
+
+    metadata = ModelManager.get_metadata()
+
+    assert metadata["model_path"] == str(model_path)
+    assert metadata["model_sha256"] == model_init._sha256_file(model_path)
+    assert metadata["metadata_sha256"] == model_init._sha256_file(meta_path)
+    assert metadata["scaler_sha256"] == model_init._sha256_file(scaler_path)
+    assert metadata["feature_config_sha256"] == model_init._sha256_file(feature_config)
+    assert metadata["artifact_complete"] is True
+    assert metadata["synthetic_bootstrap_allowed"] is True
+
+
 def test_initialize_model_version_warning(monkeypatch, caplog, tmp_path):
     """A warning is logged when metadata version differs."""
 

@@ -3,7 +3,7 @@
 import logging
 import math
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..core.env_utils import parse_env_float, parse_env_int
 from ..monitoring import QoSMonitor
@@ -112,12 +112,28 @@ class NetworkStateManager:
             "longitude": y,
             "altitude": z,
             "speed": speed,
+            "cell_load": antenna_loads.get(connected, 0),
             "connected_to": connected,
             "neighbor_rsrp_dbm": rsrp_dbm,
             "neighbor_sinrs": neighbor_sinrs,
             "neighbor_rsrqs": neighbor_rsrqs,
             "neighbor_cell_loads": antenna_loads,
+            "rsrp_stddev": self._stddev(rsrp_dbm.values()),
+            "sinr_stddev": self._stddev(neighbor_sinrs.values()),
         }
+        features.update(self._trajectory_features(state))
+        features.update(self._handover_features(ue_id))
+        for key in (
+            "service_type",
+            "service_priority",
+            "qos_requirements",
+            "latency_requirement_ms",
+            "throughput_requirement_mbps",
+            "reliability_pct",
+            "jitter_ms",
+        ):
+            if state.get(key) is not None:
+                features[key] = state[key]
 
         if simulate_qos:
             self.simulate_qos_observation(
@@ -132,6 +148,135 @@ class NetworkStateManager:
         observed_qos = self.qos_monitor.get_qos_metrics(ue_id)
         if observed_qos is not None:
             features["observed_qos"] = observed_qos
+        return features
+
+    @staticmethod
+    def _stddev(values) -> float:
+        numeric = [
+            float(value)
+            for value in values
+            if isinstance(value, (int, float)) and math.isfinite(float(value))
+        ]
+        if len(numeric) < 2:
+            return 0.0
+        mean = sum(numeric) / len(numeric)
+        return math.sqrt(sum((value - mean) ** 2 for value in numeric) / len(numeric))
+
+    @staticmethod
+    def _timestamp_seconds(value: Any) -> Optional[float]:
+        if isinstance(value, datetime):
+            timestamp = value
+        elif isinstance(value, str):
+            try:
+                timestamp = datetime.fromisoformat(value)
+            except ValueError:
+                return None
+        else:
+            return None
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+        return timestamp.timestamp()
+
+    def _trajectory_features(
+        self,
+        state: Dict[str, Any],
+    ) -> Dict[str, float | tuple[float, float, float]]:
+        trajectory = state.get("trajectory")
+        if not isinstance(trajectory, list) or len(trajectory) < 2:
+            return {
+                "direction": (0.0, 0.0, 0.0),
+                "velocity": float(state.get("speed", 0.0) or 0.0),
+                "acceleration": 0.0,
+                "heading_change_rate": 0.0,
+                "path_curvature": 0.0,
+            }
+
+        latest = trajectory[-1]
+        previous = trajectory[-2]
+        latest_pos = latest.get("position") if isinstance(latest, dict) else None
+        previous_pos = previous.get("position") if isinstance(previous, dict) else None
+        if not latest_pos or not previous_pos:
+            return {}
+
+        dx = float(latest_pos[0]) - float(previous_pos[0])
+        dy = float(latest_pos[1]) - float(previous_pos[1])
+        dz = float(latest_pos[2]) - float(previous_pos[2])
+        distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+        direction = (
+            dx / distance if distance > 0 else 0.0,
+            dy / distance if distance > 0 else 0.0,
+            dz / distance if distance > 0 else 0.0,
+        )
+
+        t1 = (
+            self._timestamp_seconds(latest.get("timestamp"))
+            if isinstance(latest, dict)
+            else None
+        )
+        t0 = (
+            self._timestamp_seconds(previous.get("timestamp"))
+            if isinstance(previous, dict)
+            else None
+        )
+        dt = max((t1 - t0), 1e-6) if t1 is not None and t0 is not None else 1.0
+        velocity = distance / dt
+        features: Dict[str, float | tuple[float, float, float]] = {
+            "direction": direction,
+            "velocity": velocity,
+            "acceleration": 0.0,
+            "heading_change_rate": 0.0,
+            "path_curvature": 0.0,
+        }
+
+        if len(trajectory) >= 3:
+            before_previous = trajectory[-3]
+            prior_pos = (
+                before_previous.get("position")
+                if isinstance(before_previous, dict)
+                else None
+            )
+            prior_time = (
+                self._timestamp_seconds(before_previous.get("timestamp"))
+                if isinstance(before_previous, dict)
+                else None
+            )
+            if prior_pos and prior_time is not None and t0 is not None:
+                pdx = float(previous_pos[0]) - float(prior_pos[0])
+                pdy = float(previous_pos[1]) - float(prior_pos[1])
+                pdz = float(previous_pos[2]) - float(prior_pos[2])
+                previous_distance = math.sqrt(pdx * pdx + pdy * pdy + pdz * pdz)
+                previous_dt = max(t0 - prior_time, 1e-6)
+                previous_velocity = previous_distance / previous_dt
+                features["acceleration"] = (velocity - previous_velocity) / dt
+                current_heading = math.atan2(dy, dx)
+                previous_heading = math.atan2(pdy, pdx)
+                heading_delta = abs(
+                    (current_heading - previous_heading + math.pi)
+                    % (2 * math.pi)
+                    - math.pi
+                )
+                features["heading_change_rate"] = heading_delta / dt
+                features["path_curvature"] = heading_delta / max(distance, 1e-6)
+
+        return features
+
+    def _handover_features(self, ue_id: str) -> Dict[str, Any]:
+        history = [
+            dict(event)
+            for event in self.handover_history
+            if event.get("ue_id") == ue_id
+        ]
+        features: Dict[str, Any] = {
+            "handover_count": len(history),
+            "handover_history": history[-10:],
+        }
+        if history:
+            timestamp = self._timestamp_seconds(history[-1].get("timestamp"))
+            if timestamp is not None:
+                now = datetime.now(timezone.utc).timestamp()
+                features["time_since_handover"] = max(0.0, now - timestamp)
+        else:
+            features["time_since_handover"] = 0.0
         return features
 
     def peek_feature_vector(self, ue_id):

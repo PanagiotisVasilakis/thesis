@@ -306,6 +306,8 @@ class _RealBackgroundTasks(threading.Thread):
                                     ml_method = "ML"
                                 elif handover_mode == "hybrid":
                                     ml_method = "Hybrid"
+                                elif handover_mode == "complexity_aware_ml_a3":
+                                    ml_method = "ComplexityAwareMLA3"
                                 else:
                                     ml_method = "A3"
                                 # Get current UE signal metrics

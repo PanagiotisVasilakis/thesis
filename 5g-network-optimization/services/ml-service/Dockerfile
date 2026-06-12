@@ -106,7 +106,6 @@ CMD ["gunicorn", \
     "--keep-alive", "5", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "100", \
-     "--preload", \
      "--log-level", "info", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \

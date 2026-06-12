@@ -394,7 +394,11 @@ fi
 
 log "✅ All pre-flight checks passed"
 
-# Create output directory
+# Create output directory only when it cannot mix with previous artifacts.
+if [ -d "$OUTPUT_DIR" ] && [ -n "$(find "$OUTPUT_DIR" -mindepth 1 -print -quit)" ]; then
+    fatal "Output directory already exists and is not empty: $OUTPUT_DIR. Choose a new experiment name or remove the old directory first."
+fi
+
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR/metrics"
 mkdir -p "$OUTPUT_DIR/logs"

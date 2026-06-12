@@ -20,7 +20,7 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional
-import requests
+import requests  # type: ignore[import-untyped]
 
 
 class ServiceType(Enum):
@@ -109,21 +109,27 @@ class UEConfig:
     
     def __post_init__(self):
         # Auto-generate network identifiers if not provided
-        # Extract numeric suffix from SUPI, handling leading zeros safely
+        # Extract numeric suffix from SUPI, handling leading zeros safely.
+        # Use a wider suffix than the last three digits so generated scenarios
+        # do not collide with the NEF emulator's seeded basic scenario UEs.
         try:
-            supi_num = int(self.supi[-3:])  # Get last 3 digits as number
+            supi_num = int(self.supi[-6:])
         except ValueError:
             supi_num = hash(self.supi) % 254 + 1  # Fallback to hash-based
         
         if not self.ip_address_v4:
-            # Ensure IP is in valid range (1-254)
-            ip_last_octet = max(1, min(254, supi_num % 255))
-            self.ip_address_v4 = f"10.0.0.{ip_last_octet}"
+            subnet_octet = max(1, min(254, (supi_num // 254) % 255))
+            ip_last_octet = (supi_num % 254) + 1
+            self.ip_address_v4 = f"10.{subnet_octet}.0.{ip_last_octet}"
         if not self.ip_address_v6:
             self.ip_address_v6 = f"0:0:0:0:0:0:0:{supi_num}"
         if not self.mac_address:
-            # Format as proper MAC with zero-padding
-            self.mac_address = f"22-00-00-00-00-{supi_num:02X}"
+            mac_value = supi_num % (1 << 40)
+            mac_bytes = [0x22] + [
+                (mac_value >> shift) & 0xFF
+                for shift in (32, 24, 16, 8, 0)
+            ]
+            self.mac_address = "-".join(f"{part:02X}" for part in mac_bytes)
     
     def to_api_payload(self) -> Dict:
         """Convert to NEF API payload format."""
@@ -194,10 +200,13 @@ class BaseScenario(ABC):
     - get_metadata(): Return scenario metadata
     """
     
-    def __init__(self, 
-                 nef_url: str = None,
-                 username: str = None,
-        password: str = None):
+    def __init__(
+        self,
+        nef_url: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        seed: int = 42,
+    ):
         import os
         self.nef_url = nef_url or os.environ.get("NEF_URL")
         if not self.nef_url:
@@ -209,6 +218,7 @@ class BaseScenario(ABC):
                 "NEF credentials are required. Set NEF_USERNAME/NEF_PASSWORD "
                 "or FIRST_SUPERUSER/FIRST_SUPERUSER_PASSWORD."
             )
+        self.seed = seed
         self.token: Optional[str] = None
         
         self.cells: List[CellConfig] = []
@@ -353,11 +363,16 @@ class BaseScenario(ABC):
                 print(f"✅ Created UE: {ue.name} ({ue.ue_type.value}, {ue.service_type.value})")
                 self._created_ues.append(ue.supi)
                 return True
-            elif "already exists" in response.text.lower():
+            elif (
+                response.status_code == 409
+                and "supi" in response.text.lower()
+                and "already exists" in response.text.lower()
+            ):
                 print(f"ℹ️  UE {ue.name} already exists")
                 return True
             else:
                 print(f"❌ Failed to create UE {ue.name}: {response.status_code}")
+                print(f"   Response: {response.text[:200]}")
                 return False
         except requests.RequestException as e:
             print(f"❌ Error creating UE {ue.name}: {e}")
@@ -511,40 +526,69 @@ class BaseScenario(ABC):
         # Step 2: Create gNB
         print("\n🗼 Creating Base Station...")
         if not self.create_gnb():
-            print("⚠️  gNB creation failed, but continuing...")
+            print("❌ gNB creation failed. Aborting deployment.")
+            return False
         
         # Step 3: Generate and create cells
         self.cells = self.generate_cells()
         print(f"\n📡 Creating {len(self.cells)} cells...")
+        failed_cells = 0
         for cell in self.cells:
-            self.create_cell(cell)
+            if not self.create_cell(cell):
+                failed_cells += 1
             time.sleep(0.2)
+        if failed_cells:
+            print(f"❌ Failed to create {failed_cells}/{len(self.cells)} cells. Aborting deployment.")
+            return False
         
         # Step 4: Generate and create paths
         print("\n📍 Creating mobility paths...")
         self.paths = self.generate_paths()
         path_ids = []
+        failed_paths = 0
         for path in self.paths:
             path_id = self.create_path(path)
             if path_id:
                 path_ids.append(path_id)
+            else:
+                failed_paths += 1
             time.sleep(0.2)
+        if failed_paths:
+            print(f"❌ Failed to create {failed_paths}/{len(self.paths)} paths. Aborting deployment.")
+            return False
         
         # Step 5: Generate and create UEs
         self.ues = self.generate_ues()
         print(f"\n📱 Creating {len(self.ues)} UEs...")
+        failed_ues = 0
         for ue in self.ues:
-            self.create_ue(ue)
+            if not self.create_ue(ue):
+                failed_ues += 1
             time.sleep(0.2)
+        if failed_ues:
+            print(f"❌ Failed to create {failed_ues}/{len(self.ues)} UEs. Aborting deployment.")
+            return False
         
         # Step 6: Associate UEs with paths
         print("\n🔗 Associating UEs with paths...")
+        if not path_ids and self.ues:
+            print("❌ No mobility paths were created for UE association. Aborting deployment.")
+            return False
+
+        failed_associations = 0
         if path_ids:
             for i, ue in enumerate(self.ues):
                 # Distribute UEs across available paths
                 path_id = path_ids[i % len(path_ids)]
-                self.associate_ue_with_path(ue.supi, path_id)
+                if not self.associate_ue_with_path(ue.supi, path_id):
+                    failed_associations += 1
                 time.sleep(0.2)
+        if failed_associations:
+            print(
+                f"❌ Failed to associate {failed_associations}/{len(self.ues)} "
+                "UEs with paths. Aborting deployment."
+            )
+            return False
         
         # Summary
         metadata = self.get_metadata()
@@ -673,6 +717,6 @@ class BaseScenario(ABC):
 if __name__ == "__main__":
     # Test that base class cannot be instantiated directly
     try:
-        scenario = BaseScenario()
+        scenario = BaseScenario()  # type: ignore[abstract]
     except TypeError as e:
         print(f"✅ BaseScenario correctly prevents instantiation: {e}")

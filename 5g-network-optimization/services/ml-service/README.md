@@ -39,8 +39,12 @@
 ```bash
 python -m venv .venv
 . .venv/Scripts/activate  # ή source .venv/bin/activate σε Linux/macOS
-pip install -r ../../requirements.txt
-export AUTH_USERNAME=ml-admin AUTH_PASSWORD='<set-strong-local-password>' JWT_SECRET='<set-long-random-jwt-secret>'
+pip install -r requirements.txt
+export NEF_API_URL=http://localhost:8080
+export SECRET_KEY='<set-long-random-flask-secret>'
+export JWT_SECRET='<set-long-random-jwt-secret>'
+export JWT_REFRESH_SECRET='<set-long-random-refresh-secret>'
+export AUTH_USERNAME=ml-admin AUTH_PASSWORD='<set-strong-local-password>'
 python app.py
 ```
 
@@ -52,12 +56,14 @@ python app.py
 docker build -t ml-service .
 docker run -p 5050:5050 \
      -e AUTH_USERNAME=ml-admin -e AUTH_PASSWORD='<set-strong-local-password>' \
+     -e SECRET_KEY='<set-long-random-flask-secret>' \
      -e JWT_SECRET='<set-long-random-jwt-secret>' \
+     -e JWT_REFRESH_SECRET='<set-long-random-refresh-secret>' \
      -e NEF_API_URL=http://localhost:8080 \
      ml-service
 ```
 
-Το `docker-compose.yml` ανωτάτου επιπέδου σε αυτό το αποθετήριο εκκινεί τον εξομοιωτή NEF, την υπηρεσία ML και τη στοίβα παρακολούθησης από άκρο σε άκρο.
+Το `docker-compose.yml` ανωτάτου επιπέδου σε αυτό το αποθετήριο εκκινεί τον εξομοιωτή NEF, την υπηρεσία ML και τη στοίβα παρακολούθησης από άκρο σε άκρο όταν είναι ενεργό το compose profile `ml`.
 
 ## Επισκόπηση API
 
@@ -66,7 +72,7 @@ docker run -p 5050:5050 \
 | Endpoint | Μέθοδος | Auth; | Σκοπός |
 |----------|---------|-------|--------|
 | `/api/health` | GET | Όχι | Έλεγχος ζωντανότητας. |
-| `/api/model-health` | GET | Όχι | Αναφέρει `ModelManager.is_ready()` και τα τελευταία μεταδεδομένα (έκδοση, χρονικές σφραγίδες, μετρικές). |
+| `/api/model-health` | GET | Όχι | Αναφέρει την ετοιμότητα μέσω `ModelManager.wait_until_ready(timeout=0)` και τα τελευταία μεταδεδομένα (έκδοση, χρονικές σφραγίδες, μετρικές). |
 | `/api/login` | POST | Όχι | Εκδίδει JWT με τα δεδομένα `AUTH_USERNAME`/`AUTH_PASSWORD`. Σώμα επικυρωμένο μέσω Pydantic model `LoginRequest`. |
 | `/api/predict` | POST | Ναι | Σύγχρονη πρόβλεψη. Χρησιμοποιεί `PredictionRequest`, καλεί βοηθό `predict()`, καταγράφει μετρικές & δεδομένα drift. |
 | `/api/predict-with-qos` | POST | Ναι | Πρόβλεψη QoS-aware που επιστρέφει ετυμηγορία `qos_compliance` παράλληλα με την πρόταση κεραίας. |
@@ -120,15 +126,18 @@ curl -X POST http://localhost:5050/api/predict \
 
 | Μεταβλητή | Προεπιλογή | Περιγραφή |
 |-----------|-----------|-----------|
-| `AUTH_USERNAME` / `AUTH_PASSWORD` | *(μη ορισμένες)* | Απαιτούνται για `/api/login`. Αν παραλειφθούν, η αυθεντικοποίηση απενεργοποιείται και καταγράφεται προειδοποίηση (συνιστάται μόνο για τοπικά πειράματα). |
-| `JWT_SECRET` | τυχαίο ανά εκκίνηση | HMAC κλειδί για JWTs. Παρέχετε σταθερή τιμή για αναπτύξεις με πολλαπλές εκδόσεις. |
-| `NEF_API_URL` | `http://localhost:8080` | Βασικό URL που χρησιμοποιείται από τον NEF client και τον data collector. |
+| `NEF_API_URL` | *(μη ορισμένη)* | Απαιτείται εκτός tests. Βασικό URL που χρησιμοποιείται από τον NEF client και τον data collector. |
+| `SECRET_KEY` | *(μη ορισμένη)* | Απαιτείται εκτός tests. Flask secret key. |
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | *(μη ορισμένες)* | Απαιτούνται εκτός tests για `/api/login`. Αν λείπουν, η εκκίνηση αποτυγχάνει αντί να απενεργοποιήσει σιωπηλά την αυθεντικοποίηση. |
+| `JWT_SECRET` / `JWT_REFRESH_SECRET` | *(μη ορισμένες)* | Απαιτούνται εκτός tests. HMAC κλειδιά για access και refresh JWTs. |
 | `MODEL_PATH` | `ml_service/app/models/antenna_selector_v1.0.0.joblib` | Τοποθεσία αποθήκευσης για το ενεργό μοντέλο και μεταδεδομένα. Οι γονικοί φάκελοι δημιουργούνται αυτόματα. |
 | `MODEL_TYPE` | `lightgbm` | Επιλέγει κλάση επιλογέα (`lightgbm`, `lstm`, `ensemble`, `online`). Τα μεταδεδομένα μπορούν να το παρακάμψουν. |
 | `NEIGHBOR_COUNT` | `3` | Διαβιβάζεται στους κατασκευαστές επιλογέα για διαστασιολόγηση χαρακτηριστικών με επίγνωση γειτόνων. |
 | `LIGHTGBM_TUNE` | `0` | Όταν `1`, εκτελεί τυχαιοποιημένη ρύθμιση LightGBM κατά την εκκίνηση. Τροποποιείται μέσω `LIGHTGBM_TUNE_N_ITER` και `LIGHTGBM_TUNE_CV`. |
 | `PORT` / `HOST` | `5050` / `0.0.0.0` | Διεύθυνση δέσμευσης Gunicorn/Flask και θύρα κατά την εκκίνηση μέσω `app.py`. |
-| `RATE_LIMIT_PER_MINUTE` | `100` | Προεπιλεγμένη ποσόστωση `Flask-Limiter`. |
+| `RATELIMIT_DEFAULT` | `100 per minute` | Προεπιλεγμένη ποσόστωση `Flask-Limiter`. |
+| `RATELIMIT_PREDICT` | `60 per minute` | Ποσόστωση για `/api/predict` και `/api/predict-with-qos`. Στο root `docker-compose.yml` αυξάνεται με ασφαλές override για ελεγχόμενα live πειράματα. |
+| `RATELIMIT_FEEDBACK` | `30 per minute` | Ποσόστωση για `/api/qos-feedback`. Στο root `docker-compose.yml` αυξάνεται με ασφαλές override για ελεγχόμενα live πειράματα, ώστε η εσωτερική κίνηση NEF-to-ML να μην δημιουργεί παραπλανητικά σφάλματα. |
 
 ### Επιλογές Αυθεντικοποίησης Μετρικών
 
@@ -175,6 +184,6 @@ pytest tests
 - **Το μοντέλο δεν ετοιμάζεται ποτέ**: ελέγξτε τα αρχεία καταγραφής για καταχωρήσεις παρακολούθησης thread (`model_background_init`). Μια αποτυχία επαναφέρεται στην τελευταία επιτυχή διαδρομή μοντέλου και εμφανίζεται στα μεταδεδομένα `/api/model-health`.
 - **401 στο `/metrics`**: βεβαιωθείτε ότι έχει διαμορφωθεί τουλάχιστον ένα διαπιστευτήριο μετρικών. Χρησιμοποιήστε `/metrics/auth/token` για έκδοση JWT βραχείας διάρκειας.
 - **Το `/api/collect-data` επιστρέφει μηδέν δείγματα**: επαληθεύστε ότι ο εξομοιωτής NEF έχει UEs σε κίνηση μέσω των endpoints `/api/v1/movement` πριν από την έναρξη συλλογής.
-- **Υπέρβαση ορίου ρυθμού**: αυξήστε το `RATE_LIMIT_PER_MINUTE` ή συντονίστε συγκεκριμένες διαδρομές επεκτείνοντας το `Flask-Limiter` στο `rate_limiter.py`.
+- **Υπέρβαση ορίου ρυθμού**: αυξήστε το `RATELIMIT_DEFAULT` ή το συγκεκριμένο όριο διαδρομής, όπως `RATELIMIT_FEEDBACK` για `/api/qos-feedback`. Η υπηρεσία πρέπει να επιστρέφει 429 και όχι να κρύβει το rate-limit ως 500.
 
 Όλα τα παραπάνω αντικατοπτρίζουν τον τρέχοντα κώδικα· ενημερώστε αυτό το README κάθε φορά που αλλάζουν διαδρομές API, προεπιλογές ή background υπηρεσίες.

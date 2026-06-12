@@ -17,16 +17,38 @@ class PredictionRequest(BaseModel):
     speed: Optional[float] = None
     velocity: Optional[float] = None
     acceleration: Optional[float] = None
+    heading_change_rate: Optional[float] = None
+    path_curvature: Optional[float] = None
+    stability: Optional[float] = None
     cell_load: Optional[float] = None
     handover_count: Optional[int] = None
+    handover_history: Optional[List[Dict[str, Any]]] = None
+    time_since_handover: Optional[float] = None
     signal_trend: Optional[float] = None
     environment: Optional[float] = None
+    rsrp_stddev: Optional[float] = None
+    sinr_stddev: Optional[float] = None
+    rsrp_acceleration: Optional[float] = None
+    sinr_acceleration: Optional[float] = None
+    speed_jerk: Optional[float] = None
+    rsrp_ema_short: Optional[float] = None
+    rsrp_ema_long: Optional[float] = None
+    rsrp_trend_divergence: Optional[float] = None
+    distance_to_target: Optional[float] = None
+    distance_to_current: Optional[float] = None
+    angle_to_target: Optional[float] = None
+    relative_distance_ratio: Optional[float] = None
+    moving_toward_target: Optional[float] = None
     direction: Optional[List[float]] = None
     connected_to: Optional[str] = None
     rf_metrics: Optional[Dict[str, Dict[str, float]]] = None
     service_type: Optional[str] = None
     service_priority: Optional[int] = Field(default=None, ge=1, le=10)
     qos_requirements: Optional[Dict[str, float]] = None
+    latency_requirement_ms: Optional[float] = Field(default=None, ge=0.0)
+    throughput_requirement_mbps: Optional[float] = Field(default=None, ge=0.0)
+    reliability_pct: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    jitter_ms: Optional[float] = Field(default=None, ge=0.0)
 
 
 class TrainingSample(PredictionRequest):

@@ -17,7 +17,12 @@ class DummyM:
 def test_predict_route(client, auth_header):
     mock_model = MagicMock()
     mock_model.extract_features.return_value = {"f": 1}
-    mock_model.predict.return_value = {"antenna_id": "antenna_1", "confidence": 0.9}
+    mock_model.predict.return_value = {
+        "antenna_id": "antenna_1",
+        "confidence": 0.9,
+        "anti_pingpong_applied": True,
+        "suppression_reason": "too_recent",
+    }
 
     with patch(
         "ml_service.app.api.routes.load_model", return_value=mock_model
@@ -29,8 +34,80 @@ def test_predict_route(client, auth_header):
         data = resp.get_json()
         assert data["predicted_antenna"] == "antenna_1"
         assert data["confidence"] == 0.9
+        assert data["anti_pingpong_applied"] is True
+        assert data["suppression_reason"] == "too_recent"
         mock_get.assert_called_once_with(client.application.config["MODEL_PATH"])
         mock_track.assert_called_once_with("antenna_1", 0.9)
+
+
+def test_predict_with_qos_accepts_enriched_nef_payload(client, auth_header):
+    captured = {}
+
+    def fake_predict(payload, model=None):
+        captured["payload"] = payload
+        return (
+            {
+                "antenna_id": "antenna_2",
+                "confidence": 0.82,
+                "qos_compliance": {"service_priority_ok": True},
+                "fallback_reason": "geographic_override",
+                "ml_prediction": "antenna_9",
+                "distance_to_ml_prediction": 1200.0,
+                "distance_to_fallback": 50.0,
+                "qos_bias_applied": True,
+                "qos_bias_service_type": "urllc",
+            },
+            {"cell_load": payload["cell_load"]},
+        )
+
+    payload = {
+        "ue_id": "u1",
+        "latitude": 10.0,
+        "longitude": 20.0,
+        "speed": 12.0,
+        "velocity": 11.5,
+        "acceleration": 0.2,
+        "direction": [1.0, 0.0, 0.0],
+        "connected_to": "cell-a",
+        "cell_load": 2.0,
+        "handover_count": 3,
+        "handover_history": [{"from": "cell-b", "to": "cell-a"}],
+        "time_since_handover": 14.0,
+        "rsrp_stddev": 1.5,
+        "sinr_stddev": 0.7,
+        "rf_metrics": {
+            "cell-a": {"rsrp": -80.0, "sinr": 10.0, "cell_load": 2.0},
+            "cell-b": {"rsrp": -75.0, "sinr": 12.0, "cell_load": 4.0},
+        },
+        "service_type": "urllc",
+        "service_priority": 9,
+        "qos_requirements": {"latency_requirement_ms": 5.0},
+        "observed_qos": {
+            "latency_ms": 4.0,
+            "jitter_ms": 0.5,
+            "throughput_mbps": 50.0,
+            "packet_loss_rate": 0.0,
+        },
+    }
+
+    with patch("ml_service.app.api.routes.load_model", return_value=MagicMock()), patch(
+        "ml_service.app.api.routes.predict_ue", side_effect=fake_predict
+    ):
+        resp = client.post("/api/predict-with-qos", json=payload, headers=auth_header)
+
+    assert resp.status_code == 200
+    assert captured["payload"]["rf_metrics"]["cell-b"]["cell_load"] == 4.0
+    assert captured["payload"]["handover_count"] == 3
+    assert captured["payload"]["qos_requirements"] == {"latency_requirement_ms": 5.0}
+    assert captured["payload"]["observed_qos"]["latency_ms"] == 4.0
+    data = resp.get_json()
+    assert data["geographic_override"] is True
+    assert data["fallback_reason"] == "geographic_override"
+    assert data["ml_prediction"] == "antenna_9"
+    assert data["distance_to_ml_prediction"] == 1200.0
+    assert data["distance_to_fallback"] == 50.0
+    assert data["qos_bias_applied"] is True
+    assert data["qos_bias_service_type"] == "urllc"
 
 
 def test_predict_invalid_request(client, auth_header):
@@ -44,7 +121,10 @@ def test_predict_invalid_request(client, auth_header):
 
 
 def test_predict_returns_503_when_model_not_ready(client, auth_header, monkeypatch):
-    monkeypatch.setattr("ml_service.app.api.routes.ModelManager.is_ready", lambda: False)
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.wait_until_ready",
+        lambda timeout=0: False,
+    )
     client.application.testing = False
 
     resp = client.post("/api/predict", json={"ue_id": "u1"}, headers=auth_header)
@@ -205,7 +285,10 @@ def test_train_updates_metadata(client, auth_header, monkeypatch, tmp_path):
 
 def test_model_health(client, monkeypatch):
     ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    monkeypatch.setattr("ml_service.app.api.routes.ModelManager.is_ready", lambda: True)
+    monkeypatch.setattr(
+        "ml_service.app.api.routes.ModelManager.wait_until_ready",
+        lambda timeout=0: True,
+    )
     monkeypatch.setattr(
         "ml_service.app.api.routes.ModelManager.get_metadata",
         lambda: {"trained_at": ts.isoformat(), "metrics": {"samples": 5}, "version": "1.0"},

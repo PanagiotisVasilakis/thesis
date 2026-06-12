@@ -2,6 +2,7 @@
 
 from flask import jsonify, g
 import uuid
+from werkzeug.exceptions import HTTPException
 
 from .errors import (
     MLServiceError,
@@ -52,6 +53,15 @@ def register_error_handlers(app):
     app.register_error_handler(NEFConnectionError, handle_nef_error)
     app.register_error_handler(ResourceNotFoundError, handle_not_found)
     app.register_error_handler(MLServiceError, handle_generic)
+
+    def handle_http_exception(err):
+        """Preserve HTTP exception status codes such as rate-limit 429."""
+        status_code = err.code or 500
+        log = app.logger.warning if status_code < 500 else app.logger.exception
+        log("HTTP exception: %s [cid=%s]", err, getattr(g, "correlation_id", ""))
+        return jsonify(_format_error(err)), status_code
+
+    app.register_error_handler(HTTPException, handle_http_exception)
 
     def handle_unexpected(err):
         """Handle uncaught exceptions."""

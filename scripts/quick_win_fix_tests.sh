@@ -221,8 +221,8 @@ fi
 echo ""
 echo "Defense talking points:"
 echo "  - \"I have $passed_final out of $total_final tests passing ($pass_rate%)\""
-echo "  - \"Core functionality is fully tested with 100% pass rate\""
-echo "  - \"Remaining failures are edge cases in [coverage loss/integration]\""
+echo "  - \"Only validated passing tests and documented gaps should be claimed\""
+echo "  - \"Any remaining failures must be named specifically, not dismissed generically\""
 echo ""
 
 # Cleanup

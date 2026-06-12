@@ -28,6 +28,9 @@ class DummyEngine:
 
     def __init__(self, sm: DummyStateManager):
         self.sm = sm
+        self.handover_mode = "hybrid"
+        self.use_ml = True
+        self._auto = True
 
     def decide_and_apply(self, ue_id: str):
         return self.evaluate_and_apply_handover(ue_id)
@@ -122,3 +125,31 @@ def test_handover_not_triggered(client: TestClient) -> None:
     resp = client.post("/api/v1/ml/handover?ue_id=ue_no")
     assert resp.status_code == 400
     assert resp.json()["detail"] == "No handover triggered"
+
+
+def test_set_mode_accepts_fixed_a3_baseline(client: TestClient) -> None:
+    resp = client.post("/api/v1/ml/mode", json={"mode": "fixed_a3_baseline"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"mode": "fixed_a3_baseline", "use_ml": False}
+
+
+def test_set_mode_accepts_tuned_a3_baseline(client: TestClient) -> None:
+    resp = client.post("/api/v1/ml/mode", json={"mode": "tuned_a3_baseline"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"mode": "tuned_a3_baseline", "use_ml": False}
+
+
+def test_set_mode_accepts_complexity_aware_ml_a3(client: TestClient) -> None:
+    resp = client.post("/api/v1/ml/mode", json={"mode": "complexity_aware_ml_a3"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"mode": "complexity_aware_ml_a3", "use_ml": True}
+
+
+def test_set_mode_accepts_trace_capture(client: TestClient) -> None:
+    resp = client.post("/api/v1/ml/mode", json={"mode": "trace_capture"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"mode": "trace_capture", "use_ml": False}

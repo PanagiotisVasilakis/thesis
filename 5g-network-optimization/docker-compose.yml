@@ -26,10 +26,11 @@ services:
   nef-emulator:
     image: 5g-network-optimization/nef-emulator:latest
     build:
-      context: .
-      dockerfile: services/nef-emulator/backend/Dockerfile.backend
+      context: ./services/nef-emulator/backend
+      dockerfile: Dockerfile.backend
       args:
         ML_LOCAL: ${ML_LOCAL:-0}
+    command: /start-reload.sh
     ports:
       - "8080:80"
     env_file:
@@ -37,10 +38,15 @@ services:
     environment:
       - SERVER_NAME=${SERVER_NAME:?SERVER_NAME must be set}
       - SERVER_HOST=${SERVER_HOST:?SERVER_HOST must be set}
+      - PYTHONPATH=/app:/opt/handover-baseline-service
+      - HANDOVER_BASELINE_SERVICE_PATH=${HANDOVER_BASELINE_SERVICE_PATH:-/opt/handover-baseline-service}
+      - TUNED_A3_CONFIG_PATH=${TUNED_A3_CONFIG_PATH:-}
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
       - ML_HANDOVER_ENABLED=${ML_HANDOVER_ENABLED:-1}
       - ML_LOCAL=${ML_LOCAL:-0}
+    volumes:
+      - ./services/handover-baseline-service:/opt/handover-baseline-service:ro
     networks:
       - 5g-network
     depends_on:
@@ -62,6 +68,15 @@ services:
       - NEF_API_URL=${NEF_API_URL:-http://nef-emulator:80}
       - A3_HYSTERESIS_DB=${A3_HYSTERESIS_DB:-2.0}
       - A3_TTT_S=${A3_TTT_S:-0.0}
+      - RATELIMIT_PREDICT=${RATELIMIT_PREDICT:-3000 per minute}
+      - RATELIMIT_FEEDBACK=${RATELIMIT_FEEDBACK:-3000 per minute}
+      - MODEL_PATH=${MODEL_PATH:-}
+      - FEATURE_CONFIG_PATH=${FEATURE_CONFIG_PATH:-}
+      - THESIS_FINAL_RUN=${THESIS_FINAL_RUN:-0}
+      - REQUIRE_PRETRAINED_MODEL=${REQUIRE_PRETRAINED_MODEL:-0}
+      - DISABLE_SYNTHETIC_MODEL_BOOTSTRAP=${DISABLE_SYNTHETIC_MODEL_BOOTSTRAP:-0}
+    volumes:
+      - ${ML_MODEL_HOST_DIR:-./services/ml-service/ml_service/app/models}:/app/final-models:ro
     depends_on:
       - nef-emulator
     networks:

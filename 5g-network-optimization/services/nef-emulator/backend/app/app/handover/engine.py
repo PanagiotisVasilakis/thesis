@@ -6,7 +6,7 @@ import os
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import logging
 import requests
@@ -18,7 +18,15 @@ from ..monitoring import metrics
 
 from ..network.state_manager import NetworkStateManager
 from .a3_rule import A3EventRule
+from .baseline_policy import BASELINE_HANDOVER_MODES, BaselinePolicyManager
 
+
+TRACE_CAPTURE_MODE = "trace_capture"
+COMPLEXITY_AWARE_MODE = "complexity_aware_ml_a3"
+TUNED_A3_BASELINE_MODE = "tuned_a3_baseline"
+DEFAULT_MIN_VIABLE_RSRP_DBM = -115.0
+DEFAULT_MIN_VIABLE_SINR_DB = -5.0
+DEFAULT_HIGH_COMPLEXITY_THRESHOLD = 3
 
 _FALLBACK_CELL_CONFIGS = {
     "antenna_1": {"latitude": 0.0, "longitude": 0.0},
@@ -26,6 +34,67 @@ _FALLBACK_CELL_CONFIGS = {
     "antenna_3": {"latitude": 0.0, "longitude": 866.0},
     "antenna_4": {"latitude": 1000.0, "longitude": 866.0},
 }
+
+_ML_PAYLOAD_PASSTHROUGH_FIELDS = (
+    "velocity",
+    "acceleration",
+    "cell_load",
+    "handover_count",
+    "handover_history",
+    "time_since_handover",
+    "signal_trend",
+    "environment",
+    "rsrp_stddev",
+    "sinr_stddev",
+    "stability",
+    "heading_change_rate",
+    "path_curvature",
+    "rsrp_acceleration",
+    "sinr_acceleration",
+    "speed_jerk",
+    "rsrp_ema_short",
+    "rsrp_ema_long",
+    "rsrp_trend_divergence",
+    "distance_to_target",
+    "distance_to_current",
+    "angle_to_target",
+    "relative_distance_ratio",
+    "moving_toward_target",
+    "service_type",
+    "service_priority",
+    "qos_requirements",
+    "latency_requirement_ms",
+    "throughput_requirement_mbps",
+    "reliability_pct",
+    "jitter_ms",
+)
+
+_OBSERVED_QOS_KEYS = (
+    "latency_ms",
+    "jitter_ms",
+    "throughput_mbps",
+    "packet_loss_rate",
+)
+
+_ML_RESPONSE_METADATA_FIELDS = (
+    "fallback_reason",
+    "fallback_to_a3",
+    "ml_prediction",
+    "raw_ml_prediction",
+    "distance_to_ml_prediction",
+    "distance_to_fallback",
+    "geographic_override",
+    "anti_pingpong_applied",
+    "suppression_reason",
+    "original_prediction",
+    "qos_bias_applied",
+    "qos_bias_service_type",
+    "qos_bias_scores",
+    "confidence_calibrated",
+    "warnings",
+    "handover_count_1min",
+    "time_since_last_handover",
+)
 
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -41,6 +110,87 @@ def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
     )
     c = 2.0 * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
     return radius_m * c
+
+
+def _filtered_observed_qos(value: Any) -> dict[str, float]:
+    """Return the latest QoS metrics in the shape accepted by ml-service."""
+    if not isinstance(value, dict):
+        return {}
+    latest = value.get("latest") if isinstance(value.get("latest"), dict) else value
+    if not isinstance(latest, dict):
+        return {}
+    return {
+        key: latest[key]
+        for key in _OBSERVED_QOS_KEYS
+        if latest.get(key) is not None
+    }
+
+
+def _candidate_complexity_for_feature_vector(
+    fv: dict,
+    *,
+    high_complexity_threshold: int = DEFAULT_HIGH_COMPLEXITY_THRESHOLD,
+    min_rsrp_dbm: float = DEFAULT_MIN_VIABLE_RSRP_DBM,
+    min_sinr_db: float = DEFAULT_MIN_VIABLE_SINR_DB,
+) -> dict[str, Any]:
+    rsrp_map = fv.get("neighbor_rsrp_dbm") or {}
+    sinr_map = fv.get("neighbor_sinrs") or {}
+    serving = str(fv.get("connected_to") or "")
+    candidates: list[str] = []
+
+    if not isinstance(rsrp_map, dict):
+        rsrp_map = {}
+    if not isinstance(sinr_map, dict):
+        sinr_map = {}
+
+    for raw_cell_id, raw_rsrp in rsrp_map.items():
+        cell_id = str(raw_cell_id)
+        if cell_id == serving:
+            continue
+        try:
+            rsrp = float(raw_rsrp)
+        except (TypeError, ValueError):
+            continue
+        raw_sinr = sinr_map.get(raw_cell_id, sinr_map.get(cell_id))
+        try:
+            sinr = None if raw_sinr is None else float(raw_sinr)
+        except (TypeError, ValueError):
+            sinr = None
+        if rsrp >= min_rsrp_dbm and (sinr is None or sinr >= min_sinr_db):
+            candidates.append(cell_id)
+
+    count = len(candidates)
+    if count <= 1:
+        bucket = "sparse"
+    elif count < high_complexity_threshold:
+        bucket = "moderate"
+    else:
+        bucket = "high"
+    return {
+        "viable_candidate_count": count,
+        "complexity_bucket": bucket,
+        "viable_candidates": candidates,
+        "thresholds": {
+            "min_rsrp_dbm": float(min_rsrp_dbm),
+            "min_sinr_db": float(min_sinr_db),
+            "high_complexity_threshold": float(high_complexity_threshold),
+        },
+    }
+
+
+def _ml_result_from_response(data: dict, *, source: str) -> dict[str, Any]:
+    antenna_id = data.get("predicted_antenna") or data.get("antenna_id")
+    result = {
+        "antenna_id": antenna_id,
+        "confidence": data.get("confidence"),
+        "qos_compliance": data.get("qos_compliance"),
+        "source": source,
+        "raw_ml_prediction": data.get("ml_prediction") or antenna_id,
+    }
+    for field in _ML_RESPONSE_METADATA_FIELDS:
+        if field in data:
+            result[field] = data[field]
+    return result
 
 
 def _get_cell_configs() -> dict:
@@ -99,6 +249,16 @@ class HandoverEngine:
         
         # Parse env vars using helpers for consistent error handling
         self.min_antennas_ml = parse_env_int("MIN_ANTENNAS_ML", min_antennas_ml, min_value=1)
+        default_complexity_threshold = parse_env_int(
+            "MIN_COMPLEXITY_ML_CANDIDATES",
+            DEFAULT_HIGH_COMPLEXITY_THRESHOLD,
+            min_value=1,
+        )
+        self.high_complexity_threshold = parse_env_int(
+            "COMPLEXITY_ML_CANDIDATE_THRESHOLD",
+            default_complexity_threshold,
+            min_value=1,
+        )
         self.confidence_threshold = parse_env_float(
             "ML_CONFIDENCE_THRESHOLD", confidence_threshold, min_value=0.0, max_value=1.0
         )
@@ -126,6 +286,7 @@ class HandoverEngine:
             ttt_seconds=self._a3_params[1],
             event_type="rsrp_based"  # Default to RSRP-based for backward compatibility
         )
+        self._baseline_policy_manager = BaselinePolicyManager()
 
         env = os.getenv("ML_HANDOVER_ENABLED") if use_ml is None else None
 
@@ -139,7 +300,9 @@ class HandoverEngine:
             self._auto = True
             self.use_ml = len(state_mgr.antenna_list) >= self.min_antennas_ml
 
-        # Handover mode: "ml" (pure), "a3" (pure), or "hybrid" (ML with A3 fallback)
+        # Handover mode: "ml" (pure), "a3" (pure), "hybrid" (ML with
+        # A3 fallback), "complexity_aware_ml_a3", or explicit baseline-service
+        # A3 policy modes.
         # Default to "hybrid" for backward compatibility with existing behavior
         self.handover_mode = "hybrid" if self.use_ml else "a3"
 
@@ -219,6 +382,49 @@ class HandoverEngine:
         self._update_mode()
         current_mode = getattr(self, "handover_mode", "hybrid" if self.use_ml else "a3")
 
+        if current_mode == TRACE_CAPTURE_MODE:
+            return None
+
+        if current_mode == COMPLEXITY_AWARE_MODE:
+            complexity = _candidate_complexity_for_feature_vector(
+                fv,
+                high_complexity_threshold=self.high_complexity_threshold,
+            )
+            if complexity["complexity_bucket"] == "high":
+                result = self._select_ml_with_features(ue_id, fv)
+                if result is None:
+                    return None
+                result.setdefault("source", "ml_remote")
+                result["fallback_to_a3"] = False
+                result["decision_source"] = "ml_high_complexity"
+                result["delegated_policy"] = "ml_policy"
+                result["candidate_complexity"] = complexity
+                return result
+
+            decision = self._select_baseline_with_features(
+                ue_id,
+                fv,
+                TUNED_A3_BASELINE_MODE,
+                self._now(),
+            )
+            decision["decision_source"] = "a3_complexity_gate"
+            decision["delegated_policy"] = TUNED_A3_BASELINE_MODE
+            decision["candidate_complexity"] = complexity
+            if decision.get("antenna_id"):
+                return decision
+            return None
+
+        if current_mode in BASELINE_HANDOVER_MODES:
+            decision = self._select_baseline_with_features(
+                ue_id,
+                fv,
+                current_mode,
+                self._now(),
+            )
+            if decision.get("antenna_id"):
+                return decision
+            return None
+
         if current_mode == "a3":
             target = self._select_rule_with_features(ue_id, fv)
             if target:
@@ -294,6 +500,7 @@ class HandoverEngine:
         """
         # Build RF metrics from feature vector
         rf_metrics = {}
+        load_map = fv.get("neighbor_cell_loads") or {}
         for aid in fv.get("neighbor_rsrp_dbm", {}):
             metrics_dict = {
                 "rsrp": fv["neighbor_rsrp_dbm"][aid],
@@ -302,6 +509,8 @@ class HandoverEngine:
             rsrq_map = fv.get("neighbor_rsrqs")
             if rsrq_map and aid in rsrq_map:
                 metrics_dict["rsrq"] = rsrq_map[aid]
+            if isinstance(load_map, dict) and load_map.get(aid) is not None:
+                metrics_dict["cell_load"] = load_map[aid]
             rf_metrics[aid] = metrics_dict
         
         ue_data = {
@@ -310,23 +519,19 @@ class HandoverEngine:
             "longitude": fv.get("longitude", 0),
             "altitude": fv.get("altitude"),
             "speed": fv.get("speed", 0.0),
-            "direction": (0, 0, 0),
+            "direction": fv.get("direction", (0, 0, 0)),
             "connected_to": fv.get("connected_to"),
             "rf_metrics": rf_metrics,
+            "service_type": fv.get("service_type", "default"),
+            "service_priority": fv.get("service_priority", 5),
         }
-        
-        # Add observed QoS if present
-        observed_qos = fv.get("observed_qos")
-        if isinstance(observed_qos, dict):
-            latest = observed_qos.get("latest") or {}
-            if isinstance(latest, dict):
-                simplified = {
-                    key: latest.get(key)
-                    for key in ("latency_ms", "jitter_ms", "throughput_mbps", "packet_loss_rate")
-                    if latest.get(key) is not None
-                }
-                if simplified:
-                    ue_data["observed_qos"] = simplified
+        for key in _ML_PAYLOAD_PASSTHROUGH_FIELDS:
+            if fv.get(key) is not None:
+                ue_data[key] = fv[key]
+
+        observed_qos = _filtered_observed_qos(fv.get("observed_qos"))
+        if observed_qos:
+            ue_data["observed_qos"] = observed_qos
         
         logger = getattr(self.state_mgr, "logger", self.logger)
         self._last_ml_error_reason = None
@@ -338,12 +543,7 @@ class HandoverEngine:
                 features = self.model.extract_features(ue_data)
                 pred = self.model.predict(features)
                 if isinstance(pred, dict):
-                    return {
-                        "antenna_id": pred.get("antenna_id") or pred.get("predicted_antenna"),
-                        "confidence": pred.get("confidence"),
-                        "qos_compliance": pred.get("qos_compliance"),
-                        "source": "ml_local",
-                    }
+                    return _ml_result_from_response(pred, source="ml_local")
                 return {"antenna_id": pred, "confidence": None, "source": "ml_local"}
             except Exception as exc:
                 logger.exception("Local ML prediction failed", exc_info=exc)
@@ -387,12 +587,10 @@ class HandoverEngine:
             resp.raise_for_status()
             data = resp.json()
             logger.debug("HandoverEngine ML response data: %s", data)
-            return {
-                "antenna_id": data.get("predicted_antenna") or data.get("antenna_id"),
-                "confidence": data.get("confidence"),
-                "qos_compliance": data.get("qos_compliance"),
-                "source": "ml_remote",
-            }
+            if not isinstance(data, dict):
+                self._last_ml_error_reason = "ml_invalid_response"
+                return None
+            return _ml_result_from_response(data, source="ml_remote")
         except RequestException as exc:
             self._last_ml_error_reason = "ml_service_unavailable"
             logger.exception("Remote ML request failed", exc_info=exc)
@@ -487,14 +685,43 @@ class HandoverEngine:
             )
         
         return best_candidate
+
+    def _select_baseline_with_features(
+        self,
+        ue_id: str,
+        fv: dict,
+        mode: str,
+        decision_time: datetime,
+    ) -> dict:
+        """Evaluate the authoritative baseline-service policy with NEF features."""
+        policy_decision = self._baseline_policy_manager.decide(
+            mode=mode,
+            ue_id=ue_id,
+            feature_vector=fv,
+            timestamp_s=decision_time.timestamp(),
+        )
+        decision_payload = policy_decision.to_dict()
+        target = (
+            decision_payload.get("selected_target_cell")
+            if decision_payload.get("decision_type") == "handover"
+            else None
+        )
+        return {
+            "antenna_id": target,
+            "source": mode,
+            "fallback_to_a3": False,
+            "policy_decision": decision_payload,
+        }
     
     def clear_ttt_timers(self, ue_id: str) -> None:
         """Clear TTT timers for a specific UE (call when UE movement stops)."""
         self._ttt_timers.pop(ue_id, None)
+        self._baseline_policy_manager.reset(ue_id)
     
     def clear_all_ttt_timers(self) -> None:
         """Clear all TTT timers (call on topology reset)."""
         self._ttt_timers.clear()
+        self._baseline_policy_manager.reset()
     
     def apply_decision(self, ue_id: str, decision: dict, fv: dict) -> Optional[dict]:
         """Apply a pre-computed handover decision to UE state.
@@ -659,6 +886,10 @@ class HandoverEngine:
                 "latitude": fv.get("latitude"),
                 "longitude": fv.get("longitude")
             }
+            decision_log["candidate_complexity"] = _candidate_complexity_for_feature_vector(
+                fv,
+                high_complexity_threshold=self.high_complexity_threshold,
+            )
             self._append_observed_qos(decision_log, fv.get("observed_qos"))
         except Exception as e:
             decision_log["feature_vector_error"] = str(e)
@@ -667,7 +898,84 @@ class HandoverEngine:
         current_mode = getattr(self, 'handover_mode', 'hybrid' if self.use_ml else 'a3')
         decision_log["handover_mode"] = current_mode
 
-        if current_mode == "a3":
+        if current_mode == TRACE_CAPTURE_MODE:
+            decision_log["final_target"] = None
+            decision_log["handover_triggered"] = False
+            decision_log["outcome"] = "trace_capture_no_decision"
+            self.logger.info("HANDOVER_DECISION: %s", json.dumps(decision_log))
+            self.logger.info("HANDOVER_SKIPPED: %s", json.dumps(decision_log))
+            return None
+
+        if current_mode == COMPLEXITY_AWARE_MODE:
+            complexity = decision_log.get("candidate_complexity")
+            if not isinstance(complexity, dict) and fv:
+                complexity = _candidate_complexity_for_feature_vector(
+                    fv,
+                    high_complexity_threshold=self.high_complexity_threshold,
+                )
+                decision_log["candidate_complexity"] = complexity
+
+            if isinstance(complexity, dict) and complexity.get("complexity_bucket") == "high":
+                decision_log["decision_source"] = "ml_high_complexity"
+                decision_log["delegated_policy"] = "ml_policy"
+                result = self._select_ml_with_features(ue_id, fv) if fv else self._select_ml(ue_id)
+                decision_log["ml_response"] = result
+
+                if result is None:
+                    decision_log["ml_available"] = False
+                    decision_log["fallback_reason"] = self._last_ml_error_reason or "ml_service_unavailable"
+                    if self._last_ml_http_status is not None:
+                        decision_log["ml_status_code"] = self._last_ml_http_status
+                    target = None
+                else:
+                    decision_log["ml_available"] = True
+                    target = result.get("antenna_id")
+                    confidence = result.get("confidence") or 0.0
+                    decision_log["ml_prediction"] = target
+                    decision_log["ml_confidence"] = confidence
+                    decision_log["fallback_to_a3"] = False
+                    qos_comp = result.get("qos_compliance")
+                    if isinstance(qos_comp, dict):
+                        self._record_qos_compliance(decision_log, qos_comp)
+                    else:
+                        decision_log["qos_compliance"] = {"checked": False}
+            else:
+                decision_log["decision_source"] = "a3_complexity_gate"
+                decision_log["delegated_policy"] = TUNED_A3_BASELINE_MODE
+                result = (
+                    self._select_baseline_with_features(
+                        ue_id,
+                        fv,
+                        TUNED_A3_BASELINE_MODE,
+                        decision_time,
+                    )
+                    if fv
+                    else None
+                )
+                decision_log["baseline_policy"] = TUNED_A3_BASELINE_MODE
+                decision_log["baseline_policy_decision"] = (
+                    result.get("policy_decision") if result else None
+                )
+                target = result.get("antenna_id") if result else None
+
+        elif current_mode in BASELINE_HANDOVER_MODES:
+            decision_log["baseline_policy"] = current_mode
+            result = (
+                self._select_baseline_with_features(
+                    ue_id,
+                    fv,
+                    current_mode,
+                    decision_time,
+                )
+                if fv
+                else None
+            )
+            decision_log["baseline_policy_decision"] = (
+                result.get("policy_decision") if result else None
+            )
+            target = result.get("antenna_id") if result else None
+
+        elif current_mode == "a3":
             # Pure A3 mode - no ML at all
             decision_log["a3_rule_params"] = {
                 "hysteresis_db": self._a3_params[0],
@@ -694,7 +1002,12 @@ class HandoverEngine:
                 confidence = result.get("confidence") or 0.0
                 decision_log["ml_prediction"] = target
                 decision_log["ml_confidence"] = confidence
-                # In pure ML mode, use prediction directly without checking thresholds
+                qos_comp = result.get("qos_compliance")
+                if isinstance(qos_comp, dict):
+                    self._record_qos_compliance(decision_log, qos_comp)
+                else:
+                    decision_log["qos_compliance"] = {"checked": False}
+                # In pure ML mode, use prediction directly without A3 fallback
                 
         else:
             # Hybrid mode (default) - ML with A3 fallback on failures
@@ -725,31 +1038,7 @@ class HandoverEngine:
                 # Prefer structured qos_compliance when available
                 qos_comp = result.get("qos_compliance")
                 if isinstance(qos_comp, dict):
-                    ok = bool(qos_comp.get("service_priority_ok", True))
-                    decision_log["qos_compliance"] = {
-                        "checked": True,
-                        "passed": ok,
-                        "required_confidence": qos_comp.get("required_confidence"),
-                        "observed_confidence": qos_comp.get("observed_confidence"),
-                        "service_type": qos_comp.get("details", {}).get("service_type"),
-                        "service_priority": qos_comp.get("details", {}).get("service_priority"),
-                        "violations": qos_comp.get("violations", []),
-                        "metrics": qos_comp.get("metrics"),
-                        "confidence_ok": qos_comp.get("confidence_ok", True),
-                    }
-
-                    self._attach_qos_deltas(
-                        decision_log["qos_compliance"],
-                        qos_comp.get("details", {}),
-                        (decision_log.get("observed_qos") or {}).get("latest", {}),
-                    )
-                    
-                    # record compliance metric
-                    try:
-                        metrics.HANDOVER_COMPLIANCE.labels(outcome="ok" if ok else "failed").inc()
-                    except Exception:
-                        pass
-                    
+                    ok = self._record_qos_compliance(decision_log, qos_comp)
                     if not ok:
                         if qos_comp.get("violations"):
                             decision_log["qos_violations"] = qos_comp.get("violations")
@@ -926,6 +1215,34 @@ class HandoverEngine:
         if deltas:
             destination["observed_delta"] = deltas
 
+    def _record_qos_compliance(self, decision_log: dict, qos_comp: dict) -> bool:
+        """Attach ML QoS compliance details and update Prometheus counters."""
+        ok = bool(qos_comp.get("service_priority_ok", True))
+        decision_log["qos_compliance"] = {
+            "checked": True,
+            "passed": ok,
+            "required_confidence": qos_comp.get("required_confidence"),
+            "observed_confidence": qos_comp.get("observed_confidence"),
+            "service_type": qos_comp.get("details", {}).get("service_type"),
+            "service_priority": qos_comp.get("details", {}).get("service_priority"),
+            "violations": qos_comp.get("violations", []),
+            "metrics": qos_comp.get("metrics"),
+            "confidence_ok": qos_comp.get("confidence_ok", True),
+        }
+
+        self._attach_qos_deltas(
+            decision_log["qos_compliance"],
+            qos_comp.get("details", {}),
+            (decision_log.get("observed_qos") or {}).get("latest", {}),
+        )
+
+        try:
+            metrics.HANDOVER_COMPLIANCE.labels(outcome="ok" if ok else "failed").inc()
+        except Exception:
+            pass
+
+        return ok
+
     @staticmethod
     def _record_fallback_metrics(service_type: Optional[str], reason: str, violations: Optional[list] = None) -> None:
         label = (service_type or "unknown").lower()
@@ -948,7 +1265,8 @@ class HandoverEngine:
             ).inc()
 
     def _send_qos_feedback(self, ue_id: str, decision_log: dict, fv: Optional[dict]) -> None:
-        if not self.use_ml:
+        mode = getattr(self, "handover_mode", "hybrid" if self.use_ml else "a3")
+        if not self.use_ml and mode not in {"ml", "hybrid", COMPLEXITY_AWARE_MODE}:
             return
 
         compliance = decision_log.get("qos_compliance") or {}

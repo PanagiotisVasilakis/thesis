@@ -2,11 +2,11 @@
 Highway Vehicle Handover Scenario.
 
 A high-speed mobility scenario demonstrating ML-based handover optimization
-for vehicles traveling on a highway corridor at speeds up to 120 km/h.
+for vehicles traveling on a highway corridor at speeds up to 150 km/h.
 
 Key Features:
 - 8 cells in linear deployment along a 10km highway
-- 10 vehicles with varying speeds (80-120 km/h)
+- 10 vehicles with varying speeds (80-150 km/h)
 - High-speed handover demonstration
 - Ping-pong prevention under rapid mobility
 - Connected vehicle (V2X) use case
@@ -73,8 +73,8 @@ class HighwayHandoverScenario(BaseScenario):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # Reproducibility
-        random.seed(42)
+        # Reproducibility for cross-policy comparisons.
+        random.seed(self.seed)
         
         # Vehicle mix
         self.vehicle_distribution = {
@@ -171,7 +171,7 @@ class HighwayHandoverScenario(BaseScenario):
             )
             
             cells.append(CellConfig(
-                cell_id=f"HWY{i+1:03d}",
+                cell_id=f"10000000{i+1:X}",
                 name=f"cell{i+1}",
                 description=description,
                 latitude=cell_lat,
@@ -230,7 +230,9 @@ class HighwayHandoverScenario(BaseScenario):
                 name=f"Truck_{i+1}",
                 description="Commercial truck with fleet tracking",
                 cell_id=(i % self.NUM_CELLS) + 1,
-                speed_profile="MEDIUM",  # Slower than cars
+                # The NEF UE schema supports STATIONARY/LOW/HIGH only.
+                # Trucks are still vehicular mobility, so use HIGH here.
+                speed_profile="HIGH",
                 ue_type=UEType.VEHICLE,
                 service_type=ServiceType.MMTC,
                 mobility_type=MobilityType.HIGHWAY_VEHICLE,
@@ -390,6 +392,87 @@ class HighwayHandoverScenario(BaseScenario):
         ))
         
         return paths
+
+
+class DenseHighwayHandoverScenario(HighwayHandoverScenario):
+    """Highway profile with intentionally dense overlapping candidate coverage.
+
+    This scenario preserves the same corridor and UE mix as the standard
+    highway scenario but increases cell density so policy-free traces can
+    exercise high candidate-complexity handover decisions.
+    """
+
+    NUM_CELLS = 24
+
+    def get_metadata(self) -> ScenarioMetadata:
+        return ScenarioMetadata(
+            name="Dense Highway Candidate Handover",
+            description=(
+                f"High-speed 5G handover scenario on a {self.HIGHWAY_LENGTH_KM}km "
+                f"highway corridor with {self.NUM_CELLS} overlapping macro cells "
+                f"and {self.NUM_VEHICLES} vehicles traveling at 80-150 km/h."
+            ),
+            num_cells=self.NUM_CELLS,
+            num_ues=self.NUM_VEHICLES,
+            area_km2=10.0 * 0.1,
+            primary_use_case="Highway Mobility / High Candidate Complexity",
+            service_type_distribution={
+                "embb": 0.50,
+                "urllc": 0.40,
+                "mmtc": 0.10,
+            },
+            mobility_distribution={
+                "highway_vehicle": 1.0,
+            },
+            expected_handovers_per_minute=18.0,
+        )
+
+    def generate_cells(self) -> List[CellConfig]:
+        """Generate a dense deterministic 24-cell highway corridor."""
+        cells = []
+        highway_bearing = 310
+
+        # Six 4-sector tower sites along the corridor. The runtime RF model
+        # treats each sector as an independent antenna, so co-sited sectors
+        # create real high-candidate snapshots without changing RF viability
+        # thresholds or injecting decisions.
+        tower_positions = [0.05, 0.23, 0.41, 0.59, 0.77, 0.95]
+        sector_azimuth_offsets = [0, 90, 180, 270]
+
+        for tower_index, fraction in enumerate(tower_positions):
+            base_lat, base_lon = self._interpolate_highway_point(fraction)
+            side_offset = 40 if tower_index % 2 == 0 else -40
+            cell_lat, cell_lon = self._perpendicular_offset(
+                base_lat,
+                base_lon,
+                side_offset,
+                highway_bearing,
+            )
+
+            for sector_index, azimuth_offset in enumerate(sector_azimuth_offsets):
+                cell_index = tower_index * len(sector_azimuth_offsets) + sector_index
+                cells.append(
+                    CellConfig(
+                        cell_id=f"1100000{cell_index + 1:02X}",
+                        name=f"dense_cell{cell_index + 1}",
+                        description=(
+                            f"Dense Highway Tower {tower_index + 1} "
+                            f"Sector {sector_index + 1} KM "
+                            f"{fraction * self.HIGHWAY_LENGTH_KM:.2f}"
+                        ),
+                        latitude=cell_lat,
+                        longitude=cell_lon,
+                        radius=1800,
+                        gNB_id=1,
+                        frequency_band="n78",
+                        tx_power_dbm=46.0,
+                        antenna_height_m=35.0,
+                        azimuth_deg=(highway_bearing + azimuth_offset) % 360,
+                        tilt_deg=4.0,
+                    )
+                )
+
+        return cells
 
 
 # ============================================================================

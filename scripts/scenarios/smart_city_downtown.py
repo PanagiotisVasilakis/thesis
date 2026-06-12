@@ -2,7 +2,7 @@
 Smart City Downtown Scenario.
 
 A dense urban deployment scenario demonstrating ML-based handover optimization
-in a realistic metropolitan environment with diverse mobility patterns.
+in a synthetic metropolitan environment with diverse mobility patterns.
 
 Key Features:
 - 15 small cells in a 2km × 2km downtown area
@@ -40,7 +40,7 @@ class SmartCityDowntownScenario(BaseScenario):
     """
     Smart City Downtown - Dense Urban 5G Deployment.
     
-    Simulates a realistic downtown environment with:
+    Simulates an approximate downtown environment with:
     - Office buildings
     - Shopping districts
     - Transit hubs
@@ -62,8 +62,8 @@ class SmartCityDowntownScenario(BaseScenario):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # Seed for reproducibility
-        random.seed(42)
+        # Seed for reproducibility across policy comparisons.
+        random.seed(self.seed)
         
         # Distribution parameters
         self.service_distribution = {
@@ -83,7 +83,7 @@ class SmartCityDowntownScenario(BaseScenario):
         return ScenarioMetadata(
             name="Smart City Downtown",
             description="Dense urban 5G deployment in a 2km × 2km downtown area "
-                       "with 15 small cells and 50 UEs representing realistic "
+                       "with 15 small cells and 50 UEs representing synthetic "
                        "metropolitan traffic patterns.",
             num_cells=self.NUM_CELLS,
             num_ues=self.NUM_UES,
@@ -162,7 +162,7 @@ class SmartCityDowntownScenario(BaseScenario):
             )
             
             cells.append(CellConfig(
-                cell_id=f"SMART{i+1:03d}",
+                cell_id=f"2000000{i+1:02X}",
                 name=f"cell{i+1}",
                 description=description,
                 latitude=lat,
@@ -217,7 +217,7 @@ class SmartCityDowntownScenario(BaseScenario):
                 name=f"Vehicle_{i+1}",
                 description="Urban vehicle (taxi/delivery) with mobile device",
                 cell_id=(i % self.NUM_CELLS) + 1,
-                speed_profile="MEDIUM",
+                speed_profile="HIGH",
                 ue_type=UEType.VEHICLE,
                 service_type=ServiceType.EMBB,
                 mobility_type=MobilityType.URBAN_VEHICLE,
@@ -267,7 +267,7 @@ class SmartCityDowntownScenario(BaseScenario):
                 name=f"AutoVehicle_{i+1}",
                 description="Autonomous delivery vehicle",
                 cell_id=(i % self.NUM_CELLS) + 1,
-                speed_profile="MEDIUM",
+                speed_profile="HIGH",
                 ue_type=UEType.VEHICLE,
                 service_type=ServiceType.URLLC,
                 mobility_type=MobilityType.URBAN_VEHICLE,

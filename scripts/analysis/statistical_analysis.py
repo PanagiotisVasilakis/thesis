@@ -286,7 +286,7 @@ def run_paired_comparison(
     mean_diff = np.mean(differences)
     std_diff = np.std(differences, ddof=1)
     
-    # Improvement percentage (positive = ML is better)
+    # Improvement percentage for lower-is-better metrics (positive = ML lower).
     if a3_mean != 0:
         improvement_pct = (a3_mean - ml_mean) / a3_mean * 100
     else:

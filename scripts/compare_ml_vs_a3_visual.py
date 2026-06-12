@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""ML vs A3 Comparison Visualization Tool for Thesis Defense.
+"""Legacy ML-vs-A3 visualization tool.
 
-This script automates the collection and visualization of comparative metrics
-between ML-based and A3-based handover modes. It generates publication-ready
-charts, statistical summaries, and exports data for further analysis.
+This script automates collection and visualization of comparative metrics
+between ML-based and A3-based handover modes. It is a diagnostic helper only;
+thesis claims must come from the validated policy-comparison pipeline under
+``scripts/policy_comparison`` and must pass output validation first.
 
 Usage:
     # Run full comparative experiment (20 minutes total)
@@ -2487,23 +2488,23 @@ PER-UE OBSERVATIONS:
 {per_ue_summary}
 
 ================================================================================
-                         THESIS IMPLICATIONS
+                         LEGACY DIAGNOSTIC NOTES
 ================================================================================
 
-1. QUANTIFIABLE ML SUPERIORITY
-    ✓ ML reduces ping-pong by {pingpong_reduction_display}
-    ✓ ML increases stability by {dwell_improvement_display}
-   ✓ ML maintains/improves success rates
+1. OBSERVED ML DELTAS FROM THIS INPUT
+   Ping-pong delta: {pingpong_reduction_display}
+   Dwell-time delta: {dwell_improvement_display}
+   Success-rate comparison: inspect validated metrics before claiming improvement
 
-2. PRODUCTION READINESS
-   ✓ Graceful degradation: {int(ml['ml_fallbacks']):,} fallbacks to A3 when uncertain
-   ✓ QoS-aware: Respects service priorities
-   ✓ Monitored: All metrics exported to Prometheus
+2. VALIDATION STATUS
+   ML fallback count in this diagnostic input: {int(ml['ml_fallbacks']):,}
+   Hidden fallback, stale outputs, missing metrics, and unvalidated artifacts
+   invalidate thesis evidence. Use scripts/policy_comparison validation.
 
-3. NOVEL CONTRIBUTION
-   ✓ Three-layer ping-pong prevention mechanism
-   ✓ Per-UE handover tracking
-   ✓ Adaptive confidence requirements
+3. THESIS POSITION
+   ML is not assumed to replace A3 everywhere.
+   The defensible claim is complexity-aware: A3 for sparse/simple regimes,
+   strict ML only where candidate complexity justifies it.
 
 ================================================================================
                          RECOMMENDATIONS

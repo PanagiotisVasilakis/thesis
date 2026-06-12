@@ -381,9 +381,21 @@ def test_custom_feature_config(tmp_path):
     assert model.base_feature_names == ["latitude", "longitude"]
 
 
-def test_missing_feature_config_falls_back(tmp_path):
+def test_missing_feature_config_requires_explicit_fallback(tmp_path, monkeypatch):
+    monkeypatch.delenv("ALLOW_FEATURE_CONFIG_FALLBACK", raising=False)
+    monkeypatch.delenv("TESTING", raising=False)
     missing = tmp_path / "missing.yaml"
+
+    with pytest.raises(RuntimeModelError):
+        LightGBMSelector(config_path=str(missing))
+
+
+def test_missing_feature_config_falls_back_when_enabled(tmp_path, monkeypatch):
+    monkeypatch.setenv("ALLOW_FEATURE_CONFIG_FALLBACK", "1")
+    missing = tmp_path / "missing.yaml"
+
     model = LightGBMSelector(config_path=str(missing))
+
     assert model.base_feature_names == antenna_selector._FALLBACK_FEATURES
 
 

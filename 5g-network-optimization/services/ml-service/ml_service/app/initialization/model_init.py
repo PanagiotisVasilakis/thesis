@@ -1,10 +1,12 @@
 """Model initialization utilities."""
+import hashlib
 import json
 import logging
 import os
 import threading
 from collections import deque
 from datetime import datetime
+from pathlib import Path
 from packaging.version import Version, InvalidVersion
 
 from .thread_monitor import (
@@ -29,9 +31,97 @@ MODEL_CLASSES = {
 # oldest entries will be discarded.
 FEEDBACK_BUFFER_LIMIT = 1000
 
+FINAL_METADATA_REQUIRED_FIELDS = {
+    "model_type",
+    "trained_at",
+    "version",
+    "training_data_source",
+    "scenario_seeds",
+    "dataset_size",
+    "selected_features",
+    "validation_metrics",
+    "calibration_state",
+    "git_commit",
+    "feature_config_sha256",
+}
+
 from ..utils.env_utils import get_neighbor_count_from_env
 from ..utils.synthetic_data import generate_synthetic_training_data
 from ..utils.tuning import tune_and_train
+
+
+def _truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _pretrained_model_required() -> bool:
+    """Return True when synthetic startup training is forbidden."""
+    return (
+        _truthy_env("THESIS_FINAL_RUN")
+        or _truthy_env("REQUIRE_PRETRAINED_MODEL")
+        or _truthy_env("DISABLE_SYNTHETIC_MODEL_BOOTSTRAP")
+    )
+
+
+def _sha256_file(path: str | Path) -> str | None:
+    candidate = Path(path)
+    if not candidate.is_file():
+        return None
+    digest = hashlib.sha256()
+    with candidate.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _default_feature_config_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "config" / "features.yaml"
+
+
+def _feature_config_path() -> Path:
+    return Path(os.environ.get("FEATURE_CONFIG_PATH", str(_default_feature_config_path())))
+
+
+def _validate_pretrained_artifact(model_path: str | None) -> None:
+    """Fail fast when final thesis mode lacks a complete model artifact."""
+    if not model_path:
+        raise ModelError(
+            "Final thesis mode requires MODEL_PATH to point to a pretrained model artifact"
+        )
+
+    path = Path(model_path)
+    meta_path = Path(f"{model_path}.meta.json")
+    scaler_path = Path(f"{model_path}.scaler")
+    feature_config = _feature_config_path()
+    missing = [
+        str(candidate)
+        for candidate in (path, meta_path, scaler_path, feature_config)
+        if not candidate.is_file()
+    ]
+    if missing:
+        raise ModelError(
+            "Final thesis mode requires existing model artifact files: "
+            + ", ".join(missing)
+        )
+
+    metadata = _load_metadata(model_path)
+    missing_metadata = sorted(
+        field
+        for field in FINAL_METADATA_REQUIRED_FIELDS
+        if not metadata.get(field)
+    )
+    if missing_metadata:
+        raise ModelError(
+            "Final thesis model metadata missing required field(s): "
+            + ", ".join(missing_metadata)
+        )
+
+    feature_config_sha256 = _sha256_file(feature_config)
+    if metadata.get("feature_config_sha256") != feature_config_sha256:
+        raise ModelError(
+            "Final thesis model metadata feature_config_sha256 does not match "
+            "FEATURE_CONFIG_PATH"
+        )
 
 
 def _load_metadata(path: str) -> dict:
@@ -147,6 +237,10 @@ class ModelManager:
             if model_type is None:
                 model_type = os.environ.get("MODEL_TYPE", "lightgbm").lower()
 
+            require_pretrained = _pretrained_model_required()
+            if require_pretrained:
+                _validate_pretrained_artifact(model_path)
+
             meta = _load_metadata(model_path) if model_path else {}
             meta_type = meta.get("model_type")
             if meta_type and meta_type != model_type:
@@ -191,6 +285,12 @@ class ModelManager:
                         cls._model_paths[ver] = model_path
                     cls._init_event.set()
                 return model
+
+            if require_pretrained:
+                raise ModelError(
+                    "Final thesis mode requires loading an existing pretrained "
+                    f"model artifact; refusing synthetic bootstrap for {model_path}"
+                )
 
             logger.info("Model needs training")
 
@@ -530,11 +630,38 @@ class ModelManager:
         with cls._lock:
             path = cls._last_good_model_path or os.environ.get("MODEL_PATH")
         if not path:
-            return {}
+            return {
+                "final_mode": _pretrained_model_required(),
+                "synthetic_bootstrap_allowed": not _pretrained_model_required(),
+                "artifact_complete": False,
+            }
         meta = _load_metadata(path)
         ts = meta.get("trained_at")
         if isinstance(ts, datetime):
             meta["trained_at"] = ts.isoformat()
+        meta_path = f"{path}.meta.json"
+        scaler_path = f"{path}.scaler"
+        feature_config = _feature_config_path()
+        meta.update(
+            {
+                "model_path": path,
+                "model_sha256": _sha256_file(path),
+                "metadata_path": meta_path,
+                "metadata_sha256": _sha256_file(meta_path),
+                "scaler_path": scaler_path,
+                "scaler_sha256": _sha256_file(scaler_path),
+                "feature_config_path": str(feature_config),
+                "feature_config_sha256": _sha256_file(feature_config),
+                "final_mode": _pretrained_model_required(),
+                "synthetic_bootstrap_allowed": not _pretrained_model_required(),
+            }
+        )
+        meta["artifact_complete"] = bool(
+            meta["model_sha256"]
+            and meta["metadata_sha256"]
+            and meta["scaler_sha256"]
+            and meta["feature_config_sha256"]
+        )
         return meta
 
     @classmethod

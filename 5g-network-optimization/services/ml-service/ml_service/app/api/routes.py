@@ -45,8 +45,49 @@ def _require_model_ready() -> None:
     """Fail model-backed runtime requests until initialization has completed."""
     if current_app.testing:
         return
-    if not ModelManager.is_ready():
+    if not ModelManager.wait_until_ready(timeout=0):
         raise ModelNotReadyError("ML model is not ready")
+
+
+PREDICTION_METADATA_FIELDS = (
+    "fallback_reason",
+    "fallback_to_a3",
+    "ml_prediction",
+    "distance_to_ml_prediction",
+    "distance_to_fallback",
+    "geographic_override",
+    "anti_pingpong_applied",
+    "suppression_reason",
+    "original_prediction",
+    "qos_bias_applied",
+    "qos_bias_service_type",
+    "qos_bias_scores",
+    "confidence_calibrated",
+    "warnings",
+    "handover_count_1min",
+    "time_since_last_handover",
+)
+
+
+def _prediction_response_payload(req, result, features, *, include_qos=False):
+    """Build a response without dropping audit metadata from the selector."""
+    payload = {
+        "ue_id": req.ue_id,
+        "predicted_antenna": result["antenna_id"],
+        "confidence": result["confidence"],
+        "features_used": list(features.keys()),
+    }
+    if include_qos:
+        payload["qos_compliance"] = result.get(
+            "qos_compliance",
+            {"service_priority_ok": True},
+        )
+    if result.get("fallback_reason") == "geographic_override":
+        payload["geographic_override"] = True
+    for field in PREDICTION_METADATA_FIELDS:
+        if field in result:
+            payload[field] = result[field]
+    return payload
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -59,7 +100,7 @@ def health_check():
 def model_health():
     """Return model readiness and metadata."""
 
-    ready = ModelManager.is_ready()
+    ready = ModelManager.wait_until_ready(timeout=0)
     meta = ModelManager.get_metadata()
     return jsonify({"ready": ready, "metadata": meta})
 
@@ -146,14 +187,7 @@ def predict():
     if hasattr(current_app, "metrics_collector"):
         current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
 
-    return jsonify(
-        {
-            "ue_id": req.ue_id,
-            "predicted_antenna": result["antenna_id"],
-            "confidence": result["confidence"],
-            "features_used": list(features.keys()),
-        }
-    )
+    return jsonify(_prediction_response_payload(req, result, features))
 
 
 @api_bp.route("/predict-with-qos", methods=["POST"])
@@ -178,13 +212,7 @@ def predict_with_qos():
         current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
 
     return jsonify(
-        {
-            "ue_id": req.ue_id,
-            "predicted_antenna": result["antenna_id"],
-            "confidence": result["confidence"],
-            "qos_compliance": result.get("qos_compliance", {"service_priority_ok": True}),
-            "features_used": list(features.keys()),
-        }
+        _prediction_response_payload(req, result, features, include_qos=True)
     )
 
 
@@ -264,15 +292,9 @@ async def predict_async():
     if hasattr(current_app, "metrics_collector"):
         current_app.metrics_collector.drift_monitor.update(features)  # type: ignore[attr-defined]
 
-    return jsonify(
-        {
-            "ue_id": req.ue_id,
-            "predicted_antenna": result["antenna_id"],
-            "confidence": result["confidence"],
-            "features_used": list(features.keys()),
-            "async": True,
-        }
-    )
+    payload = _prediction_response_payload(req, result, features)
+    payload["async"] = True
+    return jsonify(payload)
 
 
 @api_bp.route("/train", methods=["POST"])
@@ -946,5 +968,3 @@ def get_model_type():
         "model_type": os.getenv("MODEL_TYPE", "lightgbm"),
         "available_types": ["lightgbm", "lstm", "ensemble", "online"],
     })
-
-

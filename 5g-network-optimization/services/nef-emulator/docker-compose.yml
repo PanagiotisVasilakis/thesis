@@ -40,11 +40,15 @@ services:
     command: /start-reload.sh
     volumes:
       - ./backend/app:/app
+      - ../handover-baseline-service:/opt/handover-baseline-service:ro
     env_file:
       - .env
     environment:
       - SERVER_NAME=${SERVER_NAME:?SERVER_NAME must be set}
       - SERVER_HOST=${SERVER_HOST:?SERVER_HOST must be set}
+      - PYTHONPATH=/app:/opt/handover-baseline-service
+      - HANDOVER_BASELINE_SERVICE_PATH=${HANDOVER_BASELINE_SERVICE_PATH:-/opt/handover-baseline-service}
+      - TUNED_A3_CONFIG_PATH=${TUNED_A3_CONFIG_PATH:-}
     build:
       context: ./backend
       dockerfile: Dockerfile.backend
