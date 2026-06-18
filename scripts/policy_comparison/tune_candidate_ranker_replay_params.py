@@ -40,14 +40,16 @@ def tune_candidate_ranker_replay_params(args: argparse.Namespace) -> dict[str, A
     artifact = load_candidate_ranker_artifact(artifact_path)
     margins = _parse_float_list(args.margin_thresholds)
     dwell_values = _parse_float_list(args.ml_dwell_s)
+    segment_hold_values = _parse_float_list(args.ml_segment_hold_s)
     a3_guards = _parse_float_list(args.a3_reentry_extra_margin_db)
     thresholds = _parse_int_list(args.complexity_thresholds)
 
     evaluations = []
-    for threshold, margin, dwell, a3_guard in product(
+    for threshold, margin, dwell, segment_hold, a3_guard in product(
         thresholds,
         margins,
         dwell_values,
+        segment_hold_values,
         a3_guards,
     ):
         tuned = TunedA3PolicyAdapter.from_tuned_config(tuned_a3_config)
@@ -61,6 +63,7 @@ def tune_candidate_ranker_replay_params(args: argparse.Namespace) -> dict[str, A
             ml_policy=ranker,
             high_complexity_threshold=threshold,
             a3_reentry_extra_margin_db=a3_guard,
+            ml_segment_hold_s=segment_hold,
         )
         result = OfflineReplayRunner([tuned, ranker, adaptive]).replay(records)
         tuned_summary = result.policy_results["tuned_a3_baseline"].summary.to_dict()
@@ -70,6 +73,7 @@ def tune_candidate_ranker_replay_params(args: argparse.Namespace) -> dict[str, A
             threshold=threshold,
             margin=margin,
             dwell=dwell,
+            segment_hold=segment_hold,
             a3_guard=a3_guard,
             tuned=tuned_summary,
             ranker=ranker_summary,
@@ -89,6 +93,7 @@ def tune_candidate_ranker_replay_params(args: argparse.Namespace) -> dict[str, A
                 item["adaptive_ping_pong_count"],
                 item["adaptive_handover_count"],
                 item["complexity_threshold"],
+                item["ml_segment_hold_s"],
                 item["ranker_min_margin"],
             ),
         )
@@ -107,6 +112,7 @@ def tune_candidate_ranker_replay_params(args: argparse.Namespace) -> dict[str, A
                 item["adaptive_high_cost"],
                 item["adaptive_composite_cost"],
                 item["complexity_threshold"],
+                item["ml_segment_hold_s"],
                 item["ranker_min_margin"],
             ),
         ),
@@ -135,6 +141,7 @@ def _evaluate_candidate(
     threshold: int,
     margin: float,
     dwell: float,
+    segment_hold: float,
     a3_guard: float,
     tuned: dict[str, Any],
     ranker: dict[str, Any],
@@ -161,6 +168,7 @@ def _evaluate_candidate(
         "complexity_threshold": int(threshold),
         "ranker_min_margin": float(margin),
         "min_ml_dwell_s": float(dwell),
+        "ml_segment_hold_s": float(segment_hold),
         "a3_reentry_extra_margin_db": float(a3_guard),
         "pass": not fail_reasons,
         "fail_reasons": fail_reasons,
@@ -197,6 +205,7 @@ def _write_tuned_artifact(
         "selection_source": "calibration_replay",
         "selected_min_margin": selected["ranker_min_margin"],
         "min_ml_dwell_s": selected["min_ml_dwell_s"],
+        "ml_segment_hold_s": selected["ml_segment_hold_s"],
         "a3_reentry_extra_margin_db": selected["a3_reentry_extra_margin_db"],
         "selected_complexity_threshold": selected["complexity_threshold"],
         "calibration_replay_tuning_report": str(report_path),
@@ -234,13 +243,14 @@ def _markdown(report: dict[str, Any]) -> str:
         f"Pass: `{str(report['pass']).lower()}`",
         f"Selected: `{json.dumps(selected, sort_keys=True) if selected else None}`",
         "",
-        "| Threshold | Margin | Dwell | A3 Guard | Pass | High Improvement | Adaptive High Cost | Reasons |",
-        "|---:|---:|---:|---:|---|---:|---:|---|",
+        "| Threshold | Margin | Dwell | Segment Hold | A3 Guard | Pass | High Improvement | Adaptive High Cost | Reasons |",
+        "|---:|---:|---:|---:|---:|---|---:|---:|---|",
     ]
     for item in report["evaluations"][:100]:
         lines.append(
             f"| {item['complexity_threshold']} | {item['ranker_min_margin']:.3f} | "
-            f"{item['min_ml_dwell_s']:.3f} | {item['a3_reentry_extra_margin_db']:.3f} | "
+            f"{item['min_ml_dwell_s']:.3f} | {item['ml_segment_hold_s']:.3f} | "
+            f"{item['a3_reentry_extra_margin_db']:.3f} | "
             f"{str(item['pass']).lower()} | {item['high_improvement']:.4f} | "
             f"{item['adaptive_high_cost']:.3f} | {'; '.join(item['fail_reasons'])} |"
         )
@@ -257,6 +267,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--complexity-thresholds", default="3,4")
     parser.add_argument("--margin-thresholds", default="5,8,12,16,20,25,30")
     parser.add_argument("--ml-dwell-s", default="0,10,20")
+    parser.add_argument("--ml-segment-hold-s", default="0,10,20,30")
     parser.add_argument("--a3-reentry-extra-margin-db", default="0,3,6")
     parser.add_argument("--max-unnecessary-increase-fraction", type=float, default=0.05)
     return parser

@@ -403,6 +403,169 @@ def test_offline_output_rejects_complexity_gate_high_bucket_to_a3(tmp_path):
     assert "complexity_gate_bucket_mismatch" in {issue.code for issue in report.issues}
 
 
+def test_offline_output_accepts_ranker_ml_segment_hold_debug(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = ranker_debug()
+    debug.update(
+        {
+            "decision_source": "ml_segment_hold",
+            "delegated_policy": "ml_policy",
+            "ml_segment_active": True,
+            "ml_segment_decision_source": "ml_segment_hold",
+            "ml_segment_hold_s": 20.0,
+            "ml_segment_time_since_last_ml_handover_s": 5.0,
+            "ml_segment_exit_reason": None,
+        }
+    )
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is True
+
+
+def test_offline_output_accepts_controller_segment_stay_hold_debug(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = {
+        "decision_source": "ml_segment_stay_hold",
+        "delegated_policy": "controller_segment_hold",
+        "candidate_complexity": {
+            "viable_candidate_count": 1,
+            "complexity_bucket": "sparse",
+            "viable_candidates": ["cell-b"],
+        },
+        "ml_segment_active": True,
+        "ml_segment_decision_source": "ml_segment_stay_hold",
+        "ml_segment_hold_s": 20.0,
+        "ml_segment_time_since_last_ml_handover_s": 5.0,
+        "ml_segment_exit_reason": None,
+    }
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is True
+
+
+def test_offline_output_rejects_ml_segment_hold_without_segment_debug(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = ranker_debug()
+    debug.update(
+        {
+            "decision_source": "ml_segment_stay_hold",
+            "delegated_policy": "controller_segment_hold",
+        }
+    )
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is False
+    assert "missing_ml_segment_debug" in {issue.code for issue in report.issues}
+
+
 def test_offline_output_rejects_tuned_a3_without_artifact(tmp_path):
     run_dir = tmp_path / "offline"
     run_dir.mkdir()

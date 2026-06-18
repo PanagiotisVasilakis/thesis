@@ -121,7 +121,13 @@ def _analyze_policy(policy: str, decisions: Sequence[PolicyDecisionRecord]) -> d
         previous = last_handover_by_ue.get(decision.ue_id)
         if (
             previous is not None
-            and _source(previous) in {"ml_high_complexity", "candidate_ranker", "ml_policy"}
+            and _source(previous) in {
+                "ml_high_complexity",
+                "ml_segment_hold",
+                "ml_segment_stay_hold",
+                "candidate_ranker",
+                "ml_policy",
+            }
             and bucket == "sparse"
             and decision.timestamp_s - previous.timestamp_s <= 60.0
         ):

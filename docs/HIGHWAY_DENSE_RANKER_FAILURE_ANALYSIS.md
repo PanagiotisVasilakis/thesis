@@ -53,3 +53,49 @@ Decision diagnostics for threshold `4` show the main remaining failure:
 - ML-everywhere is sometimes lower cost than adaptive routing, which means the sparse A3 re-entry behavior is still damaging the mixed controller.
 
 This recovery run is diagnostic only. Live ranker promotion remains blocked until a future held-out offline sweep passes the strict gate.
+
+## Segment Authority Recovery Attempts
+
+Two controller-level segment-authority variants were tested after the stay-aware ranker recovery.
+
+### Segment Ranker-Hold: `highway_dense_ranker_segment_recovery_20260612_110906`
+
+This variant let ML retain authority for a short post-ML segment by routing sparse/moderate records to the ranker during the hold window.
+
+Calibration selected:
+
+- complexity threshold `4`
+- ranker minimum margin `30.0`
+- ML dwell guard `0.0s`
+- segment hold `6.0s`
+- A3 re-entry guard `3.0 dB`
+
+Held-out replay failed:
+
+- threshold `3` mean high-complexity improvement: `-0.0896`
+- threshold `4` mean high-complexity improvement: `-0.0623`
+- threshold `4` mean ping-pong: `20.0`
+- validation issues: `0`
+
+### Segment Stay-Hold: `highway_dense_ranker_segment_stay_recovery_20260612_114806`
+
+This variant made the post-ML segment hold an explicit controller stay decision. It did not call ranker or A3 during sparse/moderate hold records.
+
+Calibration selected:
+
+- complexity threshold `4`
+- ranker minimum margin `30.0`
+- ML dwell guard `0.0s`
+- segment stay-hold `6.0s`
+- A3 re-entry guard `10.0 dB`
+
+Held-out replay still failed:
+
+- threshold `3` mean high-complexity improvement: `-0.0838`
+- threshold `4` mean high-complexity improvement: `-0.0643`
+- threshold `4` mean ping-pong: `20.0`
+- validation issues: `0`
+
+The segment stay-hold guard executed correctly: threshold `4` produced `696-888` `ml_segment_stay_hold` records per held-out seed. The remaining failure is that A3 resumes after the calibrated `6s` hold and still creates `149-177` sparse handovers after recent ML handovers per seed.
+
+Live validation remains blocked.

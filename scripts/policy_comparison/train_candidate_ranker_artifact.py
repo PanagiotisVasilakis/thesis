@@ -299,6 +299,7 @@ def train_ranker_artifact(args: argparse.Namespace) -> dict[str, Any]:
                 5.0,
             ),
             "min_ml_dwell_s": 10.0,
+            "ml_segment_hold_s": 0.0,
             "a3_reentry_extra_margin_db": 3.0,
             "max_target_selection_error": args.max_target_selection_error,
             "min_handover_precision": args.min_handover_precision,

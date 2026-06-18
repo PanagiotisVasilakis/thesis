@@ -79,6 +79,7 @@ def build_policy_adapters(
     ranker_min_margin: float | None = None,
     ranker_min_ml_dwell_s: float | None = None,
     a3_reentry_extra_margin_db: float | None = None,
+    ml_segment_hold_s: float | None = None,
 ):
     adapters: List[ComparisonPolicyAdapter] = []
     tuning_result = None
@@ -154,6 +155,14 @@ def build_policy_adapters(
             return build_ranker_adapter()
         raise ValueError(f"unsupported --ml-backend: {ml_backend}")
 
+    def ranker_decision_parameter(name: str) -> float | None:
+        if ml_backend != "candidate_ranker" or ranker_artifact is None:
+            return None
+        adapter = build_ranker_adapter()
+        params = getattr(adapter.artifact, "decision_parameters", {})
+        value = params.get(name) if isinstance(params, Mapping) else None
+        return float(value) if isinstance(value, (int, float)) else None
+
     for policy in policies:
         if policy == "fixed_a3_baseline":
             adapters.append(FixedA3PolicyAdapter())
@@ -172,6 +181,16 @@ def build_policy_adapters(
         elif policy == "velocity_adaptive_a3_baseline":
             adapters.append(VelocityAdaptiveA3PolicyAdapter())
         elif policy == "complexity_aware_ml_a3":
+            selected_a3_guard = (
+                a3_reentry_extra_margin_db
+                if a3_reentry_extra_margin_db is not None
+                else ranker_decision_parameter("a3_reentry_extra_margin_db")
+            )
+            selected_segment_hold = (
+                ml_segment_hold_s
+                if ml_segment_hold_s is not None
+                else ranker_decision_parameter("ml_segment_hold_s")
+            )
             adapters.append(
                 ComplexityAwarePolicyAdapter(
                     sparse_policy=build_tuned_adapter(),
@@ -179,8 +198,13 @@ def build_policy_adapters(
                     high_complexity_threshold=high_complexity_threshold,
                     **(
                         {}
-                        if a3_reentry_extra_margin_db is None
-                        else {"a3_reentry_extra_margin_db": a3_reentry_extra_margin_db}
+                        if selected_a3_guard is None
+                        else {"a3_reentry_extra_margin_db": selected_a3_guard}
+                    ),
+                    **(
+                        {}
+                        if selected_segment_hold is None
+                        else {"ml_segment_hold_s": selected_segment_hold}
                     ),
                 )
             )
@@ -316,6 +340,7 @@ def run(args: argparse.Namespace) -> int:
         ranker_min_margin=args.ranker_min_margin,
         ranker_min_ml_dwell_s=args.ranker_min_ml_dwell_s,
         a3_reentry_extra_margin_db=args.a3_reentry_extra_margin_db,
+        ml_segment_hold_s=args.ml_segment_hold_s,
     )
     validate_calibration_split(evaluation_records, calibration_records)
     validate_tuned_config_split(evaluation_records, tuned_config_data)
@@ -359,6 +384,10 @@ def run(args: argparse.Namespace) -> int:
             "ml_backend": args.ml_backend,
             "ranker_artifact": str(ranker_artifact) if ranker_artifact else None,
             "high_complexity_threshold": args.high_complexity_threshold,
+            "ranker_min_margin": args.ranker_min_margin,
+            "ranker_min_ml_dwell_s": args.ranker_min_ml_dwell_s,
+            "a3_reentry_extra_margin_db": args.a3_reentry_extra_margin_db,
+            "ml_segment_hold_s": args.ml_segment_hold_s,
             "mode": "offline_replay",
             "no_full_experiment_run": True,
         },
@@ -452,6 +481,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--a3-reentry-extra-margin-db",
         type=float,
         help="Override extra sparse-A3 margin required immediately after an ML handover.",
+    )
+    parser.add_argument(
+        "--ml-segment-hold-s",
+        type=float,
+        help=(
+            "Keep ML authority for this many seconds after an ML handover before "
+            "sparse/moderate records return to A3. Defaults to artifact metadata, then 0."
+        ),
     )
     return parser
 

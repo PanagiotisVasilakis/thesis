@@ -20,6 +20,7 @@ from .candidate_ranker import build_candidate_ranker_features
 from .candidate_ranker_artifact import (
     CandidateRankerArtifact,
     DEFAULT_A3_REENTRY_EXTRA_MARGIN_DB,
+    DEFAULT_ML_SEGMENT_HOLD_S,
     DEFAULT_RANKER_MIN_MARGIN,
     DEFAULT_RANKER_MIN_ML_DWELL_S,
     load_candidate_ranker_artifact,
@@ -794,7 +795,7 @@ class CandidateRankerPolicyAdapter:
 
 
 class ComplexityAwarePolicyAdapter:
-    """Route sparse/moderate decisions to A3 and high-complexity decisions to ML."""
+    """Route decisions by complexity, with explicit ML segment authority."""
 
     def __init__(
         self,
@@ -805,6 +806,8 @@ class ComplexityAwarePolicyAdapter:
         min_rsrp_dbm: float = DEFAULT_MIN_VIABLE_RSRP_DBM,
         min_sinr_db: float = DEFAULT_MIN_VIABLE_SINR_DB,
         a3_reentry_extra_margin_db: float = DEFAULT_A3_REENTRY_EXTRA_MARGIN_DB,
+        ml_segment_hold_s: float = DEFAULT_ML_SEGMENT_HOLD_S,
+        ml_segment_emergency_rsrp_floor_dbm: float = -112.0,
     ) -> None:
         self.sparse_policy = sparse_policy
         self.ml_policy = ml_policy
@@ -812,6 +815,10 @@ class ComplexityAwarePolicyAdapter:
         self.min_rsrp_dbm = float(min_rsrp_dbm)
         self.min_sinr_db = float(min_sinr_db)
         self.a3_reentry_extra_margin_db = float(a3_reentry_extra_margin_db)
+        self.ml_segment_hold_s = max(0.0, float(ml_segment_hold_s))
+        self.ml_segment_emergency_rsrp_floor_dbm = float(
+            ml_segment_emergency_rsrp_floor_dbm
+        )
         self._replay_state_by_ue: Dict[str, Dict[str, Any]] = {}
 
     @property
@@ -827,6 +834,8 @@ class ComplexityAwarePolicyAdapter:
             "min_sinr_db": self.min_sinr_db,
             "high_complexity_threshold": self.high_complexity_threshold,
             "a3_reentry_extra_margin_db": self.a3_reentry_extra_margin_db,
+            "ml_segment_hold_s": self.ml_segment_hold_s,
+            "ml_segment_emergency_rsrp_floor_dbm": self.ml_segment_emergency_rsrp_floor_dbm,
         }
 
     def reset(self, ue_id: Optional[str] = None) -> None:
@@ -846,17 +855,22 @@ class ComplexityAwarePolicyAdapter:
                 setter(ue_id, clean_state)
 
     def decide(self, record: MeasurementTraceRecord) -> PolicyDecisionRecord:
+        started = time.perf_counter()
         complexity = candidate_complexity_for_record(
             record,
             min_rsrp_dbm=self.min_rsrp_dbm,
             min_sinr_db=self.min_sinr_db,
             high_complexity_threshold=self.high_complexity_threshold,
         )
-        delegate = (
-            self.ml_policy
-            if complexity.complexity_bucket == "high"
-            else self.sparse_policy
-        )
+        source, delegate, segment_debug = self._select_delegate(record, complexity)
+        if delegate is None:
+            return self._segment_stay_decision(
+                record=record,
+                complexity=complexity,
+                source=source,
+                segment_debug=segment_debug,
+                started=started,
+            )
         decision = delegate.decide(record)
         debug = dict(decision.debug)
         a3_reentry_guard = (
@@ -876,15 +890,12 @@ class ComplexityAwarePolicyAdapter:
             debug = dict(decision.debug)
         debug.update(
             {
-                "decision_source": (
-                    "ml_high_complexity"
-                    if delegate is self.ml_policy
-                    else "a3_complexity_gate"
-                ),
+                "decision_source": source,
                 "delegated_policy": delegate.name,
                 "candidate_complexity": complexity.to_dict(),
                 "a3_reentry_guard_applied": a3_reentry_guard,
                 "a3_reentry_extra_margin_db": self.a3_reentry_extra_margin_db,
+                **segment_debug,
             }
         )
         return replace(
@@ -893,6 +904,115 @@ class ComplexityAwarePolicyAdapter:
             policy_parameters=self.parameters,
             reason=f"{debug['decision_source']}:{decision.reason}",
             debug=debug,
+        )
+
+    def _select_delegate(
+        self,
+        record: MeasurementTraceRecord,
+        complexity: Any,
+        ) -> tuple[str, Optional[ComparisonPolicyAdapter], Dict[str, Any]]:
+        state = self._replay_state_by_ue.get(record.ue_id, {})
+        time_since = _optional_float(
+            state.get("time_since_last_handover_s"),
+            default=None,
+        )
+        last_source = str(state.get("last_handover_source") or "")
+        serving = record.visible_cell_map[record.serving_cell]
+        last_was_ml = last_source in {
+            "ml_high_complexity",
+            "ml_segment_hold",
+            "ml_segment_stay_hold",
+            "candidate_ranker",
+            "ml_policy",
+        }
+        within_hold = (
+            self.ml_segment_hold_s > 0.0
+            and last_was_ml
+            and time_since is not None
+            and time_since < self.ml_segment_hold_s
+        )
+        emergency_exit = (
+            within_hold
+            and serving.rsrp_dbm <= self.ml_segment_emergency_rsrp_floor_dbm
+            and complexity.complexity_bucket != "high"
+        )
+        if complexity.complexity_bucket == "high":
+            source = "ml_high_complexity"
+            delegate = self.ml_policy
+            active = True
+            exit_reason = None
+        elif within_hold and not emergency_exit:
+            source = "ml_segment_stay_hold"
+            delegate = None
+            active = True
+            exit_reason = None
+        else:
+            source = "a3_complexity_gate"
+            delegate = self.sparse_policy
+            active = False
+            if emergency_exit:
+                exit_reason = "emergency_rsrp_floor"
+            elif last_was_ml and time_since is not None and self.ml_segment_hold_s > 0.0:
+                exit_reason = "hold_elapsed"
+            elif not last_was_ml:
+                exit_reason = "no_recent_ml_handover"
+            else:
+                exit_reason = "inactive"
+        segment_debug = {
+            "ml_segment_active": active,
+            "ml_segment_decision_source": source,
+            "ml_segment_hold_s": self.ml_segment_hold_s,
+            "ml_segment_emergency_rsrp_floor_dbm": self.ml_segment_emergency_rsrp_floor_dbm,
+            "ml_segment_last_handover_source": last_source or None,
+            "ml_segment_time_since_last_ml_handover_s": (
+                time_since if last_was_ml else None
+            ),
+            "ml_segment_exit_reason": exit_reason,
+        }
+        return source, delegate, segment_debug
+
+    def _segment_stay_decision(
+        self,
+        *,
+        record: MeasurementTraceRecord,
+        complexity: Any,
+        source: str,
+        segment_debug: Mapping[str, Any],
+        started: float,
+    ) -> PolicyDecisionRecord:
+        serving = record.visible_cell_map[record.serving_cell]
+        neighbours = {
+            cell.cell_id: cell.rsrp_dbm
+            for cell in record.visible_cells
+            if cell.cell_id != record.serving_cell
+        }
+        debug = {
+            "decision_source": source,
+            "delegated_policy": "controller_segment_hold",
+            "candidate_complexity": complexity.to_dict(),
+            "a3_reentry_guard_applied": False,
+            "a3_reentry_extra_margin_db": self.a3_reentry_extra_margin_db,
+            **dict(segment_debug),
+            **_trace_debug_context(record),
+        }
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=None,
+            decision_type="stay",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered=neighbours,
+            trigger_condition_result=False,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason=f"{source}:hold_current_ml_segment",
+            debug=debug,
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
         )
 
     def _should_apply_a3_reentry_guard(

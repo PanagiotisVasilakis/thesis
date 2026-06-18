@@ -533,7 +533,12 @@ def _validate_decisions(
             decision_source = decision.debug.get("decision_source")
             delegated_policy = decision.debug.get("delegated_policy")
             bucket = _decision_complexity_bucket(decision)
-            if decision_source not in {"ml_high_complexity", "a3_complexity_gate"}:
+            if decision_source not in {
+                "ml_high_complexity",
+                "ml_segment_hold",
+                "ml_segment_stay_hold",
+                "a3_complexity_gate",
+            }:
                 _add_issue(
                     issues,
                     "high",
@@ -551,8 +556,8 @@ def _validate_decisions(
                     source_path,
                 )
                 break
-            if decision_source == "ml_high_complexity":
-                if bucket != "high":
+            if decision_source in {"ml_high_complexity", "ml_segment_hold"}:
+                if decision_source == "ml_high_complexity" and bucket != "high":
                     _add_issue(
                         issues,
                         "high",
@@ -561,6 +566,25 @@ def _validate_decisions(
                         source_path,
                     )
                     break
+                if decision_source == "ml_segment_hold":
+                    if bucket == "high":
+                        _add_issue(
+                            issues,
+                            "high",
+                            "complexity_gate_bucket_mismatch",
+                            f"complexity-aware decision {index} used segment hold inside high bucket",
+                            source_path,
+                        )
+                        break
+                    if not _has_required_ml_segment_debug(decision):
+                        _add_issue(
+                            issues,
+                            "high",
+                            "missing_ml_segment_debug",
+                            f"complexity-aware decision {index} used ML segment hold without complete segment debug",
+                            source_path,
+                        )
+                        break
                 if not _has_required_ml_decision_debug(decision):
                     _add_issue(
                         issues,
@@ -580,6 +604,37 @@ def _validate_decisions(
                         source_path,
                     )
                     break
+            elif decision_source == "ml_segment_stay_hold":
+                if bucket == "high":
+                    _add_issue(
+                        issues,
+                        "high",
+                        "complexity_gate_bucket_mismatch",
+                        f"complexity-aware decision {index} used segment stay hold inside high bucket",
+                        source_path,
+                    )
+                    break
+                if not _has_required_ml_segment_debug(decision):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_ml_segment_debug",
+                        f"complexity-aware decision {index} used segment stay hold without complete segment debug",
+                        source_path,
+                    )
+                    break
+                if (
+                    decision.decision_type != "stay"
+                    or decision.selected_target_cell is not None
+                ):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "invalid_ml_segment_hold_action",
+                        f"complexity-aware decision {index} segment hold must be a stay decision",
+                        source_path,
+                    )
+                    break
             elif bucket == "high":
                 _add_issue(
                     issues,
@@ -589,6 +644,21 @@ def _validate_decisions(
                     source_path,
                 )
                 break
+
+
+def _has_required_ml_segment_debug(decision: PolicyDecisionRecord) -> bool:
+    debug = decision.debug
+    hold_s = debug.get("ml_segment_hold_s")
+    return (
+        debug.get("ml_segment_active") is True
+        and debug.get("ml_segment_decision_source")
+        in {"ml_segment_hold", "ml_segment_stay_hold"}
+        and isinstance(hold_s, (int, float))
+        and math.isfinite(float(hold_s))
+        and float(hold_s) > 0.0
+        and "ml_segment_time_since_last_ml_handover_s" in debug
+        and debug.get("ml_segment_exit_reason") is None
+    )
 
 
 def _has_required_ml_decision_debug(decision: PolicyDecisionRecord) -> bool:

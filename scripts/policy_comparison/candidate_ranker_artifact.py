@@ -18,6 +18,7 @@ RANKER_TARGET = "utility_margin_vs_stay"
 DEFAULT_RANKER_MIN_MARGIN = 5.0
 DEFAULT_RANKER_MIN_ML_DWELL_S = 10.0
 DEFAULT_A3_REENTRY_EXTRA_MARGIN_DB = 3.0
+DEFAULT_ML_SEGMENT_HOLD_S = 0.0
 
 NON_FEATURE_COLUMNS = {
     "scenario",
@@ -102,6 +103,10 @@ class CandidateRankerArtifact:
             "a3_reentry_extra_margin_db",
             DEFAULT_A3_REENTRY_EXTRA_MARGIN_DB,
         )
+        segment_hold = params.get(
+            "ml_segment_hold_s",
+            DEFAULT_ML_SEGMENT_HOLD_S,
+        )
         return {
             "selected_min_margin": _finite_float(
                 threshold,
@@ -114,6 +119,10 @@ class CandidateRankerArtifact:
             "a3_reentry_extra_margin_db": _finite_float(
                 a3_guard,
                 default=DEFAULT_A3_REENTRY_EXTRA_MARGIN_DB,
+            ),
+            "ml_segment_hold_s": _finite_float(
+                segment_hold,
+                default=DEFAULT_ML_SEGMENT_HOLD_S,
             ),
         }
 

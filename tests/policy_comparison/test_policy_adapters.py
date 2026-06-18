@@ -77,6 +77,7 @@ class FakeRankerArtifact:
         "selected_min_margin": 2.0,
         "min_ml_dwell_s": 10.0,
         "a3_reentry_extra_margin_db": 3.0,
+        "ml_segment_hold_s": 0.0,
     }
 
     def __init__(self, scores):
@@ -460,6 +461,32 @@ class FakeSparsePolicy:
         )
 
 
+class FakeSparseHandoverPolicy(FakeSparsePolicy):
+    def decide(self, record):
+        serving = record.visible_cell_map[record.serving_cell]
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell="cell-b",
+            decision_type="handover",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=True,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason="fake_sparse_handover",
+            debug={"decision_source": self.name},
+        )
+
+
 def test_complexity_aware_adapter_routes_sparse_to_a3():
     adapter = ComplexityAwarePolicyAdapter(
         sparse_policy=FakeSparsePolicy(),
@@ -521,3 +548,56 @@ def test_complexity_aware_adapter_high_complexity_ranker_stay_does_not_fallback_
     assert decision.decision_type == "stay"
     assert decision.debug["decision_source"] == "ml_high_complexity"
     assert decision.debug["delegated_policy"] == "ml_policy"
+
+
+def test_complexity_aware_adapter_holds_ml_authority_after_ml_handover():
+    adapter = ComplexityAwarePolicyAdapter(
+        sparse_policy=FakeSparseHandoverPolicy(),
+        ml_policy=CandidateRankerPolicyAdapter(
+            FakeRankerArtifact({"cell-b": 1.0})
+        ),
+        ml_segment_hold_s=20.0,
+    )
+    adapter.set_replay_state(
+        "ue-1",
+        {
+            "time_since_last_handover_s": 5.0,
+            "last_handover_source": "ml_high_complexity",
+        },
+    )
+
+    decision = adapter.decide(trace_record())
+
+    assert decision.policy_name == "complexity_aware_ml_a3"
+    assert decision.decision_type == "stay"
+    assert decision.debug["decision_source"] == "ml_segment_stay_hold"
+    assert decision.debug["delegated_policy"] == "controller_segment_hold"
+    assert decision.debug["ml_segment_active"] is True
+    assert decision.debug["ml_segment_hold_s"] == 20.0
+    assert decision.debug["ml_segment_exit_reason"] is None
+
+
+def test_complexity_aware_adapter_exits_ml_segment_after_hold_elapsed():
+    adapter = ComplexityAwarePolicyAdapter(
+        sparse_policy=FakeSparseHandoverPolicy(),
+        ml_policy=CandidateRankerPolicyAdapter(
+            FakeRankerArtifact({"cell-b": 1.0})
+        ),
+        ml_segment_hold_s=20.0,
+    )
+    adapter.set_replay_state(
+        "ue-1",
+        {
+            "time_since_last_handover_s": 25.0,
+            "last_handover_source": "ml_high_complexity",
+        },
+    )
+
+    decision = adapter.decide(trace_record())
+
+    assert decision.policy_name == "complexity_aware_ml_a3"
+    assert decision.decision_type == "handover"
+    assert decision.debug["decision_source"] == "a3_complexity_gate"
+    assert decision.debug["delegated_policy"] == "tuned_a3_baseline"
+    assert decision.debug["ml_segment_active"] is False
+    assert decision.debug["ml_segment_exit_reason"] == "hold_elapsed"
