@@ -19,10 +19,14 @@ from scripts.policy_comparison.manifest import build_reproducibility_manifest
 from scripts.policy_comparison.policy_adapters import (
     CandidateRankerPolicyAdapter,
     ComparisonPolicyAdapter,
+    ConditionalHandoverPolicyAdapter,
     ComplexityAwarePolicyAdapter,
     FixedA3PolicyAdapter,
     LoadAwareA3PolicyAdapter,
     MLPolicyAdapter,
+    NoHandoverPolicyAdapter,
+    OracleRankerPolicyAdapter,
+    SegmentControllerPolicyAdapter,
     StrongestSignalPolicyAdapter,
     TunedA3PolicyAdapter,
     VelocityAdaptiveA3PolicyAdapter,
@@ -45,6 +49,8 @@ SUPPORTED_POLICIES = {
     "load_aware_a3_baseline",
     "velocity_adaptive_a3_baseline",
     "complexity_aware_ml_a3",
+    "no_handover_baseline",
+    "conditional_handover_baseline",
 }
 
 
@@ -75,11 +81,27 @@ def build_policy_adapters(
     ml_base_url: str | None,
     ml_backend: str = "service",
     ranker_artifact: Path | None = None,
+    segment_artifact: Path | None = None,
+    oracle_artifact: Path | None = None,
     high_complexity_threshold: int = 3,
     ranker_min_margin: float | None = None,
     ranker_min_ml_dwell_s: float | None = None,
     a3_reentry_extra_margin_db: float | None = None,
     ml_segment_hold_s: float | None = None,
+    segment_entry_threshold: float | None = None,
+    segment_candidate_margin_min: float | None = None,
+    segment_exit_threshold: float | None = None,
+    segment_consecutive_exit_votes: int | None = None,
+    segment_min_duration_s: float | None = None,
+    segment_max_duration_s: float | None = None,
+    segment_emergency_rsrp_floor_dbm: float | None = None,
+    segment_post_exit_a3_guard_s: float | None = None,
+    segment_post_exit_a3_extra_margin_db: float | None = None,
+    segment_high_reject_hold_s: float | None = None,
+    segment_sparse_authority_mode: str | None = None,
+    segment_sparse_serving_rsrp_floor_dbm: float | None = None,
+    segment_sparse_serving_sinr_floor_db: float | None = None,
+    segment_sparse_a3_extra_margin_db: float | None = None,
 ):
     adapters: List[ComparisonPolicyAdapter] = []
     tuning_result = None
@@ -153,6 +175,34 @@ def build_policy_adapters(
             return build_ml_adapter()
         if ml_backend == "candidate_ranker":
             return build_ranker_adapter()
+        if ml_backend == "segment_controller":
+            if segment_artifact is None:
+                raise ValueError(
+                    "segment_controller backend requires --segment-artifact"
+                )
+            return SegmentControllerPolicyAdapter(
+                segment_artifact,
+                policy_name="ml_policy",
+                high_complexity_threshold=high_complexity_threshold,
+                entry_threshold=segment_entry_threshold,
+                candidate_margin_min=segment_candidate_margin_min,
+                exit_threshold=segment_exit_threshold,
+                consecutive_exit_votes=segment_consecutive_exit_votes,
+                min_segment_duration_s=segment_min_duration_s,
+                max_segment_duration_s=segment_max_duration_s,
+                emergency_rsrp_floor_dbm=segment_emergency_rsrp_floor_dbm,
+                post_exit_a3_guard_s=segment_post_exit_a3_guard_s,
+                post_exit_a3_extra_margin_db=segment_post_exit_a3_extra_margin_db,
+                high_reject_hold_s=segment_high_reject_hold_s,
+                sparse_authority_mode=segment_sparse_authority_mode,
+                sparse_serving_rsrp_floor_dbm=segment_sparse_serving_rsrp_floor_dbm,
+                sparse_serving_sinr_floor_db=segment_sparse_serving_sinr_floor_db,
+                sparse_a3_extra_margin_db=segment_sparse_a3_extra_margin_db,
+            )
+        if ml_backend == "oracle_ranker":
+            if oracle_artifact is None:
+                raise ValueError("oracle_ranker backend requires --oracle-artifact")
+            return OracleRankerPolicyAdapter(oracle_artifact)
         raise ValueError(f"unsupported --ml-backend: {ml_backend}")
 
     def ranker_decision_parameter(name: str) -> float | None:
@@ -178,9 +228,41 @@ def build_policy_adapters(
             adapters.append(StrongestSignalPolicyAdapter(metric="rsrq"))
         elif policy == "load_aware_a3_baseline":
             adapters.append(LoadAwareA3PolicyAdapter())
+        elif policy == "no_handover_baseline":
+            adapters.append(NoHandoverPolicyAdapter())
+        elif policy == "conditional_handover_baseline":
+            adapters.append(ConditionalHandoverPolicyAdapter())
         elif policy == "velocity_adaptive_a3_baseline":
             adapters.append(VelocityAdaptiveA3PolicyAdapter())
         elif policy == "complexity_aware_ml_a3":
+            if ml_backend == "segment_controller":
+                if segment_artifact is None:
+                    raise ValueError(
+                        "segment_controller backend requires --segment-artifact"
+                    )
+                adapters.append(
+                    SegmentControllerPolicyAdapter(
+                        segment_artifact,
+                        policy_name="complexity_aware_ml_a3",
+                        sparse_policy=build_tuned_adapter(),
+                        high_complexity_threshold=high_complexity_threshold,
+                        entry_threshold=segment_entry_threshold,
+                        candidate_margin_min=segment_candidate_margin_min,
+                        exit_threshold=segment_exit_threshold,
+                        consecutive_exit_votes=segment_consecutive_exit_votes,
+                        min_segment_duration_s=segment_min_duration_s,
+                        max_segment_duration_s=segment_max_duration_s,
+                        emergency_rsrp_floor_dbm=segment_emergency_rsrp_floor_dbm,
+                        post_exit_a3_guard_s=segment_post_exit_a3_guard_s,
+                        post_exit_a3_extra_margin_db=segment_post_exit_a3_extra_margin_db,
+                        high_reject_hold_s=segment_high_reject_hold_s,
+                        sparse_authority_mode=segment_sparse_authority_mode,
+                        sparse_serving_rsrp_floor_dbm=segment_sparse_serving_rsrp_floor_dbm,
+                        sparse_serving_sinr_floor_db=segment_sparse_serving_sinr_floor_db,
+                        sparse_a3_extra_margin_db=segment_sparse_a3_extra_margin_db,
+                    )
+                )
+                continue
             selected_a3_guard = (
                 a3_reentry_extra_margin_db
                 if a3_reentry_extra_margin_db is not None
@@ -238,35 +320,58 @@ def validate_calibration_split(
 def validate_tuned_config_split(
     evaluation_records: Sequence[MeasurementTraceRecord],
     tuned_config_data: Mapping[str, Any] | None,
+    *,
+    allow_seed_overlap: bool = False,
 ) -> None:
     if not tuned_config_data:
         return
-    calibration = tuned_config_data.get("calibration")
-    if not isinstance(calibration, Mapping):
-        raise ValueError("tuned A3 config must include calibration metadata")
+    calibrations = tuned_config_data.get("calibrations")
+    if isinstance(calibrations, list) and calibrations:
+        calibration_items = [
+            item for item in calibrations if isinstance(item, Mapping)
+        ]
+    else:
+        calibration = tuned_config_data.get("calibration")
+        if not isinstance(calibration, Mapping):
+            raise ValueError("tuned A3 config must include calibration metadata")
+        calibration_items = [calibration]
 
-    calibration_seed = calibration.get("seed")
-    if calibration_seed is None:
-        raise ValueError("tuned A3 config calibration metadata missing seed")
+    calibration_seeds = []
+    for calibration in calibration_items:
+        calibration_seed = calibration.get("seed")
+        if calibration_seed is None:
+            raise ValueError("tuned A3 config calibration metadata missing seed")
+        calibration_seeds.append(int(calibration_seed))
     evaluation_seeds = {record.seed for record in evaluation_records}
-    if int(calibration_seed) in evaluation_seeds:
+    shared_seeds = sorted(evaluation_seeds.intersection(calibration_seeds))
+    if shared_seeds and not allow_seed_overlap:
         raise ValueError(
             "tuned A3 config calibration seed overlaps evaluation seed(s): "
-            f"{calibration_seed}"
+            + ", ".join(str(seed) for seed in shared_seeds)
         )
 
-    calibration_scenario = calibration.get("scenario")
+    calibration_scenarios = {
+        str(calibration.get("scenario"))
+        for calibration in calibration_items
+        if calibration.get("scenario") is not None
+    }
     evaluation_scenarios = {record.scenario for record in evaluation_records}
-    if calibration_scenario not in evaluation_scenarios or len(evaluation_scenarios) != 1:
+    if calibration_scenarios != evaluation_scenarios or len(evaluation_scenarios) != 1:
         raise ValueError(
             "tuned A3 config calibration scenario must match the evaluation trace scenario"
         )
 
-    calibration_topology_hash = calibration.get("topology_hash")
+    calibration_topology_hashes = {
+        calibration.get("topology_hash") for calibration in calibration_items
+    }
     evaluation_topology_hashes = {record.topology_hash for record in evaluation_records}
     if None in evaluation_topology_hashes:
         raise ValueError("evaluation trace must include topology_hash when using tuned A3 config")
-    if calibration_topology_hash not in evaluation_topology_hashes or len(evaluation_topology_hashes) != 1:
+    if (
+        None in calibration_topology_hashes
+        or calibration_topology_hashes != evaluation_topology_hashes
+        or len(evaluation_topology_hashes) != 1
+    ):
         raise ValueError(
             "tuned A3 config calibration topology_hash must match the evaluation trace"
         )
@@ -319,6 +424,8 @@ def run(args: argparse.Namespace) -> int:
     calibration_trace = Path(args.calibration_trace) if args.calibration_trace else None
     tuned_a3_config = Path(args.tuned_a3_config) if args.tuned_a3_config else None
     ranker_artifact = Path(args.ranker_artifact) if args.ranker_artifact else None
+    segment_artifact = Path(args.segment_artifact) if args.segment_artifact else None
+    oracle_artifact = Path(args.oracle_artifact) if args.oracle_artifact else None
 
     evaluation_records = read_trace_jsonl(trace_path)
     ml_model_health = None
@@ -336,14 +443,54 @@ def run(args: argparse.Namespace) -> int:
         ml_base_url=args.ml_base_url,
         ml_backend=args.ml_backend,
         ranker_artifact=ranker_artifact,
+        segment_artifact=segment_artifact,
+        oracle_artifact=oracle_artifact,
         high_complexity_threshold=args.high_complexity_threshold,
         ranker_min_margin=args.ranker_min_margin,
         ranker_min_ml_dwell_s=args.ranker_min_ml_dwell_s,
         a3_reentry_extra_margin_db=args.a3_reentry_extra_margin_db,
         ml_segment_hold_s=args.ml_segment_hold_s,
+        segment_entry_threshold=args.segment_entry_threshold,
+        segment_candidate_margin_min=args.segment_candidate_margin_min,
+        segment_exit_threshold=args.segment_exit_threshold,
+        segment_consecutive_exit_votes=args.segment_consecutive_exit_votes,
+        segment_min_duration_s=args.segment_min_duration_s,
+        segment_max_duration_s=args.segment_max_duration_s,
+        segment_emergency_rsrp_floor_dbm=args.segment_emergency_rsrp_floor_dbm,
+        segment_post_exit_a3_guard_s=getattr(args, "segment_post_exit_a3_guard_s", None),
+        segment_post_exit_a3_extra_margin_db=getattr(
+            args,
+            "segment_post_exit_a3_extra_margin_db",
+            None,
+        ),
+        segment_high_reject_hold_s=getattr(args, "segment_high_reject_hold_s", None),
+        segment_sparse_authority_mode=getattr(
+            args,
+            "segment_sparse_authority_mode",
+            None,
+        ),
+        segment_sparse_serving_rsrp_floor_dbm=getattr(
+            args,
+            "segment_sparse_serving_rsrp_floor_dbm",
+            None,
+        ),
+        segment_sparse_serving_sinr_floor_db=getattr(
+            args,
+            "segment_sparse_serving_sinr_floor_db",
+            None,
+        ),
+        segment_sparse_a3_extra_margin_db=getattr(
+            args,
+            "segment_sparse_a3_extra_margin_db",
+            None,
+        ),
     )
     validate_calibration_split(evaluation_records, calibration_records)
-    validate_tuned_config_split(evaluation_records, tuned_config_data)
+    validate_tuned_config_split(
+        evaluation_records,
+        tuned_config_data,
+        allow_seed_overlap=args.allow_tuned_a3_calibration_seed_overlap,
+    )
     ensure_fresh_output_dir(output_dir)
 
     result = OfflineReplayRunner(adapters).replay(evaluation_records)
@@ -383,11 +530,58 @@ def run(args: argparse.Namespace) -> int:
             "ml_model_health": ml_model_health,
             "ml_backend": args.ml_backend,
             "ranker_artifact": str(ranker_artifact) if ranker_artifact else None,
+            "segment_artifact": str(segment_artifact) if segment_artifact else None,
+            "oracle_artifact": str(oracle_artifact) if oracle_artifact else None,
             "high_complexity_threshold": args.high_complexity_threshold,
             "ranker_min_margin": args.ranker_min_margin,
             "ranker_min_ml_dwell_s": args.ranker_min_ml_dwell_s,
             "a3_reentry_extra_margin_db": args.a3_reentry_extra_margin_db,
             "ml_segment_hold_s": args.ml_segment_hold_s,
+            "allow_tuned_a3_calibration_seed_overlap": (
+                args.allow_tuned_a3_calibration_seed_overlap
+            ),
+            "segment_entry_threshold": args.segment_entry_threshold,
+            "segment_candidate_margin_min": args.segment_candidate_margin_min,
+            "segment_exit_threshold": args.segment_exit_threshold,
+            "segment_consecutive_exit_votes": args.segment_consecutive_exit_votes,
+            "segment_min_duration_s": args.segment_min_duration_s,
+            "segment_max_duration_s": args.segment_max_duration_s,
+            "segment_emergency_rsrp_floor_dbm": args.segment_emergency_rsrp_floor_dbm,
+            "segment_post_exit_a3_guard_s": getattr(
+                args,
+                "segment_post_exit_a3_guard_s",
+                None,
+            ),
+            "segment_post_exit_a3_extra_margin_db": getattr(
+                args,
+                "segment_post_exit_a3_extra_margin_db",
+                None,
+            ),
+            "segment_high_reject_hold_s": getattr(
+                args,
+                "segment_high_reject_hold_s",
+                None,
+            ),
+            "segment_sparse_authority_mode": getattr(
+                args,
+                "segment_sparse_authority_mode",
+                None,
+            ),
+            "segment_sparse_serving_rsrp_floor_dbm": getattr(
+                args,
+                "segment_sparse_serving_rsrp_floor_dbm",
+                None,
+            ),
+            "segment_sparse_serving_sinr_floor_db": getattr(
+                args,
+                "segment_sparse_serving_sinr_floor_db",
+                None,
+            ),
+            "segment_sparse_a3_extra_margin_db": getattr(
+                args,
+                "segment_sparse_a3_extra_margin_db",
+                None,
+            ),
             "mode": "offline_replay",
             "no_full_experiment_run": True,
         },
@@ -445,18 +639,34 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--allow-tuned-a3-calibration-seed-overlap",
+        action="store_true",
+        help=(
+            "Allow tuned-A3 calibration seeds to match replay trace seeds. "
+            "Use only inside calibration replay tuners, never held-out evaluation."
+        ),
+    )
+    parser.add_argument(
         "--ml-base-url",
         help="ML service base URL when using ml policy. Falls back to ML_BASE_URL.",
     )
     parser.add_argument(
         "--ml-backend",
-        choices=("service", "candidate_ranker"),
+        choices=("service", "candidate_ranker", "segment_controller", "oracle_ranker"),
         default="service",
         help="ML backend for offline replay. Default: service.",
     )
     parser.add_argument(
         "--ranker-artifact",
         help="Candidate-ranker artifact path when --ml-backend=candidate_ranker.",
+    )
+    parser.add_argument(
+        "--segment-artifact",
+        help="Segment-controller artifact path when --ml-backend=segment_controller.",
+    )
+    parser.add_argument(
+        "--oracle-artifact",
+        help="Explicit-stay oracle ranker artifact for --ml-backend=oracle_ranker.",
     )
     parser.add_argument(
         "--high-complexity-threshold",
@@ -490,6 +700,23 @@ def build_parser() -> argparse.ArgumentParser:
             "sparse/moderate records return to A3. Defaults to artifact metadata, then 0."
         ),
     )
+    parser.add_argument("--segment-entry-threshold", type=float)
+    parser.add_argument("--segment-candidate-margin-min", type=float)
+    parser.add_argument("--segment-exit-threshold", type=float)
+    parser.add_argument("--segment-consecutive-exit-votes", type=int)
+    parser.add_argument("--segment-min-duration-s", type=float)
+    parser.add_argument("--segment-max-duration-s", type=float)
+    parser.add_argument("--segment-emergency-rsrp-floor-dbm", type=float)
+    parser.add_argument("--segment-post-exit-a3-guard-s", type=float)
+    parser.add_argument("--segment-post-exit-a3-extra-margin-db", type=float)
+    parser.add_argument("--segment-high-reject-hold-s", type=float)
+    parser.add_argument(
+        "--segment-sparse-authority-mode",
+        choices=("tuned_a3", "quality_gated_a3", "stay_unless_weak"),
+    )
+    parser.add_argument("--segment-sparse-serving-rsrp-floor-dbm", type=float)
+    parser.add_argument("--segment-sparse-serving-sinr-floor-db", type=float)
+    parser.add_argument("--segment-sparse-a3-extra-margin-db", type=float)
     return parser
 
 

@@ -57,9 +57,15 @@ class FakeUE:
         self.supi = supi
 
 
+class FakeCell:
+    def __init__(self, cell_id):
+        self.cell_id = cell_id
+
+
 class FakeScenario:
     def __init__(self):
         self.ues = [FakeUE("ue-1")]
+        self.cells = [FakeCell("cell-a"), FakeCell("cell-b")]
         self.started = []
         self.stopped = []
 
@@ -111,6 +117,15 @@ def test_capture_scenario_trace_uses_shared_nef_trace_capture_mode(tmp_path, mon
     )
     monkeypatch.setattr(runner, "get_scenario", lambda scenario_name, seed: fake_scenario)
     monkeypatch.setattr(runner, "topology_hash", lambda path: "topology-hash")
+    monkeypatch.setattr(
+        runner,
+        "fetch_and_validate_rf_provenance",
+        lambda nef_url, expected_cell_ids, timeout_s: {
+            "fallback": False,
+            "strict_mode": True,
+            "canonical_cell_ids": list(expected_cell_ids),
+        },
+    )
     monkeypatch.setattr(runner.time, "sleep", lambda seconds: None)
 
     def fake_capture(**kwargs):
@@ -165,11 +180,23 @@ def test_capture_scenario_trace_uses_shared_nef_trace_capture_mode(tmp_path, mon
     assert calls["modes"] == [("trace_capture", "http://nef.local")]
     assert fake_scenario.started == ["ue-1"]
     assert fake_scenario.stopped == ["ue-1"]
-    assert calls["compose"][0][0][-2:] == ["up", "-d"]
+    assert calls["compose"][0][0][-5:] == [
+        "up",
+        "-d",
+        "db",
+        "mongo_nef",
+        "nef-emulator",
+    ]
     assert calls["compose"][0][1]["COMPOSE_PROFILES"] == ""
+    assert calls["compose"][0][1]["THESIS_RF_STRICT"] == "1"
+    assert calls["compose"][0][1]["THESIS_TRACE_ALL_CELLS"] == "1"
+    assert calls["compose"][0][1]["THESIS_EMPTY_TOPOLOGY"] == "1"
+    assert calls["compose"][0][1]["RF_RANDOM_SEED"] == "41"
+    assert calls["compose"][0][1]["SCENARIO_RANDOM_SEED"] == "41"
     assert calls["compose"][-1][0][-2:] == ["down", "-v"]
 
     metadata = json.loads((output_dir / "trace.metadata.json").read_text(encoding="utf-8"))
     assert metadata["handover_mode"] == "trace_capture"
     assert metadata["policy_free"] is True
     assert metadata["topology_hash"] == "topology-hash"
+    assert metadata["trace_schema_version"] == 3

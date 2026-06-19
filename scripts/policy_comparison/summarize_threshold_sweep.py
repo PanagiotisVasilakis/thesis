@@ -169,6 +169,17 @@ def evaluate_threshold(
     comp_high_costs: list[float] = []
     ping_pongs: list[float] = []
     handovers: list[float] = []
+    segment_durations: list[float] = []
+    segment_entries: list[float] = []
+    segment_exits: list[float] = []
+    emergency_exits: list[float] = []
+    guard_suppressions: list[float] = []
+    high_reject_holds: list[float] = []
+    post_segment_a3: list[float] = []
+    post_segment_ping_pongs: list[float] = []
+    sparse_moderate_churn_after_ml: list[float] = []
+    sparse_authority_suppressions: list[float] = []
+    sparse_authority_handovers: list[float] = []
 
     for run in sorted(runs, key=lambda item: int(item.summary.get("seed", 0))):
         seed = int(run.summary.get("seed", -1))
@@ -214,6 +225,31 @@ def evaluate_threshold(
                 "tuned_composite_cost": tuned_cost,
                 "complexity_ping_pong_count": float(comp.get("ping_pong_count", 0.0)),
                 "tuned_ping_pong_count": float(tuned.get("ping_pong_count", 0.0)),
+                "mean_segment_duration_s": float(comp.get("mean_segment_duration_s", 0.0)),
+                "segment_entry_count": float(comp.get("segment_entry_count", 0.0)),
+                "segment_exit_count": float(comp.get("segment_exit_count", 0.0)),
+                "emergency_exit_count": float(comp.get("emergency_exit_count", 0.0)),
+                "post_segment_a3_guard_suppression_count": float(
+                    comp.get("post_segment_a3_guard_suppression_count", 0.0)
+                ),
+                "high_reject_hold_count": float(
+                    comp.get("high_reject_hold_count", 0.0)
+                ),
+                "post_segment_a3_handover_count": float(
+                    comp.get("post_segment_a3_handover_count", 0.0)
+                ),
+                "post_segment_ping_pong_count": float(
+                    comp.get("post_segment_ping_pong_count", 0.0)
+                ),
+                "sparse_moderate_churn_after_ml_count": float(
+                    comp.get("sparse_moderate_churn_after_ml_count", 0.0)
+                ),
+                "sparse_authority_suppression_count": float(
+                    comp.get("sparse_authority_suppression_count", 0.0)
+                ),
+                "sparse_authority_handover_count": float(
+                    comp.get("sparse_authority_handover_count", 0.0)
+                ),
             }
         )
         high_improvements.append(high_improvement)
@@ -223,6 +259,21 @@ def evaluate_threshold(
         comp_high_costs.append(comp_high)
         ping_pongs.append(float(comp.get("ping_pong_count", 0.0)))
         handovers.append(float(comp.get("handover_count", 0.0)))
+        segment_durations.append(float(comp.get("mean_segment_duration_s", 0.0)))
+        segment_entries.append(float(comp.get("segment_entry_count", 0.0)))
+        segment_exits.append(float(comp.get("segment_exit_count", 0.0)))
+        emergency_exits.append(float(comp.get("emergency_exit_count", 0.0)))
+        guard_suppressions.append(float(comp.get("post_segment_a3_guard_suppression_count", 0.0)))
+        high_reject_holds.append(float(comp.get("high_reject_hold_count", 0.0)))
+        post_segment_a3.append(float(comp.get("post_segment_a3_handover_count", 0.0)))
+        post_segment_ping_pongs.append(float(comp.get("post_segment_ping_pong_count", 0.0)))
+        sparse_moderate_churn_after_ml.append(float(comp.get("sparse_moderate_churn_after_ml_count", 0.0)))
+        sparse_authority_suppressions.append(
+            float(comp.get("sparse_authority_suppression_count", 0.0))
+        )
+        sparse_authority_handovers.append(
+            float(comp.get("sparse_authority_handover_count", 0.0))
+        )
 
     mean_high_improvement = _mean(high_improvements)
     mean_comp_cost = _mean(comp_costs)
@@ -251,6 +302,17 @@ def evaluate_threshold(
         "mean_tuned_a3_composite_cost": mean_tuned_cost,
         "mean_ping_pong_count": _mean(ping_pongs),
         "mean_handover_count": _mean(handovers),
+        "mean_segment_duration_s": _mean(segment_durations),
+        "mean_segment_entry_count": _mean(segment_entries),
+        "mean_segment_exit_count": _mean(segment_exits),
+        "mean_emergency_exit_count": _mean(emergency_exits),
+        "mean_post_segment_a3_guard_suppression_count": _mean(guard_suppressions),
+        "mean_high_reject_hold_count": _mean(high_reject_holds),
+        "mean_post_segment_a3_handover_count": _mean(post_segment_a3),
+        "mean_post_segment_ping_pong_count": _mean(post_segment_ping_pongs),
+        "mean_sparse_moderate_churn_after_ml_count": _mean(sparse_moderate_churn_after_ml),
+        "mean_sparse_authority_suppression_count": _mean(sparse_authority_suppressions),
+        "mean_sparse_authority_handover_count": _mean(sparse_authority_handovers),
         "per_seed": per_seed,
         "validation_issues": [
             {
@@ -270,8 +332,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         f"Pass: `{str(report['pass']).lower()}`",
         f"Selected threshold: `{report.get('selected_threshold')}`",
         "",
-        "| Threshold | Pass | Mean high improvement | Mean high cost | Mean total cost | Reasons |",
-        "|---:|---|---:|---:|---:|---|",
+        "| Threshold | Pass | Mean high improvement | Mean high cost | Mean total cost | Segment entries | Guard suppressions | High-reject holds | Post-segment A3 | Reasons |",
+        "|---:|---|---:|---:|---:|---:|---:|---:|---:|---|",
     ]
     for item in report["thresholds"]:
         reasons = "; ".join(item["fail_reasons"]) if item["fail_reasons"] else "n/a"
@@ -279,7 +341,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"| {item['threshold']} | {str(item['pass']).lower()} | "
             f"{item['mean_high_improvement']:.4f} | "
             f"{item['mean_complexity_high_composite_cost']:.3f} | "
-            f"{item['mean_complexity_composite_cost']:.3f} | {reasons} |"
+            f"{item['mean_complexity_composite_cost']:.3f} | "
+            f"{item['mean_segment_entry_count']:.1f} | "
+            f"{item['mean_post_segment_a3_guard_suppression_count']:.1f} | "
+            f"{item['mean_high_reject_hold_count']:.1f} | "
+            f"{item['mean_post_segment_a3_handover_count']:.1f} | {reasons} |"
         )
     return "\n".join(lines) + "\n"
 

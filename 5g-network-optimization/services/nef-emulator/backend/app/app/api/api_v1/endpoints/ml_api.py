@@ -146,6 +146,13 @@ def get_feature_vector(ue_id: str):
     except KeyError as err:
         raise HTTPException(status_code=404, detail=str(err))
 
+
+@router.get("/rf-provenance")
+def get_rf_provenance():
+    if runtime is None:
+        return {"fallback": True, "strict_mode": False, "antenna_count": 0}
+    return runtime.rf_provenance()
+
 @router.post("/handover")
 def apply_handover(ue_id: str):
     """

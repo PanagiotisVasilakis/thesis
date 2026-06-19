@@ -11,20 +11,23 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 from datetime import datetime, timezone
 from typing import Dict, Iterable, Optional, Tuple
 
 from app.core.env_utils import parse_env_float, parse_env_int
 
-try:  # pragma: no cover - optional dependency in container image
+RF_MODEL_FALLBACK = False
+try:  # pragma: no cover - import behavior is exercised in container smoke tests
     from antenna_models.models import MacroCellModel as _AntennaModel  # type: ignore
 except ImportError:  # pragma: no cover - fallback when antenna_models is unavailable
+    RF_MODEL_FALLBACK = True
 
     class _AntennaModel:
         """Lightweight antenna abstraction used when rf_models package is absent."""
 
-        def __init__(self, ant_id: str, position, frequency_hz: float, tx_power_dbm: float):
+        def __init__(self, ant_id: str, position, frequency_hz: float, tx_power_dbm: float, **_kwargs):
             self.ant_id = ant_id
             self.position = position
             self.frequency_hz = frequency_hz
@@ -39,6 +42,19 @@ except ImportError:  # pragma: no cover - fallback when antenna_models is unavai
             path_loss = 32.45 + 20 * math.log10(self.frequency_hz / 1e9) + 20 * math.log10(distance / 1000.0)
             return self.tx_power_dbm - path_loss
 
+        def received_power_dbm(self, ue_position, include_shadowing=False):
+            return self.rsrp_dbm(ue_position, include_shadowing)
+
+        def thermal_noise_dbm(self):
+            return -100.0
+
+        def provenance(self):
+            return {
+                "model_name": "emergency_free_space_fallback",
+                "model_version": "invalid_for_thesis",
+                "fallback": True,
+            }
+
 from app.handover.engine import HandoverEngine
 from app.network.state_manager import NetworkStateManager
 
@@ -49,6 +65,8 @@ DEFAULT_CELL_ALTITUDE_M = parse_env_float("DEFAULT_CELL_ALTITUDE_M", 25.0)
 DEFAULT_UE_ALTITUDE_M = parse_env_float("DEFAULT_UE_ALTITUDE_M", 1.5)
 DEFAULT_CARRIER_HZ = parse_env_float("DEFAULT_CARRIER_HZ", 3.5e9)
 DEFAULT_TX_POWER_DBM = parse_env_float("DEFAULT_TX_POWER_DBM", 40.0)
+RF_RANDOM_SEED = parse_env_int("RF_RANDOM_SEED", 0)
+THESIS_RF_STRICT = os.getenv("THESIS_RF_STRICT", "0").lower() in {"1", "true", "yes"}
 TRAJECTORY_LIMIT = parse_env_int("TRAJECTORY_LIMIT", 900)  # ~15 minutes of 1 Hz samples
 
 # Speed mapping constants (m/s)
@@ -60,9 +78,15 @@ class HandoverRuntime:
     """Keep shared ML handover state in a thread-safe helper."""
 
     def __init__(self) -> None:
+        if THESIS_RF_STRICT and RF_MODEL_FALLBACK:
+            raise RuntimeError(
+                "THESIS_RF_STRICT requires the packaged 3GPP RF model; fallback is forbidden"
+            )
         self.state_manager = NetworkStateManager()
         self.engine = HandoverEngine(self.state_manager)
-        self._lock = threading.Lock()
+        # Feature generation calls the registered cell lookup while topology
+        # state is already protected, so this must be re-entrant.
+        self._lock = threading.RLock()
         self._ref_lat: Optional[float] = None
         self._ref_lon: Optional[float] = None
         self._cells_by_key: Dict[str, dict] = {}
@@ -101,7 +125,7 @@ class HandoverRuntime:
                 self._ref_lon,
             )
             for cell in cells_list:
-                key = self._cell_key(cell.get("id"))
+                key = str(cell.get("cell_id") or self._cell_key(cell.get("id")) or "")
                 if key is None:
                     self.logger.warning(
                         "ensure_topology skipping cell without primary id: %s",
@@ -128,13 +152,30 @@ class HandoverRuntime:
                     continue
 
                 position = self._to_local(
-                    cell.get("latitude"), cell.get("longitude"), DEFAULT_CELL_ALTITUDE_M
+                    cell.get("latitude"),
+                    cell.get("longitude"),
+                    float(cell.get("antenna_height_m") or DEFAULT_CELL_ALTITUDE_M),
                 )
                 self.state_manager.antenna_list[key] = _AntennaModel(
                     key,
                     position,
-                    DEFAULT_CARRIER_HZ,
-                    DEFAULT_TX_POWER_DBM,
+                    float(cell.get("carrier_frequency_hz") or DEFAULT_CARRIER_HZ),
+                    float(cell.get("tx_power_dbm") or DEFAULT_TX_POWER_DBM),
+                    bandwidth_hz=float(cell.get("bandwidth_hz") or 100e6),
+                    resource_blocks=int(cell.get("resource_blocks") or 273),
+                    noise_figure_db=float(cell.get("noise_figure_db") or 7.0),
+                    azimuth_deg=float(cell.get("azimuth_deg") or 0.0),
+                    tilt_deg=float(cell.get("tilt_deg") or 0.0),
+                    horizontal_beamwidth_deg=float(
+                        cell.get("horizontal_beamwidth_deg") or 65.0
+                    ),
+                    max_gain_dbi=float(cell.get("max_gain_dbi") or 17.0),
+                    front_to_back_db=float(cell.get("front_to_back_db") or 30.0),
+                    frequency_reuse_group=int(
+                        cell.get("frequency_reuse_group") or 1
+                    ),
+                    los_probability=float(cell.get("los_probability") or 1.0),
+                    random_seed=RF_RANDOM_SEED,
                 )
                 self._cells_by_key[key] = cell
                 before_aliases = len(self._cells_by_alias)
@@ -154,6 +195,20 @@ class HandoverRuntime:
                 len(self._cells_by_alias),
             )
 
+    def rf_provenance(self) -> dict:
+        antennas = list(self.state_manager.antenna_list.values())
+        model = antennas[0] if antennas else None
+        provenance = model.provenance() if model and hasattr(model, "provenance") else {}
+        return {
+            **provenance,
+            "fallback": bool(RF_MODEL_FALLBACK or provenance.get("fallback")),
+            "strict_mode": THESIS_RF_STRICT,
+            "antenna_count": len(antennas),
+            "canonical_cell_ids": sorted(self.state_manager.antenna_list),
+            "database_cell_ids": sorted(
+                str(cell.get("id")) for cell in self._cells_by_key.values()
+            ),
+        }
     def reset_topology(self) -> None:
         """Clear cached topology/UE state so a scenario import can start clean."""
         with self._lock:
@@ -211,7 +266,7 @@ class HandoverRuntime:
             speed = self._speed_to_mps(speed_label)
 
             preferred = current_cell_id if current_cell_id is not None else fallback_cell_id
-            conn_key = self._cell_key(preferred)
+            conn_key = self.state_manager.resolve_antenna_id(self._cell_key(preferred))
 
             ue_state = self.state_manager.ue_states.get(supi)
             if ue_state is None:
@@ -239,6 +294,39 @@ class HandoverRuntime:
                 del traj[: len(traj) - TRAJECTORY_LIMIT]
 
             return ue_state.get("connected_to"), position
+
+    def set_ue_profile(self, supi: str, profile: dict) -> None:
+        with self._lock:
+            state = self.state_manager.ue_states.get(supi)
+            if state is None:
+                return
+            for key in (
+                "service_type",
+                "service_priority",
+                "latency_requirement_ms",
+                "throughput_requirement_mbps",
+                "reliability_pct",
+                "jitter_requirement_ms",
+            ):
+                if profile.get(key) is not None:
+                    state[key] = profile[key]
+            requirements = {
+                "latency_requirement_ms": profile.get("latency_requirement_ms"),
+                "throughput_requirement_mbps": profile.get(
+                    "throughput_requirement_mbps"
+                ),
+                "reliability_pct": profile.get("reliability_pct"),
+                "jitter_ms": profile.get("jitter_requirement_ms"),
+            }
+            state["qos_requirements"] = {
+                key: value for key, value in requirements.items() if value is not None
+            }
+
+    def set_movement_provenance(self, supi: str, provenance: dict) -> None:
+        with self._lock:
+            state = self.state_manager.ue_states.get(supi)
+            if state is not None:
+                state["movement_provenance"] = dict(provenance)
 
     # ------------------------------------------------------------------
     # Decision helpers
@@ -316,6 +404,7 @@ class HandoverRuntime:
         if cell_id is not None:
             cid = str(cell_id)
             aliases.update({
+                cid,
                 f"antenna_{cid}",
                 f"antenna-{cid}",
                 f"antenna{cid}",
@@ -370,9 +459,11 @@ class HandoverRuntime:
         return (x, y, altitude)
 
     @staticmethod
-    def _speed_to_mps(speed_label: Optional[str]) -> float:
+    def _speed_to_mps(speed_label: Any) -> float:
         if speed_label is None:
             return 0.0
+        if isinstance(speed_label, (int, float)):
+            return max(0.0, float(speed_label))
         label = speed_label.strip().upper()
         if label == "HIGH":
             return HIGH_SPEED_MPS

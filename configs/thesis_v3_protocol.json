@@ -1,0 +1,39 @@
+{
+  "protocol_version": "physical_handover_v3",
+  "claim": "Complexity-aware ML improves high-complexity handover cost while remaining non-inferior to tuned A3 in sparse regimes.",
+  "scenarios": [
+    "highway_sparse_v2",
+    "highway_moderate_v2",
+    "highway_dense_v2"
+  ],
+  "training_seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115],
+  "tuning_seeds": [116, 117, 118, 119, 120],
+  "final_seeds": [201, 202, 203, 204, 205, 206, 207, 208, 209, 210],
+  "viability": {"minimum_rsrp_dbm": -115.0, "minimum_sinr_db": -5.0},
+  "metric_version": "v3_physical_qos_cost",
+  "frequency_reuse_pattern": "site_reuse_3",
+  "metric_weights": {
+    "sinr_outage": 2.0,
+    "rsrp_outage": 2.0,
+    "qos_violation": 10.0,
+    "rlf": 8.0,
+    "handover_action": 1.0,
+    "ping_pong": 5.0,
+    "unnecessary_handover": 3.0,
+    "failed_handover": 6.0,
+    "late_handover": 3.0,
+    "poor_target_sinr": 3.0,
+    "load_regression": 2.0
+  },
+  "acceptance": {
+    "minimum_high_complexity_improvement_fraction": 0.05,
+    "minimum_positive_final_seeds": 8,
+    "sparse_noninferiority_margin_fraction": 0.02,
+    "bootstrap_iterations": 10000
+  },
+  "model_selection_frozen": false,
+  "final_results_unlocked": false,
+  "selected_model_artifact_sha256": null,
+  "selected_high_complexity_threshold": null,
+  "selected_min_utility_margin": null
+}

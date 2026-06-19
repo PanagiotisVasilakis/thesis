@@ -68,6 +68,15 @@ class CellConfig:
     antenna_height_m: float = 25.0
     azimuth_deg: float = 0.0
     tilt_deg: float = 6.0
+    carrier_frequency_hz: float = 3.5e9
+    bandwidth_hz: float = 100e6
+    resource_blocks: int = 273
+    horizontal_beamwidth_deg: float = 65.0
+    max_gain_dbi: float = 17.0
+    front_to_back_db: float = 30.0
+    noise_figure_db: float = 7.0
+    frequency_reuse_group: int = 1
+    los_probability: float = 1.0
     
     def to_api_payload(self) -> Dict:
         """Convert to NEF API payload format."""
@@ -79,6 +88,19 @@ class CellConfig:
             "latitude": self.latitude,
             "longitude": self.longitude,
             "radius": self.radius
+            ,"carrier_frequency_hz": self.carrier_frequency_hz
+            ,"bandwidth_hz": self.bandwidth_hz
+            ,"resource_blocks": self.resource_blocks
+            ,"tx_power_dbm": self.tx_power_dbm
+            ,"antenna_height_m": self.antenna_height_m
+            ,"azimuth_deg": self.azimuth_deg
+            ,"tilt_deg": self.tilt_deg
+            ,"horizontal_beamwidth_deg": self.horizontal_beamwidth_deg
+            ,"max_gain_dbi": self.max_gain_dbi
+            ,"front_to_back_db": self.front_to_back_db
+            ,"noise_figure_db": self.noise_figure_db
+            ,"frequency_reuse_group": self.frequency_reuse_group
+            ,"los_probability": self.los_probability
         }
 
 
@@ -106,6 +128,8 @@ class UEConfig:
     latency_requirement_ms: float = 50.0
     throughput_requirement_mbps: float = 100.0
     reliability_pct: float = 99.5
+    jitter_requirement_ms: float = 10.0
+    speed_mps: Optional[float] = None
     
     def __post_init__(self):
         # Auto-generate network identifiers if not provided
@@ -147,6 +171,13 @@ class UEConfig:
             "mnc": 1,
             "external_identifier": f"{self.supi[-5:]}@domain.com",
             "speed": self.speed_profile
+            ,"speed_mps": self.speed_mps
+            ,"service_type": self.service_type.value
+            ,"service_priority": 3 if self.service_type == ServiceType.URLLC else 2
+            ,"latency_requirement_ms": self.latency_requirement_ms
+            ,"throughput_requirement_mbps": self.throughput_requirement_mbps
+            ,"reliability_pct": self.reliability_pct
+            ,"jitter_requirement_ms": self.jitter_requirement_ms
         }
 
 

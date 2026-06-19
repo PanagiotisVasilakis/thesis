@@ -31,6 +31,8 @@ SUPPORTED_POLICIES = {
     "load_aware_a3_baseline",
     "velocity_adaptive_a3_baseline",
     "complexity_aware_ml_a3",
+    "no_handover_baseline",
+    "conditional_handover_baseline",
 }
 BLOCKING_SEVERITIES = {"critical", "high"}
 LIVE_ML_POLICIES = {"ml", "complexity_aware_ml_a3"}
@@ -42,6 +44,15 @@ LIVE_REQUIRED_ML_METRICS = (
     "qos_compliance_ok",
     "qos_compliance_failed",
 )
+SEGMENT_CONTROLLER_SOURCES = {
+    "ml_segment_entry",
+    "ml_segment_hold",
+    "ml_segment_exit_to_a3",
+    "ml_segment_emergency_exit",
+    "ml_segment_rejected_stay",
+    "ml_segment_rejected_stay_hold",
+    "sparse_authority_stay",
+}
 
 
 @dataclass(frozen=True)
@@ -538,6 +549,7 @@ def _validate_decisions(
                 "ml_segment_hold",
                 "ml_segment_stay_hold",
                 "a3_complexity_gate",
+                *SEGMENT_CONTROLLER_SOURCES,
             }:
                 _add_issue(
                     issues,
@@ -547,6 +559,122 @@ def _validate_decisions(
                     source_path,
                 )
                 break
+            if (
+                decision_source in SEGMENT_CONTROLLER_SOURCES
+                and decision.debug.get("ml_backend") == "segment_controller"
+            ):
+                if not _has_required_segment_controller_debug(decision):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_segment_controller_debug",
+                        f"complexity-aware decision {index} used segment controller without complete debug",
+                        source_path,
+                    )
+                    break
+                if decision_source in {"ml_segment_entry", "ml_segment_rejected_stay"} and bucket != "high":
+                    _add_issue(
+                        issues,
+                        "high",
+                        "complexity_gate_bucket_mismatch",
+                        f"complexity-aware decision {index} used segment entry logic outside high bucket: {bucket!r}",
+                        source_path,
+                    )
+                    break
+                if decision_source in {"ml_segment_rejected_stay", "ml_segment_rejected_stay_hold"} and (
+                    decision.decision_type != "stay"
+                    or decision.selected_target_cell is not None
+                ):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "invalid_segment_rejected_action",
+                        f"complexity-aware decision {index} rejected ML segment entry but did not stay",
+                        source_path,
+                    )
+                    break
+                if decision_source == "sparse_authority_stay":
+                    if (
+                        decision.decision_type != "stay"
+                        or decision.selected_target_cell is not None
+                        or decision.debug.get("sparse_authority_applied") is not True
+                        or not decision.debug.get("sparse_authority_reason")
+                    ):
+                        _add_issue(
+                            issues,
+                            "high",
+                            "invalid_sparse_authority_stay",
+                            f"complexity-aware decision {index} used sparse authority stay without an audited suppression",
+                            source_path,
+                        )
+                        break
+                if (
+                    decision.debug.get("post_segment_a3_guard_applied") is True
+                    and not decision.debug.get("post_segment_a3_guard_reason")
+                ):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_post_segment_guard_reason",
+                        f"complexity-aware decision {index} applied post-segment A3 guard without reason",
+                        source_path,
+                    )
+                    break
+                if (
+                    decision.debug.get("high_reject_hold_applied") is True
+                    and not decision.debug.get("high_reject_hold_reason")
+                ):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_high_reject_hold_reason",
+                        f"complexity-aware decision {index} applied high-reject hold without reason",
+                        source_path,
+                    )
+                    break
+                if decision_source == "ml_segment_emergency_exit" and not decision.debug.get("segment_exit_reason"):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_segment_emergency_reason",
+                        f"complexity-aware decision {index} used emergency exit without explicit reason",
+                        source_path,
+                    )
+                    break
+                fallback_reason = _hidden_ml_fallback_reason(decision.debug)
+                if fallback_reason:
+                    _add_issue(
+                        issues,
+                        "high",
+                        "hidden_ml_fallback",
+                        f"complexity-aware segment decision {index} used fallback/override metadata: {fallback_reason}",
+                        source_path,
+                    )
+                    break
+                continue
+            if (
+                decision_source == "a3_complexity_gate"
+                and decision.debug.get("ml_backend") == "segment_controller"
+            ):
+                if not _has_required_segment_controller_debug(decision):
+                    _add_issue(
+                        issues,
+                        "high",
+                        "missing_segment_controller_debug",
+                        f"complexity-aware decision {index} used segment-controller A3 gate without complete debug",
+                        source_path,
+                    )
+                    break
+                fallback_reason = _hidden_ml_fallback_reason(decision.debug)
+                if fallback_reason:
+                    _add_issue(
+                        issues,
+                        "high",
+                        "hidden_ml_fallback",
+                        f"complexity-aware segment A3 gate decision {index} used fallback/override metadata: {fallback_reason}",
+                        source_path,
+                    )
+                    break
             if not isinstance(delegated_policy, str) or not delegated_policy:
                 _add_issue(
                     issues,
@@ -662,14 +790,77 @@ def _has_required_ml_segment_debug(decision: PolicyDecisionRecord) -> bool:
 
 
 def _has_required_ml_decision_debug(decision: PolicyDecisionRecord) -> bool:
+    if decision.debug.get("ml_backend") == "segment_controller":
+        return _has_required_segment_controller_debug(decision)
     if decision.debug.get("ml_backend") == "candidate_ranker":
         return _has_required_ranker_decision_debug(decision)
+    if decision.debug.get("ml_backend") == "oracle_ranker":
+        return _has_required_oracle_ranker_debug(decision)
     return (
         "ml_response_keys" in decision.debug
         and "qos_compliance" in decision.debug
         and "raw_ml_response_metadata" in decision.debug
         and "ml_target_resolution" in decision.debug
         and _has_candidate_complexity(decision)
+    )
+
+
+def _has_required_segment_controller_debug(decision: PolicyDecisionRecord) -> bool:
+    debug = decision.debug
+    metadata = debug.get("segment_metadata")
+    source = debug.get("decision_source")
+    scores = debug.get("candidate_scores")
+    return (
+        _has_candidate_complexity(decision)
+        and source in SEGMENT_CONTROLLER_SOURCES.union({"a3_complexity_gate"})
+        and debug.get("ml_backend") == "segment_controller"
+        and isinstance(debug.get("segment_artifact_sha256"), str)
+        and bool(debug.get("segment_artifact_sha256"))
+        and debug.get("segment_model_family") == "segment_controller"
+        and isinstance(metadata, Mapping)
+        and metadata.get("model_family") == "segment_controller"
+        and bool(metadata.get("model_sha256"))
+        and isinstance(metadata.get("feature_columns"), Mapping)
+        and isinstance(metadata.get("validation_metrics"), Mapping)
+        and isinstance(metadata.get("segment_decision_parameters"), Mapping)
+        and debug.get("segment_state") in {"active", "inactive"}
+        and "entry_score" in debug
+        and isinstance(debug.get("entry_threshold"), (int, float))
+        and math.isfinite(float(debug.get("entry_threshold")))
+        and "exit_score" in debug
+        and isinstance(debug.get("exit_threshold"), (int, float))
+        and math.isfinite(float(debug.get("exit_threshold")))
+        and isinstance(debug.get("consecutive_exit_votes"), int)
+        and isinstance(scores, Mapping)
+        and "selected_candidate" in debug
+        and "segment_age_s" in debug
+        and "segment_entry_serving_cell" in debug
+        and "segment_current_serving_cell" in debug
+        and "segment_exit_reason" in debug
+        and isinstance(debug.get("post_segment_a3_guard_applied"), bool)
+        and "post_segment_a3_guard_reason" in debug
+        and isinstance(debug.get("high_reject_hold_applied"), bool)
+        and "high_reject_hold_reason" in debug
+        and "last_segment_exit_time_s" in debug
+        and "last_high_reject_time_s" in debug
+        and debug.get("sparse_authority_mode")
+        in {"tuned_a3", "quality_gated_a3", "stay_unless_weak"}
+        and isinstance(debug.get("sparse_authority_applied"), bool)
+        and "sparse_authority_reason" in debug
+        and isinstance(debug.get("sparse_authority_handover_allowed"), bool)
+        and "sparse_serving_rsrp_dbm" in debug
+        and "sparse_serving_sinr_db" in debug
+        and isinstance(debug.get("sparse_serving_rsrp_floor_dbm"), (int, float))
+        and math.isfinite(float(debug.get("sparse_serving_rsrp_floor_dbm")))
+        and isinstance(debug.get("sparse_serving_sinr_floor_db"), (int, float))
+        and math.isfinite(float(debug.get("sparse_serving_sinr_floor_db")))
+        and isinstance(debug.get("sparse_serving_weak"), bool)
+        and "sparse_a3_margin_db" in debug
+        and isinstance(debug.get("sparse_a3_extra_margin_db"), (int, float))
+        and math.isfinite(float(debug.get("sparse_a3_extra_margin_db")))
+        and isinstance(debug.get("sparse_a3_strong_gain"), bool)
+        and "qos_compliance" in debug
+        and "raw_ml_response_metadata" in debug
     )
 
 
@@ -702,6 +893,38 @@ def _has_required_ranker_decision_debug(decision: PolicyDecisionRecord) -> bool:
         and "ml_target_resolution" in debug
         and "qos_compliance" in debug
         and "raw_ml_response_metadata" in debug
+    )
+
+
+def _has_required_oracle_ranker_debug(decision: PolicyDecisionRecord) -> bool:
+    debug = decision.debug
+    metadata = debug.get("oracle_ranker_metadata")
+    scores = debug.get("raw_action_scores")
+    return (
+        _has_candidate_complexity(decision)
+        and debug.get("decision_source") in {"oracle_ranker", "ml_high_complexity"}
+        and debug.get("ml_backend") == "oracle_ranker"
+        and isinstance(scores, Mapping)
+        and bool(scores)
+        and isinstance(metadata, Mapping)
+        and bool(metadata.get("model_sha256"))
+        and bool(metadata.get("selected_model_family"))
+        and bool(metadata.get("feature_columns"))
+        and metadata.get("validation_split")
+        == "leave_one_seed_out_complete_trajectories"
+        and isinstance(metadata.get("training_seeds"), list)
+        and bool(metadata.get("training_seeds"))
+        and "stay_score" in debug
+        and "best_candidate_score" in debug
+        and "utility_margin_vs_stay" in debug
+        and isinstance(debug.get("minimum_utility_margin"), (int, float))
+        and "artifact_hash" in debug
+        and "qos_compliance" in debug
+        and "ml_target_resolution" in debug
+        and "raw_ml_response_metadata" in debug
+        and debug.get("fallback") is False
+        and debug.get("synthetic_bootstrap") is False
+        and debug.get("geographic_override") is False
     )
 
 

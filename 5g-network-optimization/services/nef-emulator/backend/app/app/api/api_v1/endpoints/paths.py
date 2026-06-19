@@ -1,4 +1,6 @@
 import random
+import hashlib
+import os
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.encoders import jsonable_encoder
@@ -9,7 +11,7 @@ from app.api import deps
 
 router = APIRouter()
 
-def get_random_point(db: Session, path_id: int):
+def get_random_point(db: Session, path_id: int, deterministic_key: str = "default"):
     """Get a random point from a path.
     
     Args:
@@ -25,7 +27,12 @@ def get_random_point(db: Session, path_id: int):
     if not points_json:
         return None
 
-    random_index = random.randrange(0, len(points_json))
+    scenario_seed = os.getenv("SCENARIO_RANDOM_SEED")
+    if scenario_seed is None:
+        random_index = random.randrange(0, len(points_json))
+    else:
+        payload = f"{scenario_seed}:{path_id}:{deterministic_key}".encode()
+        random_index = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") % len(points_json)
     return points_json[random_index]
 
 @router.get("", response_model=List[schemas.Paths])
@@ -174,4 +181,3 @@ def delete_path(
            crud.ue.update(db=db, db_obj=ue, obj_in={"path_id" : 0})
     
     return path
-

@@ -14,7 +14,7 @@ RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python
     poetry config virtualenvs.create false
 
 # Copy poetry.lock* in case it doesn't exist in the repo
-COPY app/pyproject.toml app/poetry.lock* /app/
+COPY backend/app/pyproject.toml backend/app/poetry.lock* /app/
 
 # Allow installing dev dependencies to run tests
 ARG INSTALL_DEV=false
@@ -24,12 +24,14 @@ RUN poetry install --no-root
 ARG INSTALL_JUPYTER=false
 RUN bash -c "if [ $INSTALL_JUPYTER == 'true' ] ; then pip install jupyterlab ; fi"
 
-COPY app /app
+COPY backend/app /app
+COPY antenna_models /app/antenna_models
+COPY rf_models /app/rf_models
 ENV PYTHONPATH=/app
 
 WORKDIR /
 
 WORKDIR /app/
-COPY start-reload.sh /
+COPY backend/start-reload.sh /
 ENV A3_HYSTERESIS_DB=2.0
 ENV A3_TTT_S=0.0

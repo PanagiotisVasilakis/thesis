@@ -15,6 +15,7 @@ from .complexity import (
     DEFAULT_MIN_VIABLE_RSRP_DBM,
     DEFAULT_MIN_VIABLE_SINR_DB,
     candidate_complexity_for_record,
+    is_viable_cell,
 )
 from .candidate_ranker import build_candidate_ranker_features
 from .candidate_ranker_artifact import (
@@ -27,6 +28,17 @@ from .candidate_ranker_artifact import (
 )
 from .nef_trace import ML_TRACE_PASSTHROUGH_FIELDS
 from .schemas import MeasurementTraceRecord, PolicyDecisionRecord, TraceSchemaError
+from .segment_controller_artifact import (
+    SEGMENT_CONTROLLER_MODEL_FAMILY,
+    SEGMENT_SPARSE_AUTHORITY_MODES,
+    SegmentControllerArtifact,
+    load_segment_controller_artifact,
+)
+from .oracle_policy import action_features
+from .oracle_ranker_artifact import (
+    OracleRankerArtifact,
+    load_oracle_ranker_artifact,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -263,6 +275,154 @@ class StrongestSignalPolicyAdapter:
                 "selection_metric": self.metric,
                 "serving_metric_value": serving_value,
                 "candidate_metric_values": available,
+                "candidate_complexity": complexity.to_dict(),
+                **_trace_debug_context(record),
+            },
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
+        )
+
+
+class NoHandoverPolicyAdapter:
+    """Explicit stay baseline used to detect policies that win by doing nothing."""
+
+    @property
+    def name(self) -> str:
+        return "no_handover_baseline"
+
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {"action": "always_stay"}
+
+    def reset(self, ue_id: Optional[str] = None) -> None:
+        return None
+
+    def decide(self, record: MeasurementTraceRecord) -> PolicyDecisionRecord:
+        started = time.perf_counter()
+        serving = record.visible_cell_map[record.serving_cell]
+        complexity = candidate_complexity_for_record(record)
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=None,
+            decision_type="stay",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=False,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason="no_handover_baseline_stay",
+            debug={
+                "decision_source": self.name,
+                "candidate_complexity": complexity.to_dict(),
+                **_trace_debug_context(record),
+            },
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
+        )
+
+
+class ConditionalHandoverPolicyAdapter:
+    """Measurement-only prepare/execute conditional handover baseline."""
+
+    def __init__(
+        self,
+        *,
+        preparation_margin_db: float = 1.0,
+        execution_margin_db: float = 3.0,
+        consecutive_execution_votes: int = 2,
+    ) -> None:
+        self.preparation_margin_db = float(preparation_margin_db)
+        self.execution_margin_db = float(execution_margin_db)
+        self.consecutive_execution_votes = int(consecutive_execution_votes)
+        self._state: Dict[str, Dict[str, Any]] = {}
+
+    @property
+    def name(self) -> str:
+        return "conditional_handover_baseline"
+
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {
+            "preparation_margin_db": self.preparation_margin_db,
+            "execution_margin_db": self.execution_margin_db,
+            "consecutive_execution_votes": self.consecutive_execution_votes,
+        }
+
+    def reset(self, ue_id: Optional[str] = None) -> None:
+        if ue_id is None:
+            self._state.clear()
+        else:
+            self._state.pop(ue_id, None)
+
+    def decide(self, record: MeasurementTraceRecord) -> PolicyDecisionRecord:
+        started = time.perf_counter()
+        serving = record.visible_cell_map[record.serving_cell]
+        viable = [
+            cell
+            for cell in record.visible_cells
+            if cell.cell_id != record.serving_cell
+            and cell.rsrp_dbm >= DEFAULT_MIN_VIABLE_RSRP_DBM
+            and (cell.sinr_db is None or cell.sinr_db >= DEFAULT_MIN_VIABLE_SINR_DB)
+        ]
+        best = max(viable, key=lambda cell: (cell.rsrp_dbm, cell.cell_id)) if viable else None
+        margin = None if best is None else best.rsrp_dbm - serving.rsrp_dbm
+        state = self._state.setdefault(record.ue_id, {"prepared": None, "votes": 0})
+        if best is None or margin is None or margin < self.preparation_margin_db:
+            state.update({"prepared": None, "votes": 0})
+        elif state.get("prepared") != best.cell_id:
+            state.update({"prepared": best.cell_id, "votes": 0})
+
+        if (
+            best is not None
+            and state.get("prepared") == best.cell_id
+            and margin is not None
+            and margin >= self.execution_margin_db
+        ):
+            state["votes"] = int(state.get("votes", 0)) + 1
+        else:
+            state["votes"] = 0
+        trigger = bool(
+            best is not None
+            and state.get("prepared") == best.cell_id
+            and int(state.get("votes", 0)) >= self.consecutive_execution_votes
+        )
+        target = best.cell_id if trigger and best is not None else None
+        if trigger:
+            state.update({"prepared": None, "votes": 0})
+        complexity = candidate_complexity_for_record(record)
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=target,
+            decision_type="handover" if trigger else "stay",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=trigger,
+            time_to_trigger_state={"prepared_target": state.get("prepared"), "votes": state.get("votes", 0)},
+            cooldown_state={},
+            reason="conditional_handover_execute" if trigger else "conditional_handover_wait",
+            debug={
+                "decision_source": self.name,
+                "prepared_target": state.get("prepared"),
+                "execution_votes": state.get("votes", 0),
+                "best_margin_db": margin,
                 "candidate_complexity": complexity.to_dict(),
                 **_trace_debug_context(record),
             },
@@ -794,6 +954,1272 @@ class CandidateRankerPolicyAdapter:
         )
 
 
+class OracleRankerPolicyAdapter:
+    """Explicit-stay cost-to-go ranker selected by the model ladder."""
+
+    def __init__(
+        self,
+        artifact: OracleRankerArtifact | Path,
+        *,
+        min_utility_margin: Optional[float] = None,
+    ) -> None:
+        self.artifact = (
+            load_oracle_ranker_artifact(artifact)
+            if isinstance(artifact, Path)
+            else artifact
+        )
+        configured = self.artifact.metadata.get("selected_min_utility_margin", 0.0)
+        self.min_utility_margin = float(
+            configured if min_utility_margin is None else min_utility_margin
+        )
+        self._replay_state_by_ue: Dict[str, Dict[str, Any]] = {}
+
+    @property
+    def name(self) -> str:
+        return "ml_policy"
+
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {
+            "ml_backend": "oracle_ranker",
+            "artifact_sha256": self.artifact.artifact_sha256,
+            "model_family": self.artifact.model_family,
+            "selected_model_family": self.artifact.metadata.get(
+                "selected_model_family"
+            ),
+            "min_utility_margin": self.min_utility_margin,
+        }
+
+    def reset(self, ue_id: Optional[str] = None) -> None:
+        if ue_id is None:
+            self._replay_state_by_ue.clear()
+        else:
+            self._replay_state_by_ue.pop(ue_id, None)
+
+    def set_replay_state(self, ue_id: str, state: Mapping[str, Any]) -> None:
+        self._replay_state_by_ue[str(ue_id)] = dict(state)
+
+    def decide(self, record: MeasurementTraceRecord) -> PolicyDecisionRecord:
+        started = time.perf_counter()
+        state = self._replay_state_by_ue.get(record.ue_id, {})
+        actions = [record.serving_cell] + [
+            cell.cell_id
+            for cell in record.visible_cells
+            if cell.cell_id != record.serving_cell and is_viable_cell(cell)
+        ]
+        rows = [
+            action_features(
+                record,
+                serving_cell=record.serving_cell,
+                action_cell=action,
+                recent_handover_count=int(state.get("recent_handover_count") or 0),
+                dwell_time_s=float(state.get("current_dwell_time_s") or 0.0),
+            )
+            for action in actions
+        ]
+        scores = self.artifact.score_rows(rows)
+        score_by_action = dict(zip(actions, scores))
+        stay_score = score_by_action[record.serving_cell]
+        candidates = {
+            action: score
+            for action, score in score_by_action.items()
+            if action != record.serving_cell
+        }
+        best_candidate, best_score = (
+            max(candidates.items(), key=lambda item: (item[1], item[0]))
+            if candidates
+            else (None, None)
+        )
+        margin = None if best_score is None else float(best_score - stay_score)
+        target = (
+            best_candidate
+            if best_candidate is not None
+            and margin is not None
+            and margin >= self.min_utility_margin
+            and best_score > stay_score
+            else None
+        )
+        serving = record.visible_cell_map[record.serving_cell]
+        complexity = candidate_complexity_for_record(record)
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=target,
+            decision_type="handover" if target is not None else "stay",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=target is not None,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason="oracle_ranker_handover" if target else "oracle_ranker_stay",
+            debug={
+                "decision_source": "oracle_ranker",
+                "ml_backend": "oracle_ranker",
+                "raw_action_scores": score_by_action,
+                "stay_score": stay_score,
+                "best_candidate": best_candidate,
+                "best_candidate_score": best_score,
+                "utility_margin_vs_stay": margin,
+                "minimum_utility_margin": self.min_utility_margin,
+                "artifact_hash": self.artifact.artifact_sha256,
+                "model_family": self.artifact.model_family,
+                "oracle_ranker_metadata": {
+                    "model_sha256": self.artifact.artifact_sha256,
+                    "selected_model_family": self.artifact.metadata.get(
+                        "selected_model_family"
+                    ),
+                    "feature_columns": list(self.artifact.feature_columns),
+                    "aggregate_validation_metrics": self.artifact.metadata.get(
+                        "aggregate_validation_metrics", {}
+                    ),
+                    "validation_split": self.artifact.metadata.get(
+                        "validation_split"
+                    ),
+                    "training_seeds": self.artifact.metadata.get(
+                        "training_seeds", []
+                    ),
+                },
+                "ml_target_resolution": {
+                    "raw_target": target,
+                    "resolved_target": target,
+                    "method": "explicit_stay_oracle_ranker",
+                },
+                "raw_ml_response_metadata": {
+                    "ml_backend": "oracle_ranker",
+                    "model_ready": True,
+                    "artifact_sha256": self.artifact.artifact_sha256,
+                },
+                "fallback": False,
+                "synthetic_bootstrap": False,
+                "geographic_override": False,
+                "candidate_complexity": complexity.to_dict(),
+                **_trace_debug_context(record),
+            },
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
+        )
+
+
+class SegmentControllerPolicyAdapter:
+    """Offline two-stage segment controller.
+
+    With ``sparse_policy=None`` this behaves as ML-only: outside active ML
+    segments it stays. With a sparse policy it becomes the thesis adaptive
+    controller: sparse/moderate inactive snapshots use tuned A3, high-complexity
+    inactive snapshots use the segment entry decision, and active ML segments
+    hold until an explicit exit.
+    """
+
+    def __init__(
+        self,
+        artifact: SegmentControllerArtifact | Path,
+        *,
+        policy_name: str = "ml_policy",
+        sparse_policy: Optional[ComparisonPolicyAdapter] = None,
+        high_complexity_threshold: Optional[int] = None,
+        entry_threshold: Optional[float] = None,
+        candidate_margin_min: Optional[float] = None,
+        exit_threshold: Optional[float] = None,
+        consecutive_exit_votes: Optional[int] = None,
+        min_segment_duration_s: Optional[float] = None,
+        max_segment_duration_s: Optional[float] = None,
+        emergency_rsrp_floor_dbm: Optional[float] = None,
+        post_exit_a3_guard_s: Optional[float] = None,
+        post_exit_a3_extra_margin_db: Optional[float] = None,
+        high_reject_hold_s: Optional[float] = None,
+        sparse_authority_mode: Optional[str] = None,
+        sparse_serving_rsrp_floor_dbm: Optional[float] = None,
+        sparse_serving_sinr_floor_db: Optional[float] = None,
+        sparse_a3_extra_margin_db: Optional[float] = None,
+    ) -> None:
+        self.artifact = (
+            load_segment_controller_artifact(artifact)
+            if isinstance(artifact, Path)
+            else artifact
+        )
+        if self.artifact.model_family != SEGMENT_CONTROLLER_MODEL_FAMILY:
+            raise PolicyAdapterError("segment controller artifact has wrong model family")
+        params = self.artifact.decision_parameters
+        self._name = policy_name
+        self.sparse_policy = sparse_policy
+        self.high_complexity_threshold = int(
+            high_complexity_threshold
+            if high_complexity_threshold is not None
+            else params.get("high_complexity_threshold", DEFAULT_HIGH_COMPLEXITY_THRESHOLD)
+        )
+        self.entry_threshold = float(
+            entry_threshold
+            if entry_threshold is not None
+            else params.get("entry_threshold", 0.5)
+        )
+        self.candidate_margin_min = float(
+            candidate_margin_min
+            if candidate_margin_min is not None
+            else params.get("candidate_margin_min", 20.0)
+        )
+        self.exit_threshold = float(
+            exit_threshold
+            if exit_threshold is not None
+            else params.get("exit_threshold", 0.7)
+        )
+        self.consecutive_exit_votes = max(
+            1,
+            int(
+                consecutive_exit_votes
+                if consecutive_exit_votes is not None
+                else params.get("consecutive_exit_votes", 3)
+            ),
+        )
+        self.min_segment_duration_s = float(
+            min_segment_duration_s
+            if min_segment_duration_s is not None
+            else params.get("min_segment_duration_s", 6.0)
+        )
+        self.max_segment_duration_s = float(
+            max_segment_duration_s
+            if max_segment_duration_s is not None
+            else params.get("max_segment_duration_s", 45.0)
+        )
+        self.emergency_rsrp_floor_dbm = float(
+            emergency_rsrp_floor_dbm
+            if emergency_rsrp_floor_dbm is not None
+            else params.get("emergency_rsrp_floor_dbm", -112.0)
+        )
+        self.post_exit_a3_guard_s = max(
+            0.0,
+            float(
+                post_exit_a3_guard_s
+                if post_exit_a3_guard_s is not None
+                else params.get("post_exit_a3_guard_s", 0.0)
+            ),
+        )
+        self.post_exit_a3_extra_margin_db = max(
+            0.0,
+            float(
+                post_exit_a3_extra_margin_db
+                if post_exit_a3_extra_margin_db is not None
+                else params.get("post_exit_a3_extra_margin_db", 0.0)
+            ),
+        )
+        self.high_reject_hold_s = max(
+            0.0,
+            float(
+                high_reject_hold_s
+                if high_reject_hold_s is not None
+                else params.get("high_reject_hold_s", 0.0)
+            ),
+        )
+        self.sparse_authority_mode = str(
+            sparse_authority_mode
+            if sparse_authority_mode is not None
+            else params.get("sparse_authority_mode", "tuned_a3")
+        )
+        if self.sparse_authority_mode not in SEGMENT_SPARSE_AUTHORITY_MODES:
+            raise PolicyAdapterError(
+                "unsupported segment sparse authority mode: "
+                f"{self.sparse_authority_mode!r}"
+            )
+        self.sparse_serving_rsrp_floor_dbm = float(
+            sparse_serving_rsrp_floor_dbm
+            if sparse_serving_rsrp_floor_dbm is not None
+            else params.get("sparse_serving_rsrp_floor_dbm", -105.0)
+        )
+        self.sparse_serving_sinr_floor_db = float(
+            sparse_serving_sinr_floor_db
+            if sparse_serving_sinr_floor_db is not None
+            else params.get("sparse_serving_sinr_floor_db", -5.0)
+        )
+        self.sparse_a3_extra_margin_db = max(
+            0.0,
+            float(
+                sparse_a3_extra_margin_db
+                if sparse_a3_extra_margin_db is not None
+                else params.get("sparse_a3_extra_margin_db", 3.0)
+            ),
+        )
+        self._replay_state_by_ue: Dict[str, Dict[str, Any]] = {}
+        self._segment_state_by_ue: Dict[str, Dict[str, Any]] = {}
+        self._guard_state_by_ue: Dict[str, Dict[str, Any]] = {}
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {
+            "ml_backend": "segment_controller",
+            "segment_artifact": str(self.artifact.path),
+            "segment_artifact_sha256": self.artifact.artifact_sha256,
+            "model_family": self.artifact.model_family,
+            "sparse_policy": None if self.sparse_policy is None else self.sparse_policy.name,
+            "high_complexity_threshold": self.high_complexity_threshold,
+            "entry_threshold": self.entry_threshold,
+            "candidate_margin_min": self.candidate_margin_min,
+            "exit_threshold": self.exit_threshold,
+            "consecutive_exit_votes": self.consecutive_exit_votes,
+            "min_segment_duration_s": self.min_segment_duration_s,
+            "max_segment_duration_s": self.max_segment_duration_s,
+            "emergency_rsrp_floor_dbm": self.emergency_rsrp_floor_dbm,
+            "post_exit_a3_guard_s": self.post_exit_a3_guard_s,
+            "post_exit_a3_extra_margin_db": self.post_exit_a3_extra_margin_db,
+            "high_reject_hold_s": self.high_reject_hold_s,
+            "sparse_authority_mode": self.sparse_authority_mode,
+            "sparse_serving_rsrp_floor_dbm": self.sparse_serving_rsrp_floor_dbm,
+            "sparse_serving_sinr_floor_db": self.sparse_serving_sinr_floor_db,
+            "sparse_a3_extra_margin_db": self.sparse_a3_extra_margin_db,
+        }
+
+    def reset(self, ue_id: Optional[str] = None) -> None:
+        if self.sparse_policy is not None:
+            self.sparse_policy.reset(ue_id)
+        if ue_id is None:
+            self._replay_state_by_ue.clear()
+            self._segment_state_by_ue.clear()
+            self._guard_state_by_ue.clear()
+        else:
+            self._replay_state_by_ue.pop(ue_id, None)
+            self._segment_state_by_ue.pop(ue_id, None)
+            self._guard_state_by_ue.pop(ue_id, None)
+
+    def set_replay_state(self, ue_id: str, state: Mapping[str, Any]) -> None:
+        clean_state = dict(state)
+        self._replay_state_by_ue[str(ue_id)] = clean_state
+        if self.sparse_policy is not None:
+            setter = getattr(self.sparse_policy, "set_replay_state", None)
+            if callable(setter):
+                setter(ue_id, clean_state)
+
+    def warmup(self, record: MeasurementTraceRecord) -> None:
+        """Prime local model inference without retaining replay state or latency."""
+        candidate_rows = self._candidate_rows(record)
+        candidate_scores = self.artifact.score_candidates(candidate_rows)
+        selected_candidate = None
+        best_score = None
+        if candidate_scores:
+            selected_candidate, best_score = max(
+                candidate_scores.items(),
+                key=lambda item: (item[1], item[0]),
+            )
+        entry_row = self._entry_row(
+            record,
+            candidate_rows=candidate_rows,
+            candidate_scores=candidate_scores,
+            selected_candidate=selected_candidate,
+            best_score=best_score,
+        )
+        self.artifact.score_entry(entry_row)
+        self.artifact.score_exit(
+            self._exit_row(
+                record,
+                segment_state={
+                    "segment_cell": selected_candidate or record.serving_cell,
+                    "entry_serving_cell": record.serving_cell,
+                    "entry_step_index": record.step_index,
+                },
+                age_s=self.min_segment_duration_s,
+            )
+        )
+
+    def decide(self, record: MeasurementTraceRecord) -> PolicyDecisionRecord:
+        started = time.perf_counter()
+        complexity = candidate_complexity_for_record(
+            record,
+            high_complexity_threshold=self.high_complexity_threshold,
+        )
+        segment_state = self._segment_state_by_ue.get(record.ue_id)
+        if segment_state and segment_state.get("active") is True:
+            return self._decide_active_segment(
+                record,
+                complexity=complexity,
+                segment_state=segment_state,
+                started=started,
+            )
+
+        if complexity.complexity_bucket != "high":
+            high_reject_hold_debug = self._high_reject_hold_debug(record)
+            if high_reject_hold_debug["high_reject_hold_applied"]:
+                return self._stay_decision(
+                    record,
+                    complexity=complexity,
+                    started=started,
+                    decision_source="ml_segment_rejected_stay_hold",
+                    reason=str(high_reject_hold_debug["high_reject_hold_reason"]),
+                    segment_debug={
+                        **self._base_segment_debug(
+                            complexity=complexity,
+                            segment_state=None,
+                            entry_score=None,
+                            candidate_scores={},
+                            selected_candidate=None,
+                            exit_score=None,
+                            exit_reason="high_reject_hold_active",
+                        ),
+                        **high_reject_hold_debug,
+                    },
+                )
+            if self.sparse_policy is None:
+                return self._stay_decision(
+                    record,
+                    complexity=complexity,
+                    started=started,
+                    decision_source="ml_segment_rejected_stay",
+                    reason="ml_only_inactive_non_high_complexity",
+                    segment_debug=self._base_segment_debug(
+                        complexity=complexity,
+                        segment_state=None,
+                        entry_score=None,
+                        candidate_scores={},
+                        selected_candidate=None,
+                        exit_score=None,
+                        exit_reason="inactive_non_high_complexity",
+                    ),
+                )
+            decision = self.sparse_policy.decide(record)
+            return self._wrap_sparse_decision_with_guards(
+                record,
+                decision,
+                started=started,
+                complexity=complexity,
+                decision_source="a3_complexity_gate",
+                delegated_policy=self.sparse_policy.name,
+                segment_debug=self._base_segment_debug(
+                    complexity=complexity,
+                    segment_state=None,
+                    entry_score=None,
+                    candidate_scores={},
+                    selected_candidate=None,
+                    exit_score=None,
+                    exit_reason="inactive_sparse_or_moderate",
+                ),
+            )
+
+        candidate_rows = self._candidate_rows(record)
+        candidate_scores = self.artifact.score_candidates(candidate_rows)
+        selected_candidate = None
+        best_score = None
+        if candidate_scores:
+            selected_candidate, best_score = max(
+                candidate_scores.items(),
+                key=lambda item: (item[1], item[0]),
+            )
+        entry_row = self._entry_row(
+            record,
+            candidate_rows=candidate_rows,
+            candidate_scores=candidate_scores,
+            selected_candidate=selected_candidate,
+            best_score=best_score,
+        )
+        entry_score = self.artifact.score_entry(entry_row) if selected_candidate else 0.0
+        margin = float(best_score or 0.0)
+        approved = (
+            selected_candidate is not None
+            and entry_score >= self.entry_threshold
+            and margin >= self.candidate_margin_min
+        )
+        segment_debug = self._base_segment_debug(
+            complexity=complexity,
+            segment_state=None,
+            entry_score=entry_score,
+            candidate_scores=candidate_scores,
+            selected_candidate=selected_candidate,
+            exit_score=None,
+            exit_reason=None if approved else "entry_rejected",
+        )
+        segment_debug.update(
+            {
+                "ranker_stay_score": 0.0,
+                "ranker_best_candidate_score": best_score,
+                "ranker_margin_vs_stay": margin,
+                "ranker_min_margin": self.candidate_margin_min,
+            }
+        )
+        if not approved:
+            self._record_high_reject(record)
+            return self._stay_decision(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source="ml_segment_rejected_stay",
+                reason="segment_entry_rejected",
+                segment_debug=segment_debug,
+            )
+
+        if selected_candidate not in record.visible_cell_map or selected_candidate == record.serving_cell:
+            raise PolicyAdapterError(
+                f"segment controller selected invalid target {selected_candidate!r} "
+                f"at step {record.step_index}"
+            )
+        new_segment_state = {
+            "active": True,
+            "entry_time_s": float(record.timestamp_s),
+            "entry_step_index": int(record.step_index),
+            "entry_serving_cell": record.serving_cell,
+            "segment_cell": selected_candidate,
+            "consecutive_exit_votes": 0,
+            "last_exit_score": None,
+            "last_age_s": 0.0,
+        }
+        self._segment_state_by_ue[record.ue_id] = new_segment_state
+        segment_debug = self._base_segment_debug(
+            complexity=complexity,
+            segment_state=new_segment_state,
+            entry_score=entry_score,
+            candidate_scores=candidate_scores,
+            selected_candidate=selected_candidate,
+            exit_score=None,
+            exit_reason="entry_approved",
+        )
+        segment_debug.update(
+            {
+                "ranker_stay_score": 0.0,
+                "ranker_best_candidate_score": best_score,
+                "ranker_margin_vs_stay": margin,
+                "ranker_min_margin": self.candidate_margin_min,
+            }
+        )
+        return self._handover_decision(
+            record,
+            complexity=complexity,
+            started=started,
+            selected_target=selected_candidate,
+            decision_source="ml_segment_entry",
+            reason="segment_entry_approved",
+            segment_debug=segment_debug,
+        )
+
+    def _decide_active_segment(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        complexity: Any,
+        segment_state: Dict[str, Any],
+        started: float,
+    ) -> PolicyDecisionRecord:
+        age_s = max(0.0, float(record.timestamp_s) - float(segment_state["entry_time_s"]))
+        segment_state["last_age_s"] = age_s
+        serving = record.visible_cell_map.get(record.serving_cell)
+        segment_cell = str(segment_state.get("segment_cell") or record.serving_cell)
+        emergency = (
+            serving is None
+            or serving.rsrp_dbm <= self.emergency_rsrp_floor_dbm
+        )
+        if emergency:
+            self._segment_state_by_ue.pop(record.ue_id, None)
+            return self._exit_to_sparse_policy(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source="ml_segment_emergency_exit",
+                segment_state=segment_state,
+                exit_score=None,
+                exit_reason="emergency_rsrp_floor_or_missing_serving",
+            )
+
+        exit_score = None
+        exit_reason = None
+        if age_s < self.min_segment_duration_s:
+            segment_state["consecutive_exit_votes"] = 0
+            exit_reason = "min_segment_duration_not_met"
+        else:
+            exit_row = self._exit_row(record, segment_state=segment_state, age_s=age_s)
+            exit_score = self.artifact.score_exit(exit_row)
+            if exit_score >= self.exit_threshold:
+                segment_state["consecutive_exit_votes"] = int(
+                    segment_state.get("consecutive_exit_votes", 0)
+                ) + 1
+                exit_reason = "exit_vote"
+            else:
+                segment_state["consecutive_exit_votes"] = 0
+                exit_reason = "exit_threshold_not_met"
+        segment_state["last_exit_score"] = exit_score
+
+        should_exit = (
+            age_s >= self.max_segment_duration_s
+            or int(segment_state.get("consecutive_exit_votes", 0)) >= self.consecutive_exit_votes
+        )
+        if should_exit:
+            self._segment_state_by_ue.pop(record.ue_id, None)
+            return self._exit_to_sparse_policy(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source="ml_segment_exit_to_a3",
+                segment_state=segment_state,
+                exit_score=exit_score,
+                exit_reason=(
+                    "max_segment_duration"
+                    if age_s >= self.max_segment_duration_s
+                    else "consecutive_exit_votes"
+                ),
+            )
+
+        return self._stay_decision(
+            record,
+            complexity=complexity,
+            started=started,
+            decision_source="ml_segment_hold",
+            reason=f"segment_hold:{exit_reason}",
+            segment_debug=self._base_segment_debug(
+                complexity=complexity,
+                segment_state=segment_state,
+                entry_score=None,
+                candidate_scores={},
+                selected_candidate=segment_cell,
+                exit_score=exit_score,
+                exit_reason=exit_reason,
+            ),
+        )
+
+    def _exit_to_sparse_policy(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        complexity: Any,
+        started: float,
+        decision_source: str,
+        segment_state: Mapping[str, Any],
+        exit_score: Optional[float],
+        exit_reason: str,
+    ) -> PolicyDecisionRecord:
+        segment_debug = self._base_segment_debug(
+            complexity=complexity,
+            segment_state=segment_state,
+            entry_score=None,
+            candidate_scores={},
+            selected_candidate=str(segment_state.get("segment_cell") or record.serving_cell),
+            exit_score=exit_score,
+            exit_reason=exit_reason,
+        )
+        self._record_segment_exit(record, segment_state)
+        if self.sparse_policy is None:
+            return self._stay_decision(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source=decision_source,
+                reason=exit_reason,
+                segment_debug=segment_debug,
+            )
+        decision = self.sparse_policy.decide(record)
+        return self._wrap_sparse_decision_with_guards(
+            record,
+            decision,
+            started=started,
+            complexity=complexity,
+            decision_source=decision_source,
+            delegated_policy=self.sparse_policy.name,
+            segment_debug=segment_debug,
+        )
+
+    def _wrap_sparse_decision_with_guards(
+        self,
+        record: MeasurementTraceRecord,
+        decision: PolicyDecisionRecord,
+        *,
+        started: float,
+        complexity: Any,
+        decision_source: str,
+        delegated_policy: str,
+        segment_debug: Mapping[str, Any],
+    ) -> PolicyDecisionRecord:
+        authority_debug = self._sparse_authority_debug(record, decision)
+        if authority_debug["sparse_authority_applied"]:
+            return self._stay_decision(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source="sparse_authority_stay",
+                reason=str(authority_debug["sparse_authority_reason"]),
+                segment_debug={
+                    **dict(segment_debug),
+                    **authority_debug,
+                },
+            )
+        guard_debug = self._post_exit_a3_guard_debug(record, decision)
+        if guard_debug["post_segment_a3_guard_applied"]:
+            return self._stay_decision(
+                record,
+                complexity=complexity,
+                started=started,
+                decision_source="ml_segment_rejected_stay_hold",
+                reason=str(guard_debug["post_segment_a3_guard_reason"]),
+                segment_debug={
+                    **dict(segment_debug),
+                    **guard_debug,
+                },
+            )
+        return self._wrap_delegate_decision(
+            decision,
+            complexity=complexity,
+            decision_source=decision_source,
+            delegated_policy=delegated_policy,
+            segment_debug={
+                **dict(segment_debug),
+                **authority_debug,
+                **guard_debug,
+            },
+        )
+
+    def _sparse_authority_debug(
+        self,
+        record: MeasurementTraceRecord,
+        decision: PolicyDecisionRecord,
+    ) -> Dict[str, Any]:
+        serving = record.visible_cell_map[record.serving_cell]
+        target_rsrp = (
+            None
+            if decision.selected_target_cell is None
+            else decision.neighbour_measurements_considered.get(
+                decision.selected_target_cell
+            )
+        )
+        margin = (
+            None
+            if target_rsrp is None
+            else float(target_rsrp - decision.serving_measurement_value)
+        )
+        rsrp_weak = serving.rsrp_dbm <= self.sparse_serving_rsrp_floor_dbm
+        sinr_weak = (
+            serving.sinr_db is not None
+            and serving.sinr_db <= self.sparse_serving_sinr_floor_db
+        )
+        serving_weak = bool(rsrp_weak or sinr_weak)
+        strong_gain = bool(
+            margin is not None and margin >= self.sparse_a3_extra_margin_db
+        )
+        debug: Dict[str, Any] = {
+            "sparse_authority_mode": self.sparse_authority_mode,
+            "sparse_authority_applied": False,
+            "sparse_authority_reason": None,
+            "sparse_authority_handover_allowed": (
+                decision.decision_type == "handover"
+            ),
+            "sparse_serving_rsrp_dbm": float(serving.rsrp_dbm),
+            "sparse_serving_sinr_db": (
+                None if serving.sinr_db is None else float(serving.sinr_db)
+            ),
+            "sparse_serving_rsrp_floor_dbm": self.sparse_serving_rsrp_floor_dbm,
+            "sparse_serving_sinr_floor_db": self.sparse_serving_sinr_floor_db,
+            "sparse_serving_weak": serving_weak,
+            "sparse_a3_margin_db": margin,
+            "sparse_a3_extra_margin_db": self.sparse_a3_extra_margin_db,
+            "sparse_a3_strong_gain": strong_gain,
+        }
+        if decision.decision_type != "handover":
+            debug["sparse_authority_reason"] = "a3_did_not_request_handover"
+            debug["sparse_authority_handover_allowed"] = False
+            return debug
+        if self.sparse_authority_mode == "tuned_a3":
+            debug["sparse_authority_reason"] = "tuned_a3_unrestricted"
+            return debug
+        if self.sparse_authority_mode == "quality_gated_a3":
+            allowed = serving_weak or strong_gain
+            reason = (
+                "weak_serving_recovery"
+                if serving_weak
+                else "strong_a3_gain"
+                if strong_gain
+                else "healthy_serving_without_strong_gain"
+            )
+        else:
+            allowed = serving_weak and strong_gain
+            reason = (
+                "weak_serving_with_strong_gain"
+                if allowed
+                else "serving_not_weak"
+                if not serving_weak
+                else "weak_serving_without_required_gain"
+            )
+        debug["sparse_authority_handover_allowed"] = bool(allowed)
+        debug["sparse_authority_reason"] = reason
+        debug["sparse_authority_applied"] = not allowed
+        return debug
+
+    def _record_segment_exit(
+        self,
+        record: MeasurementTraceRecord,
+        segment_state: Mapping[str, Any],
+    ) -> None:
+        guard_state = self._guard_state_by_ue.setdefault(record.ue_id, {})
+        guard_state["last_segment_exit_time_s"] = float(record.timestamp_s)
+        guard_state["last_segment_cell"] = str(
+            segment_state.get("segment_cell") or record.serving_cell
+        )
+        guard_state["last_segment_entry_serving_cell"] = str(
+            segment_state.get("entry_serving_cell") or ""
+        )
+
+    def _record_high_reject(self, record: MeasurementTraceRecord) -> None:
+        self._guard_state_by_ue.setdefault(record.ue_id, {})[
+            "last_high_reject_time_s"
+        ] = float(record.timestamp_s)
+
+    def _guard_debug_base(self, ue_id: str) -> Dict[str, Any]:
+        state = self._guard_state_by_ue.get(ue_id, {})
+        return {
+            "post_segment_a3_guard_applied": False,
+            "post_segment_a3_guard_reason": None,
+            "post_segment_a3_guard_s": self.post_exit_a3_guard_s,
+            "post_segment_a3_extra_margin_db": self.post_exit_a3_extra_margin_db,
+            "high_reject_hold_applied": False,
+            "high_reject_hold_reason": None,
+            "high_reject_hold_s": self.high_reject_hold_s,
+            "last_segment_exit_time_s": state.get("last_segment_exit_time_s"),
+            "last_high_reject_time_s": state.get("last_high_reject_time_s"),
+        }
+
+    def _high_reject_hold_debug(self, record: MeasurementTraceRecord) -> Dict[str, Any]:
+        debug = self._guard_debug_base(record.ue_id)
+        state = self._guard_state_by_ue.get(record.ue_id, {})
+        last_reject = state.get("last_high_reject_time_s")
+        if self.high_reject_hold_s <= 0.0 or last_reject is None:
+            return debug
+        elapsed = max(0.0, float(record.timestamp_s) - float(last_reject))
+        if elapsed <= self.high_reject_hold_s:
+            debug.update(
+                {
+                    "high_reject_hold_applied": True,
+                    "high_reject_hold_reason": "recent_high_complexity_reject",
+                    "high_reject_hold_elapsed_s": elapsed,
+                }
+            )
+        return debug
+
+    def _post_exit_a3_guard_debug(
+        self,
+        record: MeasurementTraceRecord,
+        decision: PolicyDecisionRecord,
+    ) -> Dict[str, Any]:
+        debug = self._guard_debug_base(record.ue_id)
+        state = self._guard_state_by_ue.get(record.ue_id, {})
+        last_exit = state.get("last_segment_exit_time_s")
+        if (
+            self.post_exit_a3_guard_s <= 0.0
+            or last_exit is None
+            or decision.decision_type != "handover"
+            or decision.selected_target_cell is None
+        ):
+            return debug
+        elapsed = max(0.0, float(record.timestamp_s) - float(last_exit))
+        if elapsed > self.post_exit_a3_guard_s:
+            return debug
+        target = decision.selected_target_cell
+        target_rsrp = decision.neighbour_measurements_considered.get(target)
+        margin = (
+            None
+            if target_rsrp is None
+            else float(target_rsrp - decision.serving_measurement_value)
+        )
+        segment_cell = state.get("last_segment_cell")
+        entry_serving = state.get("last_segment_entry_serving_cell")
+        risky = (
+            target == segment_cell
+            or target == entry_serving
+            or _same_site_sector(target, segment_cell)
+            or _same_site_sector(target, entry_serving)
+        )
+        strong_enough = (
+            margin is not None
+            and margin >= self.post_exit_a3_extra_margin_db
+        )
+        if risky and not strong_enough:
+            debug.update(
+                {
+                    "post_segment_a3_guard_applied": True,
+                    "post_segment_a3_guard_reason": "risky_post_segment_a3_handover",
+                    "post_segment_a3_guard_elapsed_s": elapsed,
+                    "post_segment_a3_margin_db": margin,
+                    "post_segment_a3_guard_target": target,
+                }
+            )
+        return debug
+
+    def _candidate_rows(self, record: MeasurementTraceRecord) -> list[dict[str, Any]]:
+        state = self._replay_state_by_ue.get(record.ue_id, {})
+        rows = build_candidate_ranker_features(
+            record,
+            recent_handover_count=_optional_int(
+                state.get("recent_handover_count"),
+                default=None,
+            ),
+            time_since_last_handover_s=_optional_float(
+                state.get("time_since_last_handover_s"),
+                default=None,
+            ),
+            current_dwell_time_s=_optional_float(
+                state.get("current_dwell_time_s"),
+                default=None,
+            ),
+            last_handover_source=(
+                None
+                if state.get("last_handover_source") is None
+                else str(state.get("last_handover_source"))
+            ),
+            previous_serving_cell=(
+                None
+                if state.get("previous_serving_cell") is None
+                else str(state.get("previous_serving_cell"))
+            ),
+            previous_target_cell=(
+                None
+                if state.get("previous_target_cell") is None
+                else str(state.get("previous_target_cell"))
+            ),
+        )
+        for row in rows:
+            row["row_type"] = "candidate"
+            row["snapshot_group"] = (
+                f"{record.scenario}:{record.seed}:{record.ue_id}:{record.step_index}"
+            )
+            row["segment_group"] = f"{row['snapshot_group']}:candidate"
+        return rows
+
+    def _entry_row(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        candidate_rows: Sequence[Mapping[str, Any]],
+        candidate_scores: Mapping[str, float],
+        selected_candidate: Optional[str],
+        best_score: Optional[float],
+    ) -> dict[str, Any]:
+        common = self._common_snapshot_features(record)
+        selected_row: Mapping[str, Any] = {}
+        if selected_candidate is not None:
+            for row in candidate_rows:
+                if str(row.get("candidate_cell")) == selected_candidate:
+                    selected_row = row
+                    break
+        snapshot_group = f"{record.scenario}:{record.seed}:{record.ue_id}:{record.step_index}"
+        return {
+            **common,
+            "row_type": "entry",
+            "snapshot_group": snapshot_group,
+            "segment_group": f"{snapshot_group}:entry",
+            "best_candidate": selected_candidate,
+            "best_candidate_margin": float(best_score or 0.0),
+            "best_candidate_score": float(best_score or 0.0),
+            "stay_score": 0.0,
+            "best_candidate_delta_rsrp_db": _optional_float(
+                selected_row.get("delta_rsrp_db"),
+                default=0.0,
+            ),
+            "best_candidate_delta_sinr_db": _optional_float(
+                selected_row.get("delta_sinr_db"),
+                default=0.0,
+            ),
+            "best_candidate_load": _optional_float(
+                selected_row.get("candidate_load"),
+                default=0.0,
+            ),
+            "best_candidate_distance_m": _optional_float(
+                selected_row.get("distance_to_candidate_m"),
+                default=0.0,
+            ),
+            "best_candidate_moving_toward": _optional_float(
+                selected_row.get("moving_toward_candidate"),
+                default=0.0,
+            ),
+            "segment_horizon_steps": 20.0,
+            "min_segment_duration_s": self.min_segment_duration_s,
+            "max_segment_duration_s": self.max_segment_duration_s,
+            "candidate_score_count": len(candidate_scores),
+        }
+
+    def _exit_row(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        segment_state: Mapping[str, Any],
+        age_s: float,
+    ) -> dict[str, Any]:
+        selected_candidate = str(segment_state.get("segment_cell") or record.serving_cell)
+        visible = record.visible_cell_map
+        segment_cell = visible.get(selected_candidate)
+        entry_serving = str(segment_state.get("entry_serving_cell") or "")
+        original_serving = visible.get(entry_serving)
+        best = max(
+            [
+                cell
+                for cell in record.visible_cells
+                if cell.cell_id not in {selected_candidate, record.serving_cell}
+            ],
+            key=lambda cell: (cell.rsrp_dbm, cell.cell_id),
+            default=None,
+        )
+        segment_rsrp = segment_cell.rsrp_dbm if segment_cell is not None else -160.0
+        best_rsrp = best.rsrp_dbm if best is not None else -160.0
+        common = self._common_snapshot_features(record)
+        snapshot_group = f"{record.scenario}:{record.seed}:{record.ue_id}:{record.step_index}"
+        return {
+            **common,
+            "row_type": "exit",
+            "snapshot_group": snapshot_group,
+            "segment_group": (
+                f"{record.scenario}:{record.seed}:{record.ue_id}:"
+                f"{segment_state.get('entry_step_index', record.step_index)}:segment"
+            ),
+            "candidate_cell": selected_candidate,
+            "segment_age_s": float(age_s),
+            "segment_current_rsrp_dbm": float(segment_rsrp),
+            "entry_serving_visible": float(original_serving is not None),
+            "entry_serving_rsrp_dbm": (
+                float(original_serving.rsrp_dbm) if original_serving is not None else -160.0
+            ),
+            "best_non_segment_rsrp_dbm": float(best_rsrp),
+            "best_non_segment_margin_db": float(best_rsrp - segment_rsrp),
+            "reverse_or_same_sector_risk": float(
+                best is not None
+                and (
+                    best.cell_id == entry_serving
+                    or _same_site_sector(best.cell_id, selected_candidate)
+                )
+            ),
+            "sparse_reentry_penalty": 0.0,
+        }
+
+    def _common_snapshot_features(self, record: MeasurementTraceRecord) -> dict[str, Any]:
+        visible = record.visible_cell_map
+        serving = visible[record.serving_cell]
+        complexity = candidate_complexity_for_record(
+            record,
+            high_complexity_threshold=self.high_complexity_threshold,
+        )
+        observed = record.observed_qos or {}
+        state = self._replay_state_by_ue.get(record.ue_id, {})
+        return {
+            "scenario": record.scenario,
+            "seed": record.seed,
+            "topology_hash": record.topology_hash,
+            "ue_id": record.ue_id,
+            "step_index": record.step_index,
+            "timestamp_s": record.timestamp_s,
+            "serving_cell": record.serving_cell,
+            "candidate_count": complexity.viable_candidate_count,
+            "complexity_bucket": complexity.complexity_bucket,
+            "serving_rsrp_dbm": float(serving.rsrp_dbm),
+            "serving_sinr_db": 0.0 if serving.sinr_db is None else float(serving.sinr_db),
+            "serving_rsrq_db": 0.0 if serving.rsrq_db is None else float(serving.rsrq_db),
+            "serving_load": float(serving.load or 0.0),
+            "speed_mps": float(record.speed_mps or 0.0),
+            "signal_trend": 0.0,
+            "recent_handover_count": _optional_int(
+                state.get("recent_handover_count"),
+                default=0,
+            ),
+            "time_since_last_handover_s": _optional_float(
+                state.get("time_since_last_handover_s"),
+                default=0.0,
+            ),
+            "latency_ms": _optional_float(observed.get("latency_ms"), default=0.0),
+            "throughput_mbps": _optional_float(
+                observed.get("throughput_mbps"),
+                default=0.0,
+            ),
+            "packet_loss_rate": _optional_float(
+                observed.get("packet_loss_rate"),
+                default=0.0,
+            ),
+        }
+
+    def _base_segment_debug(
+        self,
+        *,
+        complexity: Any,
+        segment_state: Optional[Mapping[str, Any]],
+        entry_score: Optional[float],
+        candidate_scores: Mapping[str, float],
+        selected_candidate: Optional[str],
+        exit_score: Optional[float],
+        exit_reason: Optional[str],
+    ) -> Dict[str, Any]:
+        age = None
+        if segment_state is not None and segment_state.get("entry_time_s") is not None:
+            age = segment_state.get("last_age_s")
+        return {
+            "ml_backend": "segment_controller",
+            "segment_state": (
+                "active"
+                if segment_state is not None and segment_state.get("active") is True
+                else "inactive"
+            ),
+            "entry_score": entry_score,
+            "entry_threshold": self.entry_threshold,
+            "exit_score": exit_score,
+            "exit_threshold": self.exit_threshold,
+            "consecutive_exit_votes": int(
+                0 if segment_state is None else segment_state.get("consecutive_exit_votes", 0)
+            ),
+            "required_consecutive_exit_votes": self.consecutive_exit_votes,
+            "selected_candidate": selected_candidate,
+            "candidate_scores": dict(candidate_scores),
+            "segment_age_s": age,
+            "segment_entry_serving_cell": (
+                None if segment_state is None else segment_state.get("entry_serving_cell")
+            ),
+            "segment_current_serving_cell": (
+                None if segment_state is None else segment_state.get("segment_cell")
+            ),
+            "segment_exit_reason": exit_reason,
+            "segment_min_duration_s": self.min_segment_duration_s,
+            "segment_max_duration_s": self.max_segment_duration_s,
+            "sparse_authority_mode": self.sparse_authority_mode,
+            "sparse_authority_applied": False,
+            "sparse_authority_reason": None,
+            "sparse_authority_handover_allowed": False,
+            "sparse_serving_rsrp_dbm": None,
+            "sparse_serving_sinr_db": None,
+            "sparse_serving_rsrp_floor_dbm": self.sparse_serving_rsrp_floor_dbm,
+            "sparse_serving_sinr_floor_db": self.sparse_serving_sinr_floor_db,
+            "sparse_serving_weak": False,
+            "sparse_a3_margin_db": None,
+            "sparse_a3_extra_margin_db": self.sparse_a3_extra_margin_db,
+            "sparse_a3_strong_gain": False,
+            "segment_artifact_sha256": self.artifact.artifact_sha256,
+            "segment_model_family": self.artifact.model_family,
+            "segment_metadata": self.artifact.safe_metadata(),
+            "candidate_complexity": complexity.to_dict(),
+            "fallback_reason": None,
+            "fallback_to_a3": False,
+            "geographic_override": False,
+            "synthetic_bootstrap": False,
+            "model_not_ready": False,
+            "model_ready": True,
+            "qos_compliance": {},
+            "raw_ml_response_metadata": {
+                "ml_backend": "segment_controller",
+                "segment_artifact_sha256": self.artifact.artifact_sha256,
+                "model_ready": True,
+            },
+        }
+
+    def _stay_decision(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        complexity: Any,
+        started: float,
+        decision_source: str,
+        reason: str,
+        segment_debug: Mapping[str, Any],
+    ) -> PolicyDecisionRecord:
+        serving = record.visible_cell_map[record.serving_cell]
+        debug = {
+            "decision_source": decision_source,
+            "delegated_policy": "segment_controller",
+            **self._guard_debug_base(record.ue_id),
+            **dict(segment_debug),
+            "candidate_complexity": complexity.to_dict(),
+            "qos_compliance": _offline_qos_compliance(record),
+            **_trace_debug_context(record),
+        }
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=None,
+            decision_type="stay",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=False,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason=f"{decision_source}:{reason}",
+            debug=debug,
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
+        )
+
+    def _handover_decision(
+        self,
+        record: MeasurementTraceRecord,
+        *,
+        complexity: Any,
+        started: float,
+        selected_target: str,
+        decision_source: str,
+        reason: str,
+        segment_debug: Mapping[str, Any],
+    ) -> PolicyDecisionRecord:
+        serving = record.visible_cell_map[record.serving_cell]
+        debug = {
+            "decision_source": decision_source,
+            "delegated_policy": "segment_controller",
+            **self._guard_debug_base(record.ue_id),
+            **dict(segment_debug),
+            "candidate_complexity": complexity.to_dict(),
+            "qos_compliance": _offline_qos_compliance(record),
+            **_trace_debug_context(record),
+        }
+        return PolicyDecisionRecord(
+            ue_id=record.ue_id,
+            timestamp_s=record.timestamp_s,
+            step_index=record.step_index,
+            current_serving_cell=record.serving_cell,
+            selected_target_cell=selected_target,
+            decision_type="handover",
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            serving_measurement_value=serving.rsrp_dbm,
+            neighbour_measurements_considered={
+                cell.cell_id: cell.rsrp_dbm
+                for cell in record.visible_cells
+                if cell.cell_id != record.serving_cell
+            },
+            trigger_condition_result=True,
+            time_to_trigger_state={},
+            cooldown_state={},
+            reason=f"{decision_source}:{reason}",
+            debug=debug,
+            decision_latency_ms=(time.perf_counter() - started) * 1000.0,
+            confidence=None,
+        )
+
+    def _wrap_delegate_decision(
+        self,
+        decision: PolicyDecisionRecord,
+        *,
+        complexity: Any,
+        decision_source: str,
+        delegated_policy: str,
+        segment_debug: Mapping[str, Any],
+    ) -> PolicyDecisionRecord:
+        debug = dict(decision.debug)
+        debug.update(
+            {
+                "decision_source": decision_source,
+                "delegated_policy": delegated_policy,
+                "candidate_complexity": complexity.to_dict(),
+                **self._guard_debug_base(decision.ue_id),
+                **dict(segment_debug),
+                "qos_compliance": _offline_qos_compliance_from_decision(decision),
+            }
+        )
+        return replace(
+            decision,
+            policy_name=self.name,
+            policy_parameters=self.parameters,
+            reason=f"{decision_source}:{decision.reason}",
+            debug=debug,
+        )
+
+
 class ComplexityAwarePolicyAdapter:
     """Route decisions by complexity, with explicit ML segment authority."""
 
@@ -1138,10 +2564,18 @@ def _trace_debug_context(record: MeasurementTraceRecord) -> Dict[str, Any]:
         for cell in record.visible_cells
         if cell.load is not None
     }
+    visible_sinrs = {
+        cell.cell_id: cell.sinr_db
+        for cell in record.visible_cells
+        if cell.sinr_db is not None
+    }
     context: Dict[str, Any] = {}
     if visible_loads:
         context["cell_loads"] = visible_loads
         context["serving_cell_load"] = visible_loads.get(record.serving_cell)
+    if visible_sinrs:
+        context["cell_sinrs"] = visible_sinrs
+        context["serving_cell_sinr_db"] = visible_sinrs.get(record.serving_cell)
     if record.service_type is not None:
         context["service_type"] = record.service_type
     if record.qos_requirements is not None:
@@ -1247,6 +2681,19 @@ def _offline_qos_compliance(record: MeasurementTraceRecord) -> Dict[str, Any]:
         "evaluated": True,
         "service_priority_ok": not violations,
         "violations": violations,
+    }
+
+
+def _offline_qos_compliance_from_decision(
+    decision: PolicyDecisionRecord,
+) -> Dict[str, Any]:
+    raw = decision.debug.get("qos_compliance")
+    if isinstance(raw, Mapping):
+        return dict(raw)
+    return {
+        "evaluated": False,
+        "service_priority_ok": True,
+        "violations": [],
     }
 
 

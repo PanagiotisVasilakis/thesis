@@ -2,6 +2,7 @@
 
 import logging
 import math
+import os
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -64,20 +65,51 @@ class NetworkStateManager:
         connected = self.resolve_antenna_id(state.get("connected_to"))
         state["connected_to"] = connected
 
-        # RSRP in dBm for each antenna
-        rsrp_dbm = {
+        visible_ids = self._visible_antenna_ids(state["position"], connected)
+        rsrp_dbm_all = {
             ant_id: ant.rsrp_dbm(state["position"])
             for ant_id, ant in self.antenna_list.items()
         }
-        # Convert to linear mW
-        rsrp_mw = {aid: 10 ** (dbm / 10.0) for aid, dbm in rsrp_dbm.items()}
-        noise_mw = 10 ** (self.noise_floor_dbm / 10.0)
+        received_dbm_all = {
+            ant_id: (
+                ant.received_power_dbm(state["position"])
+                if hasattr(ant, "received_power_dbm")
+                else rsrp_dbm_all[ant_id]
+            )
+            for ant_id, ant in self.antenna_list.items()
+        }
+        received_mw_all = {
+            aid: 10 ** (dbm / 10.0) for aid, dbm in received_dbm_all.items()
+        }
+        rsrp_dbm = {aid: rsrp_dbm_all[aid] for aid in visible_ids}
 
         # Compute per-antenna SINR and RSRQ
         neighbor_sinrs = {}
         neighbor_rsrqs = {}
-        for aid, sig in rsrp_mw.items():
-            interf = sum(m for other, m in rsrp_mw.items() if other != aid)
+        for aid in visible_ids:
+            antenna = self.antenna_list[aid]
+            sig = received_mw_all[aid]
+            reuse_group = getattr(antenna, "frequency_reuse_group", 1)
+            carrier = getattr(antenna, "frequency_hz", getattr(antenna, "fc", None))
+            interf = sum(
+                power
+                for other, power in received_mw_all.items()
+                if other != aid
+                and getattr(self.antenna_list[other], "frequency_reuse_group", 1)
+                == reuse_group
+                and getattr(
+                    self.antenna_list[other],
+                    "frequency_hz",
+                    getattr(self.antenna_list[other], "fc", None),
+                )
+                == carrier
+            )
+            noise_dbm = (
+                antenna.thermal_noise_dbm()
+                if hasattr(antenna, "thermal_noise_dbm")
+                else self.noise_floor_dbm
+            )
+            noise_mw = 10 ** (noise_dbm / 10.0)
             denom = noise_mw + interf
             lin = sig / denom if denom > 0 else 0.0
             neighbor_sinrs[aid] = (
@@ -85,7 +117,9 @@ class NetworkStateManager:
             )
 
             rssi = sig + denom
-            rsrq_lin = (self.resource_blocks * sig) / rssi if rssi > 0 else 0.0
+            rsrp_mw = 10 ** (rsrp_dbm[aid] / 10.0)
+            resource_blocks = getattr(antenna, "resource_blocks", self.resource_blocks)
+            rsrq_lin = (resource_blocks * rsrp_mw) / rssi if rssi > 0 else 0.0
             neighbor_rsrqs[aid] = (
                 10 * math.log10(rsrq_lin) if rsrq_lin > 0 else -float("inf")
             )
@@ -120,9 +154,18 @@ class NetworkStateManager:
             "neighbor_cell_loads": antenna_loads,
             "rsrp_stddev": self._stddev(rsrp_dbm.values()),
             "sinr_stddev": self._stddev(neighbor_sinrs.values()),
+            "rf_provenance": self._rf_provenance(),
+            "qos_provenance": {
+                "model_name": "deterministic_sinr_cqi_proxy",
+                "model_version": self.qos_simulator.model_version,
+                "simulated": True,
+            },
         }
         features.update(self._trajectory_features(state))
         features.update(self._handover_features(ue_id))
+        movement_provenance = state.get("movement_provenance")
+        if isinstance(movement_provenance, dict):
+            features["movement_provenance"] = dict(movement_provenance)
         for key in (
             "service_type",
             "service_priority",
@@ -142,6 +185,7 @@ class NetworkStateManager:
                 speed=speed,
                 connected_to=connected,
                 neighbor_rsrp_dbm=rsrp_dbm,
+                neighbor_sinrs=neighbor_sinrs,
                 neighbor_cell_loads=antenna_loads,
             )
 
@@ -149,6 +193,49 @@ class NetworkStateManager:
         if observed_qos is not None:
             features["observed_qos"] = observed_qos
         return features
+
+    def _visible_antenna_ids(self, position, connected: Optional[str]) -> list[str]:
+        if os.getenv("THESIS_TRACE_ALL_CELLS", "0").lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            return list(self.antenna_list)
+        visible: list[str] = []
+        for ant_id, antenna in self.antenna_list.items():
+            if not hasattr(antenna, "position"):
+                visible.append(ant_id)
+                continue
+            cell = self._cell_lookup(ant_id) if callable(self._cell_lookup) else None
+            radius = float(cell.get("radius") or 0.0) if isinstance(cell, dict) else 0.0
+            distance_2d = math.dist(antenna.position[:2], position[:2])
+            if radius <= 0.0 or distance_2d <= radius or ant_id == connected:
+                visible.append(ant_id)
+        return visible
+
+    def _rf_provenance(self) -> Dict[str, Any]:
+        antennas = list(self.antenna_list.values())
+        if not antennas:
+            return {"fallback": True, "antenna_count": 0}
+        first = antennas[0]
+        provenance = first.provenance() if hasattr(first, "provenance") else {}
+        return {
+            **provenance,
+            "strict_mode": os.getenv("THESIS_RF_STRICT", "0").lower()
+            in {"1", "true", "yes"},
+            "antenna_count": len(antennas),
+            "canonical_cell_ids": sorted(self.antenna_list),
+            "all_topology_cells_exposed": os.getenv(
+                "THESIS_TRACE_ALL_CELLS", "0"
+            ).lower()
+            in {"1", "true", "yes"},
+            "frequency_reuse_groups": sorted(
+                {
+                    int(getattr(antenna, "frequency_reuse_group", 1))
+                    for antenna in antennas
+                }
+            ),
+        }
 
     @staticmethod
     def _stddev(values) -> float:
@@ -311,6 +398,7 @@ class NetworkStateManager:
         speed: float,
         connected_to: Optional[str],
         neighbor_rsrp_dbm: Dict[str, float],
+        neighbor_sinrs: Dict[str, float],
         neighbor_cell_loads: Dict[str, int],
     ) -> None:
         """Generate and record one synthetic QoS observation for an explicit tick."""
@@ -320,7 +408,11 @@ class NetworkStateManager:
                 "speed": speed,
                 "connected_to": connected_to,
                 "neighbor_rsrp_dbm": neighbor_rsrp_dbm,
+                "neighbor_sinrs": neighbor_sinrs,
                 "neighbor_cell_loads": neighbor_cell_loads,
+                "bandwidth_hz": getattr(
+                    self.antenna_list.get(connected_to), "bw", 100e6
+                ),
             }
             simulated = self.qos_simulator.estimate(simulation_context)
             if simulated:

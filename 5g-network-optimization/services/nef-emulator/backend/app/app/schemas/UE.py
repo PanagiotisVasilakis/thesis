@@ -29,6 +29,13 @@ class UEBase(BaseModel):
         ),
     )
     speed: Speed = Field(default="LOW", description="This value describes UE's speed. Possible values are \"STATIONARY\" (e.g, IoT device), \"LOW(e.g, pedestrian)\" and \"HIGH (e.g., vehicle)\"")
+    speed_mps: Optional[float] = Field(default=None, ge=0.0)
+    service_type: Optional[str] = None
+    service_priority: Optional[int] = Field(default=None, ge=0)
+    latency_requirement_ms: Optional[float] = Field(default=None, gt=0.0)
+    throughput_requirement_mbps: Optional[float] = Field(default=None, ge=0.0)
+    reliability_pct: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    jitter_requirement_ms: Optional[float] = Field(default=None, ge=0.0)
     latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)
 

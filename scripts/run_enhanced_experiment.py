@@ -39,8 +39,11 @@ sys.path.insert(0, str(REPO_ROOT))
 from scripts.scenarios.base_scenario import BaseScenario
 from scripts.scenarios.smart_city_downtown import SmartCityDowntownScenario
 from scripts.scenarios.highway_handover import (
+    DenseHighwayV2Scenario,
     DenseHighwayHandoverScenario,
     HighwayHandoverScenario,
+    ModerateHighwayV2Scenario,
+    SparseHighwayV2Scenario,
 )
 
 
@@ -73,6 +76,21 @@ SCENARIOS: Dict[str, ScenarioInfo] = {
             "Dense high-speed candidate-complexity handover "
             "(24 cells, 10 vehicles at 80-150 km/h)"
         ),
+        "recommended_duration": 10,
+    },
+    "highway_sparse_v2": {
+        "class_": SparseHighwayV2Scenario,
+        "description": "Physical 10 km highway with 8 directional cells",
+        "recommended_duration": 10,
+    },
+    "highway_moderate_v2": {
+        "class_": ModerateHighwayV2Scenario,
+        "description": "Physical 10 km highway with 16 directional cells",
+        "recommended_duration": 10,
+    },
+    "highway_dense_v2": {
+        "class_": DenseHighwayV2Scenario,
+        "description": "Physical 10 km highway with 24 directional cells",
         "recommended_duration": 10,
     },
 }

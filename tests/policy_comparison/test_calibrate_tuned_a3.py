@@ -55,6 +55,29 @@ def test_calibrate_tuned_a3_writes_reusable_config(tmp_path):
     assert "decisions" not in config["evaluated_configuration_scores"][0]
 
 
+def test_calibrate_tuned_a3_accepts_multiple_calibration_traces(tmp_path):
+    trace_a = write_trace(
+        tmp_path / "calibration_seed41.jsonl",
+        [make_record(seed=41, step=0), make_record(seed=41, step=1)],
+    )
+    trace_b = write_trace(
+        tmp_path / "calibration_seed42.jsonl",
+        [make_record(seed=42, step=0), make_record(seed=42, step=1)],
+    )
+    output = tmp_path / "tuned_a3_config.json"
+
+    result = calibrate_tuned_a3_config([trace_a, trace_b], output)
+
+    assert result == output
+    config = json.loads(output.read_text(encoding="utf-8"))
+    assert config["calibration"]["seed"] == 41
+    assert config["calibration_seeds"] == [41, 42]
+    assert len(config["calibrations"]) == 2
+    assert config["record_count"] == 4
+    assert config["calibration_trace_count"] == 2
+    assert set(config["trace_hashes"]) == {str(trace_a), str(trace_b)}
+
+
 def test_calibrate_tuned_a3_rejects_empty_trace(tmp_path):
     trace = tmp_path / "empty.jsonl"
     trace.write_text("", encoding="utf-8")

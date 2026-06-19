@@ -26,13 +26,13 @@ services:
   nef-emulator:
     image: 5g-network-optimization/nef-emulator:latest
     build:
-      context: ./services/nef-emulator/backend
-      dockerfile: Dockerfile.backend
+      context: ./services/nef-emulator
+      dockerfile: backend/Dockerfile.backend
       args:
         ML_LOCAL: ${ML_LOCAL:-0}
     command: /start-reload.sh
     ports:
-      - "8080:80"
+      - "${NEF_HTTP_PORT:-8080}:80"
     env_file:
       - .env
     environment:
@@ -45,6 +45,12 @@ services:
       - A3_TTT_S=${A3_TTT_S:-0.0}
       - ML_HANDOVER_ENABLED=${ML_HANDOVER_ENABLED:-1}
       - ML_LOCAL=${ML_LOCAL:-0}
+      - THESIS_RF_STRICT=${THESIS_RF_STRICT:-0}
+      - THESIS_TRACE_ALL_CELLS=${THESIS_TRACE_ALL_CELLS:-0}
+      - THESIS_EMPTY_TOPOLOGY=${THESIS_EMPTY_TOPOLOGY:-0}
+      - NEF_ALLOW_DB_RESET=${NEF_ALLOW_DB_RESET:-false}
+      - RF_RANDOM_SEED=${RF_RANDOM_SEED:-0}
+      - SCENARIO_RANDOM_SEED=${SCENARIO_RANDOM_SEED:-0}
     volumes:
       - ./services/handover-baseline-service:/opt/handover-baseline-service:ro
     networks:

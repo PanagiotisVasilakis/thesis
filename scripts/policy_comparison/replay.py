@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from itertools import groupby
 from typing import Any, Dict, List, Mapping, Sequence
 
 from .metrics import PolicyMetricSummary, summarize_policy_decisions
 from .policy_adapters import ComparisonPolicyAdapter
 from .schemas import MeasurementTraceRecord, PolicyDecisionRecord
+from .qos_model import estimate_counterfactual_qos, qos_compliance
 
 
 @dataclass(frozen=True)
@@ -84,33 +86,67 @@ class OfflineReplayRunner:
             policy.name: [] for policy in self.policies
         }
 
+        warmup_record = max(ordered, key=lambda item: len(item.visible_cells))
+        for policy in self.policies:
+            policy.reset()
+            warmup = getattr(policy, "warmup", None)
+            if callable(warmup):
+                warmup(warmup_record)
         for policy in self.policies:
             policy.reset()
 
-        for record in ordered:
+        for _snapshot_key, snapshot_items in groupby(
+            ordered,
+            key=lambda item: (item.timestamp_s, item.step_index),
+        ):
+            snapshot = list(snapshot_items)
             for policy in self.policies:
                 policy_serving_by_ue = serving_by_policy[policy.name]
-                current_serving = policy_serving_by_ue.get(record.ue_id, record.serving_cell)
-                policy_record = record.with_serving_cell(current_serving)
-                state = _state_for_decision(
-                    replay_state_by_policy[policy.name],
-                    policy_record,
-                    current_serving,
-                )
-                setter = getattr(policy, "set_replay_state", None)
-                if callable(setter):
-                    setter(record.ue_id, state)
-                decision = policy.decide(policy_record)
-                decisions_by_policy[policy.name].append(decision)
-                if (
-                    decision.decision_type == "handover"
-                    and decision.selected_target_cell is not None
-                ):
-                    policy_serving_by_ue[record.ue_id] = decision.selected_target_cell
-                    _record_handover_state(
-                        replay_state_by_policy[policy.name],
-                        decision,
+                for item in snapshot:
+                    policy_serving_by_ue.setdefault(item.ue_id, item.serving_cell)
+                policy_loads: Dict[str, int] = {}
+                for serving in policy_serving_by_ue.values():
+                    policy_loads[serving] = policy_loads.get(serving, 0) + 1
+
+                for record in snapshot:
+                    current_serving = policy_serving_by_ue[record.ue_id]
+                    policy_record = _with_policy_context(
+                        record,
+                        current_serving=current_serving,
+                        policy_loads=policy_loads,
                     )
+                    state = _state_for_decision(
+                        replay_state_by_policy[policy.name],
+                        policy_record,
+                        current_serving,
+                    )
+                    setter = getattr(policy, "set_replay_state", None)
+                    if callable(setter):
+                        setter(record.ue_id, state)
+                    decision = policy.decide(policy_record)
+                    compliance = qos_compliance(
+                        policy_record.qos_requirements,
+                        policy_record.observed_qos or {},
+                    )
+                    decision = replace(
+                        decision,
+                        debug={
+                            **decision.debug,
+                            "qos_compliance": compliance,
+                            "counterfactual_qos": policy_record.observed_qos,
+                            "policy_specific_loads": policy_loads,
+                        },
+                    )
+                    decisions_by_policy[policy.name].append(decision)
+                    if (
+                        decision.decision_type == "handover"
+                        and decision.selected_target_cell is not None
+                    ):
+                        policy_serving_by_ue[record.ue_id] = decision.selected_target_cell
+                        _record_handover_state(
+                            replay_state_by_policy[policy.name],
+                            decision,
+                        )
 
         return ReplayResult(
             scenario=scenario,
@@ -123,11 +159,32 @@ class OfflineReplayRunner:
                     summary=summarize_policy_decisions(
                         policy.name,
                         decisions_by_policy[policy.name],
+                        metric_version="v3_physical_qos_cost",
                     ),
                 )
                 for policy in self.policies
             },
         )
+
+
+def _with_policy_context(
+    record: MeasurementTraceRecord,
+    *,
+    current_serving: str,
+    policy_loads: Mapping[str, int],
+) -> MeasurementTraceRecord:
+    serving_record = record.with_serving_cell(current_serving)
+    cells = [
+        replace(cell, load=float(policy_loads.get(cell.cell_id, 0)))
+        for cell in serving_record.visible_cells
+    ]
+    contextual = replace(serving_record, visible_cells=cells)
+    observed = estimate_counterfactual_qos(
+        contextual,
+        serving_cell=current_serving,
+        load=float(policy_loads.get(current_serving, 0)),
+    )
+    return replace(contextual, observed_qos=observed)
 
 
 def replay_summary_table(result: ReplayResult) -> Mapping[str, Mapping[str, object]]:

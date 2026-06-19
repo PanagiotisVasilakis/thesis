@@ -112,6 +112,89 @@ def ranker_debug():
     }
 
 
+def segment_debug(source="ml_segment_rejected_stay", bucket="high"):
+    return {
+        "decision_source": source,
+        "delegated_policy": "segment_controller",
+        "ml_backend": "segment_controller",
+        "segment_state": "inactive",
+        "entry_score": 0.2,
+        "entry_threshold": 0.5,
+        "exit_score": None,
+        "exit_threshold": 0.7,
+        "consecutive_exit_votes": 0,
+        "required_consecutive_exit_votes": 3,
+        "selected_candidate": "cell-b",
+        "candidate_scores": {"cell-b": 12.0, "cell-c": 9.0, "cell-d": 8.0},
+        "segment_age_s": None,
+        "segment_entry_serving_cell": None,
+        "segment_current_serving_cell": None,
+        "segment_exit_reason": "entry_rejected",
+        "post_segment_a3_guard_applied": False,
+        "post_segment_a3_guard_reason": None,
+        "post_segment_a3_guard_s": 0.0,
+        "post_segment_a3_extra_margin_db": 0.0,
+        "high_reject_hold_applied": False,
+        "high_reject_hold_reason": None,
+        "high_reject_hold_s": 0.0,
+        "last_segment_exit_time_s": None,
+        "last_high_reject_time_s": None,
+        "sparse_authority_mode": "quality_gated_a3",
+        "sparse_authority_applied": False,
+        "sparse_authority_reason": None,
+        "sparse_authority_handover_allowed": False,
+        "sparse_serving_rsrp_dbm": None,
+        "sparse_serving_sinr_db": None,
+        "sparse_serving_rsrp_floor_dbm": -105.0,
+        "sparse_serving_sinr_floor_db": -5.0,
+        "sparse_serving_weak": False,
+        "sparse_a3_margin_db": None,
+        "sparse_a3_extra_margin_db": 3.0,
+        "sparse_a3_strong_gain": False,
+        "segment_artifact_sha256": "seg123",
+        "segment_model_family": "segment_controller",
+        "segment_metadata": {
+            "model_type": "segment_controller_lightgbm_v1",
+            "model_family": "segment_controller",
+            "model_sha256": "seg123",
+            "feature_columns": {
+                "candidate": ["delta_rsrp_db"],
+                "entry": ["best_candidate_margin"],
+                "exit": ["segment_age_s"],
+            },
+            "validation_metrics": {
+                "candidate": {"target_selection_error": 0.1},
+                "entry": {"validation_precision": 0.9},
+                "exit": {"validation_precision": 0.9},
+            },
+            "segment_decision_parameters": {
+                "entry_threshold": 0.5,
+                "candidate_margin_min": 20.0,
+            },
+        },
+        "candidate_complexity": {
+            "viable_candidate_count": 3 if bucket == "high" else 1,
+            "complexity_bucket": bucket,
+            "viable_candidates": ["cell-b", "cell-c", "cell-d"],
+        },
+        "qos_compliance": {
+            "evaluated": False,
+            "service_priority_ok": True,
+            "violations": [],
+        },
+        "raw_ml_response_metadata": {
+            "ml_backend": "segment_controller",
+            "segment_artifact_sha256": "seg123",
+            "model_ready": True,
+        },
+        "fallback_to_a3": False,
+        "geographic_override": False,
+        "synthetic_bootstrap": False,
+        "model_not_ready": False,
+        "model_ready": True,
+    }
+
+
 def write_json(path, payload):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -300,6 +383,38 @@ def test_offline_output_rejects_ranker_ml_missing_metadata(tmp_path):
         run_dir,
         "ml_policy",
         [decision("ml_policy", debug=debug, selected_target="cell-b")],
+    )
+
+    report = validate_comparison_output(run_dir)
+
+    assert report.ok is False
+    assert "missing_ml_decision_debug" in {issue.code for issue in report.issues}
+
+
+def test_offline_output_accepts_segment_controller_ml_debug(tmp_path):
+    run_dir = write_valid_offline_output(tmp_path / "offline")
+    write_decision_log(
+        run_dir,
+        "ml_policy",
+        [decision("ml_policy", debug=segment_debug())],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["fixed_a3_baseline", "ml_policy"],
+    )
+
+    assert report.ok is True
+
+
+def test_offline_output_rejects_segment_controller_missing_metadata(tmp_path):
+    run_dir = write_valid_offline_output(tmp_path / "offline")
+    debug = segment_debug()
+    debug.pop("segment_metadata")
+    write_decision_log(
+        run_dir,
+        "ml_policy",
+        [decision("ml_policy", debug=debug)],
     )
 
     report = validate_comparison_output(run_dir)
@@ -513,6 +628,190 @@ def test_offline_output_accepts_controller_segment_stay_hold_debug(tmp_path):
     )
 
     assert report.ok is True
+
+
+def test_offline_output_accepts_segment_controller_high_rejected_stay(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=segment_debug())],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is True
+
+
+def test_offline_output_rejects_segment_controller_a3_gate_missing_metadata(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = segment_debug(source="a3_complexity_gate", bucket="sparse")
+    debug["delegated_policy"] = "tuned_a3_baseline"
+    debug.pop("segment_metadata")
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is False
+    assert "missing_segment_controller_debug" in {issue.code for issue in report.issues}
+
+
+def test_offline_output_rejects_segment_guard_without_reason(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = segment_debug(source="ml_segment_rejected_stay_hold", bucket="sparse")
+    debug["post_segment_a3_guard_applied"] = True
+    debug["post_segment_a3_guard_reason"] = None
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is False
+    assert "missing_post_segment_guard_reason" in {issue.code for issue in report.issues}
+
+
+def test_offline_output_rejects_sparse_authority_stay_without_reason(tmp_path):
+    run_dir = tmp_path / "offline"
+    run_dir.mkdir()
+    write_json(
+        run_dir / "summary.json",
+        {
+            "scenario": "highway",
+            "seed": 42,
+            "topology_hash": "topology-hash",
+            "policy_results": {
+                "complexity_aware_ml_a3": {
+                    "summary": {"handover_count": 0, "composite_cost": 0.0},
+                },
+            },
+        },
+    )
+    write_json(run_dir / "manifest.json", {"scenario": "highway"})
+    write_json(
+        run_dir / "tuned_a3_config.json",
+        {
+            "selected_parameters": {
+                "a3_offset_db": 0.0,
+                "hysteresis_db": 2.0,
+                "time_to_trigger_s": 1.0,
+                "cooldown_s": 2.0,
+            },
+            "evaluated_configuration_scores": [{"score": 1.0}],
+        },
+    )
+    debug = segment_debug(source="sparse_authority_stay", bucket="sparse")
+    debug["sparse_authority_applied"] = True
+    debug["sparse_authority_reason"] = None
+    write_decision_log(
+        run_dir,
+        "complexity_aware_ml_a3",
+        [decision("complexity_aware_ml_a3", debug=debug)],
+    )
+
+    report = validate_comparison_output(
+        run_dir,
+        expected_policies=["complexity_aware_ml_a3"],
+    )
+
+    assert report.ok is False
+    assert "invalid_sparse_authority_stay" in {issue.code for issue in report.issues}
 
 
 def test_offline_output_rejects_ml_segment_hold_without_segment_debug(tmp_path):

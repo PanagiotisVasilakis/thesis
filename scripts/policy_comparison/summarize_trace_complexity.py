@@ -53,7 +53,7 @@ def summarize_trace_records(
         raise ValueError("min_high_fraction must be in [0, 1]")
 
     candidate_counts = [
-        candidate_complexity_for_record(record).viable_candidate_count
+        max(0, candidate_complexity_for_record(record).viable_cell_count - 1)
         for record in records
     ]
     histogram = Counter(candidate_counts)
@@ -93,6 +93,7 @@ def summarize_trace_records(
         "thresholds": threshold_summaries,
         "minimum_threshold": minimum_threshold,
         "minimum_pass": bool(minimum["minimum_pass"]),
+        "complexity_definition": "policy_independent_viable_cell_count_minus_one",
     }
 
 

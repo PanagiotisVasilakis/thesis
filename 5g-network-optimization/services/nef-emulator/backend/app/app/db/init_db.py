@@ -31,6 +31,21 @@ def init_db(db: Session) -> None:
         )
         user = crud.user.create(db, obj_in=user_in)  # noqa: F841
 
+    empty_topology = os.getenv("THESIS_EMPTY_TOPOLOGY", "false").lower() in {
+        "1", "true", "yes"
+    }
+    if empty_topology:
+        from sqlalchemy import text
+
+        if os.getenv("NEF_ALLOW_DB_RESET", "false").lower() not in {"1", "true", "yes"}:
+            raise RuntimeError(
+                "THESIS_EMPTY_TOPOLOGY requires NEF_ALLOW_DB_RESET=true"
+            )
+        logging.warning("Starting with an empty thesis scenario topology")
+        db.execute(text('TRUNCATE TABLE cell, gnb, path, points, ue RESTART IDENTITY CASCADE'))
+        db.commit()
+        return
+
     # user = crud.user.get_by_email(db, email='user@my-email.com')
     # if not user:
     #     user_in = schemas.UserCreate(
@@ -101,7 +116,7 @@ def init_db(db: Session) -> None:
             
         json_data = jsonable_encoder(UE)
         json_data['path_id'] = path_id
-        random_point = get_random_point(db, path_id)
+        random_point = get_random_point(db, path_id, supi)
         if random_point:
             json_data['latitude'] = random_point.get('latitude')
             json_data['longitude'] = random_point.get('longitude')

@@ -475,6 +475,125 @@ class DenseHighwayHandoverScenario(HighwayHandoverScenario):
         return cells
 
 
+class PhysicalHighwayDensityScenario(HighwayHandoverScenario):
+    """Physically modeled highway density profile for thesis v3 evidence."""
+
+    NUM_CELLS = 8
+    PROFILE_NAME = "sparse"
+    CELL_ID_PREFIX = "12"
+    HIGHWAY_BEARING_DEG = 310.0
+
+    def _interpolate_highway_point(self, fraction: float) -> tuple:
+        distance_m = self.HIGHWAY_LENGTH_KM * 1000.0 * fraction
+        angular_distance = distance_m / 6_371_000.0
+        bearing = math.radians(self.HIGHWAY_BEARING_DEG)
+        lat1 = math.radians(self.START_LAT)
+        lon1 = math.radians(self.START_LON)
+        lat2 = math.asin(
+            math.sin(lat1) * math.cos(angular_distance)
+            + math.cos(lat1) * math.sin(angular_distance) * math.cos(bearing)
+        )
+        lon2 = lon1 + math.atan2(
+            math.sin(bearing) * math.sin(angular_distance) * math.cos(lat1),
+            math.cos(angular_distance) - math.sin(lat1) * math.sin(lat2),
+        )
+        return math.degrees(lat2), math.degrees(lon2)
+
+    def get_metadata(self) -> ScenarioMetadata:
+        return ScenarioMetadata(
+            name=f"Physical Highway {self.PROFILE_NAME.title()} Density",
+            description=(
+                f"Standards-anchored 10 km highway profile with {self.NUM_CELLS} "
+                "directional cells and 10 vehicles."
+            ),
+            num_cells=self.NUM_CELLS,
+            num_ues=self.NUM_VEHICLES,
+            area_km2=1.0,
+            primary_use_case="Highway Mobility / Candidate Density Study",
+            service_type_distribution={"embb": 0.50, "urllc": 0.20, "mmtc": 0.30},
+            mobility_distribution={"highway_vehicle": 1.0},
+            expected_handovers_per_minute=float(self.NUM_CELLS),
+        )
+
+    def generate_cells(self) -> List[CellConfig]:
+        site_count = self.NUM_CELLS // 2
+        cells: List[CellConfig] = []
+        for site_index in range(site_count):
+            fraction = (site_index + 0.5) / site_count
+            base_lat, base_lon = self._interpolate_highway_point(fraction)
+            side_offset = 40.0 if site_index % 2 == 0 else -40.0
+            cell_lat, cell_lon = self._perpendicular_offset(
+                base_lat,
+                base_lon,
+                side_offset,
+                self.HIGHWAY_BEARING_DEG,
+            )
+            for sector_index, azimuth in enumerate(
+                (self.HIGHWAY_BEARING_DEG, self.HIGHWAY_BEARING_DEG + 180.0)
+            ):
+                cell_index = site_index * 2 + sector_index + 1
+                cells.append(
+                    CellConfig(
+                        cell_id=f"{self.CELL_ID_PREFIX}{cell_index:07X}",
+                        name=f"highway_{self.PROFILE_NAME}_cell_{cell_index}",
+                        description=(
+                            f"{self.PROFILE_NAME.title()} highway site {site_index + 1} "
+                            f"sector {sector_index + 1}"
+                        ),
+                        latitude=cell_lat,
+                        longitude=cell_lon,
+                        radius=2200,
+                        gNB_id=1,
+                        frequency_band="n78",
+                        tx_power_dbm=46.0,
+                        antenna_height_m=35.0,
+                        azimuth_deg=azimuth % 360.0,
+                        tilt_deg=4.0,
+                        carrier_frequency_hz=3.5e9,
+                        bandwidth_hz=100e6,
+                        resource_blocks=273,
+                        horizontal_beamwidth_deg=65.0,
+                        max_gain_dbi=17.0,
+                        front_to_back_db=30.0,
+                        noise_figure_db=7.0,
+                        # Reuse-3 keeps interference co-channel while allowing
+                        # legitimate inter-frequency handover candidates.
+                        frequency_reuse_group=(site_index % 3) + 1,
+                        los_probability=0.9,
+                    )
+                )
+        return cells
+
+    def generate_ues(self) -> List[UEConfig]:
+        ues = super().generate_ues()
+        for ue in ues:
+            if ue.name.startswith("Truck"):
+                ue.speed_mps = 22.2
+            elif ue.name.startswith("Emergency"):
+                ue.speed_mps = 41.7
+            else:
+                ue.speed_mps = 33.3
+        return ues
+
+
+class SparseHighwayV2Scenario(PhysicalHighwayDensityScenario):
+    NUM_CELLS = 8
+    PROFILE_NAME = "sparse"
+    CELL_ID_PREFIX = "12"
+
+
+class ModerateHighwayV2Scenario(PhysicalHighwayDensityScenario):
+    NUM_CELLS = 16
+    PROFILE_NAME = "moderate"
+    CELL_ID_PREFIX = "13"
+
+
+class DenseHighwayV2Scenario(PhysicalHighwayDensityScenario):
+    NUM_CELLS = 24
+    PROFILE_NAME = "dense"
+    CELL_ID_PREFIX = "14"
+
+
 # ============================================================================
 # CLI Entry Point
 # ============================================================================

@@ -406,7 +406,7 @@ def assign_predefined_path(
     if UE.path_id != item_in.path:
         json_data = jsonable_encoder(UE)
         json_data['path_id'] = item_in.path
-        random_point = get_random_point(db, item_in.path)
+        random_point = get_random_point(db, item_in.path, item_in.supi)
         json_data['latitude'] = random_point.get('latitude')
         json_data['longitude'] = random_point.get('longitude')
         crud.ue.update(db=db, db_obj=UE, obj_in=json_data)

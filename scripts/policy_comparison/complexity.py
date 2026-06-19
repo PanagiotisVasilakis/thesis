@@ -21,6 +21,8 @@ class CandidateComplexity:
     complexity_bucket: str
     viable_candidates: list[str]
     thresholds: dict[str, float]
+    viable_cell_count: int = 0
+    environment_complexity_bucket: str = "sparse"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -28,6 +30,8 @@ class CandidateComplexity:
             "complexity_bucket": self.complexity_bucket,
             "viable_candidates": list(self.viable_candidates),
             "thresholds": dict(self.thresholds),
+            "viable_cell_count": self.viable_cell_count,
+            "environment_complexity_bucket": self.environment_complexity_bucket,
         }
 
 
@@ -66,17 +70,18 @@ def candidate_complexity_for_record(
     high_complexity_threshold: int = DEFAULT_HIGH_COMPLEXITY_THRESHOLD,
 ) -> CandidateComplexity:
     """Count viable non-serving candidates in a canonical trace record."""
-    candidates = [
+    viable_cells = [
         cell.cell_id
         for cell in record.visible_cells
-        if cell.cell_id != record.serving_cell
-        and is_viable_cell(
+        if is_viable_cell(
             cell,
             min_rsrp_dbm=min_rsrp_dbm,
             min_sinr_db=min_sinr_db,
         )
     ]
+    candidates = [cell_id for cell_id in viable_cells if cell_id != record.serving_cell]
     count = len(candidates)
+    environment_candidate_equivalent = max(0, len(viable_cells) - 1)
     return CandidateComplexity(
         viable_candidate_count=count,
         complexity_bucket=complexity_bucket(
@@ -89,6 +94,11 @@ def candidate_complexity_for_record(
             "min_sinr_db": float(min_sinr_db),
             "high_complexity_threshold": float(high_complexity_threshold),
         },
+        viable_cell_count=len(viable_cells),
+        environment_complexity_bucket=complexity_bucket(
+            environment_candidate_equivalent,
+            high_complexity_threshold=high_complexity_threshold,
+        ),
     )
 
 

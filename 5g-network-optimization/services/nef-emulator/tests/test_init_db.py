@@ -78,7 +78,7 @@ def _load_init_db(monkeypatch):
 
     # paths.get_random_point
     paths_mod = ModuleType("app.api.api_v1.endpoints.paths")
-    paths_mod.get_random_point = lambda db, path_id: {
+    paths_mod.get_random_point = lambda db, path_id, deterministic_key="default": {
         "latitude": 0.0, "longitude": 0.0}
     monkeypatch.setitem(
         sys.modules, "app.api.api_v1.endpoints.paths", paths_mod)

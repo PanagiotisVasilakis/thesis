@@ -25,6 +25,7 @@ class RecordingPolicy:
         self._name = name
         self.handover_on_first_step = handover_on_first_step
         self.seen_serving_cells = []
+        self.warmup_calls = 0
 
     @property
     def name(self):
@@ -70,6 +71,12 @@ class RecordingPolicy:
         )
 
 
+class WarmRecordingPolicy(RecordingPolicy):
+    def warmup(self, trace_record):
+        self.warmup_calls += 1
+        self.seen_serving_cells.append(f"warm:{trace_record.serving_cell}")
+
+
 def test_replay_uses_separate_serving_state_per_policy():
     handover_policy = RecordingPolicy("handover-policy", handover_on_first_step=True)
     stay_policy = RecordingPolicy("stay-policy")
@@ -107,3 +114,12 @@ def test_replay_rejects_mixed_topology_hashes():
         assert "same topology_hash" in str(exc)
     else:
         raise AssertionError("mixed topology hashes should be rejected")
+
+
+def test_replay_warms_policy_then_resets_state_before_measurement():
+    policy = WarmRecordingPolicy("warm-policy")
+
+    OfflineReplayRunner([policy]).replay([record(0), record(1)])
+
+    assert policy.warmup_calls == 1
+    assert policy.seen_serving_cells == ["cell-a", "cell-a"]

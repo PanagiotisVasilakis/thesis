@@ -40,6 +40,8 @@ services:
     command: /start-reload.sh
     volumes:
       - ./backend/app:/app
+      - ./antenna_models:/app/antenna_models:ro
+      - ./rf_models:/app/rf_models:ro
       - ../handover-baseline-service:/opt/handover-baseline-service:ro
     env_file:
       - .env
@@ -49,9 +51,14 @@ services:
       - PYTHONPATH=/app:/opt/handover-baseline-service
       - HANDOVER_BASELINE_SERVICE_PATH=${HANDOVER_BASELINE_SERVICE_PATH:-/opt/handover-baseline-service}
       - TUNED_A3_CONFIG_PATH=${TUNED_A3_CONFIG_PATH:-}
+      - THESIS_RF_STRICT=${THESIS_RF_STRICT:-0}
+      - THESIS_EMPTY_TOPOLOGY=${THESIS_EMPTY_TOPOLOGY:-0}
+      - NEF_ALLOW_DB_RESET=${NEF_ALLOW_DB_RESET:-false}
+      - RF_RANDOM_SEED=${RF_RANDOM_SEED:-0}
+      - SCENARIO_RANDOM_SEED=${SCENARIO_RANDOM_SEED:-0}
     build:
-      context: ./backend
-      dockerfile: Dockerfile.backend
+      context: .
+      dockerfile: backend/Dockerfile.backend
       args:
         INSTALL_DEV: ${INSTALL_DEV:-true}
         INSTALL_JUPYTER: ${INSTALL_JUPYTER:-true}

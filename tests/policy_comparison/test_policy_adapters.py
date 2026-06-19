@@ -10,6 +10,7 @@ from scripts.policy_comparison.policy_adapters import (
     FixedA3PolicyAdapter,
     MLPolicyAdapter,
     PolicyAdapterError,
+    SegmentControllerPolicyAdapter,
     StrongestSignalPolicyAdapter,
     TunedA3PolicyAdapter,
     trace_record_to_ml_payload,
@@ -113,6 +114,60 @@ class FakeRankerArtifact:
                 }
             ],
         }
+
+
+class FakeSegmentArtifact:
+    path = Path("segment.joblib")
+    artifact_sha256 = "seg123"
+    model_family = "segment_controller"
+    decision_parameters = {
+        "high_complexity_threshold": 3,
+        "entry_threshold": 0.5,
+        "candidate_margin_min": 10.0,
+        "exit_threshold": 0.7,
+        "consecutive_exit_votes": 3,
+        "min_segment_duration_s": 6.0,
+        "max_segment_duration_s": 45.0,
+        "emergency_rsrp_floor_dbm": -112.0,
+    }
+
+    def score_candidates(self, rows):
+        return {
+            row["candidate_cell"]: {"cell-b": 5.0, "cell-c": 4.0, "cell-d": 3.0}.get(
+                row["candidate_cell"],
+                0.0,
+            )
+            for row in rows
+        }
+
+    def score_entry(self, row):
+        return 0.9
+
+    def score_exit(self, row):
+        return 0.1
+
+    def safe_metadata(self):
+        return {
+            "model_type": "segment_controller_lightgbm_v1",
+            "model_family": "segment_controller",
+            "model_sha256": "seg123",
+            "feature_columns": {
+                "candidate": ["delta_rsrp_db"],
+                "entry": ["best_candidate_margin"],
+                "exit": ["segment_age_s"],
+            },
+            "validation_metrics": {
+                "candidate": {"target_selection_error": 0.1},
+                "entry": {"validation_precision": 0.9},
+                "exit": {"validation_precision": 0.9},
+            },
+            "segment_decision_parameters": self.decision_parameters,
+        }
+
+
+class ExitingFakeSegmentArtifact(FakeSegmentArtifact):
+    def score_exit(self, row):
+        return 0.95
 
 
 def test_fixed_a3_adapter_returns_canonical_schema_without_confidence():
@@ -427,6 +482,165 @@ def test_candidate_ranker_policy_adapter_dwell_guard_suppresses_recent_ml_handov
     assert decision.decision_type == "stay"
     assert decision.debug["dwell_guard_applied"] is True
     assert decision.reason == "ranker_dwell_guard"
+
+
+def test_segment_controller_high_complexity_rejection_stays_without_a3_fallback():
+    adapter = SegmentControllerPolicyAdapter(
+        FakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=StrongestSignalPolicyAdapter(metric="rsrp"),
+        high_complexity_threshold=3,
+        candidate_margin_min=10.0,
+    )
+
+    decision = adapter.decide(high_complexity_trace_record())
+
+    assert decision.policy_name == "complexity_aware_ml_a3"
+    assert decision.decision_type == "stay"
+    assert decision.selected_target_cell is None
+    assert decision.debug["decision_source"] == "ml_segment_rejected_stay"
+    assert decision.debug["ml_backend"] == "segment_controller"
+    assert decision.debug["segment_model_family"] == "segment_controller"
+
+
+def test_segment_controller_high_reject_hold_keeps_sparse_region_on_serving():
+    adapter = SegmentControllerPolicyAdapter(
+        FakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        high_complexity_threshold=3,
+        candidate_margin_min=10.0,
+        high_reject_hold_s=6.0,
+    )
+
+    rejected = adapter.decide(high_complexity_trace_record())
+    held = adapter.decide(trace_record(step_index=1))
+
+    assert rejected.debug["decision_source"] == "ml_segment_rejected_stay"
+    assert held.decision_type == "stay"
+    assert held.selected_target_cell is None
+    assert held.debug["decision_source"] == "ml_segment_rejected_stay_hold"
+    assert held.debug["high_reject_hold_applied"] is True
+    assert held.debug["high_reject_hold_reason"] == "recent_high_complexity_reject"
+
+
+def test_segment_controller_post_exit_a3_guard_suppresses_risky_reverse_handover():
+    adapter = SegmentControllerPolicyAdapter(
+        ExitingFakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        high_complexity_threshold=3,
+        candidate_margin_min=1.0,
+        exit_threshold=0.5,
+        consecutive_exit_votes=1,
+        min_segment_duration_s=0.0,
+        post_exit_a3_guard_s=20.0,
+        post_exit_a3_extra_margin_db=9.0,
+    )
+
+    entry = adapter.decide(high_complexity_trace_record())
+    guarded = adapter.decide(high_complexity_trace_record())
+
+    assert entry.debug["decision_source"] == "ml_segment_entry"
+    assert guarded.decision_type == "stay"
+    assert guarded.debug["decision_source"] == "ml_segment_rejected_stay_hold"
+    assert guarded.debug["post_segment_a3_guard_applied"] is True
+    assert guarded.debug["post_segment_a3_guard_reason"] == "risky_post_segment_a3_handover"
+
+
+def test_segment_controller_post_exit_a3_guard_allows_strong_margin():
+    adapter = SegmentControllerPolicyAdapter(
+        ExitingFakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        high_complexity_threshold=3,
+        candidate_margin_min=1.0,
+        exit_threshold=0.5,
+        consecutive_exit_votes=1,
+        min_segment_duration_s=0.0,
+        post_exit_a3_guard_s=20.0,
+        post_exit_a3_extra_margin_db=3.0,
+    )
+
+    adapter.decide(high_complexity_trace_record())
+    decision = adapter.decide(high_complexity_trace_record())
+
+    assert decision.decision_type == "handover"
+    assert decision.selected_target_cell == "cell-b"
+    assert decision.debug["decision_source"] == "ml_segment_exit_to_a3"
+    assert decision.debug["post_segment_a3_guard_applied"] is False
+
+
+def test_segment_controller_quality_gate_suppresses_healthy_weak_gain_a3():
+    adapter = SegmentControllerPolicyAdapter(
+        FakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        sparse_authority_mode="quality_gated_a3",
+        sparse_serving_rsrp_floor_dbm=-105.0,
+        sparse_serving_sinr_floor_db=-5.0,
+        sparse_a3_extra_margin_db=9.0,
+    )
+
+    decision = adapter.decide(trace_record())
+
+    assert decision.decision_type == "stay"
+    assert decision.debug["decision_source"] == "sparse_authority_stay"
+    assert decision.debug["sparse_authority_applied"] is True
+    assert decision.debug["sparse_authority_reason"] == "healthy_serving_without_strong_gain"
+    assert decision.debug["sparse_serving_weak"] is False
+    assert decision.debug["sparse_a3_margin_db"] == 6.0
+
+
+def test_segment_controller_quality_gate_allows_strong_a3_gain():
+    adapter = SegmentControllerPolicyAdapter(
+        FakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        sparse_authority_mode="quality_gated_a3",
+        sparse_a3_extra_margin_db=3.0,
+    )
+
+    decision = adapter.decide(trace_record())
+
+    assert decision.decision_type == "handover"
+    assert decision.debug["decision_source"] == "a3_complexity_gate"
+    assert decision.debug["sparse_authority_applied"] is False
+    assert decision.debug["sparse_authority_handover_allowed"] is True
+    assert decision.debug["sparse_authority_reason"] == "strong_a3_gain"
+
+
+def test_segment_controller_stay_unless_weak_requires_weak_serving_and_gain():
+    weak_record = feature_vector_to_trace_record(
+        {
+            "ue_id": "ue-1",
+            "latitude": 37.1,
+            "longitude": 23.2,
+            "connected_to": "cell-a",
+            "neighbor_rsrp_dbm": {"cell-a": -110.0, "cell-b": -100.0},
+            "neighbor_sinrs": {"cell-a": -6.0, "cell-b": 2.0},
+        },
+        scenario="highway",
+        seed=7,
+        step_index=0,
+        timestamp_s=0.0,
+    )
+    adapter = SegmentControllerPolicyAdapter(
+        FakeSegmentArtifact(),
+        policy_name="complexity_aware_ml_a3",
+        sparse_policy=FakeSparseHandoverPolicy(),
+        sparse_authority_mode="stay_unless_weak",
+        sparse_serving_rsrp_floor_dbm=-105.0,
+        sparse_serving_sinr_floor_db=-5.0,
+        sparse_a3_extra_margin_db=3.0,
+    )
+
+    decision = adapter.decide(weak_record)
+
+    assert decision.decision_type == "handover"
+    assert decision.debug["sparse_serving_weak"] is True
+    assert decision.debug["sparse_a3_strong_gain"] is True
+    assert decision.debug["sparse_authority_reason"] == "weak_serving_with_strong_gain"
 
 
 class FakeSparsePolicy:

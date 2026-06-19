@@ -230,6 +230,12 @@ def feature_vector_to_trace_record(
         observed_qos=latest_qos,
         source=source,
         metadata={
+            "trace_schema_version": 3,
+            "rf_provenance": dict(feature_vector.get("rf_provenance") or {}),
+            "qos_provenance": dict(feature_vector.get("qos_provenance") or {}),
+            "movement_provenance": dict(
+                feature_vector.get("movement_provenance") or {}
+            ),
             "feature_vector_keys": sorted(str(key) for key in feature_vector.keys()),
             "ml_features": {
                 key: feature_vector[key]
@@ -237,6 +243,16 @@ def feature_vector_to_trace_record(
                 if feature_vector.get(key) is not None
             },
         },
+        trace_schema_version=int(feature_vector.get("trace_schema_version") or 3),
+        initial_serving_cell=serving_cell,
+        topology_cell_ids=[
+            str(item)
+            for item in (
+                (feature_vector.get("rf_provenance") or {}).get(
+                    "canonical_cell_ids", []
+                )
+            )
+        ],
     )
 
 

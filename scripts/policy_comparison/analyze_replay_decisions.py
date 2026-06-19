@@ -77,6 +77,27 @@ def _analyze_policy(policy: str, decisions: Sequence[PolicyDecisionRecord]) -> d
     selected_scores: list[float] = []
     margins: list[float] = []
     dwell_samples: list[float] = []
+    segment_durations: list[float] = []
+    segment_entries_per_ue: Counter[str] = Counter()
+    segment_exits_per_ue: Counter[str] = Counter()
+    segment_exit_reasons: Counter[str] = Counter()
+    segment_entry_count = 0
+    segment_exit_count = 0
+    emergency_exit_count = 0
+    post_segment_a3_guard_suppression_count = 0
+    high_reject_hold_count = 0
+    post_segment_a3_handover_count = 0
+    post_segment_ping_pong_count = 0
+    sparse_moderate_churn_after_ml_count = 0
+    sparse_authority_suppression_count = 0
+    sparse_authority_handover_count = 0
+    sparse_authority_reasons: Counter[str] = Counter()
+    high_complexity_rejected_stay_count = 0
+    entry_scores: list[float] = []
+    exit_scores: list[float] = []
+    segment_timeline_by_ue: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    last_segment_exit_by_ue: dict[str, PolicyDecisionRecord] = {}
+    last_ml_authority_by_ue: dict[str, PolicyDecisionRecord] = {}
     last_handover_by_ue: dict[str, PolicyDecisionRecord] = {}
     last_source_by_ue: dict[str, str] = {}
     dwell_start_by_ue: dict[str, float] = {}
@@ -100,11 +121,75 @@ def _analyze_policy(policy: str, decisions: Sequence[PolicyDecisionRecord]) -> d
         margin = decision.debug.get("ranker_margin_vs_stay")
         if isinstance(margin, (int, float)) and math.isfinite(float(margin)):
             margins.append(float(margin))
+        entry_score = decision.debug.get("entry_score")
+        if isinstance(entry_score, (int, float)) and math.isfinite(float(entry_score)):
+            entry_scores.append(float(entry_score))
+        exit_score = decision.debug.get("exit_score")
+        if isinstance(exit_score, (int, float)) and math.isfinite(float(exit_score)):
+            exit_scores.append(float(exit_score))
+
+        if source == "ml_segment_entry":
+            segment_entry_count += 1
+            segment_entries_per_ue[decision.ue_id] += 1
+            segment_timeline_by_ue[decision.ue_id].append(
+                {
+                    "step_index": decision.step_index,
+                    "timestamp_s": decision.timestamp_s,
+                    "event": "entry",
+                    "target": decision.selected_target_cell,
+                    "entry_score": entry_score,
+                }
+            )
+        if source in {"ml_segment_exit_to_a3", "ml_segment_emergency_exit"}:
+            segment_exit_count += 1
+            segment_exits_per_ue[decision.ue_id] += 1
+            exit_reason = str(decision.debug.get("segment_exit_reason") or "unknown")
+            segment_exit_reasons[exit_reason] += 1
+            if source == "ml_segment_emergency_exit":
+                emergency_exit_count += 1
+            age = decision.debug.get("segment_age_s")
+            if isinstance(age, (int, float)) and math.isfinite(float(age)):
+                segment_durations.append(float(age))
+            last_segment_exit_by_ue[decision.ue_id] = decision
+            last_ml_authority_by_ue[decision.ue_id] = decision
+            segment_timeline_by_ue[decision.ue_id].append(
+                {
+                    "step_index": decision.step_index,
+                    "timestamp_s": decision.timestamp_s,
+                    "event": source,
+                    "reason": exit_reason,
+                    "exit_score": exit_score,
+                    "age_s": age,
+                }
+            )
+        if source in {
+            "ml_segment_entry",
+            "ml_segment_hold",
+            "ml_segment_rejected_stay",
+            "ml_segment_rejected_stay_hold",
+        }:
+            last_ml_authority_by_ue[decision.ue_id] = decision
+        if source == "ml_segment_rejected_stay" and bucket == "high":
+            high_complexity_rejected_stay_count += 1
+        if decision.debug.get("post_segment_a3_guard_applied") is True:
+            post_segment_a3_guard_suppression_count += 1
+        if decision.debug.get("high_reject_hold_applied") is True:
+            high_reject_hold_count += 1
+        if decision.debug.get("sparse_authority_applied") is True:
+            sparse_authority_suppression_count += 1
+            sparse_authority_reasons[
+                str(decision.debug.get("sparse_authority_reason") or "unknown")
+            ] += 1
 
         if decision.decision_type != "handover" or decision.selected_target_cell is None:
             continue
 
         handovers_by_bucket[bucket] += 1
+        if decision.debug.get("sparse_authority_mode") in {
+            "quality_gated_a3",
+            "stay_unless_weak",
+        }:
+            sparse_authority_handover_count += 1
         handovers_by_source[source] += 1
         handovers_per_ue[decision.ue_id] += 1
         target_pairs[f"{decision.current_serving_cell}->{decision.selected_target_cell}"] += 1
@@ -119,6 +204,26 @@ def _analyze_policy(policy: str, decisions: Sequence[PolicyDecisionRecord]) -> d
         if previous_source is not None:
             source_transitions[f"{previous_source}->{source}"] += 1
         previous = last_handover_by_ue.get(decision.ue_id)
+        previous_exit = last_segment_exit_by_ue.get(decision.ue_id)
+        if (
+            previous_exit is not None
+            and source == "a3_complexity_gate"
+            and decision.timestamp_s - previous_exit.timestamp_s <= 60.0
+        ):
+            post_segment_a3_handover_count += 1
+            if (
+                decision.selected_target_cell == previous_exit.current_serving_cell
+                or decision.current_serving_cell == previous_exit.selected_target_cell
+            ):
+                post_segment_ping_pong_count += 1
+        previous_ml = last_ml_authority_by_ue.get(decision.ue_id)
+        if (
+            previous_ml is not None
+            and source == "a3_complexity_gate"
+            and bucket in {"sparse", "moderate"}
+            and decision.timestamp_s - previous_ml.timestamp_s <= 60.0
+        ):
+            sparse_moderate_churn_after_ml_count += 1
         if (
             previous is not None
             and _source(previous) in {
@@ -151,6 +256,27 @@ def _analyze_policy(policy: str, decisions: Sequence[PolicyDecisionRecord]) -> d
         "ranker_score_distribution": _stats(ranker_scores),
         "ranker_selected_score_distribution": _stats(selected_scores),
         "ranker_margin_distribution": _stats(margins),
+        "segment_entry_count": segment_entry_count,
+        "segment_exit_count": segment_exit_count,
+        "emergency_exit_count": emergency_exit_count,
+        "post_segment_a3_guard_suppression_count": post_segment_a3_guard_suppression_count,
+        "high_reject_hold_count": high_reject_hold_count,
+        "segment_entries_per_ue": dict(segment_entries_per_ue.most_common()),
+        "segment_exits_per_ue": dict(segment_exits_per_ue.most_common()),
+        "segment_exit_reasons": dict(segment_exit_reasons.most_common()),
+        "segment_duration_s": _stats(segment_durations),
+        "post_segment_a3_handover_count": post_segment_a3_handover_count,
+        "post_segment_ping_pong_count": post_segment_ping_pong_count,
+        "sparse_moderate_churn_after_ml_count": sparse_moderate_churn_after_ml_count,
+        "sparse_authority_suppression_count": sparse_authority_suppression_count,
+        "sparse_authority_handover_count": sparse_authority_handover_count,
+        "sparse_authority_reasons": dict(sparse_authority_reasons.most_common()),
+        "high_complexity_rejected_stay_count": high_complexity_rejected_stay_count,
+        "entry_score_distribution": _stats(entry_scores),
+        "exit_score_distribution": _stats(exit_scores),
+        "segment_state_timelines": {
+            ue: events[:100] for ue, events in sorted(segment_timeline_by_ue.items())
+        },
     }
 
 
@@ -216,6 +342,14 @@ def _markdown(report: dict[str, Any]) -> str:
                 f"- Top current->target pairs: `{json.dumps(payload['top_current_to_target_pairs'], sort_keys=True)}`",
                 f"- Dwell stats: `{json.dumps(payload['dwell_time_s'], sort_keys=True)}`",
                 f"- Ranker margin stats: `{json.dumps(payload['ranker_margin_distribution'], sort_keys=True)}`",
+                f"- Segment entries/exits/emergency: `{payload['segment_entry_count']}` / `{payload['segment_exit_count']}` / `{payload['emergency_exit_count']}`",
+                f"- Guard suppressions / high-reject holds: `{payload['post_segment_a3_guard_suppression_count']}` / `{payload['high_reject_hold_count']}`",
+                f"- Segment durations: `{json.dumps(payload['segment_duration_s'], sort_keys=True)}`",
+                f"- Segment exit reasons: `{json.dumps(payload['segment_exit_reasons'], sort_keys=True)}`",
+                f"- Post-segment A3 handovers: `{payload['post_segment_a3_handover_count']}`",
+                f"- Sparse/moderate churn after ML: `{payload['sparse_moderate_churn_after_ml_count']}`",
+                f"- Sparse authority suppressions / handovers: `{payload['sparse_authority_suppression_count']}` / `{payload['sparse_authority_handover_count']}`",
+                f"- Sparse authority reasons: `{json.dumps(payload['sparse_authority_reasons'], sort_keys=True)}`",
                 "",
             ]
         )

@@ -85,6 +85,9 @@ class MeasurementTraceRecord:
     observed_qos: Optional[Dict[str, float]] = None
     source: str = "nef_feature_vector"
     metadata: Dict[str, Any] = field(default_factory=dict)
+    trace_schema_version: int = 1
+    initial_serving_cell: Optional[str] = None
+    topology_cell_ids: List[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         _require_non_empty("scenario", self.scenario)
@@ -106,6 +109,8 @@ class MeasurementTraceRecord:
             _require_finite(f"ue_position.{key}", float(value))
         if self.speed_mps is not None:
             _require_finite("speed_mps", self.speed_mps)
+        if self.trace_schema_version < 1:
+            raise TraceSchemaError("trace_schema_version must be positive")
 
         cell_ids = [cell.cell_id for cell in self.visible_cells]
         if len(set(cell_ids)) != len(cell_ids):
@@ -170,6 +175,13 @@ class MeasurementTraceRecord:
             observed_qos=_optional_float_mapping(data.get("observed_qos")),
             source=str(data.get("source", "nef_feature_vector")),
             metadata=dict(data.get("metadata") or {}),
+            trace_schema_version=int(data.get("trace_schema_version", 1)),
+            initial_serving_cell=(
+                None
+                if data.get("initial_serving_cell") is None
+                else str(data.get("initial_serving_cell"))
+            ),
+            topology_cell_ids=[str(item) for item in data.get("topology_cell_ids") or []],
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -189,6 +201,9 @@ class MeasurementTraceRecord:
             "observed_qos": self.observed_qos,
             "source": self.source,
             "metadata": self.metadata,
+            "trace_schema_version": self.trace_schema_version,
+            "initial_serving_cell": self.initial_serving_cell,
+            "topology_cell_ids": list(self.topology_cell_ids),
         }
 
 

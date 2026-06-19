@@ -143,3 +143,77 @@ def test_metrics_roll_up_cost_by_complexity_bucket():
     assert summary.complexity_sparse_composite_cost == summary.complexity_bucket_costs["sparse"]
     assert summary.complexity_moderate_composite_cost == 0.0
     assert summary.composite_cost == sum(summary.complexity_bucket_costs.values())
+
+
+def test_metric_v2_scores_sinr_and_only_over_budget_latency():
+    summary = summarize_policy_decisions(
+        "test-policy",
+        [
+            decision(
+                0,
+                "cell-a",
+                debug={"cell_sinrs": {"cell-a": -10.0, "cell-b": -8.0}},
+            ),
+            PolicyDecisionRecord(
+                **{
+                    **decision(
+                        1,
+                        "cell-a",
+                        target="cell-b",
+                        debug={"cell_sinrs": {"cell-a": -10.0, "cell-b": -8.0}},
+                    ).to_dict(),
+                    "decision_latency_ms": 20.0,
+                }
+            ),
+        ],
+        low_quality_sinr_floor_db=-5.0,
+        decision_latency_budget_ms=10.0,
+    )
+
+    assert summary.composite_cost_version == "v2_rsrp_sinr_latency_budget"
+    assert summary.low_sinr_step_count == 2
+    assert summary.poor_handover_target_sinr_count == 1
+    assert summary.latency_budget_violation_count == 1
+    assert summary.avg_serving_sinr_db == -10.0
+    assert summary.avg_handover_target_sinr_db == -8.0
+
+
+def test_metric_v3_normalizes_rates_and_uses_environment_bucket():
+    summary = summarize_policy_decisions(
+        "test-policy",
+        [
+            decision(
+                0,
+                "cell-a",
+                debug={
+                    "candidate_complexity": {
+                        "viable_candidate_count": 1,
+                        "complexity_bucket": "sparse",
+                        "environment_complexity_bucket": "high",
+                    },
+                    "cell_sinrs": {"cell-a": -10.0, "cell-b": 2.0},
+                    "qos_compliance": {"passed": False},
+                },
+            ),
+            decision(
+                1,
+                "cell-a",
+                target="cell-b",
+                debug={
+                    "candidate_complexity": {
+                        "viable_candidate_count": 1,
+                        "complexity_bucket": "sparse",
+                        "environment_complexity_bucket": "high",
+                    },
+                    "cell_sinrs": {"cell-a": -10.0, "cell-b": 2.0},
+                },
+            ),
+        ],
+        metric_version="v3_physical_qos_cost",
+    )
+    assert summary.composite_cost_version == "v3_physical_qos_cost"
+    assert summary.complexity_bucket_counts == {"high": 2}
+    assert summary.observation_time_ue_minutes > 0
+    assert summary.handovers_per_ue_minute > 0
+    assert summary.sinr_outage_fraction == 1.0
+    assert summary.composite_cost_sensitivity["safety_heavy"] >= summary.composite_cost

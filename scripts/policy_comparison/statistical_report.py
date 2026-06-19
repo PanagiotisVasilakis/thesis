@@ -36,12 +36,23 @@ LOWER_IS_BETTER = {
     "complexity_sparse_composite_cost",
     "complexity_moderate_composite_cost",
     "complexity_high_composite_cost",
+    "handovers_per_ue_minute",
+    "ping_pongs_per_ue_minute",
+    "qos_violations_per_ue_minute",
+    "rlf_proxies_per_ue_minute",
+    "sinr_outage_fraction",
+    "handover_interruption_time_s",
+    "poor_handover_target_sinr_count",
+    "latency_budget_violation_count",
 }
 HIGHER_IS_BETTER = {
     "avg_dwell_time_s",
     "min_serving_rsrp_dbm",
     "avg_serving_rsrp_dbm",
     "avg_handover_target_rsrp_dbm",
+    "min_serving_sinr_db",
+    "avg_serving_sinr_db",
+    "avg_handover_target_sinr_db",
     "qos_compliance_ok",
 }
 

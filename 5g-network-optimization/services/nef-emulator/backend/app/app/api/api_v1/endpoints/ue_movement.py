@@ -12,9 +12,31 @@ from app.db.session import SessionLocal, client
 from app.api import deps
 from app.api.websocket_auth import require_websocket_user
 from app.api.api_v1.state_manager import state_manager
+try:
+    from app.simulation.mobility import (
+        advance_ping_pong as _advance_ping_pong,
+        configured_speed_mps as _configured_speed_mps,
+        interpolate_path_position as _interpolate_path_position,
+        path_cumulative_distances as _path_cumulative_distances,
+    )
+except ModuleNotFoundError:  # pragma: no cover - isolated legacy source-loader tests
+    if os.getenv("TESTING", "").lower() not in {"1", "true", "yes"}:
+        raise
+
+    def _path_cumulative_distances(points):
+        return [float(index) for index in range(len(points))]
+
+    def _interpolate_path_position(points, cumulative, distance):
+        index = min(len(points) - 1, max(0, int(distance)))
+        return float(points[index]["latitude"]), float(points[index]["longitude"]), index
+
+    def _advance_ping_pong(distance, direction, delta, length):
+        return distance, direction
+
+    def _configured_speed_mps(ue_data):
+        return float(ue_data.get("speed_mps") or 0.0)
 
 logger = logging.getLogger(__name__)
-
 
 def log_timer_exception(ex: Exception) -> None:
     """Log timer exceptions and track how many times they occur."""
@@ -58,6 +80,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback used only in tests
     class _FallbackRuntime:
         ensure_topology = staticmethod(lambda *args, **kwargs: None)
         upsert_ue_state = staticmethod(lambda *args, **kwargs: None)
+        set_movement_provenance = staticmethod(lambda *args, **kwargs: None)
         decide_handover = staticmethod(lambda *args, **kwargs: None)
         get_cell_by_key = staticmethod(lambda *args, **kwargs: None)
 
@@ -132,6 +155,10 @@ class _RealBackgroundTasks(threading.Thread):
             state_manager.remove_ue(supi)
             return
 
+        path_distances = _path_cumulative_distances(points)
+        path_distance_m = 0.0
+        path_direction = 1
+
         # find the index of the point where the UE is located
         for index, point in enumerate(points):
             if ue_data["latitude"] == point["latitude"] and ue_data["longitude"] == point["longitude"]:
@@ -148,11 +175,28 @@ class _RealBackgroundTasks(threading.Thread):
             ue_data["latitude"] = points[0]["latitude"]
             ue_data["longitude"] = points[0]["longitude"]
 
+        path_distance_m = path_distances[current_position_index]
+        last_position_update_monotonic = time.monotonic()
+
         moving_position_index = current_position_index
 
         handover_runtime.ensure_topology(json_cells)
         initial_candidate = check_distance(ue_data["latitude"], ue_data["longitude"], json_cells)
-        handover_runtime.upsert_ue_state(supi, ue_data["latitude"], ue_data["longitude"], ue_data.get("speed"), ue_data.get("Cell_id"), initial_candidate.get("id") if initial_candidate else None)
+        handover_runtime.upsert_ue_state(supi, ue_data["latitude"], ue_data["longitude"], _configured_speed_mps(ue_data), ue_data.get("Cell_id"), initial_candidate.get("id") if initial_candidate else None)
+        handover_runtime.set_movement_provenance(
+            supi,
+            {
+                "model": "distance_over_elapsed_time_ping_pong_v1",
+                "coordinate_frame": "local_cartesian_m",
+                "configured_speed_mps": _configured_speed_mps(ue_data),
+                "path_distance_m": path_distance_m,
+                "path_length_m": path_distances[-1],
+                "path_direction": path_direction,
+                "elapsed_s": 0.0,
+                "endpoint_reversal": False,
+            },
+        )
+        handover_runtime.set_ue_profile(supi, ue_data)
 
         external_id = ue_data.get("external_identifier")
         ipv4_addr = ue_data.get("ip_address_v4")
@@ -193,6 +237,16 @@ class _RealBackgroundTasks(threading.Thread):
                 return False, None
 
         while True:
+            movement_now = time.monotonic()
+            elapsed_s = max(0.0, movement_now - last_position_update_monotonic)
+            previous_path_direction = path_direction
+            path_distance_m, path_direction = _advance_ping_pong(
+                path_distance_m,
+                path_direction,
+                _configured_speed_mps(ue_data) * elapsed_s,
+                path_distances[-1],
+            )
+            last_position_update_monotonic = movement_now
             previous_cell_id = ue_data.get("Cell_id")
             cell_now = None
             candidate_id = None
@@ -201,8 +255,13 @@ class _RealBackgroundTasks(threading.Thread):
             effective_cell = None
             now_ts = time.time()
             try:
-                ue_data["latitude"] = points[current_position_index]["latitude"]
-                ue_data["longitude"] = points[current_position_index]["longitude"]
+                latitude, longitude, current_position_index = _interpolate_path_position(
+                    points,
+                    path_distances,
+                    path_distance_m,
+                )
+                ue_data["latitude"] = latitude
+                ue_data["longitude"] = longitude
                 cell_now = check_distance(ue_data["latitude"], ue_data["longitude"], json_cells)
                 candidate_id = cell_now.get("id") if cell_now else None
 
@@ -213,7 +272,20 @@ class _RealBackgroundTasks(threading.Thread):
                 if current_key != candidate_key:
                     logger.info("UE %s handover candidate %s -> %s at lat=%s lon=%s", supi, current_key, candidate_key, ue_data["latitude"], ue_data["longitude"])
 
-                handover_runtime.upsert_ue_state(supi, ue_data["latitude"], ue_data["longitude"], ue_data.get("speed"), previous_cell_id, candidate_id)
+                handover_runtime.upsert_ue_state(supi, ue_data["latitude"], ue_data["longitude"], _configured_speed_mps(ue_data), previous_cell_id, candidate_id)
+                handover_runtime.set_movement_provenance(
+                    supi,
+                    {
+                        "model": "distance_over_elapsed_time_ping_pong_v1",
+                        "coordinate_frame": "local_cartesian_m",
+                        "configured_speed_mps": _configured_speed_mps(ue_data),
+                        "path_distance_m": path_distance_m,
+                        "path_length_m": path_distances[-1],
+                        "path_direction": path_direction,
+                        "elapsed_s": elapsed_s,
+                        "endpoint_reversal": path_direction != previous_path_direction,
+                    },
+                )
 
                 # Update UE signal metrics (RSRP/SINR) based on current position
                 # These are calculated dynamically by the NetworkStateManager using RF models
@@ -522,40 +594,9 @@ class _RealBackgroundTasks(threading.Thread):
                 ue_data["cell_id_hex"] = None
                 ue_data["gnb_id_hex"] = None
 
-            step = 1
-            speed_value = ue_data.get("speed")
-            if isinstance(speed_value, str):
-                speed_norm = speed_value.strip().upper()
-                if speed_norm == "LOW":
-                    step = 1
-                elif speed_norm == "HIGH":
-                    step = 10
-                elif speed_norm == "STATIONARY":
-                    step = 0
-                elif speed_norm and speed_norm != "STATIONARY":
-                    logger.debug(
-                        "UE %s uses custom speed %s; defaulting to step=%s",
-                        supi,
-                        speed_value,
-                        step,
-                    )
-            elif isinstance(speed_value, (int, float)):
-                step = max(0, int(round(speed_value)))
-
-            moving_position_index = moving_position_index + step
-            next_index = moving_position_index % len(points)
-            logger.debug(
-                "MOVEMENT_LOOP_STEP supi=%s step=%s next_idx=%s",
-                supi,
-                step,
-                next_index,
-            )
-
             self._wait_event.clear()
             interval = parse_env_float("UE_MOVEMENT_INTERVAL_SECONDS", 1.0, min_value=0.1)
             self._wait_event.wait(interval)
-
-            current_position_index = next_index
             state_manager.set_ue(supi, ue_data)
 
             if self._stop_threads:
